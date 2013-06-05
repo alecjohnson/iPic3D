@@ -47,7 +47,10 @@ dummytargetforcomment:
 	mpiexec.hydra -host knc2-mic0 -n 16 -env OMP_NUM_THREADS=15 -env KMP_AFFINITY=balance ./iPIC3D inputfiles/DOUBLE.inp
 
 run:
-	mpiexec.hydra -host `hostname`-mic1 -n 60 -env OMP_NUM_THREADS=4 ./iPIC3D inputfiles/Small.inp
+	mpiexec.hydra -host `hostname`-mic0 -n 60 -env OMP_NUM_THREADS=4 ./iPIC3D inputfiles/Random.inp
+
+runlocal:
+	mpiexec -n 60 -env OMP_NUM_THREADS=4 ./iPIC3D inputfiles/Random.inp
 
 monitor:
 	less +F data/ConservedQuantities.txt
