@@ -7,7 +7,7 @@
 #define ComBasic_H
 
 #include <mpi.h>
-//#include "../utility/TimeTasks.h"
+#include "../utility/errors.h"
 #include "ComParser3D.h"
 
 
@@ -93,150 +93,147 @@ inline void communicateGhostFace(int b_len, int myrank, int right_neighbor, int 
 
   delete[]LEN;
 }
-/** communicate ghost edge along a direction; there are 6 Diagonal directions through which we exchange Ghost Edges :
-  0 = from   XrightYrightZsame to YleftZleftZsame; we exchange Z edge
-  1 = from   XrightYleftZsame to XleftYrightZsame; we exchange Z edge
-  2 = from   XrightYsameZright to XleftYsameZsame; we exchange Y edge
-  3 = from   XrightYsameZleft to XleftYsameZright; we exchange Y edge
-  4 = from   XsameYrightZright to XsameYleftZleft; we exchange X edge
-  5 = from   XsameYrightZleft to XsameYleftZright; we exchange X edge
-  */
-inline void communicateGhostEdge(int b_len, int myrank, int right_neighborD, int left_neighborD, int DIR, int XLEN, int YLEN, int ZLEN, double *ghostRightEdge, double *ghostLeftEdge) {
-  MPI_Status status;
-  int rankE;
-  bool comNotDone = true;
-  if (XLEN > 1 && YLEN > 1 && ZLEN > 1) {
-    if (DIR == 0 || DIR == 1)   // Z same 
-      rankE = (int) floor((double) myrank / (ZLEN * YLEN));
-    else if (DIR == 2 || DIR == 3)  // Y same
-      rankE = (int) floor((double) myrank / (ZLEN * XLEN));
-    else if (DIR == 4 || DIR == 5)  // X same
-      rankE = (int) floor((double) myrank / (ZLEN));
-  }
-  if (XLEN == 1 && YLEN > 1 && ZLEN > 1) {
-    if (DIR == 0 || DIR == 1)   // Z same 
-      rankE = (int) floor((double) myrank / ZLEN);
-    else if (DIR == 2 || DIR == 3)  // Y same
-      rankE = myrank;
-    else if (DIR == 4 || DIR == 5)  // X same
-      rankE = myrank;           // not important for deadlock should just swap
-  }
-  if (XLEN > 1 && YLEN == 1 && ZLEN > 1) {
-    if (DIR == 0 || DIR == 1)   // Z same 
-      rankE = (int) floor((double) myrank / (ZLEN));
-    else if (DIR == 2 || DIR == 3)  // Y same
-      rankE = myrank;
-    else if (DIR == 4 || DIR == 5)  // X same
-      rankE = (int) floor((double) myrank / (ZLEN));
-  }
-  if (XLEN > 1 && YLEN > 1 && ZLEN == 1) {
-    if (DIR == 0 || DIR == 1)   // Z same 
-      rankE = myrank;           // should not matter
-    else if (DIR == 2 || DIR == 3)  // Y same
-      rankE = (int) floor((double) myrank / (YLEN));
-    else if (DIR == 4 || DIR == 5)  // X same
-      rankE = (int) floor((double) myrank / (YLEN));
-  }
-  else {
-    rankE = myrank;
-  }
 
-
-  // swap 
-  if (right_neighborD == myrank && left_neighborD == myrank) {
-    swapBuffer(b_len, ghostLeftEdge, ghostRightEdge);
-    comNotDone = false;
-  }
-  // If processors are available in diagonal comunicate in Diagonal: use rankE to avoid deadlocks
-  if (rankE % 2 == 0 && right_neighborD != MPI_PROC_NULL && comNotDone) { // 
-    MPI_Sendrecv_replace(&ghostRightEdge[0], b_len, MPI_DOUBLE, right_neighborD, 1, right_neighborD, 1, MPI_COMM_WORLD, &status);
-  }
-  else if (rankE % 2 == 1 && left_neighborD != MPI_PROC_NULL && comNotDone) { // 
-    MPI_Sendrecv_replace(&ghostLeftEdge[0], b_len, MPI_DOUBLE, left_neighborD, 1, left_neighborD, 1, MPI_COMM_WORLD, &status);
-  }
-
-  if (rankE % 2 == 1 && right_neighborD != MPI_PROC_NULL && comNotDone) { // 
-    MPI_Sendrecv_replace(&ghostRightEdge[0], b_len, MPI_DOUBLE, right_neighborD, 1, right_neighborD, 1, MPI_COMM_WORLD, &status);
-
-  }
-  else if (rankE % 2 == 0 && left_neighborD != MPI_PROC_NULL && comNotDone) {
-    MPI_Sendrecv_replace(&ghostLeftEdge[0], b_len, MPI_DOUBLE, left_neighborD, 1, left_neighborD, 1, MPI_COMM_WORLD, &status);
-
-  }
-
-
-}
-/** Communicate ghost corners along a direction; there are 4 Diagonal directions through which we exchange Ghost Corners:
-  0 =  from XrightYrightZright to XleftYleftZleft
-  1 =  from XrightYleftZright  to XleftYrightZleft
-  2 =  from XleftYrightZright  to XrightYleftZleft
-  3 =  from XleftYleftZright   to XrightYrightZleft
-  */
-inline void communicateGhostCorner(int myrank, int right_neighborC, int left_neighborC, int DIR, int XLEN, int YLEN, int ZLEN, double *ghostRightCorner, double *ghostLeftCorner) {
-  MPI_Status status;
-  int rankC;
-  bool comNotDone = true;
-  if (XLEN > 1 && YLEN > 1 && ZLEN > 1) {
-    rankC = (int) floor((double) (myrank / (YLEN * ZLEN)));
-  }
-  else if (XLEN == 1 && YLEN > 1 && ZLEN > 1) {
-    rankC = (int) floor((double) myrank / ZLEN);
-  }
-  else if (XLEN > 1 && YLEN == 1 && ZLEN > 1) {
-    rankC = (int) floor((double) myrank / (ZLEN));
-  }
-  else if (XLEN > 1 && YLEN > 1 && ZLEN == 1) {
-    rankC = (int) floor((double) myrank / (YLEN));
-  }
-  else {
-    rankC = myrank;
-  }
-
-
-  // commmunicate
-  if (right_neighborC == myrank && left_neighborC == myrank) {
-    swapBuffer(1, ghostLeftCorner, ghostRightCorner);
-    comNotDone = false;
-  }
-  // if it's possible communicate corners
-  if (rankC % 2 == 0 && right_neighborC != MPI_PROC_NULL && comNotDone) { // 
-    MPI_Sendrecv_replace(ghostRightCorner, 1, MPI_DOUBLE, right_neighborC, 1, right_neighborC, 1, MPI_COMM_WORLD, &status);
-
-  }
-  else if (rankC % 2 == 1 && left_neighborC != MPI_PROC_NULL && comNotDone) { // 
-    MPI_Sendrecv_replace(ghostLeftCorner, 1, MPI_DOUBLE, left_neighborC, 1, left_neighborC, 1, MPI_COMM_WORLD, &status);
-
-  }
-
-  if (rankC % 2 == 1 && right_neighborC != MPI_PROC_NULL && comNotDone) { // 
-    MPI_Sendrecv_replace(ghostRightCorner, 1, MPI_DOUBLE, right_neighborC, 1, right_neighborC, 1, MPI_COMM_WORLD, &status);
-
-  }
-  else if (rankC % 2 == 0 && left_neighborC != MPI_PROC_NULL && comNotDone) { // 
-    MPI_Sendrecv_replace(ghostLeftCorner, 1, MPI_DOUBLE, left_neighborC, 1, left_neighborC, 1, MPI_COMM_WORLD, &status);
-
-  }
-
-
-
-
-
+inline int my_MPI_Sendrecv_replace(void *buf, int count, MPI_Datatype datatype,
+              int dest, int sendtag, int source, int recvtag, MPI_Comm comm,
+              MPI_Status *status)
+{
+   MPI_Request requests[2];
+   MPI_Status statuses[2];
+   assert(datatype==MPI_DOUBLE);
+   //size_t numbytes = MPI_Sizeof(datatype)*count;
+   size_t numbytes = sizeof(double)*count;
+   void* sendbuffer = malloc(numbytes);
+   memcpy(sendbuffer, buf, numbytes);
+   MPI_Isend(sendbuffer, count, datatype,
+     dest, sendtag, comm, &requests[0]);
+   MPI_Irecv(buf, count, datatype,
+     source, recvtag, comm, &requests[1]);
+   MPI_Waitall(2,requests,statuses);
+   // I don't know how to populate status, so I don't
+   free(sendbuffer);
 }
 
+/** communicate ghost along a direction **/
+inline void communicateGhostFace(int b_len,
+  int DIR, double *ghostRightFace, double *ghostLeftFace,
+  MPI_Request* requests,
+  VirtualTopology3D* vct)
+{
+  MPI_Status status;
+  const int myrank = vct->getCartesian_rank();
+  int rankF;
+  int const * const LEN = vct->getLEN();
+  switch (DIR) {
+    case 0:
+      rankF = (int) floor((double) myrank / (LEN[2] * LEN[1]));
+      break;
+    case 1:
+      rankF = (int) floor((double) myrank / LEN[2]);
+      break;
+    case 2:
+      rankF = myrank;
+      break;
+  }
+  int rght_neighbor=-1;
+  int left_neighbor=-1;
+  switch(DIR)
+  {
+    case 0:
+      rght_neighbor = vct->getXright_neighbor_P();
+      left_neighbor = vct->getXleft_neighbor_P();
+      break;
+    case 1:
+      rght_neighbor = vct->getYright_neighbor_P();
+      left_neighbor = vct->getYleft_neighbor_P();
+      break;
+    case 2:
+      rght_neighbor = vct->getZright_neighbor_P();
+      left_neighbor = vct->getZleft_neighbor_P();
+      break;
+    default:
+      invalid_value_error(DIR);
+  }
+  if (rankF % 2 == 0 && rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
+    my_MPI_Sendrecv_replace(&ghostRightFace[0], b_len, MPI_DOUBLE, rght_neighbor, 1, rght_neighbor, 1, MPI_COMM_WORLD, &status);
+  else if (rankF % 2 == 1 && left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
+    my_MPI_Sendrecv_replace(&ghostLeftFace[0], b_len, MPI_DOUBLE, left_neighbor, 1, left_neighbor, 1, MPI_COMM_WORLD, &status);
 
+  if (rankF % 2 == 1 && rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
+    my_MPI_Sendrecv_replace(&ghostRightFace[0], b_len, MPI_DOUBLE, rght_neighbor, 1, rght_neighbor, 1, MPI_COMM_WORLD, &status);
+  else if (rankF % 2 == 0 && left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
+    my_MPI_Sendrecv_replace(&ghostLeftFace[0], b_len, MPI_DOUBLE, left_neighbor, 1, left_neighbor, 1, MPI_COMM_WORLD, &status);
+  // just swap the buffer if you have just a1 processor in 1 direction
+  if (LEN[DIR] == 1 && rght_neighbor != MPI_PROC_NULL && left_neighbor != MPI_PROC_NULL)
+    swapBuffer(b_len, ghostLeftFace, ghostRightFace);
+}
 
+/** non-waiting communicate ghost along a direction **/
+inline void communicateGhostNowait(int b_len, int DIR,
+  double *rghtBuffer, double *leftBuffer,
+  MPI_Request* requests,
+  VirtualTopology3D* vct)
+{
+  //LEN[0] = XLEN, LEN[1] = YLEN, LEN[2] = ZLEN;
+  int const * const LEN = vct->getLEN();
 
+  // get the neighbors in the relevant direction.
+  // should implement
+  // VirtualTopology3D::getLeft_neighbor_P(int DIR) and
+  // VirtualTopology3D::getRight_neighbor_P(int DIR).
+  //
+  int rght_neighbor=-1;
+  int left_neighbor=-1;
+  switch(DIR)
+  {
+    case 0:
+      rght_neighbor = vct->getXright_neighbor_P();
+      left_neighbor = vct->getXleft_neighbor_P();
+      break;
+    case 1:
+      rght_neighbor = vct->getYright_neighbor_P();
+      left_neighbor = vct->getYleft_neighbor_P();
+      break;
+    case 2:
+      rght_neighbor = vct->getZright_neighbor_P();
+      left_neighbor = vct->getZleft_neighbor_P();
+      break;
+    default:
+      invalid_value_error(DIR);
+  }
+  if (rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1) {
+    for(int i=0;i<b_len;i++)
+    {
+      rghtBuffer[b_len+i]=rghtBuffer[i];
+    }
+    MPI_Isend(&rghtBuffer[b_len], b_len, MPI_DOUBLE, rght_neighbor, 1, MPI_COMM_WORLD, &requests[0]);
+    MPI_Irecv(&rghtBuffer[0], b_len, MPI_DOUBLE, rght_neighbor, 1, MPI_COMM_WORLD, &requests[1]);
+  }
 
+  if (left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)
+  {
+    for(int i=0;i<b_len;i++)
+    {
+      leftBuffer[b_len+i]=leftBuffer[i];
+    }
+    MPI_Isend(&leftBuffer[b_len], b_len, MPI_DOUBLE, left_neighbor, 1, MPI_COMM_WORLD, &requests[2]);
+    MPI_Irecv(&leftBuffer[0], b_len, MPI_DOUBLE, left_neighbor, 1, MPI_COMM_WORLD, &requests[3]);
+  }
 
+  // just swap the buffer if you have just a single processor in the direction
+  if (LEN[DIR] == 1 && rght_neighbor != MPI_PROC_NULL && left_neighbor != MPI_PROC_NULL)
+    swapBuffer(b_len, leftBuffer, rghtBuffer);
+}
 
-
-
-
-
-
-
-
-
-
+inline void waitForRequests(MPI_Request* requests, int* _request_start, int request_idx)
+{
+  int& request_start = *_request_start;
+  // make sure the most recent communication is completed
+  //
+  MPI_Waitall(4*(request_idx-request_start),
+    &requests[4*request_start],
+    MPI_STATUS_IGNORE);
+  request_start = request_idx;
+}
 
 #endif

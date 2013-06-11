@@ -36,7 +36,8 @@ using std::endl;
  */
 
 
-class VCtopology3D:public VirtualTopology3D {
+class VCtopology3D //:public VirtualTopology3D
+{
 public:
   /** constructor: Define topology parameters: dimension, domain decomposition,... */
   VCtopology3D();
@@ -48,6 +49,8 @@ public:
   void Print();
   /** Print the mapping of topology */
   void PrintMapping();
+  /** get dimensions */
+  int const * const getLEN(){ return divisions; }
   /** get XLEN */
   int getXLEN();
   /** get YLEN */
@@ -180,7 +183,7 @@ inline VCtopology3D::VCtopology3D() {
   // *******************************************
   // change these values to change the topology
   XLEN = 2;
-  YLEN = 2;
+  YLEN = 1;
   ZLEN = 1;
   nprocs = XLEN * YLEN * ZLEN;
   // here you have to set the topology for the fields
