@@ -94,24 +94,23 @@ inline void communicateGhostFace(int b_len, int myrank, int right_neighbor, int 
   delete[]LEN;
 }
 
-inline int my_MPI_Sendrecv_replace(void *buf, int count, MPI_Datatype datatype,
+inline int my_MPI_Sendrecv_replace(double *buf, int count, MPI_Datatype datatype,
               int dest, int sendtag, int source, int recvtag, MPI_Comm comm,
-              MPI_Status *status)
+              MPI_Request *requests)
 {
-   MPI_Request requests[2];
-   MPI_Status statuses[2];
    assert(datatype==MPI_DOUBLE);
    //size_t numbytes = MPI_Sizeof(datatype)*count;
-   size_t numbytes = sizeof(double)*count;
-   void* sendbuffer = malloc(numbytes);
-   memcpy(sendbuffer, buf, numbytes);
-   MPI_Isend(sendbuffer, count, datatype,
+   //size_t numbytes = sizeof(double)*count;
+   //void* sendbuffer = malloc(numbytes);
+   //memcpy(sendbuffer, buf, numbytes);
+   double* sendbuffer = &buf[count];
+   for(int i=0;i<count;i++) sendbuffer[i]=buf[i];
+   MPI_Isend(&sendbuffer[0], count, datatype,
      dest, sendtag, comm, &requests[0]);
    MPI_Irecv(buf, count, datatype,
      source, recvtag, comm, &requests[1]);
-   MPI_Waitall(2,requests,statuses);
-   // I don't know how to populate status, so I don't
-   free(sendbuffer);
+   //MPI_Waitall(2,requests,MPI_STATUS_IGNORE);
+   //free(sendbuffer);
 }
 
 /** communicate ghost along a direction **/
@@ -155,14 +154,14 @@ inline void communicateGhostFace(int b_len,
       invalid_value_error(DIR);
   }
   if (rankF % 2 == 0 && rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
-    my_MPI_Sendrecv_replace(&ghostRightFace[0], b_len, MPI_DOUBLE, rght_neighbor, 1, rght_neighbor, 1, MPI_COMM_WORLD, &status);
+    my_MPI_Sendrecv_replace(&ghostRightFace[0], b_len, MPI_DOUBLE, rght_neighbor, 1, rght_neighbor, 1, MPI_COMM_WORLD, &requests[0]);
   else if (rankF % 2 == 1 && left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
-    my_MPI_Sendrecv_replace(&ghostLeftFace[0], b_len, MPI_DOUBLE, left_neighbor, 1, left_neighbor, 1, MPI_COMM_WORLD, &status);
+    my_MPI_Sendrecv_replace(&ghostLeftFace[0], b_len, MPI_DOUBLE, left_neighbor, 1, left_neighbor, 1, MPI_COMM_WORLD, &requests[0]);
 
   if (rankF % 2 == 1 && rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
-    my_MPI_Sendrecv_replace(&ghostRightFace[0], b_len, MPI_DOUBLE, rght_neighbor, 1, rght_neighbor, 1, MPI_COMM_WORLD, &status);
+    my_MPI_Sendrecv_replace(&ghostRightFace[0], b_len, MPI_DOUBLE, rght_neighbor, 1, rght_neighbor, 1, MPI_COMM_WORLD, &requests[2]);
   else if (rankF % 2 == 0 && left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
-    my_MPI_Sendrecv_replace(&ghostLeftFace[0], b_len, MPI_DOUBLE, left_neighbor, 1, left_neighbor, 1, MPI_COMM_WORLD, &status);
+    my_MPI_Sendrecv_replace(&ghostLeftFace[0], b_len, MPI_DOUBLE, left_neighbor, 1, left_neighbor, 1, MPI_COMM_WORLD, &requests[2]);
   // just swap the buffer if you have just a1 processor in 1 direction
   if (LEN[DIR] == 1 && rght_neighbor != MPI_PROC_NULL && left_neighbor != MPI_PROC_NULL)
     swapBuffer(b_len, ghostLeftFace, ghostRightFace);
