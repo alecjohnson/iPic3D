@@ -919,7 +919,7 @@ inline void communicateCenterBC(int nx, int ny, int nz, double ***vector, int bc
 
   // apply boundary condition to 6 Ghost Faces and communicate if necessary to 6 processors: along 3 DIRECTIONS
   makeCenterFace(nx, ny, nz, vector, ghostXrghtFace, ghostXleftFace, ghostYrghtFace, ghostYleftFace, ghostZrghtFace, ghostZleftFace);
-  communicateGhostFace(xFaceSize, 0, ghostXrghtFace, ghostXleftFace, &requests[4*request_idx++], vct);
+  communicateGhostNowait(xFaceSize, 0, ghostXrghtFace, ghostXleftFace, &requests[4*request_idx++], vct);
   communicateGhostNowait(yFaceSize, 1, ghostYrghtFace, ghostYleftFace, &requests[4*request_idx++], vct);
   communicateGhostNowait(zFaceSize, 2, ghostZrghtFace, ghostZleftFace, &requests[4*request_idx++], vct);
   waitForRequests(requests,&request_start,request_idx);
@@ -934,14 +934,14 @@ inline void communicateCenterBC(int nx, int ny, int nz, double ***vector, int bc
 
   // communicate twice each direction
   // X-DIRECTION: Z -> X
-  communicateGhostFace(ny - 2, 0, ghostXrghtYsameZleftEdge, ghostXleftYsameZleftEdge, &requests[4*request_idx++], vct);
-  communicateGhostFace(ny - 2, 0, ghostXrghtYsameZrghtEdge, ghostXleftYsameZrghtEdge, &requests[4*request_idx++], vct);
+  communicateGhostNowait(ny - 2, 0, ghostXrghtYsameZleftEdge, ghostXleftYsameZleftEdge, &requests[4*request_idx++], vct);
+  communicateGhostNowait(ny - 2, 0, ghostXrghtYsameZrghtEdge, ghostXleftYsameZrghtEdge, &requests[4*request_idx++], vct);
   // Y-DIRECTION: X -> Y
-  communicateGhostFace(nz - 2, 1, ghostXleftYrghtZsameEdge, ghostXleftYleftZsameEdge, &requests[4*request_idx++], vct);
-  communicateGhostFace(nz - 2, 1, ghostXrghtYrghtZsameEdge, ghostXrghtYleftZsameEdge, &requests[4*request_idx++], vct);
+  communicateGhostNowait(nz - 2, 1, ghostXleftYrghtZsameEdge, ghostXleftYleftZsameEdge, &requests[4*request_idx++], vct);
+  communicateGhostNowait(nz - 2, 1, ghostXrghtYrghtZsameEdge, ghostXrghtYleftZsameEdge, &requests[4*request_idx++], vct);
   // Z-DIRECTION: Y -> Z
-  communicateGhostFace(nx - 2, 2, ghostXsameYleftZrghtEdge, ghostXsameYleftZleftEdge, &requests[4*request_idx++], vct);
-  communicateGhostFace(nx - 2, 2, ghostXsameYrghtZrghtEdge, ghostXsameYrghtZleftEdge, &requests[4*request_idx++], vct);
+  communicateGhostNowait(nx - 2, 2, ghostXsameYleftZrghtEdge, ghostXsameYleftZleftEdge, &requests[4*request_idx++], vct);
+  communicateGhostNowait(nx - 2, 2, ghostXsameYrghtZrghtEdge, ghostXsameYrghtZleftEdge, &requests[4*request_idx++], vct);
   // parse
   waitForRequests(requests,&request_start,request_idx);
   parseEdgeZ(nx, ny, nz, vector, ghostXrghtYrghtZsameEdge, ghostXleftYleftZsameEdge, ghostXrghtYleftZsameEdge, ghostXleftYrghtZsameEdge);
@@ -952,10 +952,10 @@ inline void communicateCenterBC(int nx, int ny, int nz, double ***vector, int bc
 
   makeNodeCorner(nx, ny, nz, ghostXsameYrghtZrghtEdge, ghostXsameYleftZleftEdge, ghostXsameYleftZrghtEdge, ghostXsameYrghtZleftEdge, ghostXrghtYrghtZrghtCorner, ghostXleftYrghtZrghtCorner, ghostXrghtYleftZrghtCorner, ghostXleftYleftZrghtCorner, ghostXrghtYrghtZleftCorner, ghostXleftYrghtZleftCorner, ghostXrghtYleftZleftCorner, ghostXleftYleftZleftCorner);
   // communicate only in the X-DIRECTION
-  communicateGhostFace(1, 0, ghostXrghtYrghtZrghtCorner, ghostXleftYrghtZrghtCorner, &requests[4*request_idx++], vct);
-  communicateGhostFace(1, 0, ghostXrghtYleftZrghtCorner, ghostXleftYleftZrghtCorner, &requests[4*request_idx++], vct);
-  communicateGhostFace(1, 0, ghostXrghtYleftZleftCorner, ghostXleftYleftZleftCorner, &requests[4*request_idx++], vct);
-  communicateGhostFace(1, 0, ghostXrghtYrghtZleftCorner, ghostXleftYrghtZleftCorner, &requests[4*request_idx++], vct);
+  communicateGhostNowait(1, 0, ghostXrghtYrghtZrghtCorner, ghostXleftYrghtZrghtCorner, &requests[4*request_idx++], vct);
+  communicateGhostNowait(1, 0, ghostXrghtYleftZrghtCorner, ghostXleftYleftZrghtCorner, &requests[4*request_idx++], vct);
+  communicateGhostNowait(1, 0, ghostXrghtYleftZleftCorner, ghostXleftYleftZleftCorner, &requests[4*request_idx++], vct);
+  communicateGhostNowait(1, 0, ghostXrghtYrghtZleftCorner, ghostXleftYrghtZleftCorner, &requests[4*request_idx++], vct);
   // parse
   assert(request_idx==13);
   waitForRequests(requests,&request_start,request_idx);

@@ -8,6 +8,7 @@
 
 #include <mpi.h>
 #include "../utility/errors.h"
+#include "../utility/debug.h"
 #include "ComParser3D.h"
 
 
@@ -94,11 +95,36 @@ inline void communicateGhostFace(int b_len, int myrank, int right_neighbor, int 
   delete[]LEN;
 }
 
-inline int my_MPI_Sendrecv_replace(double *buf, int count, MPI_Datatype datatype,
-              int dest, int sendtag, int source, int recvtag, MPI_Comm comm,
+inline int my_MPI_Sendrecv(double *buf, int count,
+              int dest, int source,
               MPI_Request *requests)
 {
-   assert(datatype==MPI_DOUBLE);
+   MPI_Comm comm = MPI_COMM_WORLD;
+   MPI_Datatype datatype = MPI_DOUBLE;
+   int sendtag = 1;
+   int recvtag = 1;
+   //size_t numbytes = MPI_Sizeof(datatype)*count;
+   //size_t numbytes = sizeof(double)*count;
+   //void* sendbuffer = malloc(numbytes);
+   //memcpy(sendbuffer, buf, numbytes);
+   double* sendbuffer = &buf[count];
+   for(int i=0;i<count;i++) sendbuffer[i]=buf[i];
+   MPI_Isend(&sendbuffer[0], count, datatype,
+     dest, sendtag, comm, &requests[0]);
+   MPI_Irecv(buf, count, datatype,
+     source, recvtag, comm, &requests[1]);
+   MPI_Waitall(2,requests,MPI_STATUS_IGNORE);
+   //free(sendbuffer);
+}
+
+inline int my_MPI_SendrecvNowait(double *buf, int count,
+              int dest, int source,
+              MPI_Request *requests)
+{
+   MPI_Comm comm = MPI_COMM_WORLD;
+   MPI_Datatype datatype = MPI_DOUBLE;
+   int sendtag = 1;
+   int recvtag = 1;
    //size_t numbytes = MPI_Sizeof(datatype)*count;
    //size_t numbytes = sizeof(double)*count;
    //void* sendbuffer = malloc(numbytes);
@@ -114,7 +140,7 @@ inline int my_MPI_Sendrecv_replace(double *buf, int count, MPI_Datatype datatype
 }
 
 /** communicate ghost along a direction **/
-inline void communicateGhostFace(int b_len,
+inline void communicateGhostNowait(int b_len,
   int DIR, double *ghostRightFace, double *ghostLeftFace,
   MPI_Request* requests,
   VirtualTopology3D* vct)
@@ -153,22 +179,35 @@ inline void communicateGhostFace(int b_len,
     default:
       invalid_value_error(DIR);
   }
-  if (rankF % 2 == 0 && rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
-    my_MPI_Sendrecv_replace(&ghostRightFace[0], b_len, MPI_DOUBLE, rght_neighbor, 1, rght_neighbor, 1, MPI_COMM_WORLD, &requests[0]);
-  else if (rankF % 2 == 1 && left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
-    my_MPI_Sendrecv_replace(&ghostLeftFace[0], b_len, MPI_DOUBLE, left_neighbor, 1, left_neighbor, 1, MPI_COMM_WORLD, &requests[0]);
+  #if 0 // why does this not work?
+  if (rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
+    my_MPI_SendrecvNowait(&ghostRightFace[0], b_len, rght_neighbor, rght_neighbor, &requests[0]);
 
-  if (rankF % 2 == 1 && rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
-    my_MPI_Sendrecv_replace(&ghostRightFace[0], b_len, MPI_DOUBLE, rght_neighbor, 1, rght_neighbor, 1, MPI_COMM_WORLD, &requests[2]);
-  else if (rankF % 2 == 0 && left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
-    my_MPI_Sendrecv_replace(&ghostLeftFace[0], b_len, MPI_DOUBLE, left_neighbor, 1, left_neighbor, 1, MPI_COMM_WORLD, &requests[2]);
+  if (left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
+    my_MPI_SendrecvNowait(&ghostLeftFace[0], b_len, left_neighbor, left_neighbor, &requests[2]);
+  #else
+  if (rankF % 2 == 1 && rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  {
+    my_MPI_SendrecvNowait(&ghostRightFace[0], b_len, rght_neighbor, rght_neighbor, &requests[2]);
+  }
+  else if (rankF % 2 == 0 && left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1) {
+    my_MPI_SendrecvNowait(&ghostLeftFace[0], b_len, left_neighbor, left_neighbor, &requests[2]);
+  }
+
+  if (rankF % 2 == 0 && rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1) {
+    my_MPI_SendrecvNowait(&ghostRightFace[0], b_len, rght_neighbor, rght_neighbor, &requests[0]);
+  }
+  else if (rankF % 2 == 1 && left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1) {
+    my_MPI_SendrecvNowait(&ghostLeftFace[0], b_len, left_neighbor, left_neighbor, &requests[0]);
+  }
+  #endif
+
   // just swap the buffer if you have just a1 processor in 1 direction
   if (LEN[DIR] == 1 && rght_neighbor != MPI_PROC_NULL && left_neighbor != MPI_PROC_NULL)
     swapBuffer(b_len, ghostLeftFace, ghostRightFace);
 }
 
 /** non-waiting communicate ghost along a direction **/
-inline void communicateGhostNowait(int b_len, int DIR,
+inline void communicateGhostNowait_broken(int b_len, int DIR,
   double *rghtBuffer, double *leftBuffer,
   MPI_Request* requests,
   VirtualTopology3D* vct)
