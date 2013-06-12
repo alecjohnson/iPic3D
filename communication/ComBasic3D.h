@@ -179,27 +179,36 @@ inline void communicateGhostNowait(int b_len,
     default:
       invalid_value_error(DIR);
   }
-  #if 0 // why does this not work?
-  if (rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
-    my_MPI_SendrecvNowait(&ghostRightFace[0], b_len, rght_neighbor, rght_neighbor, &requests[0]);
+  //#if 1 // why does this not work?
+  if (rankF % 2 == 0) // order in the even-rank case:
+  {
+    if (rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
+      my_MPI_SendrecvNowait(&ghostRightFace[0], b_len, rght_neighbor, rght_neighbor, &requests[0]);
+    if (left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
+      my_MPI_SendrecvNowait(&ghostLeftFace[0], b_len, left_neighbor, left_neighbor, &requests[2]);
+  }
+  else // order in the odd-rank case:
+  {
+    if (left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)
+      my_MPI_SendrecvNowait(&ghostLeftFace[0], b_len, left_neighbor, left_neighbor, &requests[2]);
+    if (rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)
+      my_MPI_SendrecvNowait(&ghostRightFace[0], b_len, rght_neighbor, rght_neighbor, &requests[0]);
+  }
+  //#else
+  //if (rankF % 2 == 0 && rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1) {
+  //  my_MPI_SendrecvNowait(&ghostRightFace[0], b_len, rght_neighbor, rght_neighbor, &requests[0]);
+  //}
+  //else if (rankF % 2 == 1 && left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1) {
+  //  my_MPI_SendrecvNowait(&ghostLeftFace[0], b_len, left_neighbor, left_neighbor, &requests[0]);
+  //}
 
-  if (left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
-    my_MPI_SendrecvNowait(&ghostLeftFace[0], b_len, left_neighbor, left_neighbor, &requests[2]);
-  #else
-  if (rankF % 2 == 1 && rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  {
-    my_MPI_SendrecvNowait(&ghostRightFace[0], b_len, rght_neighbor, rght_neighbor, &requests[2]);
-  }
-  else if (rankF % 2 == 0 && left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1) {
-    my_MPI_SendrecvNowait(&ghostLeftFace[0], b_len, left_neighbor, left_neighbor, &requests[2]);
-  }
-
-  if (rankF % 2 == 0 && rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1) {
-    my_MPI_SendrecvNowait(&ghostRightFace[0], b_len, rght_neighbor, rght_neighbor, &requests[0]);
-  }
-  else if (rankF % 2 == 1 && left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1) {
-    my_MPI_SendrecvNowait(&ghostLeftFace[0], b_len, left_neighbor, left_neighbor, &requests[0]);
-  }
-  #endif
+  //if (rankF % 2 == 1 && rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  {
+  //  my_MPI_SendrecvNowait(&ghostRightFace[0], b_len, rght_neighbor, rght_neighbor, &requests[2]);
+  //}
+  //else if (rankF % 2 == 0 && left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1) {
+  //  my_MPI_SendrecvNowait(&ghostLeftFace[0], b_len, left_neighbor, left_neighbor, &requests[2]);
+  //}
+  //#endif
 
   // just swap the buffer if you have just a1 processor in 1 direction
   if (LEN[DIR] == 1 && rght_neighbor != MPI_PROC_NULL && left_neighbor != MPI_PROC_NULL)
