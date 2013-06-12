@@ -143,7 +143,7 @@ inline int my_MPI_SendrecvNowait(double *buf, int count,
 inline void communicateGhostNowait(int b_len,
   int DIR, double *recvRghtFace, double *recvLeftFace,
   MPI_Request* requests,
-  VirtualTopology3D* vct, rghtfirst=false)
+  VirtualTopology3D* vct)
 {
   MPI_Status status;
   const int myrank = vct->getCartesian_rank();
@@ -179,6 +179,7 @@ inline void communicateGhostNowait(int b_len,
     default:
       invalid_value_error(DIR);
   }
+  bool rghtfirst=false;
   double *sendRghtFace = &recvRghtFace[b_len];
   double *sendLeftFace = &recvLeftFace[b_len];
   for(int i=0;i<b_len;i++) sendRghtFace[i] = recvRghtFace[i];
