@@ -81,6 +81,56 @@ template < class type > inline void delArr4(type **** arr, int sz1, int sz2, int
   delete[](arr);
 }
 
+class doubleArr2
+{
+  private:
+    bool owned;
+    double* arr1d;
+    double** arr;
+    int sizes[5];
+  private:
+    void set_sizes(int s1, int s2)
+    {
+      sizes[0] = 2; // not used
+      sizes[1] = s1;
+      sizes[2] = s2;
+      sizes[4] = 0;
+    }
+  public:
+    doubleArr2(int s1, int s2)
+    {
+      owned = true;
+      arr = newArr2(double, s1,s2);
+      arr1d = *arr;
+      set_sizes(s1,s2);
+    }
+    doubleArr2(double** in, int s1, int s2)
+    {
+      owned = false;
+      arr = in;
+      arr1d = *arr;
+      set_sizes(s1,s2);
+    }
+    ~doubleArr2()
+    {
+      if(!owned) return;
+      delArr2(arr, sizes[1]);
+    }
+    operator double**(){return arr;}
+    int getidx(int n1, int n2) const
+    {
+        int k = n1;
+        k *= sizes[2]; k += n2;
+        return k;
+    }
+    const double& get(int n1,int n2) const
+      { return arr1d[getidx(n1,n2)]; }
+    double& fetch(int n1,int n2)
+      { return arr1d[getidx(n1,n2)]; }
+    void set(int n1,int n2, double value)
+      { arr1d[getidx(n1,n2)] = value; }
+};
+
 
 class doubleArr3
 {
@@ -103,12 +153,14 @@ class doubleArr3
     {
       owned = true;
       arr = newArr3(double, s1,s2,s3);
+      arr1d = **arr;
       set_sizes(s1,s2,s3);
     }
     doubleArr3(double*** in, int s1, int s2, int s3)
     {
       owned = false;
       arr = in;
+      arr1d = **arr;
       set_sizes(s1,s2,s3);
     }
     ~doubleArr3()
@@ -154,12 +206,14 @@ class doubleArr4
     {
       owned = true;
       arr = newArr4(double, s1,s2,s3,s4);
+      arr1d = ***arr;
       set_sizes(s1,s2,s3,s4);
     }
     doubleArr4(double**** in, int s1, int s2, int s3, int s4)
     {
       owned = false;
       arr = in;
+      arr1d = ***arr;
       set_sizes(s1,s2,s3,s4);
     }
     ~doubleArr4()
