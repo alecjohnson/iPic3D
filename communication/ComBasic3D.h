@@ -139,11 +139,11 @@ inline int my_MPI_SendrecvNowait(double *buf, int count,
    //free(sendbuffer);
 }
 
-/** communicate ghost along a direction **/
+/** communicate along a direction **/
 inline void communicateGhostNowait(int b_len,
-  int DIR, double *ghostRightFace, double *ghostLeftFace,
+  int DIR, double *recvRghtFace, double *recvLeftFace,
   MPI_Request* requests,
-  VirtualTopology3D* vct)
+  VirtualTopology3D* vct, rghtfirst=false)
 {
   MPI_Status status;
   const int myrank = vct->getCartesian_rank();
@@ -179,24 +179,66 @@ inline void communicateGhostNowait(int b_len,
     default:
       invalid_value_error(DIR);
   }
-  if (rankF % 2 == 0) // order in the even-rank case:
+  double *sendRghtFace = &recvRghtFace[b_len];
+  double *sendLeftFace = &recvLeftFace[b_len];
+  for(int i=0;i<b_len;i++) sendRghtFace[i] = recvRghtFace[i];
+  for(int i=0;i<b_len;i++) sendLeftFace[i] = recvLeftFace[i];
+  if(rghtfirst || rankF % 2 == 0) // order in the even-rank case:
   {
-    if (rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
-      my_MPI_SendrecvNowait(&ghostRightFace[0], b_len, rght_neighbor, rght_neighbor, &requests[0]);
-    if (left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)  // 
-      my_MPI_SendrecvNowait(&ghostLeftFace[0], b_len, left_neighbor, left_neighbor, &requests[2]);
+    if (rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)
+    {
+      MPI_Issend(sendRghtFace, b_len, MPI_DOUBLE,
+        rght_neighbor, 1, MPI_COMM_WORLD, &requests[0]);
+    }
+    if (left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)
+    {
+      MPI_Issend(sendLeftFace, b_len, MPI_DOUBLE,
+        left_neighbor, 1, MPI_COMM_WORLD, &requests[2]);
+    }
   }
   else // order in the odd-rank case:
   {
     if (left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)
-      my_MPI_SendrecvNowait(&ghostLeftFace[0], b_len, left_neighbor, left_neighbor, &requests[2]);
+    {
+      MPI_Isend(sendLeftFace, b_len, MPI_DOUBLE,
+        left_neighbor, 1, MPI_COMM_WORLD, &requests[2]);
+    }
     if (rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)
-      my_MPI_SendrecvNowait(&ghostRightFace[0], b_len, rght_neighbor, rght_neighbor, &requests[0]);
+    {
+      MPI_Isend(sendRghtFace, b_len, MPI_DOUBLE,
+        rght_neighbor, 1, MPI_COMM_WORLD, &requests[0]);
+    }
+  }
+  if(rghtfirst || rankF % 2 == 0) // order in the even-rank case:
+  {
+    if (rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)
+    {
+      MPI_Irecv(recvRghtFace, b_len, MPI_DOUBLE,
+        rght_neighbor, 1, MPI_COMM_WORLD, &requests[1]);
+    }
+    if (left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)
+    {
+      MPI_Irecv(recvLeftFace, b_len, MPI_DOUBLE,
+        left_neighbor, 1, MPI_COMM_WORLD, &requests[3]);
+    }
+  }
+  else // order in the odd-rank case:
+  {
+    if (left_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)
+    {
+      MPI_Irecv(recvLeftFace, b_len, MPI_DOUBLE,
+        left_neighbor, 1, MPI_COMM_WORLD, &requests[3]);
+    }
+    if (rght_neighbor != MPI_PROC_NULL && LEN[DIR] > 1)
+    {
+      MPI_Irecv(recvRghtFace, b_len, MPI_DOUBLE,
+        rght_neighbor, 1, MPI_COMM_WORLD, &requests[1]);
+    }
   }
 
   // just swap the buffer if you have just a1 processor in 1 direction
   if (LEN[DIR] == 1 && rght_neighbor != MPI_PROC_NULL && left_neighbor != MPI_PROC_NULL)
-    swapBuffer(b_len, ghostLeftFace, ghostRightFace);
+    swapBuffer(b_len, recvLeftFace, recvRghtFace);
 }
 
 /** non-waiting communicate ghost along a direction **/
