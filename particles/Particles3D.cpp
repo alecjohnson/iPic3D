@@ -247,13 +247,13 @@ int Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
     cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
   }
   double start_mover_PC = MPI_Wtime();
-  doubleArr3 Ex(EMf->getEx());
-  doubleArr3 Ey(EMf->getEy());
-  doubleArr3 Ez(EMf->getEz());
-  doubleArr3 Bx(EMf->getBx());
-  doubleArr3 By(EMf->getBy());
-  doubleArr3 Bz(EMf->getBz());
-  doubleArr4 node_coordinate(grid->getN());
+  doubleArr3 Ex(EMf->getEx(),nxn,nyn,nzn);
+  doubleArr3 Ey(EMf->getEy(),nxn,nyn,nzn);
+  doubleArr3 Ez(EMf->getEz(),nxn,nyn,nzn);
+  doubleArr3 Bx(EMf->getBx(),nxn,nyn,nzn);
+  doubleArr3 By(EMf->getBy(),nxn,nyn,nzn);
+  doubleArr3 Bz(EMf->getBz(),nxn,nyn,nzn);
+  doubleArr4 node_coordinate(grid->getN(),nxn,nyn,nzn,3);
   const double dto2 = .5 * dt, qomdt2 = qom * dto2 / c;
   const double inv_dx = 1.0 / dx, inv_dy = 1.0 / dy, inv_dz = 1.0 / dz;
   // Using these aliases nearly doubles the speed

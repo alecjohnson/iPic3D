@@ -13,7 +13,7 @@ This file was rewritten by eaj (Alec Johnson)
 #include "assert.h"
 // to maintain 64-bit memory alignment
 // 1 would be okay for double, but 2 is needed for int
-#define ALLOC_SHIFT 2
+#define ALLOC_SHIFT 0
 
 
 /** subroutines for allocation and deallocation of arrays 2D, 3D, 4D */
@@ -23,22 +23,22 @@ This file was rewritten by eaj (Alec Johnson)
 // These methods will trash memory if ALLOC_SHIFT*sizeof(type)
 // is smaller than 2*sizeof(int)
 //
-inline void set_size(void *arr, int sz) {
-  int* ptr = (int*) arr;
-  ptr[-1] = sz;
-}
-inline void set_sizes(void *arr, int sz) {
-  int* ptr = (int*) arr;
-  ptr[-2] = ptr[-1] = sz;
-}
-inline int get_size(void * arr) {
-  int* ptr = (int*) arr;
-  return ptr[-1];
-}
-inline int get_fullsize(void * arr) {
-  int* ptr = (int*) arr;
-  return ptr[-2];
-}
+//inline void set_size(void *arr, int sz) {
+//  int* ptr = (int*) arr;
+//  ptr[-1] = sz;
+//}
+//inline void set_sizes(void *arr, int sz) {
+//  int* ptr = (int*) arr;
+//  ptr[-2] = ptr[-1] = sz;
+//}
+//inline int get_size(void * arr) {
+//  int* ptr = (int*) arr;
+//  return ptr[-1];
+//}
+//inline int get_fullsize(void * arr) {
+//  int* ptr = (int*) arr;
+//  return ptr[-2];
+//}
 
 // macros to allocate arrays
 //
@@ -52,7 +52,7 @@ inline int get_fullsize(void * arr) {
 //
 template < class type > inline type * _new_1d_array(int sz1, type * dummy) {
   type *arr = new type [sz1+ALLOC_SHIFT]+ALLOC_SHIFT;
-  set_sizes(arr,sz1);
+  //set_sizes(arr,sz1);
   return arr;
 }
 template < class type > inline type ** _new_2d_array(int sz1, int sz2, type * dummy) {
@@ -63,8 +63,8 @@ template < class type > inline type ** _new_2d_array(int sz1, int sz2, type * du
     arr[i] = ptr;
     ptr += sz2;
   }
-  set_sizes(arr,sz1);
-  set_size(*arr,sz2);
+  //set_sizes(arr,sz1);
+  //set_size(*arr,sz2);
   return arr;
 }
 template < class type > inline type *** _new_3d_array(int sz1, int sz2, int sz3, type * dummy) {
@@ -75,8 +75,8 @@ template < class type > inline type *** _new_3d_array(int sz1, int sz2, int sz3,
     arr[i] = ptr;
     ptr += sz2;
   }
-  set_sizes(arr,sz1);
-  set_size(*arr,sz2);
+  //set_sizes(arr,sz1);
+  //set_size(*arr,sz2);
   return arr;
 }
 template < class type > inline type **** _new_4d_array(int sz1, int sz2, int sz3, int sz4, type * dummy) {
@@ -86,8 +86,8 @@ template < class type > inline type **** _new_4d_array(int sz1, int sz2, int sz3
     arr[i] = ptr;
     ptr += sz2;
   }
-  set_sizes(arr,sz1);
-  set_size(*arr,sz2);
+  //set_sizes(arr,sz1);
+  //set_size(*arr,sz2);
   return arr;
 }
 
@@ -97,17 +97,17 @@ template < class type > inline void delArr1(type * arr) {
   delete[](arr-ALLOC_SHIFT);
 }
 template < class type > inline void delArr2(type ** arr, int sz1) {
-  assert(get_size(arr)==sz1);
+  //assert(get_size(arr)==sz1);
   delArr1(arr[0]);
   delete[](arr-ALLOC_SHIFT);
 }
 template < class type > inline void delArr3(type *** arr, int sz1, int sz2) {
-  assert(get_size(arr)==sz1);
+  //assert(get_size(arr)==sz1);
   delArr2(arr[0],sz2);
   delete[](arr-ALLOC_SHIFT);
 }
 template < class type > inline void delArr4(type **** arr, int sz1, int sz2, int sz3) {
-  assert(get_size(arr)==sz1);
+  //assert(get_size(arr)==sz1);
   delArr3(arr[0],sz2,sz3);
   delete[](arr-ALLOC_SHIFT);
 }
@@ -192,11 +192,11 @@ class doubleArr1
     double* arr;
     int sizes[3];
   public:
-    inline doubleArr1(double*** in)
+    inline doubleArr1(double*** in, int s1)
     {
       arr = **in;
       sizes[0] = 2; // not used
-      sizes[1] = get_size(in);
+      sizes[1] = s1; //get_size(in);
       sizes[2] = 0;
     }
     inline double operator[](int idx){
@@ -211,12 +211,12 @@ class doubleArr2
     double* arr;
     int sizes[4];
   public:
-    inline doubleArr2(double*** in)
+    inline doubleArr2(double*** in, int s1, int s2)
     {
       arr = **in;
       sizes[0] = 2; // not used
-      sizes[1] = get_size(in);
-      sizes[2] = get_size(*in);
+      sizes[1] = s1; //get_size(in);
+      sizes[2] = s2; //get_size(*in);
       sizes[3] = 0;
     }
     inline Deref1 operator[](int idx){
@@ -243,13 +243,13 @@ class doubleArr3
     double* arr;
     int sizes[5];
   public:
-    inline doubleArr3(double*** in)
+    inline doubleArr3(double*** in, int s1, int s2, int s3)
     {
       arr = **in;
       sizes[0] = 3; // not used
-      sizes[1] = get_size(in);
-      sizes[2] = get_size(*in);
-      sizes[3] = get_size(**in);
+      sizes[1] = s1; // get_size(in);
+      sizes[2] = s2; // get_size(*in);
+      sizes[3] = s3; // get_size(**in);
       sizes[4] = 0;
     }
     inline Deref2 operator[](int idx){
@@ -277,14 +277,14 @@ class doubleArr4
     double* arr;
     int sizes[6];
   public:
-    doubleArr4(double**** in)
+    doubleArr4(double**** in, int s1, int s2, int s3, int s4)
     {
       arr = ***in;
       sizes[0] = 4; // not used
-      sizes[1] = get_size(in);
-      sizes[2] = get_size(*in);
-      sizes[3] = get_size(**in);
-      sizes[4] = get_size(***in);
+      sizes[1] = s1; //get_size(in);
+      sizes[2] = s2; //get_size(*in);
+      sizes[3] = s3; //get_size(**in);
+      sizes[4] = s4; //get_size(***in);
       sizes[5] = 0;
     }
     inline Deref3 operator[](int idx){
