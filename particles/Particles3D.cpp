@@ -256,6 +256,14 @@ int Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
   doubleArr4 node_coordinate(grid->getN());
   const double dto2 = .5 * dt, qomdt2 = qom * dto2 / c;
   const double inv_dx = 1.0 / dx, inv_dy = 1.0 / dy, inv_dz = 1.0 / dz;
+  // Using these aliases nearly doubles the speed
+  // on the MIC for some strange reason.
+  double *xpp = x;
+  double *ypp = y;
+  double *zpp = z;
+  double *upp = u;
+  double *vpp = v;
+  double *wpp = w;
   // don't bother trying to push any particles simultaneously;
   // MIC already does vectorization automatically, and trying
   // to do it by hand only hurts performance.
@@ -263,15 +271,15 @@ int Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
   #pragma simd // this just slows things down (why?)
   for (long long rest = 0; rest < nop; rest++) {
     // copy the particle
-    double xp = x[rest];
-    double yp = y[rest];
-    double zp = z[rest];
-    double up = u[rest];
-    double vp = v[rest];
-    double wp = w[rest];
-    const double xptilde = x[rest];
-    const double yptilde = y[rest];
-    const double zptilde = z[rest];
+    double xp = xpp[rest];
+    double yp = ypp[rest];
+    double zp = zpp[rest];
+    double up = upp[rest];
+    double vp = vpp[rest];
+    double wp = wpp[rest];
+    const double xptilde = xpp[rest];
+    const double yptilde = ypp[rest];
+    const double zptilde = zpp[rest];
     double uptilde;
     double vptilde;
     double wptilde;
@@ -416,18 +424,18 @@ int Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
       zp = zptilde + wptilde * dto2;
     }                           // end of iteration
     // update the final position and velocity
-    up = 2.0 * uptilde - u[rest];
-    vp = 2.0 * vptilde - v[rest];
-    wp = 2.0 * wptilde - w[rest];
+    up = 2.0 * uptilde - upp[rest];
+    vp = 2.0 * vptilde - vpp[rest];
+    wp = 2.0 * wptilde - wpp[rest];
     xp = xptilde + uptilde * dt;
     yp = yptilde + vptilde * dt;
     zp = zptilde + wptilde * dt;
-    x[rest] = xp;
-    y[rest] = yp;
-    z[rest] = zp;
-    u[rest] = up;
-    v[rest] = vp;
-    w[rest] = wp;
+    xpp[rest] = xp;
+    ypp[rest] = yp;
+    zpp[rest] = zp;
+    upp[rest] = up;
+    vpp[rest] = vp;
+    wpp[rest] = wp;
   }                             // END OF ALL THE PARTICLES
 
   // ********************//
