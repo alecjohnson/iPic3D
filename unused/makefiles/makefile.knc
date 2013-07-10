@@ -31,7 +31,7 @@ clean:
 	rm -rf *.o iPIC3D
 
 run:
-	mpiexec.hydra -np 4 -env OMP_NUM_THREADS=1 ./iPIC3D inputfiles/GEM.inp
+	mpiexec.hydra -np 16 -env OMP_NUM_THREADS=2 ./iPIC3D inputfiles/Random.inp
 
 tags: retags
 

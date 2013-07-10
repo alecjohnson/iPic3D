@@ -35,8 +35,8 @@ y_center =   1.                  # Ly = simulation box length - y direction in m
 z_center =   1.                  # Lz = simulation box length - z direction in m  
 L_square =   .1
 
-nxc =  64                   # nxc = number of cells - x direction        
-nyc =  64                   # nyc = number of cells - y direction
+nxc =  120                  # nxc = number of cells - x direction        
+nyc =  120                  # nyc = number of cells - y direction
 nzc =  1                   # nzc = number of cells - z direction        
 
 # %%%%%%%%%%%%%% PARTICLES %%%%%%%%%%%%%%%%%

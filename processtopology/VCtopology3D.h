@@ -180,7 +180,7 @@ inline VCtopology3D::VCtopology3D() {
   // *******************************************
   // change these values to change the topology
   XLEN = 10;
-  YLEN = 6;
+  YLEN = 5;
   ZLEN = 1;
   nprocs = XLEN * YLEN * ZLEN;
   // here you have to set the topology for the fields
