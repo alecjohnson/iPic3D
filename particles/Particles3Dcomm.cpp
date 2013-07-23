@@ -281,23 +281,10 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
   }
 
 }
-/** calculate the weights given the position of particles 0,0,0 is the left,left, left node */
-void Particles3Dcomm::calculateWeights(double weight[][2][2], double xp, double yp, double zp, int ix, int iy, int iz, Grid * grid) {
-  double xi[2], eta[2], zeta[2];
-  xi[0] = xp - grid->getXN(ix - 1, iy, iz);
-  eta[0] = yp - grid->getYN(ix, iy - 1, iz);
-  zeta[0] = zp - grid->getZN(ix, iy, iz - 1);
-  xi[1] = grid->getXN(ix, iy, iz) - xp;
-  eta[1] = grid->getYN(ix, iy, iz) - yp;
-  zeta[1] = grid->getZN(ix, iy, iz) - zp;
-  for (int i = 0; i < 2; i++)
-    for (int j = 0; j < 2; j++)
-      for (int k = 0; k < 2; k++)
-        weight[i][j][k] = xi[i] * eta[j] * zeta[k] * invVOL;
-}
 
 
-/** Interpolation Particle --> Grid */
+// A much faster version of this is at EMfields3D::sumMoments
+//
 void Particles3Dcomm::interpP2G(Field * EMf, Grid * grid, VirtualTopology3D * vct) {
   const double inv_dx = 1.0 / dx;
   const double inv_dy = 1.0 / dy;
@@ -310,13 +297,8 @@ void Particles3Dcomm::interpP2G(Field * EMf, Grid * grid, VirtualTopology3D * vc
   // could first apply an efficient parallel sorting algorithm
   // to the particles and then accumulate moments in smaller
   // subarrays.
-  //#ifdef _OPENMP
-  #pragma omp parallel
   {
-    int thread_num = omp_get_thread_num();
-    Moments& speciesMoments = EMf->fetch_momentsArray(thread_num);
-    speciesMoments.set_to_zero();
-    #pragma omp for
+    assert_le(nop,INT_MAX); // else would need to use long long
     for (int i = 0; i < nop; i++)
     {
       const int ix = 2 + int (floor((x[i] - xstart) * inv_dx));
@@ -336,75 +318,65 @@ void Particles3Dcomm::interpP2G(Field * EMf, Grid * grid, VirtualTopology3D * vc
           for (int kk = 0; kk < 2; kk++) {
             weight[ii][jj][kk] = q[i] * xi[ii] * eta[jj] * zeta[kk] * invVOL;
           }
-      //weight[0][0][0] = q[i] * xi[0] * eta[0] * zeta[0] * invVOL;
-      //weight[0][0][1] = q[i] * xi[0] * eta[0] * zeta[1] * invVOL;
-      //weight[0][1][0] = q[i] * xi[0] * eta[1] * zeta[0] * invVOL;
-      //weight[0][1][1] = q[i] * xi[0] * eta[1] * zeta[1] * invVOL;
-      //weight[1][0][0] = q[i] * xi[1] * eta[0] * zeta[0] * invVOL;
-      //weight[1][0][1] = q[i] * xi[1] * eta[0] * zeta[1] * invVOL;
-      //weight[1][1][0] = q[i] * xi[1] * eta[1] * zeta[0] * invVOL;
-      //weight[1][1][1] = q[i] * xi[1] * eta[1] * zeta[1] * invVOL;
       // add charge density
-      speciesMoments.addRho(weight, ix, iy, iz);
+      EMf->addRho(weight, ix, iy, iz, ns);
       // add current density - X
       for (int ii = 0; ii < 2; ii++)
         for (int jj = 0; jj < 2; jj++)
           for (int kk = 0; kk < 2; kk++)
             temp[ii][jj][kk] = u[i] * weight[ii][jj][kk];
-      speciesMoments.addJx(temp, ix, iy, iz);
+      EMf->addJx(temp, ix, iy, iz, ns);
       // add current density - Y
       for (int ii = 0; ii < 2; ii++)
         for (int jj = 0; jj < 2; jj++)
           for (int kk = 0; kk < 2; kk++)
             temp[ii][jj][kk] = v[i] * weight[ii][jj][kk];
-      speciesMoments.addJy(temp, ix, iy, iz);
+      EMf->addJy(temp, ix, iy, iz, ns);
       // add current density - Z
       for (int ii = 0; ii < 2; ii++)
         for (int jj = 0; jj < 2; jj++)
           for (int kk = 0; kk < 2; kk++)
             temp[ii][jj][kk] = w[i] * weight[ii][jj][kk];
-      speciesMoments.addJz(temp, ix, iy, iz);
+      EMf->addJz(temp, ix, iy, iz, ns);
       // Pxx - add pressure tensor
       for (int ii = 0; ii < 2; ii++)
         for (int jj = 0; jj < 2; jj++)
           for (int kk = 0; kk < 2; kk++)
             temp[ii][jj][kk] = u[i] * u[i] * weight[ii][jj][kk];
-      speciesMoments.addPxx(temp, ix, iy, iz);
+      EMf->addPxx(temp, ix, iy, iz, ns);
       // Pxy - add pressure tensor
       for (int ii = 0; ii < 2; ii++)
         for (int jj = 0; jj < 2; jj++)
           for (int kk = 0; kk < 2; kk++)
             temp[ii][jj][kk] = u[i] * v[i] * weight[ii][jj][kk];
-      speciesMoments.addPxy(temp, ix, iy, iz);
+      EMf->addPxy(temp, ix, iy, iz, ns);
       // Pxz - add pressure tensor
       for (int ii = 0; ii < 2; ii++)
         for (int jj = 0; jj < 2; jj++)
           for (int kk = 0; kk < 2; kk++)
             temp[ii][jj][kk] = u[i] * w[i] * weight[ii][jj][kk];
-      speciesMoments.addPxz(temp, ix, iy, iz);
+      EMf->addPxz(temp, ix, iy, iz, ns);
       // Pyy - add pressure tensor
       for (int ii = 0; ii < 2; ii++)
         for (int jj = 0; jj < 2; jj++)
           for (int kk = 0; kk < 2; kk++)
             temp[ii][jj][kk] = v[i] * v[i] * weight[ii][jj][kk];
-      speciesMoments.addPyy(temp, ix, iy, iz);
+      EMf->addPyy(temp, ix, iy, iz, ns);
       // Pyz - add pressure tensor
       for (int ii = 0; ii < 2; ii++)
         for (int jj = 0; jj < 2; jj++)
           for (int kk = 0; kk < 2; kk++)
             temp[ii][jj][kk] = v[i] * w[i] * weight[ii][jj][kk];
-      speciesMoments.addPyz(temp, ix, iy, iz);
+      EMf->addPyz(temp, ix, iy, iz, ns);
       // Pzz - add pressure tensor
       for (int ii = 0; ii < 2; ii++)
         for (int jj = 0; jj < 2; jj++)
           for (int kk = 0; kk < 2; kk++)
             temp[ii][jj][kk] = w[i] * w[i] * weight[ii][jj][kk];
-      speciesMoments.addPzz(temp, ix, iy, iz);
+      EMf->addPzz(temp, ix, iy, iz, ns);
     }
-    // change this to allow more parallelization after implementing array class
-    #pragma omp critical
-    EMf->addToSpeciesMoments(speciesMoments,ns);
   }
+  // communicate contribution from ghost cells 
   EMf->communicateGhostP2G(ns, 0, 0, 0, 0, vct);
 }
 
