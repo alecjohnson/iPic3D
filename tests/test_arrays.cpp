@@ -8,8 +8,105 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include "stopwatch.h"
-#include "../include/Alloc.h"
-#include "assert.h"
+#include "Alloc.h"
+#include "asserts.h"
+#include "debug.h"
+
+/*! The allocator for 4D array */
+template < class type > type **** newArray4_Amaya(int sz1, int sz2, int sz3, int sz4) {
+
+  type ****all_x;
+  type ***all_y;
+  type **all_z;
+  type *all_r;
+
+  all_x = new type ***[sz1];
+  all_y = new type **[sz1 * sz2];
+  all_z = new type *[sz1 * sz2 * sz3];
+  all_r = new type[sz1 * sz2 * sz3 * sz4];
+
+  type ****result = all_x;
+
+  for (int i = 0; i < sz1; i++, all_y += sz2) {
+    result[i] = all_y;
+    for (int j = 0; j < sz2; j++, all_z += sz3) {
+      result[i][j] = all_z;
+      for (int k = 0; k < sz3; k++, all_r += sz4) {
+        result[i][j][k] = all_r;
+      }
+    }
+  }
+
+  return result;
+}
+
+/*! Deallocator for 4D arrays */
+template < class type > void delArr4_Amaya(type **** arr, int dummyx, int dummyy, int dummyz) {
+  delete[]arr[0][0][0];
+  delete[]arr[0][0];
+  delete[]arr[0];
+  delete[]arr;
+}
+
+/*! The allocator for 3D array */
+template < class type > type *** newArray3_Amaya(int sz1, int sz2, int sz3) {
+
+  type ***all_x;
+  type **all_y;
+  type *all_z;
+
+  all_x = new type **[sz1];
+  all_y = new type *[sz1 * sz2];
+  all_z = new type[sz1 * sz2 * sz3];
+
+  type ***result = all_x;
+
+  for (int i = 0; i < sz1; i++, all_y += sz2) {
+    result[i] = all_y;
+    for (int j = 0; j < sz2; j++, all_z += sz3) {
+      result[i][j] = all_z;
+    }
+  }
+
+  return result;
+
+}
+
+/*! Deallocator for 3D arrays */
+template < class type > void delArr3_Amaya(type *** arr, int dummyx, int dummyy) {
+  delete[]arr[0][0];
+  delete[]arr[0];
+  delete[]arr;
+}
+
+/*! The allocator for 2D array */
+template < class type > type ** newArr2_Amaya(int sz1, int sz2) {
+
+  type **all_x;
+  type *all_y;
+
+  all_x = new type *[sz1];
+  all_y = new type[sz1 * sz2];
+
+  type **result = all_x;
+
+  for (int i = 0; i < sz1; i++, all_y += sz2) {
+    result[i] = all_y;
+  }
+
+  return result;
+
+}
+
+/*! Deallocator for 2D arrays */
+template < class type > void delArr2_Amaya(type ** arr, int dummyx) {
+  delete[]arr[0];
+  delete[]arr;
+}
+
+#define newArr4_Amaya(type,sz1,sz2,sz3,sz4) newArray4_Amaya<type>((sz1),(sz2),(sz3),(sz4))
+#define newArr3_Amaya(type,sz1,sz2,sz3) newArray3_Amaya<type>((sz1),(sz2),(sz3))
+#define newArr2_Amaya(type,sz1,sz2) newArray2_Amaya<type>((sz1),(sz2))
 
 /****** begin (i,j) arrays from Reger Ferrer and Vicenç Beltran ******/
 
@@ -224,108 +321,345 @@ public:
 
 };
 
+/*** Array classes if dimensions are known at compile time. ***/
+
+template <class type, size_t N1, size_t N2>
+class Array2D
+{
+public:
+   type data [N1][N2];
+};
+
+template <class type, size_t N1, size_t N2, size_t N3>
+class Array3D
+{
+public:
+   type data [N1][N2][N3];
+};
+
 /******** end [i][j] arrays from Reger Ferrer and Vicenç Beltran ******/
 
 using namespace std;
 
-const int ITERS = 10000;
-const size_t DIM_X = 64;
-const size_t DIM_Y = 64;
-
 template <class type>
-void test_arrays()
+void testArr2_diagonal()
 {
-   const size_t n = DIM_X;
-   const size_t m = DIM_Y;
+   const int ITERS = 10000;
+   const size_t dim1 = 64;
+   const size_t dim2 = 64;
 
-   Array2<type> Abra(n, m);
-   Array2<type> Bbra(n, m);
-   Array2<type> Cbra(n, m);
+   Array2<type> Abra(dim1, dim2);
+   Array2<type> Bbra(dim1, dim2);
+   Array2<type> Cbra(dim1, dim2);
 
-   Rank2<type> Apar(n, m);
-   Rank2<type> Bpar(n, m);
-   Rank2<type> Cpar(n, m);
+   Rank2<type> Apar(dim1, dim2);
+   Rank2<type> Bpar(dim1, dim2);
+   Rank2<type> Cpar(dim1, dim2);
 
-   Array2D<type, DIM_X, DIM_Y> Afix ;
-   Array2D<type, DIM_X, DIM_Y> Bfix ;
-   Array2D<type, DIM_X, DIM_Y> Cfix ;
+   Array2D<type, dim1, dim2> Afix ;
+   Array2D<type, dim1, dim2> Bfix ;
+   Array2D<type, dim1, dim2> Cfix ;
 
-   type** Aold = newArr2(type, DIM_X, DIM_Y);
-   type** Bold = newArr2(type, DIM_X, DIM_Y);
-   type** Cold = newArr2(type, DIM_X, DIM_Y);
+   type** Aold = newArr2(type, dim1, dim2);
+   type** Bold = newArr2(type, dim1, dim2);
+   type** Cold = newArr2(type, dim1, dim2);
 
-   Arr2<type> Aeaj(Aold, DIM_X, DIM_Y);
-   Arr2<type> Beaj(Bold, DIM_X, DIM_Y);
-   Arr2<type> Ceaj(Cold, DIM_X, DIM_Y);
+   Arr2<type> Aeaj(Aold, dim1, dim2);
+   Arr2<type> Beaj(Bold, dim1, dim2);
+   Arr2<type> Ceaj(Cold, dim1, dim2);
 
    printf("Initializing data ...\n");
-   for(size_t i=0; i<DIM_X; i++){
-      for(size_t j=i; j<DIM_Y; j++){
-         Bbra[i][j] = rand();
-         Cbra[i][j] = rand();
-         Bpar(i,j) = Bbra[i][j];
-         Cpar(i,j) = Cbra[i][j];
-         Bfix.data[i][j] = Bbra[i][j];
-         Cfix.data[i][j] = Cbra[i][j];
-         Bold[i][j] = Bbra[i][j];
-         Cold[i][j] = Cbra[i][j];
-      }
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=i; j<dim2; j++)
+   {
+      Bbra[i][j] = rand();
+      Cbra[i][j] = rand();
+      Bpar(i,j) = Bbra[i][j];
+      Cpar(i,j) = Cbra[i][j];
+      Bfix.data[i][j] = Bbra[i][j];
+      Cfix.data[i][j] = Cbra[i][j];
+      Bold[i][j] = Bbra[i][j];
+      Cold[i][j] = Cbra[i][j];
+      Beaj[i][j] = Bbra[i][j];
+      Ceaj[i][j] = Cbra[i][j];
    }
 
    stopwatch(START);
    for(int t=0; t<ITERS; t++)
-   for(size_t i=0; i<DIM_X; i++){
-      for(size_t j=i; j<DIM_Y; j++){
-         Abra[i][j] = Bbra[i][j] * Cbra[i][j];
-      }
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=i; j<dim2; j++)
+   {
+      Abra[i][j] = Bbra[i][j] * Cbra[i][j];
    }
-   printf("Total time bracket array: %d ms\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time [i][j] Vincenc array\n", tv_to_ms(stopwatch(LAP)));
 
    for(int t=0; t<ITERS; t++)
-   for(size_t i=0; i<DIM_X; i++){
-      for(size_t j=i; j<DIM_Y; j++){
-         Apar(i,j) = Bpar(i,j) * Cpar(i,j);
-      }
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=i; j<dim2; j++)
+   {
+      Apar(i,j) = Bpar(i,j) * Cpar(i,j);
    }
-   printf("Total time parentheses array: %d ms\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time (i,j) Vincenc array\n", tv_to_ms(stopwatch(LAP)));
 
    for(int t=0; t<ITERS; t++)
-   for(size_t i=0; i<DIM_X; i++){
-      for(size_t j=i; j<DIM_Y; j++){
-         Afix.data[i][j] = Bfix.data[i][j] * Cfix.data[i][j];
-      }
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=i; j<dim2; j++)
+   {
+      Afix.data[i][j] = Bfix.data[i][j] * Cfix.data[i][j];
    }
-   printf("Total time fixed array: %d ms\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time [i][j] fixed-dimension array\n", tv_to_ms(stopwatch(LAP)));
 
    for(int t=0; t<ITERS; t++)
-   for(size_t i=0; i<DIM_X; i++){
-      for(size_t j=i; j<DIM_Y; j++){
-         Aold[i][j] = Bold[i][j] * Cold[i][j];
-      }
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=i; j<dim2; j++)
+   {
+      Aold[i][j] = Bold[i][j] * Cold[i][j];
    }
-   printf("Total time indirect array: %d ms\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time [i][j] chained-pointer array\n", tv_to_ms(stopwatch(LAP)));
 
    for(int t=0; t<ITERS; t++)
-   for(size_t i=0; i<DIM_X; i++){
-      for(size_t j=i; j<DIM_Y; j++){
-         Aeaj[i][j] = Beaj[i][j] * Ceaj[i][j];
-      }
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=i; j<dim2; j++)
+   {
+      Aeaj[i][j] = Beaj[i][j] * Ceaj[i][j];
    }
-   printf("Total time Alec [][] array: %d ms\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time [i][j] access of Arr2\n", tv_to_ms(stopwatch(LAP)));
 
    for(int t=0; t<ITERS; t++)
-   for(size_t i=0; i<DIM_X; i++){
-      for(size_t j=i; j<DIM_Y; j++){
-         Aeaj.fetch(i,j) = Beaj.get(i,j) * Ceaj.get(i,j);
-      }
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=i; j<dim2; j++)
+   {
+      Aeaj.fetch(i,j) = Beaj.get(i,j) * Ceaj.get(i,j);
    }
-   printf("Total time Alec (,) array: %d ms\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time (i,j) access of Arr2\n", tv_to_ms(stopwatch(LAP)));
 
-   for(size_t i=0; i<DIM_X; i++){
-      for(size_t j=i; j<DIM_Y; j++){
-         assert(Aold[i][j] == Abra[i][j]);
-         assert(Afix.data[i][j] == Abra[i][j]);
-      }
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=i; j<dim2; j++)
+   {
+      assert(Afix.data[i][j] == Abra[i][j]);
+      assert(Aold[i][j] == Abra[i][j]);
+      assert(Aeaj[i][j] == Abra[i][j]);
+   }
+
+   printf("Verification done!\n");
+   stopwatch(STOP);
+
+   delArr2(Aold,dim1);
+   delArr2(Bold,dim1);
+   delArr2(Cold,dim1);
+}
+
+template <class type>
+void testArr2()
+{
+   const int ITERS = 10000;
+   const size_t dim1 = 64;
+   const size_t dim2 = 64;
+
+   Array2<type> Abra(dim1, dim2);
+   Array2<type> Bbra(dim1, dim2);
+   Array2<type> Cbra(dim1, dim2);
+
+   Rank2<type> Apar(dim1, dim2);
+   Rank2<type> Bpar(dim1, dim2);
+   Rank2<type> Cpar(dim1, dim2);
+
+   Array2D<type, dim1, dim2> Afix ;
+   Array2D<type, dim1, dim2> Bfix ;
+   Array2D<type, dim1, dim2> Cfix ;
+
+   type** Aold = newArr2(type, dim1, dim2);
+   type** Bold = newArr2(type, dim1, dim2);
+   type** Cold = newArr2(type, dim1, dim2);
+
+   Arr2<type> Aeaj(Aold, dim1, dim2);
+   Arr2<type> Beaj(Bold, dim1, dim2);
+   Arr2<type> Ceaj(Cold, dim1, dim2);
+
+   printf("Initializing data ...\n");
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   {
+      Bbra[i][j] = rand();
+      Cbra[i][j] = rand();
+      Bpar(i,j) = Bbra[i][j];
+      Cpar(i,j) = Cbra[i][j];
+      Bfix.data[i][j] = Bbra[i][j];
+      Cfix.data[i][j] = Cbra[i][j];
+      Bold[i][j] = Bbra[i][j];
+      Cold[i][j] = Cbra[i][j];
+      Beaj[i][j] = Bbra[i][j];
+      Ceaj[i][j] = Cbra[i][j];
+   }
+
+   stopwatch(START);
+   for(int t=0; t<ITERS; t++)
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   {
+      Abra[i][j] = Bbra[i][j] * Cbra[i][j];
+   }
+   printf("%d ms = Total time [i][j] Vincenc array\n", tv_to_ms(stopwatch(LAP)));
+
+   for(int t=0; t<ITERS; t++)
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   {
+      Apar(i,j) = Bpar(i,j) * Cpar(i,j);
+   }
+   printf("%d ms = Total time (i,j) Vincenc array\n", tv_to_ms(stopwatch(LAP)));
+
+   for(int t=0; t<ITERS; t++)
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   {
+      Afix.data[i][j] = Bfix.data[i][j] * Cfix.data[i][j];
+   }
+   printf("%d ms = Total time [i][j] fixed-dimension array\n", tv_to_ms(stopwatch(LAP)));
+
+   for(int t=0; t<ITERS; t++)
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   {
+      Aold[i][j] = Bold[i][j] * Cold[i][j];
+   }
+   printf("%d ms = Total time [i][j] chained-pointer array\n", tv_to_ms(stopwatch(LAP)));
+
+   for(int t=0; t<ITERS; t++)
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   {
+      Aeaj[i][j] = Beaj[i][j] * Ceaj[i][j];
+   }
+   printf("%d ms = Total time [i][j] access of Arr2\n", tv_to_ms(stopwatch(LAP)));
+
+   for(int t=0; t<ITERS; t++)
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   {
+      Aeaj.fetch(i,j) = Beaj.get(i,j) * Ceaj.get(i,j);
+   }
+   printf("%d ms = Total time (i,j) access of Arr2\n", tv_to_ms(stopwatch(LAP)));
+
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   {
+      assert(Afix.data[i][j] == Abra[i][j]);
+      assert(Aold[i][j] == Abra[i][j]);
+      assert(Aeaj[i][j] == Abra[i][j]);
+   }
+
+   printf("Verification done!\n");
+   stopwatch(STOP);
+
+   delArr2(Aold,dim1);
+   delArr2(Bold,dim1);
+   delArr2(Cold,dim1);
+}
+
+template <class type>
+void testArr3()
+{
+   const int ITERS = 100;
+   const size_t dim1 = 64;
+   const size_t dim2 = 64;
+   const size_t dim3 = 64;
+
+   // Using this class causes a segmentation fault (why?)
+   //Array3<type> Abra(dim1, dim2, dim3);
+   //Array3<type> Bbra(dim1, dim2, dim3);
+   //Array3<type> Cbra(dim1, dim2, dim3);
+
+   Rank3<type> Apar(dim1, dim2, dim3);
+   Rank3<type> Bpar(dim1, dim2, dim3);
+   Rank3<type> Cpar(dim1, dim2, dim3);
+
+   Array3D<type, dim1, dim2, dim3> Afix ;
+   Array3D<type, dim1, dim2, dim3> Bfix ;
+   Array3D<type, dim1, dim2, dim3> Cfix ;
+
+   type*** Aold = newArr3(type, dim1, dim2, dim3);
+   type*** Bold = newArr3(type, dim1, dim2, dim3);
+   type*** Cold = newArr3(type, dim1, dim2, dim3);
+
+   Arr3<type> Aeaj(Aold, dim1, dim2, dim3);
+   Arr3<type> Beaj(Bold, dim1, dim2, dim3);
+   Arr3<type> Ceaj(Cold, dim1, dim2, dim3);
+   //Arr3<type> Aeaj(dim1, dim2, dim3);
+   //Arr3<type> Beaj(dim1, dim2, dim3);
+   //Arr3<type> Ceaj(dim1, dim2, dim3);
+
+   printf("Initializing data ...\n");
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   for(size_t k=0; k<dim3; k++)
+   {
+      Beaj[i][j][k] = rand();
+      Ceaj[i][j][k] = rand();
+      //Bbra[i][j][k] = Beaj.get(i,j,k);
+      //Cbra[i][j][k] = Ceaj.get(i,j,k);
+      Bpar(i,j,k) = Beaj.get(i,j,k);
+      Cpar(i,j,k) = Ceaj.get(i,j,k);
+      Bfix.data[i][j][k] = Beaj.get(i,j,k);
+      Cfix.data[i][j][k] = Ceaj.get(i,j,k);
+      Bold[i][j][k] = Beaj.get(i,j,k);
+      Cold[i][j][k] = Ceaj.get(i,j,k);
+   }
+
+   stopwatch(START);
+
+   for(int t=0; t<ITERS; t++)
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   for(size_t k=0; k<dim3; k++)
+   {
+      Apar(i,j,k) = Bpar(i,j,k) * Cpar(i,j,k);
+   }
+   printf("%d ms = Total time (i,j,k) Vincenc array\n", tv_to_ms(stopwatch(LAP)));
+
+   for(int t=0; t<ITERS; t++)
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   for(size_t k=0; k<dim3; k++)
+   {
+      Afix.data[i][j][k] = Bfix.data[i][j][k] * Cfix.data[i][j][k];
+   }
+   printf("%d ms = Total time [i][j][k] fixed-dimension array\n", tv_to_ms(stopwatch(LAP)));
+
+   for(int t=0; t<ITERS; t++)
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   for(size_t k=0; k<dim3; k++)
+   {
+      Aold[i][j][k] = Bold[i][j][k] * Cold[i][j][k];
+   }
+   printf("%d ms = Total time [i][j][k] chained-pointer array\n", tv_to_ms(stopwatch(LAP)));
+
+   for(int t=0; t<ITERS; t++)
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   for(size_t k=0; k<dim3; k++)
+   {
+      Aeaj[i][j][k] = Beaj[i][j][k] * Ceaj[i][j][k];
+   }
+   printf("%d ms = Total time [i][j][k] access of Arr2\n", tv_to_ms(stopwatch(LAP)));
+
+   for(int t=0; t<ITERS; t++)
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   for(size_t k=0; k<dim3; k++)
+   {
+      Aeaj.fetch(i,j,k) = Beaj.get(i,j,k) * Ceaj.get(i,j,k);
+   }
+   printf("%d ms = Total time (i,j,k) access of Arr2\n", tv_to_ms(stopwatch(LAP)));
+
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   for(size_t k=0; k<dim3; k++)
+   {
+      assert_eq(Aold[i][j][k], Aeaj.get(i,j,k));
+      assert_eq(Apar(i,j,k), Aeaj.get(i,j,k));
+      assert_eq(Afix.data[i][j][k], Aeaj.get(i,j,k));
    }
 
    printf("Verification done!\n");
@@ -334,8 +668,16 @@ void test_arrays()
 
 int main()
 {
-  printf("=== testing integer arrays ===\n");
-  test_arrays<int>();
-  printf("=== testing double arrays ===\n");
-  test_arrays<double>();
+  printf("=== testing Arr2<int> (diagonal) ===\n");
+  testArr2_diagonal<int>();
+  printf("=== testing Arr2<double> (diagonal) ===\n");
+  testArr2_diagonal<double>();
+  printf("=== testing Arr2<int> ===\n");
+  testArr2<int>();
+  printf("=== testing Arr2<double> ===\n");
+  testArr2<double>();
+  printf("=== testing Arr3<int> ===\n");
+  testArr3<int>();
+  printf("=== testing Arr3<double> ===\n");
+  testArr3<double>();
 }
