@@ -380,8 +380,8 @@ void testArr2_diagonal()
       Cfix.data[i][j] = Cbra[i][j];
       Bold[i][j] = Bbra[i][j];
       Cold[i][j] = Cbra[i][j];
-      Beaj[i][j] = Bbra[i][j];
-      Ceaj[i][j] = Cbra[i][j];
+      Beaj.fetch(i,j) = Bbra[i][j];
+      Ceaj.fetch(i,j) = Cbra[i][j];
    }
 
    stopwatch(START);
@@ -438,7 +438,7 @@ void testArr2_diagonal()
    {
       assert(Afix.data[i][j] == Abra[i][j]);
       assert(Aold[i][j] == Abra[i][j]);
-      assert(Aeaj[i][j] == Abra[i][j]);
+      assert(Aeaj.get(i,j) == Abra[i][j]);
    }
 
    printf("Verification done!\n");
@@ -488,8 +488,8 @@ void testArr2()
       Cfix.data[i][j] = Cbra[i][j];
       Bold[i][j] = Bbra[i][j];
       Cold[i][j] = Cbra[i][j];
-      Beaj[i][j] = Bbra[i][j];
-      Ceaj[i][j] = Cbra[i][j];
+      Beaj.fetch(i,j) = Bbra[i][j];
+      Ceaj.fetch(i,j) = Cbra[i][j];
    }
 
    stopwatch(START);
@@ -546,7 +546,7 @@ void testArr2()
    {
       assert(Afix.data[i][j] == Abra[i][j]);
       assert(Aold[i][j] == Abra[i][j]);
-      assert(Aeaj[i][j] == Abra[i][j]);
+      assert(Aeaj.get(i,j) == Abra[i][j]);
    }
 
    printf("Verification done!\n");
@@ -582,20 +582,20 @@ void testArr3()
    type*** Bold = newArr3(type, dim1, dim2, dim3);
    type*** Cold = newArr3(type, dim1, dim2, dim3);
 
-   Arr3<type> Aeaj(Aold, dim1, dim2, dim3);
-   Arr3<type> Beaj(Bold, dim1, dim2, dim3);
-   Arr3<type> Ceaj(Cold, dim1, dim2, dim3);
-   //Arr3<type> Aeaj(dim1, dim2, dim3);
-   //Arr3<type> Beaj(dim1, dim2, dim3);
-   //Arr3<type> Ceaj(dim1, dim2, dim3);
+   //Arr3<type> Aeaj(Aold, dim1, dim2, dim3);
+   //Arr3<type> Beaj(Bold, dim1, dim2, dim3);
+   //Arr3<type> Ceaj(Cold, dim1, dim2, dim3);
+   Arr3<type> Aeaj(dim1, dim2, dim3);
+   Arr3<type> Beaj(dim1, dim2, dim3);
+   Arr3<type> Ceaj(dim1, dim2, dim3);
 
    printf("Initializing data ...\n");
    for(size_t i=0; i<dim1; i++)
    for(size_t j=0; j<dim2; j++)
    for(size_t k=0; k<dim3; k++)
    {
-      Beaj[i][j][k] = rand();
-      Ceaj[i][j][k] = rand();
+      Beaj.fetch(i,j,k) = rand();
+      Ceaj.fetch(i,j,k) = rand();
       //Bbra[i][j][k] = Beaj.get(i,j,k);
       //Cbra[i][j][k] = Ceaj.get(i,j,k);
       Bpar(i,j,k) = Beaj.get(i,j,k);
@@ -642,7 +642,7 @@ void testArr3()
    {
       Aeaj[i][j][k] = Beaj[i][j][k] * Ceaj[i][j][k];
    }
-   printf("%d ms = Total time [i][j][k] access of Arr2\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time [i][j][k] access of Arr3\n", tv_to_ms(stopwatch(LAP)));
 
    for(int t=0; t<ITERS; t++)
    for(size_t i=0; i<dim1; i++)
@@ -651,7 +651,7 @@ void testArr3()
    {
       Aeaj.fetch(i,j,k) = Beaj.get(i,j,k) * Ceaj.get(i,j,k);
    }
-   printf("%d ms = Total time (i,j,k) access of Arr2\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time (i,j,k) access of Arr3\n", tv_to_ms(stopwatch(LAP)));
 
    for(size_t i=0; i<dim1; i++)
    for(size_t j=0; j<dim2; j++)

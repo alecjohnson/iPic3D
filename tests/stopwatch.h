@@ -2,15 +2,18 @@
 #include <assert.h>
 #include <stdint.h>
 
-static inline uint64_t tv_to_sec(struct timeval tv){
+#define myuint64_t int
+//#define myuint64_t uint64_t
+
+static inline myuint64_t tv_to_sec(struct timeval tv){
    return tv.tv_sec + tv.tv_usec/1000000;
 }
 
-static inline uint64_t tv_to_ms(struct timeval tv){
+static inline myuint64_t tv_to_ms(struct timeval tv){
    return tv.tv_sec*1000 + tv.tv_usec/1000;
 }
 
-static inline uint64_t tv_to_us(struct timeval tv){
+static inline myuint64_t tv_to_us(struct timeval tv){
    return tv.tv_sec*1000000 + tv.tv_usec;
 }
 
