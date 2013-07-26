@@ -25,7 +25,7 @@ test_arrays.o:
 
 debug.o:
 	$(COMPILER) $(FLAGS) -c ../utility/debug.cpp $(INCLUDE) -o debug.o
-	
+
 clean: clean_old_test_arrays clean_test_arrays
 	rm -f test_arrays $(OBJECTS)
 

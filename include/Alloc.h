@@ -24,6 +24,11 @@
 #endif
 
 #undef CHECK_BOUNDS
+#ifdef CHECK_BOUNDS
+  #define check_bounds(n,S) {assert_le(0, n); assert_lt(n, S);}
+#else
+  #define check_bounds(n,S)
+#endif
 
 /****** begin Alec Johnson's code ******/
 
@@ -31,35 +36,35 @@
 // These are a succinct equivalent of Jorge's earler methods,
 // except for the use of AlignedAlloc in place of new.
 //
-template < class type > inline type * newArray1(int sz1) {
+template < class type > inline type * newArray1(size_t sz1) {
   type *arr = AlignedAlloc(type, sz1); // new type [sz1];
   return arr;
 }
-template < class type > inline type ** newArray2(int sz1, int sz2) {
+template < class type > inline type ** newArray2(size_t sz1, size_t sz2) {
   type **arr = AlignedAlloc(type*, sz1); // new type *[sz1];
   type *ptr = newArray1<type>(sz1*sz2);
-  for (int i = 0; i < sz1; i++)
+  for (size_t i = 0; i < sz1; i++)
   {
     arr[i] = ptr;
     ptr += sz2;
   }
   return arr;
 }
-template < class type > inline type *** newArray3(int sz1, int sz2, int sz3) {
+template < class type > inline type *** newArray3(size_t sz1, size_t sz2, size_t sz3) {
   // type ***arr = AlignedAlloc(type**, sz1); // new type **[sz1];
   type ***arr = new type **[sz1];
   type **ptr = newArray2<type>(sz1*sz2, sz3);
-  for (int i = 0; i < sz1; i++)
+  for (size_t i = 0; i < sz1; i++)
   {
     arr[i] = ptr;
     ptr += sz2;
   }
   return arr;
 }
-template < class type > inline type **** newArray4(int sz1, int sz2, int sz3, int sz4) {
+template < class type > inline type **** newArray4(size_t sz1, size_t sz2, size_t sz3, size_t sz4) {
   type ****arr = AlignedAlloc(type***, sz1); //(new type ***[sz1]);
   type ***ptr = newArray3<type>(sz1*sz2, sz3, sz4);
-  for (int i = 0; i < sz1; i++) {
+  for (size_t i = 0; i < sz1; i++) {
     arr[i] = ptr;
     ptr += sz2;
   }
@@ -72,18 +77,18 @@ template < class type > inline void delArr1(type * arr)
 {
   AlignedFree(arr);
 }
-template < class type > inline void delArr2(type ** arr, int sz1)
+template < class type > inline void delArr2(type ** arr, size_t sz1)
 {
   delArr1(arr[0]);
   AlignedFree(arr);
 }
-template < class type > inline void delArr3(type *** arr, int sz1, int sz2)
+template < class type > inline void delArr3(type *** arr, size_t sz1, size_t sz2)
 {
   delArr2(arr[0],sz2);
   AlignedFree(arr);
 }
 template < class type > inline void delArr4(type **** arr,
-  int sz1, int sz2, int sz3)
+  size_t sz1, size_t sz2, size_t sz3)
 {
   delArr3(arr[0],sz2,sz3);
   AlignedFree(arr);
@@ -106,17 +111,16 @@ template < class type > inline void delArr4(type **** arr,
 template <class type>
 class Ref1
 {
-  type* __restrict__ const arr;
-  int shift;
-  int S1;
+  type* const __restrict__ arr;
+  const size_t S1;
+  const size_t shift;
  public:
-  inline Ref1(type*const arr_, int k, int s1) :
+  inline Ref1(type*const arr_, size_t k, size_t s1) :
     arr(arr_), shift(k), S1(s1)
   {}
-  inline type& operator[](int n1){
-    #ifdef CHECK_BOUNDS
-    assert_le(0, idx); assert_lt(n1, S1);
-    #endif
+  inline type& operator[](size_t n1){
+    check_bounds(n1, S1);
+    ALIGNED(arr);
     return arr[shift+n1];
   }
 };
@@ -124,17 +128,15 @@ class Ref1
 template <class type>
 class Ref2
 {
-  type* __restrict__ const arr;
-  int shift;
-  int S2, S1;
+  type* const __restrict__ arr;
+  const size_t shift;
+  const size_t S2, S1;
  public:
-  inline Ref2(type*const arr_, int k, int s2, int s1) :
+  inline Ref2(type*const arr_, size_t k, size_t s2, size_t s1) :
     arr(arr_), shift(k), S2(s2), S1(s1)
   {}
-  inline Ref1<type> operator[](int n2){
-    #ifdef CHECK_BOUNDS
-    assert_le(0, idx); assert_lt(n2, S2);
-    #endif
+  inline Ref1<type> operator[](size_t n2){
+    check_bounds(n2,S2);
     return Ref1<type>(arr, (shift+n2)*S1, S1);
   }
 };
@@ -142,17 +144,15 @@ class Ref2
 template <class type>
 class Ref3
 {
-  type* __restrict__ const arr;
-  int shift;
-  int S3, S2, S1;
+  type* const __restrict__ arr;
+  const size_t shift;
+  const size_t S3, S2, S1;
  public:
-  inline Ref3(type*const arr_, int k, int s3, int s2, int s1) :
+  inline Ref3(type*const arr_, size_t k, size_t s3, size_t s2, size_t s1) :
     arr(arr_), shift(k), S3(s3), S2(s2), S1(s1)
   {}
-  inline Ref2<type> operator[](int n3){
-    #ifdef CHECK_BOUNDS
-    assert_le(0, idx); assert_lt(n3, S3);
-    #endif
+  inline Ref2<type> operator[](size_t n3){
+    check_bounds(n3, S3);
     return Ref2<type>(arr, (shift+n3)*S2, S2, S1);
   }
 };
@@ -165,196 +165,229 @@ class Ref3
 // toward a proper array abstraction.
 //
 // proposed improvements:
-// - alternative constructor that takes a list of array dimensions
-// - reference counting and destructor that deallocates if appropriate
+// - inheriting wrapper with automatic destructor
+//   that returns this as a "fast accessor"
 // - methods that use parallel arithmetic for omp and vectorized code
 
 template <class type>
 class Arr1
 {
   private: // data
-    type* __restrict__ arr;
-    int S1;
-    bool owner;
+    type* const __restrict__ arr;
+    const size_t S1;
   public:
-    ~Arr1()
-    {
-      if(owner) AlignedFree(arr);
-    }
-    Arr1(int s1) :
+    ~Arr1() { }
+    void free() { AlignedFree(arr); }
+    Arr1(size_t s1) :
       S1(s1),
-      owner(true)
-    {
-      arr = AlignedAlloc(type, s1);
-    }
-    Arr1(type* in,
-      int s1) :
-      S1(s1),
-      arr(in),
-      owner(false)
+      arr(AlignedAlloc(type, s1))
     { }
-    inline type& operator[](int n1){
-      #ifdef CHECK_BOUNDS
-      assert_le(0, n1); assert_lt(n1, S1);
-      #endif
+    Arr1(type* in,
+      size_t s1) :
+      S1(s1),
+      arr(in)
+    { }
+    inline type& operator[](size_t n1){
+      check_bounds(n1, S1);
+      ALIGNED(arr);
       return arr[n1];
     }
-    inline int getidx(int n1) const
+    inline size_t getidx(size_t n1) const
     {
-      #ifdef CHECK_BOUNDS
-      assert_le(0, n1); assert_lt(n1, S1);
-      #endif
+      check_bounds(n1, S1);
       return n1;
     }
-    const type& get(int n1) const
-      { return arr[getidx(n1)]; }
-    type& fetch(int n2,int n1)
-      { return arr[getidx(n1)]; }
-    void set(int n1, type value)
-      { arr[getidx(n1)] = value; }
+    const type& get(size_t n1) const
+      { ALIGNED(arr); return arr[getidx(n1)]; }
+    type& fetch(size_t n2,size_t n1) const
+      { ALIGNED(arr); return arr[getidx(n1)]; }
+    void set(size_t n1, type value)
+      { ALIGNED(arr); arr[getidx(n1)] = value; }
 };
 
 template <class type>
 class Arr2
 {
   private: // data
-    type* __restrict__ arr;
-    int S2,S1;
-    bool owner;
+    const size_t S2,S1;
+    type* const __restrict__ arr;
   public:
-    ~Arr2()
-    {
-      if(owner) AlignedFree(arr);
-    }
-    Arr2(int s2, int s1) :
+    ~Arr2(){}
+    void free() { AlignedFree(arr); }
+    Arr2(size_t s2, size_t s1) :
       S2(s2), S1(s1),
-      owner(true)
+      arr(AlignedAlloc(type, s2*s1))
     {
-      arr = AlignedAlloc(type, ss2*s1);
     }
     Arr2(type*const* in,
-      int s2, int s1) :
+      size_t s2, size_t s1) :
       S2(s2), S1(s1),
-      arr(*in),
-      owner(false)
+      arr(*in)
     { }
-    inline Ref1<type> operator[](int n2){
-      #ifdef CHECK_BOUNDS
-      assert_le(0, n2); assert_lt(n2, S2);
-      #endif
+    inline Ref1<type> operator[](size_t n2){
+      check_bounds(n2, S2);
       return Ref1<type>(arr, n2*S1, S1);
     }
-    inline int getidx(int n2, int n1) const
+    inline size_t getidx(size_t n2, size_t n1) const
     {
-      #ifdef CHECK_BOUNDS
-      assert_le(0, n2); assert_lt(n2, S2);
-      assert_le(0, n1); assert_lt(n1, S1);
-      #endif
+      check_bounds(n2, S2);
+      check_bounds(n1, S1);
       return n2*S1+n1;
     }
-    const type& get(int n2,int n1) const
-      { return arr[getidx(n2,n1)]; }
-    type& fetch(int n2,int n1)
-      { return arr[getidx(n2,n1)]; }
-    void set(int n2,int n1, type value)
-      { arr[getidx(n2,n1)] = value; }
+    type& operator()(size_t n2, size_t n1) const
+      { ALIGNED(arr); return arr[n1+S1*n2]; }
+    type& fetch(size_t n2,size_t n1) const
+      { ALIGNED(arr); return arr[n1+S1*n2]; } //arr[n2*S1+n1]; }
+    //{ ALIGNED(arr); return arr[getidx(n2,n1)]; }
+    const type& get(size_t n2,size_t n1) const
+      { ALIGNED(arr); return arr[n1+S1*n2]; } // arr[n2*S1+n1]; 
+    //{ ALIGNED(arr); return arr[getidx(n2,n1)]; }
+    void set(size_t n2,size_t n1, type value)
+      { ALIGNED(arr); arr[[n2*S1+n1]] = value; }
+    //{ ALIGNED(arr); arr[getidx(n2,n1)] = value; }
 };
 
 template <class type>
 class Arr3
 {
   private: // data
-    type* __restrict__ arr;
-    int S3,S2,S1;
-    bool owner;
+    type* const __restrict__ arr;
+    const size_t S3,S2,S1;
   public:
-    ~Arr3()
-    {
-      if(owner) AlignedFree(arr);
-    }
-    Arr3(int s3, int s2, int s1) :
+    ~Arr3(){} // nonempty destructor would kill performance
+    void free() { AlignedFree(arr); }
+    Arr3(size_t s3, size_t s2, size_t s1) :
       S3(s3), S2(s2), S1(s1),
-      owner(true)
-    {
-      arr = AlignedAlloc(type, s3*s2*s1);
-    }
-    Arr3(type*const*const* in,
-      int s3, int s2, int s1) :
-      S3(s3), S2(s2), S1(s1),
-      arr(**in),
-      owner(false)
+      arr(AlignedAlloc(type, s3*s2*s1))
     { }
-    inline Ref2<type> operator[](int n3){
-      #ifdef CHECK_BOUNDS
-      assert_le(0, n3); assert_lt(n3, S3);
-      #endif
+    Arr3(type*const*const* in,
+      size_t s3, size_t s2, size_t s1) :
+      S3(s3), S2(s2), S1(s1),
+      arr(**in)
+    { }
+    inline Ref2<type> operator[](size_t n3){
+      check_bounds(n3, S3);
       return Ref2<type>(arr, n3*S2, S2, S1);
     }
-    inline int getidx(int n3, int n2, int n1) const
+    inline size_t getidx(size_t n3, size_t n2, size_t n1) const
     {
-      #ifdef CHECK_BOUNDS
-      assert_le(0, n3); assert_lt(n3, S3);
-      assert_le(0, n2); assert_lt(n2, S2);
-      assert_le(0, n1); assert_lt(n1, S1);
-      #endif
+      check_bounds(n3, S3);
+      check_bounds(n2, S2);
+      check_bounds(n1, S1);
       return (n3*S2+n2)*S1+n1;
     }
-    const type& get(int n3,int n2,int n1) const
-      { return arr[getidx(n3,n2,n1)]; }
-    type& fetch(int n3,int n2,int n1)
-      { return arr[getidx(n3,n2,n1)]; }
-    void set(int n3,int n2,int n1, type value)
-      { arr[getidx(n3,n2,n1)] = value; }
+    type& fetch(size_t n3,size_t n2,size_t n1) const
+    {
+       ALIGNED(arr);
+       return arr[n1+S1*(n2+S2*n3)];
+    }
+    //{ ALIGNED(arr); return arr[(n3*S2+n2)*S1+n1]; }
+    //{ ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
+    const type& get(size_t n3,size_t n2,size_t n1) const
+      { ALIGNED(arr); return arr[(n3*S2+n2)*S1+n1]; }
+    //{ ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
+    void set(size_t n3,size_t n2,size_t n1, type value)
+      { ALIGNED(arr); arr[(n3*S2+n2)*S1+n1] = value; }
+    //{ ALIGNED(arr); arr[getidx(n3,n2,n1)] = value; }
+    type& operator()(size_t n3, size_t n2, size_t n1) const
+    {
+       ALIGNED(arr);
+       return arr[n1+S1*(n2+S2*n3)];
+    }
 };
 
 template <class type>
 class Arr4
 {
   private: // data
-    type* __restrict__ arr;
-    int S4,S3,S2,S1;
-    bool owner;
+    const size_t S4,S3,S2,S1;
+    type* const __restrict__ arr;
   public:
-    ~Arr4()
-    {
-      if(owner) AlignedFree(arr);
-    }
-    Arr4(int s4, int s3, int s2, int s1) :
-      S4(s4), S3(s3), S2(s2), S1(s1),
-      owner(true)
-    {
-      arr = AlignedAlloc(type, s4*s3*s2*s1);
-    }
-    Arr4(type*const*const*const* in,
-      int s4, int s3, int s2, int s1) :
-      S4(s4), S3(s3), S2(s2), S1(s1),
-      arr(***in),
-      owner(false)
+    ~Arr4(){} // nonempty destructor would kill performance
+    void free() { AlignedFree(arr); }
+    Arr4(size_t s4, size_t s3, size_t s2, size_t s1) :
+      arr(AlignedAlloc(type, s4*s3*s2*s1)),
+      S4(s4), S3(s3), S2(s2), S1(s1)
     { }
-    inline Ref3<type> operator[](int n4){
-      #ifdef CHECK_BOUNDS
-      assert_le(0, n4); assert_lt(n4, S4);
-      #endif
+    Arr4(type*const*const*const* in,
+      size_t s4, size_t s3, size_t s2, size_t s1) :
+      S4(s4), S3(s3), S2(s2), S1(s1),
+      arr(***in)
+    { }
+    inline Ref3<type> operator[](size_t n4){
+      check_bounds(n4, S4);
       return Ref3<type>(arr, n4*S3, S3, S2, S1);
-      //return Arr3<type>(arr, n4*S3, S3, S2, S1); // could do this instead...
     }
-    inline int getidx(int n4, int n3, int n2, int n1) const
+    inline size_t getidx(size_t n4, size_t n3, size_t n2, size_t n1) const
     {
-      #ifdef CHECK_BOUNDS
-      assert_le(0, n4); assert_lt(n4, S4);
-      assert_le(0, n3); assert_lt(n3, S3);
-      assert_le(0, n2); assert_lt(n2, S2);
-      assert_le(0, n1); assert_lt(n1, S1);
-      #endif
+      check_bounds(n4, S4);
+      check_bounds(n3, S3);
+      check_bounds(n2, S2);
+      check_bounds(n1, S1);
       return ((n4*S3+n3)*S2+n2)*S1+n1;
     }
-    const type& get(int n4,int n3,int n2,int n1) const
-      { return arr[getidx(n4,n3,n2,n1)]; }
-    type& fetch(int n4,int n3,int n2,int n1)
-      { return arr[getidx(n4,n3,n2,n1)]; }
-    void set(int n4,int n3,int n2,int n1, type value)
-      { arr[getidx(n4,n3,n2,n1)] = value; }
+    const type& get(size_t n4,size_t n3,size_t n2,size_t n1) const
+      { ALIGNED(arr); return arr[getidx(n4,n3,n2,n1)]; }
+    type& fetch(size_t n4,size_t n3,size_t n2,size_t n1) const
+      { ALIGNED(arr); return arr[getidx(n4,n3,n2,n1)]; }
+    void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)
+      { ALIGNED(arr); arr[getidx(n4,n3,n2,n1)] = value; }
 };
+
+/**** begin assimilated array classes for debugging ***/
+
+template <class type>
+class ArrRank3
+{
+  private: // data
+    const size_t S3,S2,S1;
+    type* const __restrict__ arr;
+  public:
+    // nonempty destructor kills performance
+    ~ArrRank3()
+    { }
+    ArrRank3(size_t s3, size_t s2, size_t s1) :
+      S3(s3), S2(s2), S1(s1),
+      arr(AlignedAlloc(type, s3*s2*s1))
+    {
+    }
+    ArrRank3(type*const*const* in,
+      size_t s3, size_t s2, size_t s1) :
+      S3(s3), S2(s2), S1(s1)
+      arr(**in)
+    { }
+    inline Ref2<type> operator[](size_t n3){
+      check_bounds(n3, S3);
+      return Ref2<type>(arr, n3*S2, S2, S1);
+    }
+    inline size_t getidx(size_t n3, size_t n2, size_t n1) const
+    {
+      check_bounds(n3, S3);
+      check_bounds(n2, S2);
+      check_bounds(n1, S1);
+      return (n3*S2+n2)*S1+n1;
+    }
+    type& fetch(size_t n3,size_t n2,size_t n1) const
+    { ALIGNED(arr); return arr[(n3*S2+n2)*S1+n1]; }
+    //{ ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
+    const type& get(size_t n3,size_t n2,size_t n1) const
+      { ALIGNED(arr); return arr[(n3*S2+n2)*S1+n1]; }
+    //{ ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
+    void set(size_t n3,size_t n2,size_t n1, type value)
+      { ALIGNED(arr); arr[(n3*S2+n2)*S1+n1] = value; }
+    //{ ALIGNED(arr); arr[getidx(n3,n2,n1)] = value; }
+    type& operator()(size_t n3, size_t n2, size_t n1) const
+    {
+       ALIGNED(arr);
+       return arr[n1+S1*(n2+S2*n3)];
+    }
+    void free()
+    {
+      AlignedFree(arr);
+    };
+};
+
+/**** end assimilated array classes for debugging ***/
 
 // aliases to avoid filling the code with template brackets
 //

@@ -110,117 +110,147 @@ template < class type > void delArr2_Amaya(type ** arr, int dummyx) {
 
 /****** begin (i,j) arrays from Reger Ferrer and Vicenç Beltran ******/
 
-template <class ElementType>
+template <class type>
 class Rank1
 {
-    const size_t _N1;
-    ElementType  * __restrict__ const  _storage;
+    const size_t S1;
+    type  * __restrict__ const  arr;
 
 public:
 
-    Rank1(size_t N1) : _N1(N1), _storage(AlignedAlloc(ElementType, N1)) {}
+    Rank1(size_t s1) : S1(s1), arr(AlignedAlloc(type, s1)) {}
 
-    //Rank1( const Rank1& other ) : _N1( other._N1 ), _storage( other._storage ) {}
+    //Rank1( const Rank1& other ) : S1( other.S1 ), arr( other.arr ) {}
 
-    ElementType& operator()(size_t n1) const
+    type& operator()(size_t n1) const
     {
-       ALIGNED(_storage);
-       return _storage[n1];
+       ALIGNED(arr);
+       return arr[n1];
     }
 
-    size_t dim1() const { return _N1; }
+    size_t dim1() const { return S1; }
 
     ~Rank1() { };
 };
 
-template <class ElementType>
+template <class type>
 class Rank2
 {
-    const size_t  _N1, _N2;
-    ElementType * __restrict__ const _storage;
+    const size_t  S1, S2;
+    type * __restrict__ const arr;
 
 
 public:
-    Rank2(size_t N1, size_t N2) : _N1(N1), _N2(N2), _storage(AlignedAlloc(ElementType, N1*N2)) {}
+    Rank2(size_t s1, size_t s2) : S1(s1), S2(s2), arr(AlignedAlloc(type, s1*s2)) {}
 
-    //Rank2( const Rank2& other ) : _N1( other._N1 ), _N2( other._N2 ), _storage( other._storage ) {}
+    //Rank2( const Rank2& other ) : S1( other.S1 ), S2( other.S2 ), arr( other.arr ) {}
 
-    ElementType& operator()(size_t n1, size_t n2) const
+    type& operator()(size_t n1, size_t n2) const
     {
-       ALIGNED(_storage);
-       return _storage[n2+_N2*n1];
+       check_bounds(n1,S1); check_bounds(n2,S2);
+       ALIGNED(arr);
+       return arr[n2+S2*n1];
+    }
+    type& fetch(size_t n1,size_t n2) const
+    {
+       check_bounds(n1,S1); check_bounds(n2,S2);
+       ALIGNED(arr);
+       return arr[n2+S2*n1];
     }
 
-    size_t dim1() const { return _N1; }
-    size_t dim2() const { return _N2; }
+    size_t dim1() const { return S1; }
+    size_t dim2() const { return S2; }
     
-    void deleteArr() {
-       AlignedFree(_storage);
+    void free() {
+       AlignedFree(arr);
     }
 
     ~Rank2() { };
 };
     
-template <class ElementType>
+template <class type>
 class Rank3
 {
-    const size_t _N1, _N2, _N3;
-    ElementType *    const __restrict__ _storage;
+    const size_t S1, S2, S3;
+    type *    const __restrict__ arr;
 
 
 public:
 
-    Rank3(size_t N1, size_t N2, size_t N3) : _N1(N1), _N2(N2), _N3(N3),
-    _storage(AlignedAlloc(ElementType, N1*N2*N3)) {}
+    Rank3(size_t s1, size_t s2, size_t s3) : S1(s1), S2(s2), S3(s3),
+    arr(AlignedAlloc(type, s1*s2*s3)) {}
 
-    //Rank3( const Rank3& other ) : _N1( other._N1 ), _N2( other._N2 ), _N3( other._N3 ),
-    //_storage( other._storage ) {}
+    //Rank3( const Rank3& other ) : S1( other.S1 ), S2( other.S2 ), S3( other.S3 ),
+    //arr( other.arr ) {}
 
-    ElementType& operator()(size_t n1, size_t n2, size_t n3) const
+    type& operator()(size_t n1, size_t n2, size_t n3) const
     {
-       ALIGNED(_storage);
-       return _storage[n3+_N3*(n2+_N2*n1)];
+       check_bounds(n1,S1);
+       check_bounds(n2,S2);
+       check_bounds(n3,S3);
+       ALIGNED(arr);
+       return arr[n3+S3*(n2+S2*n1)];
+    }
+    type& fetch(size_t n1, size_t n2, size_t n3) const
+    {
+       check_bounds(n1,S1);
+       check_bounds(n2,S2);
+       check_bounds(n3,S3);
+       ALIGNED(arr);
+       return arr[n3+S3*(n2+S2*n1)];
+    }
+    const type& get(size_t n1, size_t n2, size_t n3) const
+    {
+       check_bounds(n1,S1);
+       check_bounds(n2,S2);
+       check_bounds(n3,S3);
+       ALIGNED(arr);
+       return arr[n3+S3*(n2+S2*n1)];
     }
 
     ~Rank3() { }
 
-    size_t dim1() const { return _N1; }
-    size_t dim2() const { return _N2; }
-    size_t dim3() const { return _N3; }
+    size_t dim1() const { return S1; }
+    size_t dim2() const { return S2; }
+    size_t dim3() const { return S3; }
 
-    void deleteArr() {
-       AlignedFree(_storage);
+    void free() {
+       AlignedFree(arr);
     }
 };
 
-template <class ElementType>
+template <class type>
 class Rank4
 {
-    const size_t _N1, _N2, _N3, _N4;
-    ElementType* __restrict__ const _storage;
+    const size_t S1, S2, S3, S4;
+    type* __restrict__ const arr;
 
 public:
 
-    Rank4(size_t N1, size_t N2, size_t N3, size_t N4) : _N1(N1), _N2(N2), _N3(N3), _N4(N4),
-    _storage(AlignedAlloc(ElementType, N1*N2*N3*N4)) {}
+    Rank4(size_t s1, size_t s2, size_t s3, size_t s4) : S1(s1), S2(s2), S3(s3), S4(s4),
+    arr(AlignedAlloc(type, s1*s2*s3*s4)) {}
 
-    //Rank4( const Rank4& other ) : _N1( other._N1 ), _N2( other._N2 ), _N3( other._N3 ), _N4( other._N4 ),
-    //_storage( other._storage ) {}
+    //Rank4( const Rank4& other ) : S1( other.S1 ), S2( other.S2 ), S3( other.S3 ), S4( other.S4 ),
+    //arr( other.arr ) {}
 
-    ElementType& operator()(size_t n1, size_t n2, size_t n3, size_t n4) const
+    type& operator()(size_t n1, size_t n2, size_t n3, size_t n4) const
     {
-       ALIGNED(_storage);
-       return _storage[n4+_N4*(n3+_N3*(n2+_N2*n1))];
+       check_bounds(n1,S1);
+       check_bounds(n2,S2);
+       check_bounds(n3,S3);
+       check_bounds(n4,S4);
+       ALIGNED(arr);
+       return arr[n4+S4*(n3+S3*(n2+S2*n1))];
     }
 
     ~Rank4() { }
 
-    size_t dim1() const { return _N1; } 
-    size_t dim2() const { return _N2; }
-    size_t dim3() const { return _N3; }
-    size_t dim4() const { return _N4; }
+    size_t dim1() const { return S1; } 
+    size_t dim2() const { return S2; }
+    size_t dim3() const { return S3; }
+    size_t dim4() const { return S4; }
     
-    void deleteArr() { AlignedFree(_storage); }
+    void free() { AlignedFree(arr); }
 
 };
 
@@ -228,113 +258,64 @@ public:
 
 /****** begin [i][j] arrays from Reger Ferrer and Vicenç Beltran ******/
 
-template <class ElementType>
-class Array1
+template <class type>
+class BracketRank1
 {
-    const size_t _N1;
-    ElementType  * __restrict__ const  _storage;
+    const size_t S1;
+    type  * __restrict__ const  arr;
 
 public:
-    Array1(size_t N1, void * __restrict__ const storage) : _N1(N1),
-         _storage(reinterpret_cast<ElementType * __restrict__ const>(storage)){}
+    BracketRank1(size_t s1, void * __restrict__ const storage) : S1(s1),
+         arr(reinterpret_cast<type * __restrict__ const>(storage)){}
 
-    Array1(size_t N1) : _N1(N1), _storage(new ElementType[N1]){}
+    BracketRank1(size_t s1) : S1(s1), arr(new type[s1]){}
 
-    ElementType& operator[](size_t i) const
+    type& operator[](size_t i) const
     {
-        return _storage[i];
+        return arr[i];
     }
 
 };
 
-template <class ElementType>
-class Array2
+template <class type>
+class BracketRank2
 {
-    const size_t _N1, _N2;
-    ElementType * __restrict__ const _storage;
+    const size_t S1, S2;
+    type * __restrict__ const arr;
 
 public:
-    Array2(size_t N1, size_t N2, void *storage) : _N1(N1), _N2(N2),
-         _storage(reinterpret_cast<ElementType * __restrict__ const>(storage)){}
+    void free(){ delete[] arr; }
+    BracketRank2(size_t s1, size_t s2, void *storage) : S1(s1), S2(s2),
+         arr(reinterpret_cast<type * __restrict__ const>(storage)){}
 
-    Array2(size_t N1, size_t N2) : _N1(N1), _N2(N2),
-         _storage(new ElementType[N1*N2]) {}
+    BracketRank2(size_t s1, size_t s2) : S1(s1), S2(s2),
+         arr(new type[s1*s2]) {}
 
-    Array1<ElementType> operator[](size_t i) const
+    BracketRank1<type> operator[](size_t i) const
     {
-        return Array1<ElementType>(_N2, _storage + i * _N2);
+        return BracketRank1<type>(S2, arr + i * S2);
     }
-    ElementType& operator()(size_t n1, size_t n2) const
+    type& operator()(size_t n1, size_t n2) const
     {
-       ALIGNED(_storage);
-       return _storage[n2+_N2*n1];
+       ALIGNED(arr);
+       return arr[n2+S2*n1];
     }
-};
-
-template <class ElementType>
-class Array3
-{
-    const size_t _N1, _N2, _N3;
-    ElementType* __restrict__ const _storage;
-
-public:
-    Array3(size_t N1, size_t N2, size_t N3, void *storage) : _N1(N1), _N2(N2), _N3(N3),
-         _storage(reinterpret_cast<ElementType * __restrict__ const>(storage)) {}
-
-
-    Array3(size_t N1, size_t N2, size_t N3) : _N1(N1), _N2(N2), _N3(N3),
-         _storage(new ElementType(N1*N2*N3)) {}
-
-    Array2<ElementType> operator[](size_t i) const
-    {
-        return Array2<ElementType>(_N2, _N3, _storage + i * _N2 * _N3);
-    }
-    ElementType& operator()(size_t n1, size_t n2, size_t n3) const
-    {
-       ALIGNED(_storage);
-       return _storage[n3+_N3*(n2+_N2*n1)];
-    }
-};
-
-template <class ElementType>
-class Array4
-{
-    const size_t _N1, _N2, _N3, _N4;
-    ElementType* __restrict__ const _storage;
-
-public:
-    Array4(size_t N1, size_t N2, size_t N3, size_t N4, void *storage) : _N1(N1), _N2(N2), _N3(N3), _N4(N4),
-         _storage(reinterpret_cast<ElementType * __restrict__ const>(storage)) {}
-
-    Array4(size_t N1, size_t N2, size_t N3, size_t N4) : _N1(N1), _N2(N2), _N3(N3), _N4(N4),
-         _storage(new ElementType(N1*N2*N3*N4)) {}
-
-    Array3<ElementType> operator[](size_t i) const
-    {
-        return Array3<ElementType>(_N2, _N3, _N4, _storage + i * _N2 * _N3 * _N4);
-    }
-    ElementType& operator()(size_t n1, size_t n2, size_t n3, size_t n4) const
-    {
-       ALIGNED(_storage);
-       return _storage[n4+_N4*(n3+_N3*(n2+_N2*n1))];
-    }
-
 };
 
 /*** Array classes if dimensions are known at compile time. ***/
 
-template <class type, size_t N1, size_t N2>
+template <class type, size_t s1, size_t s2>
 class Array2D
 {
 public:
-   type data [N1][N2];
+   type data [s1][s2];
 };
 
-template <class type, size_t N1, size_t N2, size_t N3>
+template <class type, size_t s1, size_t s2, size_t s3>
 class Array3D
 {
 public:
-   type data [N1][N2][N3];
+   type data [s1][s2][s3];
 };
 
 /******** end [i][j] arrays from Reger Ferrer and Vicenç Beltran ******/
@@ -348,9 +329,9 @@ void testArr2_diagonal()
    const size_t dim1 = 64;
    const size_t dim2 = 64;
 
-   Array2<type> Abra(dim1, dim2);
-   Array2<type> Bbra(dim1, dim2);
-   Array2<type> Cbra(dim1, dim2);
+   BracketRank2<type> Abra(dim1, dim2);
+   BracketRank2<type> Bbra(dim1, dim2);
+   BracketRank2<type> Cbra(dim1, dim2);
 
    Rank2<type> Apar(dim1, dim2);
    Rank2<type> Bpar(dim1, dim2);
@@ -364,9 +345,9 @@ void testArr2_diagonal()
    type** Bold = newArr2(type, dim1, dim2);
    type** Cold = newArr2(type, dim1, dim2);
 
-   Arr2<type> Aeaj(Aold, dim1, dim2);
-   Arr2<type> Beaj(Bold, dim1, dim2);
-   Arr2<type> Ceaj(Cold, dim1, dim2);
+   Arr2<type> Aeaj(dim1, dim2);
+   Arr2<type> Beaj(dim1, dim2);
+   Arr2<type> Ceaj(dim1, dim2);
 
    printf("Initializing data ...\n");
    for(size_t i=0; i<dim1; i++)
@@ -389,17 +370,9 @@ void testArr2_diagonal()
    for(size_t i=0; i<dim1; i++)
    for(size_t j=i; j<dim2; j++)
    {
-      Abra[i][j] = Bbra[i][j] * Cbra[i][j];
+      Aold[i][j] = Bold[i][j] * Cold[i][j];
    }
-   printf("%d ms = Total time [i][j] Vincenc array\n", tv_to_ms(stopwatch(LAP)));
-
-   for(int t=0; t<ITERS; t++)
-   for(size_t i=0; i<dim1; i++)
-   for(size_t j=i; j<dim2; j++)
-   {
-      Apar(i,j) = Bpar(i,j) * Cpar(i,j);
-   }
-   printf("%d ms = Total time (i,j) Vincenc array\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time [i][j] chained-pointer array\n", tv_to_ms(stopwatch(LAP)));
 
    for(int t=0; t<ITERS; t++)
    for(size_t i=0; i<dim1; i++)
@@ -413,9 +386,18 @@ void testArr2_diagonal()
    for(size_t i=0; i<dim1; i++)
    for(size_t j=i; j<dim2; j++)
    {
-      Aold[i][j] = Bold[i][j] * Cold[i][j];
+      Abra[i][j] = Bbra[i][j] * Cbra[i][j];
    }
-   printf("%d ms = Total time [i][j] chained-pointer array\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time [i][j] Vicenc array\n", tv_to_ms(stopwatch(LAP)));
+
+   for(int t=0; t<ITERS; t++)
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=i; j<dim2; j++)
+   {
+      Apar.fetch(i,j) = Bpar.fetch(i,j) * Cpar.fetch(i,j);
+      //Apar(i,j) = Bpar(i,j) * Cpar(i,j);
+   }
+   printf("%d ms = Total time (i,j) Vicenc array\n", tv_to_ms(stopwatch(LAP)));
 
    for(int t=0; t<ITERS; t++)
    for(size_t i=0; i<dim1; i++)
@@ -429,7 +411,8 @@ void testArr2_diagonal()
    for(size_t i=0; i<dim1; i++)
    for(size_t j=i; j<dim2; j++)
    {
-      Aeaj.fetch(i,j) = Beaj.get(i,j) * Ceaj.get(i,j);
+      //Aeaj(i,j) = Beaj(i,j) * Ceaj(i,j);
+      Aeaj.fetch(i,j) = Beaj.fetch(i,j) * Ceaj.fetch(i,j);
    }
    printf("%d ms = Total time (i,j) access of Arr2\n", tv_to_ms(stopwatch(LAP)));
 
@@ -456,9 +439,9 @@ void testArr2()
    const size_t dim1 = 64;
    const size_t dim2 = 64;
 
-   Array2<type> Abra(dim1, dim2);
-   Array2<type> Bbra(dim1, dim2);
-   Array2<type> Cbra(dim1, dim2);
+   BracketRank2<type> Abra(dim1, dim2);
+   BracketRank2<type> Bbra(dim1, dim2);
+   BracketRank2<type> Cbra(dim1, dim2);
 
    Rank2<type> Apar(dim1, dim2);
    Rank2<type> Bpar(dim1, dim2);
@@ -472,9 +455,9 @@ void testArr2()
    type** Bold = newArr2(type, dim1, dim2);
    type** Cold = newArr2(type, dim1, dim2);
 
-   Arr2<type> Aeaj(Aold, dim1, dim2);
-   Arr2<type> Beaj(Bold, dim1, dim2);
-   Arr2<type> Ceaj(Cold, dim1, dim2);
+   Arr2<type> Aeaj(dim1, dim2);
+   Arr2<type> Beaj(dim1, dim2);
+   Arr2<type> Ceaj(dim1, dim2);
 
    printf("Initializing data ...\n");
    for(size_t i=0; i<dim1; i++)
@@ -497,17 +480,9 @@ void testArr2()
    for(size_t i=0; i<dim1; i++)
    for(size_t j=0; j<dim2; j++)
    {
-      Abra[i][j] = Bbra[i][j] * Cbra[i][j];
+      Aold[i][j] = Bold[i][j] * Cold[i][j];
    }
-   printf("%d ms = Total time [i][j] Vincenc array\n", tv_to_ms(stopwatch(LAP)));
-
-   for(int t=0; t<ITERS; t++)
-   for(size_t i=0; i<dim1; i++)
-   for(size_t j=0; j<dim2; j++)
-   {
-      Apar(i,j) = Bpar(i,j) * Cpar(i,j);
-   }
-   printf("%d ms = Total time (i,j) Vincenc array\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time [i][j] chained-pointer array\n", tv_to_ms(stopwatch(LAP)));
 
    for(int t=0; t<ITERS; t++)
    for(size_t i=0; i<dim1; i++)
@@ -521,9 +496,17 @@ void testArr2()
    for(size_t i=0; i<dim1; i++)
    for(size_t j=0; j<dim2; j++)
    {
-      Aold[i][j] = Bold[i][j] * Cold[i][j];
+      Abra[i][j] = Bbra[i][j] * Cbra[i][j];
    }
-   printf("%d ms = Total time [i][j] chained-pointer array\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time [i][j] Vicenc array\n", tv_to_ms(stopwatch(LAP)));
+
+   for(int t=0; t<ITERS; t++)
+   for(size_t i=0; i<dim1; i++)
+   for(size_t j=0; j<dim2; j++)
+   {
+      Apar(i,j) = Bpar(i,j) * Cpar(i,j);
+   }
+   printf("%d ms = Total time (i,j) Vicenc array\n", tv_to_ms(stopwatch(LAP)));
 
    for(int t=0; t<ITERS; t++)
    for(size_t i=0; i<dim1; i++)
@@ -565,11 +548,6 @@ void testArr3()
    const size_t dim2 = 64;
    const size_t dim3 = 64;
 
-   // Using this class causes a segmentation fault (why?)
-   //Array3<type> Abra(dim1, dim2, dim3);
-   //Array3<type> Bbra(dim1, dim2, dim3);
-   //Array3<type> Cbra(dim1, dim2, dim3);
-
    Rank3<type> Apar(dim1, dim2, dim3);
    Rank3<type> Bpar(dim1, dim2, dim3);
    Rank3<type> Cpar(dim1, dim2, dim3);
@@ -582,9 +560,6 @@ void testArr3()
    type*** Bold = newArr3(type, dim1, dim2, dim3);
    type*** Cold = newArr3(type, dim1, dim2, dim3);
 
-   //Arr3<type> Aeaj(Aold, dim1, dim2, dim3);
-   //Arr3<type> Beaj(Bold, dim1, dim2, dim3);
-   //Arr3<type> Ceaj(Cold, dim1, dim2, dim3);
    Arr3<type> Aeaj(dim1, dim2, dim3);
    Arr3<type> Beaj(dim1, dim2, dim3);
    Arr3<type> Ceaj(dim1, dim2, dim3);
@@ -598,8 +573,8 @@ void testArr3()
       Ceaj.fetch(i,j,k) = rand();
       //Bbra[i][j][k] = Beaj.get(i,j,k);
       //Cbra[i][j][k] = Ceaj.get(i,j,k);
-      Bpar(i,j,k) = Beaj.get(i,j,k);
-      Cpar(i,j,k) = Ceaj.get(i,j,k);
+      Bpar.fetch(i,j,k) = Beaj.get(i,j,k);
+      Cpar.fetch(i,j,k) = Ceaj.get(i,j,k);
       Bfix.data[i][j][k] = Beaj.get(i,j,k);
       Cfix.data[i][j][k] = Ceaj.get(i,j,k);
       Bold[i][j][k] = Beaj.get(i,j,k);
@@ -613,9 +588,9 @@ void testArr3()
    for(size_t j=0; j<dim2; j++)
    for(size_t k=0; k<dim3; k++)
    {
-      Apar(i,j,k) = Bpar(i,j,k) * Cpar(i,j,k);
+      Aold[i][j][k] = Bold[i][j][k] * Cold[i][j][k];
    }
-   printf("%d ms = Total time (i,j,k) Vincenc array\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time [i][j][k] chained-pointer array\n", tv_to_ms(stopwatch(LAP)));
 
    for(int t=0; t<ITERS; t++)
    for(size_t i=0; i<dim1; i++)
@@ -631,9 +606,10 @@ void testArr3()
    for(size_t j=0; j<dim2; j++)
    for(size_t k=0; k<dim3; k++)
    {
-      Aold[i][j][k] = Bold[i][j][k] * Cold[i][j][k];
+      //Apar(i,j,k) = Bpar(i,j,k) * Cpar(i,j,k);
+      Apar.fetch(i,j,k) = Bpar.fetch(i,j,k) * Cpar.fetch(i,j,k);
    }
-   printf("%d ms = Total time [i][j][k] chained-pointer array\n", tv_to_ms(stopwatch(LAP)));
+   printf("%d ms = Total time (i,j,k) Vicenc array\n", tv_to_ms(stopwatch(LAP)));
 
    for(int t=0; t<ITERS; t++)
    for(size_t i=0; i<dim1; i++)
@@ -658,20 +634,30 @@ void testArr3()
    for(size_t k=0; k<dim3; k++)
    {
       assert_eq(Aold[i][j][k], Aeaj.get(i,j,k));
-      assert_eq(Apar(i,j,k), Aeaj.get(i,j,k));
+      assert_eq(Apar.fetch(i,j,k), Aeaj.get(i,j,k));
       assert_eq(Afix.data[i][j][k], Aeaj.get(i,j,k));
    }
 
    printf("Verification done!\n");
    stopwatch(STOP);
+
+   // Why does automatic destructor slow array access?
+   // Because of exception handling?
+   //
+   Apar.free();
+   Bpar.free();
+   Cpar.free();
+   Aeaj.free();
+   Beaj.free();
+   Ceaj.free();
 }
 
 int main()
 {
-  printf("=== testing Arr2<int> (diagonal) ===\n");
-  testArr2_diagonal<int>();
-  printf("=== testing Arr2<double> (diagonal) ===\n");
-  testArr2_diagonal<double>();
+  //printf("=== testing Arr2<int> (diagonal) ===\n");
+  //testArr2_diagonal<int>();
+  //printf("=== testing Arr2<double> (diagonal) ===\n");
+  //testArr2_diagonal<double>();
   printf("=== testing Arr2<int> ===\n");
   testArr2<int>();
   printf("=== testing Arr2<double> ===\n");
