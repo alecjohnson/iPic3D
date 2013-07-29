@@ -243,7 +243,7 @@ class Arr2
       { ALIGNED(arr); return arr[n1+S1*n2]; } // arr[n2*S1+n1]; 
     //{ ALIGNED(arr); return arr[getidx(n2,n1)]; }
     void set(size_t n2,size_t n1, type value)
-      { ALIGNED(arr); arr[[n2*S1+n1]] = value; }
+      { ALIGNED(arr); arr[n2*S1+n1] = value; }
     //{ ALIGNED(arr); arr[getidx(n2,n1)] = value; }
 };
 
@@ -333,61 +333,6 @@ class Arr4
     void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)
       { ALIGNED(arr); arr[getidx(n4,n3,n2,n1)] = value; }
 };
-
-/**** begin assimilated array classes for debugging ***/
-
-template <class type>
-class ArrRank3
-{
-  private: // data
-    const size_t S3,S2,S1;
-    type* const __restrict__ arr;
-  public:
-    // nonempty destructor kills performance
-    ~ArrRank3()
-    { }
-    ArrRank3(size_t s3, size_t s2, size_t s1) :
-      S3(s3), S2(s2), S1(s1),
-      arr(AlignedAlloc(type, s3*s2*s1))
-    {
-    }
-    ArrRank3(type*const*const* in,
-      size_t s3, size_t s2, size_t s1) :
-      S3(s3), S2(s2), S1(s1)
-      arr(**in)
-    { }
-    inline Ref2<type> operator[](size_t n3){
-      check_bounds(n3, S3);
-      return Ref2<type>(arr, n3*S2, S2, S1);
-    }
-    inline size_t getidx(size_t n3, size_t n2, size_t n1) const
-    {
-      check_bounds(n3, S3);
-      check_bounds(n2, S2);
-      check_bounds(n1, S1);
-      return (n3*S2+n2)*S1+n1;
-    }
-    type& fetch(size_t n3,size_t n2,size_t n1) const
-    { ALIGNED(arr); return arr[(n3*S2+n2)*S1+n1]; }
-    //{ ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
-    const type& get(size_t n3,size_t n2,size_t n1) const
-      { ALIGNED(arr); return arr[(n3*S2+n2)*S1+n1]; }
-    //{ ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
-    void set(size_t n3,size_t n2,size_t n1, type value)
-      { ALIGNED(arr); arr[(n3*S2+n2)*S1+n1] = value; }
-    //{ ALIGNED(arr); arr[getidx(n3,n2,n1)] = value; }
-    type& operator()(size_t n3, size_t n2, size_t n1) const
-    {
-       ALIGNED(arr);
-       return arr[n1+S1*(n2+S2*n3)];
-    }
-    void free()
-    {
-      AlignedFree(arr);
-    };
-};
-
-/**** end assimilated array classes for debugging ***/
 
 // aliases to avoid filling the code with template brackets
 //
