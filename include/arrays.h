@@ -1,6 +1,6 @@
 #ifndef IPIC_ARRAYS_H
 #define IPIC_ARRAYS_H
-//#include "Alloc.h" // variable-dimension arrays
+#include "Alloc.h" // variable-dimension arrays
 /*
     Fixed array class developed by
       Alec Johnson

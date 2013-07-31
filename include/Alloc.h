@@ -3,7 +3,7 @@
 #include <cstddef> // for alignment stuff
 #include "ipicdefs.h" // for CHECK_BOUNDS
 #include "asserts.h" // for assert_le, assert_lt
-//#include "arrays.h"
+//#include "arrays.h" // fixed-dimension arrays
 
 /*
     Array classes developed by
@@ -297,11 +297,6 @@ class Arr3
       size_t s3, size_t s2, size_t s1) :
       S3(s3), S2(s2), S1(s1),
       arr(**in)
-    { }
-    Arr3(Arr3& in) :
-      S3(in.S3), S2(in.S2), S1(in.S1),
-      S3(s3), S2(s2), S1(size_t(in.S1)),
-      arr(in.arr)
     { }
     inline ArrayRef2<type> operator[](size_t n3){
       check_bounds(n3, S3);

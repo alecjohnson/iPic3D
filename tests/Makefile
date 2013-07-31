@@ -8,7 +8,7 @@ OBJECTS = \
 
 FLAGS = -O3 -DNO_MPI -fno-exceptions #-DCHECK_BOUNDS -ggdb
 
-COMPILER = icpc # g++
+COMPILER = g++ #icpc # g++
 
 test: clean_test_arrays test_arrays
 
