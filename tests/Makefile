@@ -6,8 +6,7 @@ OBJECTS = \
   ../utility/asserts.o \
   debug.o
 
-FLAGS = -O3 -DNO_MPI #-DCHECK_BOUNDS
-#FLAGS = -ggdb -O3 -DNO_MPI #-DCHECK_BOUNDS
+FLAGS = -O3 -DNO_MPI -fno-exceptions #-DCHECK_BOUNDS -ggdb
 
 COMPILER = icpc # g++
 
