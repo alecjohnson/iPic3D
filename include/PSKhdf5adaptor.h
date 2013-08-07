@@ -9,6 +9,7 @@
 
 #include "hdf5.h"
 #include "hdf5_hl.h"
+#include "arraysfwd.h"
 
 namespace PSK {
 
@@ -50,12 +51,12 @@ namespace PSK {
     void write(const std::string & objname, double d);
     void write(const std::string & objname, const Dimens dimens, const double *d_array);
     void write(const std::string & objname, const Dimens dimens, const std::vector < double >&d_array);
-    void write(const std::string & objname, const Dimens dimens, double ***d_array);
-    void write(const std::string & objname, const Dimens dimens, const int i, double ****d_array);
+    void write(const std::string & objname, const Dimens dimens, doubleCar3 d_array);
+    void write(const std::string & objname, const Dimens dimens, const int i, doubleCar4 d_array);
 
     void write(const std::string & objname, const Dimens dimens, double **d_array);
 
-    void write(const std::string & objname, const Dimens dimens, const int i, double ***d_array);
+    void write(const std::string & objname, const Dimens dimens, const int i, doubleCar3 d_array);
 
   };
 

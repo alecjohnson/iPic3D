@@ -2,6 +2,8 @@
 #define IPIC_ALLOC_H
 #include <cstddef> // for alignment stuff
 #include "asserts.h" // for assert_le, assert_lt
+#include "errors.h" // for assert_le, assert_lt
+#include "arraysfwd.h"
 //#include "arrays.h" // fixed-dimension arrays
 
 /*
@@ -85,6 +87,48 @@ inline type **** newArray4(size_t sz1, size_t sz2, size_t sz3, size_t sz4)
   return arr;
 }
 
+// build chained pointer hierarchy for pre-existing bottom level
+//
+template <class type>
+inline type **** newArray4(type * in, size_t sz1, size_t sz2, size_t sz3, size_t sz4)
+{
+  type****arr = newArray3<type*>(sz1,sz2,sz3);
+  type**arr2 = **arr;
+  type *ptr = in;
+  size_t szarr2 = sz1*sz2*sz3;
+  for(size_t i=0;i<szarr2;i++) {
+    arr2[i] = ptr;
+    ptr += sz4;
+  }
+  return arr;
+}
+template <class type>
+inline type *** newArray3(type * in, size_t sz1, size_t sz2, size_t sz3)
+{
+  type***arr = newArray2<type*>(sz1,sz2);
+  type**arr2 = *arr;
+  type *ptr = in;
+  size_t szarr2 = sz1*sz2;
+  for(size_t i=0;i<szarr2;i++) {
+    arr2[i] = ptr;
+    ptr += sz3;
+  }
+  return arr;
+}
+template <class type>
+inline type ** newArray2(type * in, size_t sz1, size_t sz2)
+{
+  type**arr = newArray2<type*>(sz1);
+  type**arr2 = arr;
+  type *ptr = in;
+  size_t szarr2 = sz1;
+  for(size_t i=0;i<szarr2;i++) {
+    arr2[i] = ptr;
+    ptr += sz2;
+  }
+  return arr;
+}
+
 // methods to deallocate arrays
 //
 template < class type > inline void delArray1(type * arr)
@@ -108,28 +152,49 @@ template <class type> inline void delArr4(type **** arr,
   size_t sz1, size_t sz2, size_t sz3)
 { delArray3(arr); }
 
+// underlying 1-dimensional array class for arrays
+
+template <class type>
+class BaseArr
+{
+  private:
+    size_t size;
+    type* const __restrict__ arr;
+  protected:
+    type* get_arr()const{return arr;}
+  public:
+    BaseArr(size_t s) : size(s), arr(AlignedAlloc(type, s)) {}
+    BaseArr(type* in, size_t s) : size(s), arr(in) {}
+    ~BaseArr(){}
+    void free() { AlignedFree(arr); }
+    void setall(type val){
+      for(size_t i=0;i<size;i++) arr[i]=val;
+    }
+    //type* fetch_arr(){return arr;}
+};
+
 // classes to dereference arrays.
 //
-// ArrayRefN is essentially a dumbed-down version of ArrN with
+// ArrayGetN is essentially a dumbed-down version of ArrN with
 // an index shift applied to the underlying array.  The purpose
-// of ArrayRefN is to allow elements of multidimensional arrays
+// of ArrayGetN is to allow elements of multidimensional arrays
 // to be accessed with a calculated one-dimensional index while
 // using chained operator[] syntax (e.g. myarr[i][j]), i.e. the
 // same syntax as is used for native or nested arrays.  This
 // implementation is likely to be slow unless optimization is
 // turned on, allowing the compiler to figure out that the whole
-// chain of calls to the operator[] methods and to the ArrayRefN
+// chain of calls to the operator[] methods and to the ArrayGetN
 // constructors reduces to computing a one-dimensional subscript
 // used to access a one-dimensional array.
 //
 template <class type>
-class ArrayRef1
+class ArrayGet1
 {
   type* const __restrict__ arr;
   const size_t S1;
   const size_t shift;
  public:
-  inline ArrayRef1(type*const arr_, size_t k, size_t s1) :
+  inline ArrayGet1(type*const arr_, size_t k, size_t s1) :
     arr(arr_), shift(k), S1(s1)
   {}
   inline type& operator[](size_t n1){
@@ -140,37 +205,90 @@ class ArrayRef1
 };
 
 template <class type>
-class ArrayRef2
+class ArrayGet2
 {
   type* const __restrict__ arr;
   const size_t shift;
   const size_t S2, S1;
  public:
-  inline ArrayRef2(type*const arr_, size_t k, size_t s2, size_t s1) :
+  inline ArrayGet2(type*const arr_, size_t k, size_t s2, size_t s1) :
     arr(arr_), shift(k), S2(s2), S1(s1)
   {}
-  inline ArrayRef1<type> operator[](size_t n2){
+  inline ArrayGet1<type> operator[](size_t n2){
     check_bounds(n2,S2);
-    return ArrayRef1<type>(arr, (shift+n2)*S1, S1);
+    return ArrayGet1<type>(arr, (shift+n2)*S1, S1);
   }
 };
 
 template <class type>
-class ArrayRef3
+class ArrayGet3
 {
   type* const __restrict__ arr;
   const size_t shift;
   const size_t S3, S2, S1;
  public:
-  inline ArrayRef3(type*const arr_, size_t k, size_t s3, size_t s2, size_t s1) :
+  inline ArrayGet3(type*const arr_, size_t k, size_t s3, size_t s2, size_t s1) :
     arr(arr_), shift(k), S3(s3), S2(s2), S1(s1)
   {}
-  inline ArrayRef2<type> operator[](size_t n3){
+  inline ArrayGet2<type> operator[](size_t n3){
     check_bounds(n3, S3);
-    return ArrayRef2<type>(arr, (shift+n3)*S2, S2, S1);
+    return ArrayGet2<type>(arr, (shift+n3)*S2, S2, S1);
   }
 };
 
+// const versions
+
+template <class type>
+class ConstArrayGet1
+{
+  type* const __restrict__ arr;
+  const size_t S1;
+  const size_t shift;
+ public:
+  inline ConstArrayGet1(type*const arr_, size_t k, size_t s1) :
+    arr(arr_), shift(k), S1(s1)
+  {}
+  inline const type& operator[](size_t n1)const{
+    check_bounds(n1, S1);
+    ALIGNED(arr);
+    return arr[shift+n1];
+  }
+};
+
+template <class type>
+class ConstArrayGet2
+{
+  type* const __restrict__ arr;
+  const size_t shift;
+  const size_t S2, S1;
+ public:
+  inline ConstArrayGet2(type*const arr_, size_t k, size_t s2, size_t s1) :
+    arr(arr_), shift(k), S2(s2), S1(s1)
+  {}
+  inline const ConstArrayGet1<type> operator[](size_t n2)const{
+    check_bounds(n2,S2);
+    return ConstArrayGet1<type>(arr, (shift+n2)*S1, S1);
+  }
+};
+
+template <class type>
+class ConstArrayGet3
+{
+  type* const __restrict__ arr;
+  const size_t shift;
+  const size_t S3, S2, S1;
+ public:
+  ConstArrayGet3(type*const arr_, size_t k, size_t s3, size_t s2, size_t s1) :
+    arr(arr_), shift(k), S3(s3), S2(s2), S1(s1)
+  {}
+  inline const ConstArrayGet2<type> operator[](size_t n3)const{
+    check_bounds(n3, S3);
+    return ConstArrayGet2<type>(arr, (shift+n3)*S2, S2, S1);
+  }
+};
+
+// ArrN corresponds to multi_array_ref in the boost library.
+//
 // ArrN can adopt an array allocated by newArrN
 //
 // The purpose of these classes is to provide more efficient
@@ -266,9 +384,9 @@ class Arr2
       arr(*in)
     { }
     // for backwards compatibility support bracket notation
-    inline ArrayRef1<type> operator[](size_t n2){
+    inline ArrayGet1<type> operator[](size_t n2){
       check_bounds(n2, S2);
-      return ArrayRef1<type>(arr, n2*S1, S1);
+      return ArrayGet1<type>(arr, n2*S1, S1);
     }
     inline size_t getidx(size_t n2, size_t n1) const
     {
@@ -276,43 +394,39 @@ class Arr2
       check_bounds(n1, S1);
       return n2*S1+n1;
     }
-    // I prefer "fetch" over operator() to hilight read/write access
-    //type& operator()(size_t n2, size_t n1) const
-    //  { ALIGNED(arr); return arr[n1+S1*n2]; }
-    type& fetch(size_t n2,size_t n1) const
-      { ALIGNED(arr); return arr[getidx(n2,n1)]; }
+    type& fetch(size_t n2, size_t n1) const
+      { ALIGNED(arr); return arr[n1+S1*n2]; }
     // better to use accessors that distinguish read from write:
     const type& get(size_t n2,size_t n1) const
       { ALIGNED(arr); return arr[getidx(n2,n1)]; }
     void set(size_t n2,size_t n1, type value)
       { ALIGNED(arr); arr[getidx(n2,n1)] = value; }
-    inline Arr1<type>fetch_Arr1(){ return Arr1<type>(arr, S1*S2); }
+    //inline Arr1<type>fetch_Arr1(){ return Arr1<type>(arr, S1*S2); }
 };
 
 template <class type>
-class Arr3
+class ConstArr3 : public BaseArr<type>
 {
-  private: // data
+    using BaseArr<type>::get_arr;
+  protected: // data
     const size_t S3,S2,S1;
-    type* const __restrict__ arr;
+    type*const*const*const arr3;
   public:
-    size_t dim1()const{return S1;}
-    size_t dim2()const{return S2;}
-    size_t dim3()const{return S3;}
-    ~Arr3(){}
-    void free() { AlignedFree(arr); }
-    Arr3(size_t s3, size_t s2, size_t s1) :
+    ~ConstArr3(){}
+    ConstArr3(size_t s3, size_t s2, size_t s1) :
+      BaseArr<type>(s3*s2*s1),
       S3(s3), S2(s2), S1(s1),
-      arr(AlignedAlloc(type, s3*s2*s1))
+      arr3(newArray3<type>(get_arr(),s3,s2,s1))
     { }
-    Arr3(type*const*const* in,
+    ConstArr3(type*const*const* in,
       size_t s3, size_t s2, size_t s1) :
+      BaseArr<type>(**in, s3*s2*s1),
       S3(s3), S2(s2), S1(s1),
-      arr(**in)
+      arr3(in)
     { }
-    inline ArrayRef2<type> operator[](size_t n3){
+    const ConstArrayGet2<type> operator[](size_t n3)const{
       check_bounds(n3, S3);
-      return ArrayRef2<type>(arr, n3*S2, S2, S1);
+      return ConstArrayGet2<type>(get_arr(), n3*S2, S2, S1);
     }
     inline size_t getidx(size_t n3, size_t n2, size_t n1) const
     {
@@ -321,38 +435,72 @@ class Arr3
       check_bounds(n1, S1);
       return (n3*S2+n2)*S1+n1;
     }
-    //type& operator()(size_t n3, size_t n2, size_t n1) const
-    //{ ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
-    type& fetch(size_t n3,size_t n2,size_t n1) const
-      { ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
     const type& get(size_t n3,size_t n2,size_t n1) const
-      { ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
-    void set(size_t n3,size_t n2,size_t n1, type value)
-      { ALIGNED(arr); arr[getidx(n3,n2,n1)] = value; }
-    inline Arr1<type>fetch_Arr1(){ return Arr1<type>(arr, S1*S2*S3); }
+      { ALIGNED(get_arr()); return get_arr()[getidx(n3,n2,n1)]; }
+    //bool verify_dims(size_t s3, size_t s2, size_t s1){
+    //  if(s3==S3 && s2==S2 && s1==S1) return true;
+    //  Wprintf("%d==%d && %d==%d && %d==%d failed",
+    //     s3, S3, s2, S2, s1, S1);
+    //  return false;
+    //}
 };
 
 template <class type>
-class Arr4
+class Arr3 : public ConstArr3<type>
 {
-  private: // data
-    const size_t S4,S3,S2,S1;
-    type* const __restrict__ arr;
+    using BaseArr<type>::get_arr;
+    using ConstArr3<type>::S3;
+    using ConstArr3<type>::S2;
+    using ConstArr3<type>::S1;
+    using ConstArr3<type>::arr3;
+    using ConstArr3<type>::getidx;
   public:
-    ~Arr4(){} // nonempty destructor would kill performance
-    void free() { AlignedFree(arr); }
-    Arr4(size_t s4, size_t s3, size_t s2, size_t s1) :
-      arr(AlignedAlloc(type, s4*s3*s2*s1)),
-      S4(s4), S3(s3), S2(s2), S1(s1)
+    ~Arr3(){}
+    Arr3(size_t s3, size_t s2, size_t s1) :
+      ConstArr3<type>(s3,s2,s1)
     { }
-    Arr4(type*const*const*const* in,
-      size_t s4, size_t s3, size_t s2, size_t s1) :
+    Arr3(type*const*const* in,
+      size_t s3, size_t s2, size_t s1) :
+      ConstArr3<type>(in,s3,s2,s1)
+    { }
+    void free(){ delArray3<type>((type***)arr3); }
+    inline ArrayGet2<type> operator[](size_t n3){
+      check_bounds(n3, S3);
+      return ArrayGet2<type>(get_arr(), n3*S2, S2, S1);
+    }
+    const type& get(size_t n3,size_t n2,size_t n1) const
+      { ALIGNED(get_arr()); return get_arr()[getidx(n3,n2,n1)]; }
+    type& fetch(size_t n3,size_t n2,size_t n1) const
+      { ALIGNED(get_arr()); return get_arr()[getidx(n3,n2,n1)]; }
+    void set(size_t n3,size_t n2,size_t n1, type value)
+      { ALIGNED(get_arr()); get_arr()[getidx(n3,n2,n1)] = value; }
+    type*** fetch_arr3(){ return (type***) arr3; }
+};
+
+template <class type>
+class ConstArr4 : public BaseArr<type>
+{
+    using BaseArr<type>::get_arr;
+  protected: // data
+    const size_t S4,S3,S2,S1;
+    type*const*const*const*const arr4;
+    //type* const __restrict__ arr;
+  public:
+    ~ConstArr4(){}
+    ConstArr4(size_t s4, size_t s3, size_t s2, size_t s1) :
+      BaseArr<type>(s4*s3*s2*s1),
       S4(s4), S3(s3), S2(s2), S1(s1),
-      arr(***in)
+      arr4(newArray4<type>(get_arr(),s4,s3,s2,s1))
     { }
-    inline ArrayRef3<type> operator[](size_t n4){
+    ConstArr4(type*const*const*const* in,
+      size_t s4, size_t s3, size_t s2, size_t s1) :
+      BaseArr<type>(***in, s4*s3*s2*s1),
+      S4(s4), S3(s3), S2(s2), S1(s1),
+      arr4(in)
+    { }
+    const ConstArrayGet3<type> operator[](size_t n4)const{
       check_bounds(n4, S4);
-      return ArrayRef3<type>(arr, n4*S3, S3, S2, S1);
+      return ConstArrayGet3<type>(get_arr(), n4*S3, S3, S2, S1);
     }
     inline size_t getidx(size_t n4, size_t n3, size_t n2, size_t n1) const
     {
@@ -363,14 +511,50 @@ class Arr4
       return ((n4*S3+n3)*S2+n2)*S1+n1;
     }
     const type& get(size_t n4,size_t n3,size_t n2,size_t n1) const
-      { ALIGNED(arr); return arr[getidx(n4,n3,n2,n1)]; }
-    type& fetch(size_t n4,size_t n3,size_t n2,size_t n1) const
-      { ALIGNED(arr); return arr[getidx(n4,n3,n2,n1)]; }
-    void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)
-      { ALIGNED(arr); arr[getidx(n4,n3,n2,n1)] = value; }
+      { ALIGNED(get_arr()); return get_arr()[getidx(n4,n3,n2,n1)]; }
 };
 
-// Versions of array classes which automatically free memory.
+template <class type>
+class Arr4 : public ConstArr4<type>
+{
+    using BaseArr<type>::get_arr;
+    using ConstArr4<type>::S4;
+    using ConstArr4<type>::S3;
+    using ConstArr4<type>::S2;
+    using ConstArr4<type>::S1;
+    using ConstArr4<type>::arr4;
+    using ConstArr4<type>::getidx;
+  public:
+    ~Arr4(){}
+    Arr4(size_t s4, size_t s3, size_t s2, size_t s1) :
+      ConstArr4<type>(s4,s3,s2,s1)
+    { }
+    Arr4(type*const*const*const* in,
+      size_t s4, size_t s3, size_t s2, size_t s1) :
+      ConstArr4<type>(in,s4,s3,s2,s1)
+    { }
+    void free(){ delArray4<type>((type****)arr4); }
+    inline ArrayGet3<type> operator[](size_t n4){
+      check_bounds(n4, S4);
+      return ArrayGet3<type>(get_arr(), n4*S3, S3, S2, S1);
+    }
+    type& fetch(size_t n4,size_t n3,size_t n2,size_t n1) const
+      { ALIGNED(get_arr()); return get_arr()[getidx(n4,n3,n2,n1)]; }
+    void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)
+      { ALIGNED(get_arr()); get_arr()[getidx(n4,n3,n2,n1)] = value; }
+    // unfortunately this causes ambiguity
+    //operator type****(){ return (type****) arr4; }
+    type**** fetch_arr4(){ return (type****) arr4; }
+    //bool verify_dims(size_t s4, size_t s3, size_t s2, size_t s1){
+    //  if(s4==S4 && s3==S3 && s2==S2 && s1==S1) return true;
+    //  Wprintf("%d==%d && %d==%d && %d==%d && %d==%d failed",
+    //     s4, S4, s3, S3, s2, S2, s1, S1);
+    //  return false;
+    //}
+};
+
+// Versions of array classes which automatically free memory
+// (corresponding to multi_array in the boost library).
 //
 // Note that the nonempty destructor kills performance
 // unless compiling with -fno-exceptions
@@ -404,22 +588,6 @@ struct Array4 : public Arr4<type>
       : Arr4<type>(s4,s3,s2,s1) { }
 };
 
-// These aliases are defined for the following flexibilization purposes:
-// - to avoid filling the code with template brackets
-//   (i.e., to minimize explicitly template-dependent code).
-// - so that they can be redefined according to the user's
-//   preferred array implementation.
-//
-typedef Arr1<int> intArr1;
-typedef Arr2<int> intArr2;
-typedef Arr3<int> intArr3;
-typedef Arr4<int> intArr4;
-typedef Arr1<double> doubleArr1;
-typedef Arr2<double> doubleArr2;
-typedef Arr3<double> doubleArr3;
-typedef Arr4<double> doubleArr4;
-typedef ArrayRef1<double> doubleArrRef1;
-//
 #define newArr4(type,sz1,sz2,sz3,sz4) newArray4<type>((sz1),(sz2),(sz3),(sz4))
 #define newArr3(type,sz1,sz2,sz3) newArray3<type>((sz1),(sz2),(sz3))
 #define newArr2(type,sz1,sz2) newArray2<type>((sz1),(sz2))
