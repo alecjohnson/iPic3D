@@ -383,7 +383,7 @@ class Arr2
       S2(s2), S1(s1),
       arr(*in)
     { }
-    // for backwards compatibility support bracket notation
+    // dereference via calculated index
     inline ArrayGet1<type> operator[](size_t n2){
       check_bounds(n2, S2);
       return ArrayGet1<type>(arr, n2*S1, S1);
@@ -429,10 +429,15 @@ class ConstArr3 // : public BaseArr<type>
       S3(s3), S2(s2), S1(s1),
       arr3(in)
     { }
+  #ifdef FLAT_ARRAYS
     const ConstArrayGet2<type> operator[](size_t n3)const{
       check_bounds(n3, S3);
       return ConstArrayGet2<type>(arr, n3*S2, S2, S1);
     }
+  #else
+    // this causes operator[] to dereference via chained pointer
+    operator type***(){ return (type***) arr3; }
+  #endif
     inline size_t getidx(size_t n3, size_t n2, size_t n1) const
     {
       check_bounds(n3, S3);
@@ -442,15 +447,7 @@ class ConstArr3 // : public BaseArr<type>
     }
     const type& get(size_t n3,size_t n2,size_t n1) const
       { ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
-    //bool verify_dims(size_t s3, size_t s2, size_t s1){
-    //  if(s3==S3 && s2==S2 && s1==S1) return true;
-    //  Wprintf("%d==%d && %d==%d && %d==%d failed",
-    //     s3, S3, s2, S2, s1, S1);
-    //  return false;
-    //}
-
-    // should not be here
-    //
+  protected: // here rather than in ConstArr3 due to icpc compile error
     type& fetch(size_t n3,size_t n2,size_t n1) const
       { ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
     void set(size_t n3,size_t n2,size_t n1, type value)
@@ -479,10 +476,15 @@ class Arr3 : public ConstArr3<type>
       ConstArr3<type>(in,s3,s2,s1)
     { }
     void free(){ delArray3<type>((type***)arr3); }
+  #ifdef FLAT_ARRAYS
     inline ArrayGet2<type> operator[](size_t n3){
       check_bounds(n3, S3);
       return ArrayGet2<type>(arr, n3*S2, S2, S1);
     }
+  #else
+    // this causes operator[] to dereference via chained pointer
+    operator type***(){ return (type***) arr3; }
+  #endif
     type& fetch(size_t n3,size_t n2,size_t n1) const
       { return ConstArr3<type>::fetch(n3,n2,n1); }
     void set(size_t n3,size_t n2,size_t n1, type value)
@@ -493,6 +495,7 @@ class Arr3 : public ConstArr3<type>
     type*** fetch_arr3(){ return (type***) arr3; }
 };
 
+// inheriting from BaseArr<type> causes problems in g++ 4.0 (2005).
 template <class type>
 class ConstArr4 //: public BaseArr<type>
 {
@@ -517,10 +520,15 @@ class ConstArr4 //: public BaseArr<type>
       S4(s4), S3(s3), S2(s2), S1(s1),
       arr4(in)
     { }
+  #ifdef FLAT_ARRAYS
     const ConstArrayGet3<type> operator[](size_t n4)const{
       check_bounds(n4, S4);
       return ConstArrayGet3<type>(arr, n4*S3, S3, S2, S1);
     }
+  #else
+    // this causes operator[] to dereference via chained pointer
+    operator type****(){ return (type****) arr4; }
+  #endif
     inline size_t getidx(size_t n4, size_t n3, size_t n2, size_t n1) const
     {
       check_bounds(n4, S4);
@@ -532,8 +540,7 @@ class ConstArr4 //: public BaseArr<type>
     const type& get(size_t n4,size_t n3,size_t n2,size_t n1) const
       { ALIGNED(arr); return arr[getidx(n4,n3,n2,n1)]; }
 
-    // should not be here
-    //
+  protected: // here rather than in ConstArr4 due to icpc compile error
     type& fetch(size_t n4,size_t n3,size_t n2,size_t n1) const
       { ALIGNED(arr); return arr[getidx(n4,n3,n2,n1)]; }
     void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)
@@ -560,13 +567,19 @@ class Arr4 : public ConstArr4<type>
       size_t s4, size_t s3, size_t s2, size_t s1) :
       ConstArr4<type>(in,s4,s3,s2,s1)
     { }
-    void free(){ delArray4<type>((type****)arr4); }
+  #ifdef FLAT_ARRAYS
     inline ArrayGet3<type> operator[](size_t n4){
       check_bounds(n4, S4);
       return ArrayGet3<type>(arr, n4*S3, S3, S2, S1);
     }
-    // unfortunately this causes ambiguity
-    //operator type****(){ return (type****) arr4; }
+  #else
+    operator type****(){ return (type****) arr4; }
+  #endif
+    type& fetch(size_t n4,size_t n3,size_t n2,size_t n1) const
+      { return ConstArr4<type>::fetch(n4,n3,n2,n1); }
+    void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)
+      { ConstArr4<type>::set(n4,n3,n2,n1, value); }
+    void free(){ delArray4<type>((type****)arr4); }
     type**** fetch_arr4(){ return (type****) arr4; }
     //bool verify_dims(size_t s4, size_t s3, size_t s2, size_t s1){
     //  if(s4==S4 && s3==S3 && s2==S2 && s1==S1) return true;

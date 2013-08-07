@@ -502,7 +502,7 @@ class EMfields3D                // :public Field
     void BoundaryConditionsE(doubleArr3& vectorX, doubleArr3& vectorY, doubleArr3& vectorZ,
       int nx, int ny, int nz,Grid *grid, VirtualTopology3D *vct);
     void BoundaryConditionsEImage(doubleArr3& imageX, doubleArr3& imageY, doubleArr3& imageZ,
-      const doubleCar3& vectorX, const doubleCar3& vectorY, const doubleCar3& vectorZ,
+      doubleCar3& vectorX, doubleCar3& vectorY, doubleCar3& vectorZ,
       int nx, int ny, int nz, VirtualTopology3D *vct,Grid *grid);
 };
 
