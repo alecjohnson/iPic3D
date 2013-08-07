@@ -10,17 +10,13 @@ ConfigFile::ConfigFile(string filename, string delimiter, string comment, string
 :myDelimiter(delimiter), myComment(comment), mySentry(sentry) {
   // Construct a ConfigFile, getting keys and values from given file
 
-  dprintf("gothere");
   std::ifstream in(filename.c_str());
-  dprintf("gothere");
 
   if (!in)
     eprintf("file not found: %s", filename.c_str());
     //throw file_not_found(filename);
 
-  dprintf("gothere");
   in >> (*this);
-  dprintf("gothere");
 }
 
 
@@ -66,20 +62,16 @@ std::ostream & operator<<(std::ostream & os, const ConfigFile & cf) {
 std::istream & operator>>(std::istream & is, ConfigFile & cf) {
   // Load a ConfigFile from is
   // Read in keys and values, keeping internal whitespace
-  dprintf("gothere");
   typedef string::size_type pos;
   const string & delim = cf.myDelimiter;  // separator
   const string & comm = cf.myComment; // comment
   const string & sentry = cf.mySentry;  // end of file sentry
   const pos skip = delim.length();  // length of separator
-  dprintf("gothere");
 
   string nextline = "";         // might need to read ahead to see where value ends
 
-  dprintf("gothere");
   while (is || nextline.length() > 0) {
     // Read an entire line at a time
-  dprintf("gothere");
     string line;
     if (nextline.length() > 0) {
       line = nextline;          // we read ahead; use it now
@@ -89,22 +81,15 @@ std::istream & operator>>(std::istream & is, ConfigFile & cf) {
       std::getline(is, line);
     }
 
-  dprintf("gothere: line=%s", line.c_str());
-  dprintf("gothere: comm=%s", comm.c_str());
-  //int j = line.find("#");
-  //dprint(j);
-  dprintf("gothere");
     // Ignore comments
     line = line.substr(0, line.find(comm));
 
-  dprintf("gothere");
     // Check for end of file sentry
     if (sentry != "" && line.find(sentry) != string::npos)
       return is;
 
     // Parse the line if it contains a delimiter
     pos delimPos = line.find(delim);
-  dprintf("gothere");
     if (delimPos < string::npos) {
       // Extract the key
       string key = line.substr(0, delimPos);
@@ -137,15 +122,12 @@ std::istream & operator>>(std::istream & is, ConfigFile & cf) {
         terminate = false;
       }
 
-  dprintf("gothere");
       // Store key and value
       ConfigFile::trim(key);
       ConfigFile::trim(line);
       cf.myContents[key] = line;  // overwrites if key is repeated
     }
-  dprintf("gothere");
   }
-  dprintf("gothere");
 
   return is;
 }

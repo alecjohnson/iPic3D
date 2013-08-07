@@ -20,11 +20,8 @@ int c_Solver::Init(int argc, char **argv) {
   nprocs = MPIdata::get_nprocs();
   myrank = MPIdata::get_rank();
 
-  dprintf("gothere");
   col = new Collective(argc, argv); // Every proc loads the parameters of simulation from class Collective
-  dprintf("gothere");
   verbose = col->getVerbose();
-  dprintf("gothere");
   restart_cycle = col->getRestartOutputCycle();
   SaveDirName = col->getSaveDirName();
   RestartDirName = col->getRestartDirName();
@@ -32,7 +29,6 @@ int c_Solver::Init(int argc, char **argv) {
   ns = col->getNs();            // get the number of particle species involved in simulation
   first_cycle = col->getLast_cycle() + 1; // get the last cycle from the restart
   // initialize the virtual cartesian topology 
-  dprintf("gothere");
   vct = new VCtopology3D();
   // Check if we can map the processes into a matrix ordering defined in Collective.cpp
   if (nprocs != vct->getNprocs()) {
@@ -51,7 +47,6 @@ int c_Solver::Init(int argc, char **argv) {
   col->setGlobalStartIndex(vct);
 #endif
 
-  dprintf("gothere");
   nx0 = col->getNxc() / vct->getXLEN(); // get the number of cells in x for each processor
   ny0 = col->getNyc() / vct->getYLEN(); // get the number of cells in y for each processor
   nz0 = col->getNzc() / vct->getZLEN(); // get the number of cells in z for each processor
@@ -64,11 +59,8 @@ int c_Solver::Init(int argc, char **argv) {
   }
   // Create the local grid
   MPI_Barrier(MPI_COMM_WORLD);
-  dprintf("gothere");
   grid = new Grid3DCU(col, vct);  // Create the local grid
-  dprintf("gothere");
   EMf = new EMfields3D(col, grid);  // Create Electromagnetic Fields Object
-  dprintf("gothere");
 
   if      (col->getCase()=="GEMnoPert") EMf->initGEMnoPert(vct,grid,col);
   else if (col->getCase()=="ForceFree") EMf->initForceFree(vct,grid,col);
@@ -87,10 +79,8 @@ int c_Solver::Init(int argc, char **argv) {
     EMf->init(vct,grid,col);
   }
 
-  dprintf("gothere");
   // OpenBC
   EMf->updateInfoFields(grid,vct,col);
-  dprintf("gothere");
 
   // Allocation of particles
   part = new Particles3D[ns];
@@ -108,7 +98,6 @@ int c_Solver::Init(int argc, char **argv) {
 #endif
       else                                  part[i].maxwellian(grid, EMf, vct);
   }
-  dprintf("gothere");
 
   // Initialize the output (simulation results and restart file)
   // PSK::OutputManager < PSK::OutputAdaptor > output_mgr; // Create an Output Manager
@@ -172,7 +161,6 @@ int c_Solver::Init(int argc, char **argv) {
   Qremoved = new double[ns];
 
   my_clock = new Timing(myrank);
-  dprintf("gothere");
 
   return 0;
 }

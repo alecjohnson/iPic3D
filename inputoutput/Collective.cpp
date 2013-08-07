@@ -5,13 +5,10 @@
 
 /*! Read the input file from text file and put the data in a collective wrapper: if it's a restart read from input file basic sim data and load particles and EM field from restart file */
 void Collective::ReadInput(string inputfile) {
-  dprintf("gothere");
   using namespace std;
   int test_verbose;
   // Loading the input file 
-  dprintf("gothere");
   ConfigFile config(inputfile);
-  dprintf("gothere");
   // the following variables are ALWAYS taken from inputfile, even if restarting 
   {
 
@@ -23,7 +20,6 @@ void Collective::ReadInput(string inputfile) {
     }
 #endif
 
-  dprintf("gothere");
     dt = config.read < double >("dt");
     ncycles = config.read < int >("ncycles");
     th = config.read < double >("th");
@@ -51,7 +47,6 @@ void Collective::ReadInput(string inputfile) {
     wmethod           = config.read<string>("WriteMethod");
     SimName           = config.read<string>("SimulationName");
     PoissonCorrection = config.read<string>("PoissonCorrection");
-  dprintf("gothere");
 
     rhoINIT = new double[ns];
     array_double rhoINIT0 = config.read < array_double > ("rhoINIT");
@@ -81,7 +76,6 @@ void Collective::ReadInput(string inputfile) {
     if (ns > 5)
       rhoINJECT[5]=rhoINJECT0.f;
 
-  dprintf("gothere");
     // take the tolerance of the solvers
     CGtol = config.read < double >("CGtol");
     GMREStol = config.read < double >("GMREStol");
@@ -105,7 +99,6 @@ void Collective::ReadInput(string inputfile) {
     last_cycle = -1;
     c = config.read < double >("c");
 
-  dprintf("gothere");
 #ifdef BATSRUS
     // set grid size and resolution based on the initial file from fluid code
     Lx =  getFluidLx();
@@ -223,7 +216,6 @@ void Collective::ReadInput(string inputfile) {
     }
 
 
-  dprintf("gothere");
     verbose = config.read < bool > ("verbose");
 
     // PHI Electrostatic Potential 
@@ -297,7 +289,6 @@ void Collective::ReadInput(string inputfile) {
     TrackParticleID[4] = TrackParticleID0.e;
   if (ns > 5)
     TrackParticleID[5] = TrackParticleID0.f;
-  dprintf("gothere");
 
 
 
@@ -544,7 +535,6 @@ int Collective::ReadRestart(string inputfile) {
 }
 /*! constructor */
 Collective::Collective(int argc, char **argv) {
-  dprintf("gothere");
   if (argc < 2) {
     inputfile = "inputfile";
     RESTART1 = false;
@@ -568,9 +558,7 @@ Collective::Collective(int argc, char **argv) {
     }
   }
 
-  dprintf("gothere");
   ReadInput(inputfile);
-  dprintf("gothere");
   /*! fourpi = 4 greek pi */
   fourpi = 16.0 * atan(1.0);
   /*! dx = space step - X direction */
@@ -591,7 +579,6 @@ Collective::Collective(int argc, char **argv) {
     np[i] = npcel[i] * nxc * nyc * nzc;
     npMax[i] = (long) (NpMaxNpRatio * np[i]);
   }
-  dprintf("gothere");
 
 
 

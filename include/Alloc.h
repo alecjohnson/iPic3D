@@ -159,8 +159,8 @@ class BaseArr
 {
   private:
     size_t size;
-    type* const __restrict__ arr;
   protected:
+    type* const __restrict__ arr;
     type* get_arr()const{return arr;}
   public:
     BaseArr(size_t s) : size(s), arr(AlignedAlloc(type, s)) {}
@@ -405,28 +405,33 @@ class Arr2
 };
 
 template <class type>
-class ConstArr3 : public BaseArr<type>
+class ConstArr3 // : public BaseArr<type>
 {
-    using BaseArr<type>::get_arr;
+    //using BaseArr<type>::get_arr;
+    //using BaseArr<type>::arr;
   protected: // data
+    size_t size;
     const size_t S3,S2,S1;
+    type* const __restrict__ arr;
     type*const*const*const arr3;
   public:
     ~ConstArr3(){}
     ConstArr3(size_t s3, size_t s2, size_t s1) :
-      BaseArr<type>(s3*s2*s1),
+      size(s3*s2*s1), arr(AlignedAlloc(type, size)),
+      //BaseArr<type>(s3*s2*s1),
       S3(s3), S2(s2), S1(s1),
-      arr3(newArray3<type>(get_arr(),s3,s2,s1))
+      arr3(newArray3<type>(arr,s3,s2,s1))
     { }
     ConstArr3(type*const*const* in,
       size_t s3, size_t s2, size_t s1) :
-      BaseArr<type>(**in, s3*s2*s1),
+      size(s3*s2*s1), arr(**in),
+      //BaseArr<type>(**in, s3*s2*s1),
       S3(s3), S2(s2), S1(s1),
       arr3(in)
     { }
     const ConstArrayGet2<type> operator[](size_t n3)const{
       check_bounds(n3, S3);
-      return ConstArrayGet2<type>(get_arr(), n3*S2, S2, S1);
+      return ConstArrayGet2<type>(arr, n3*S2, S2, S1);
     }
     inline size_t getidx(size_t n3, size_t n2, size_t n1) const
     {
@@ -436,19 +441,29 @@ class ConstArr3 : public BaseArr<type>
       return (n3*S2+n2)*S1+n1;
     }
     const type& get(size_t n3,size_t n2,size_t n1) const
-      { ALIGNED(get_arr()); return get_arr()[getidx(n3,n2,n1)]; }
+      { ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
     //bool verify_dims(size_t s3, size_t s2, size_t s1){
     //  if(s3==S3 && s2==S2 && s1==S1) return true;
     //  Wprintf("%d==%d && %d==%d && %d==%d failed",
     //     s3, S3, s2, S2, s1, S1);
     //  return false;
     //}
+
+    // should not be here
+    //
+    type& fetch(size_t n3,size_t n2,size_t n1) const
+      { ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
+    void set(size_t n3,size_t n2,size_t n1, type value)
+      { ALIGNED(arr); arr[getidx(n3,n2,n1)] = value; }
 };
 
 template <class type>
 class Arr3 : public ConstArr3<type>
 {
-    using BaseArr<type>::get_arr;
+    //using BaseArr<type>::arr;
+    //using BaseArr<type>::get_arr;
+    using ConstArr3<type>::size;
+    using ConstArr3<type>::arr;
     using ConstArr3<type>::S3;
     using ConstArr3<type>::S2;
     using ConstArr3<type>::S1;
@@ -466,41 +481,45 @@ class Arr3 : public ConstArr3<type>
     void free(){ delArray3<type>((type***)arr3); }
     inline ArrayGet2<type> operator[](size_t n3){
       check_bounds(n3, S3);
-      return ArrayGet2<type>(get_arr(), n3*S2, S2, S1);
+      return ArrayGet2<type>(arr, n3*S2, S2, S1);
     }
-    const type& get(size_t n3,size_t n2,size_t n1) const
-      { ALIGNED(get_arr()); return get_arr()[getidx(n3,n2,n1)]; }
     type& fetch(size_t n3,size_t n2,size_t n1) const
-      { ALIGNED(get_arr()); return get_arr()[getidx(n3,n2,n1)]; }
+      { return ConstArr3<type>::fetch(n3,n2,n1); }
     void set(size_t n3,size_t n2,size_t n1, type value)
-      { ALIGNED(get_arr()); get_arr()[getidx(n3,n2,n1)] = value; }
+      { ConstArr3<type>::set(n3,n2,n1, value); }
+    void setall(type val){
+      for(size_t i=0;i<size;i++) arr[i]=val;
+    }
     type*** fetch_arr3(){ return (type***) arr3; }
 };
 
 template <class type>
-class ConstArr4 : public BaseArr<type>
+class ConstArr4 //: public BaseArr<type>
 {
-    using BaseArr<type>::get_arr;
+    //using BaseArr<type>::get_arr;
   protected: // data
+    size_t size;
     const size_t S4,S3,S2,S1;
+    type* const __restrict__ arr;
     type*const*const*const*const arr4;
-    //type* const __restrict__ arr;
   public:
     ~ConstArr4(){}
     ConstArr4(size_t s4, size_t s3, size_t s2, size_t s1) :
-      BaseArr<type>(s4*s3*s2*s1),
+      size(s4*s3*s2*s1), arr(AlignedAlloc(type, size)),
+      //BaseArr<type>(s4*s3*s2*s1),
       S4(s4), S3(s3), S2(s2), S1(s1),
-      arr4(newArray4<type>(get_arr(),s4,s3,s2,s1))
+      arr4(newArray4<type>(arr,s4,s3,s2,s1))
     { }
     ConstArr4(type*const*const*const* in,
       size_t s4, size_t s3, size_t s2, size_t s1) :
-      BaseArr<type>(***in, s4*s3*s2*s1),
+      size(s4*s3*s2*s1), aar(***in),
+      //BaseArr<type>(***in, s4*s3*s2*s1),
       S4(s4), S3(s3), S2(s2), S1(s1),
       arr4(in)
     { }
     const ConstArrayGet3<type> operator[](size_t n4)const{
       check_bounds(n4, S4);
-      return ConstArrayGet3<type>(get_arr(), n4*S3, S3, S2, S1);
+      return ConstArrayGet3<type>(arr, n4*S3, S3, S2, S1);
     }
     inline size_t getidx(size_t n4, size_t n3, size_t n2, size_t n1) const
     {
@@ -511,13 +530,21 @@ class ConstArr4 : public BaseArr<type>
       return ((n4*S3+n3)*S2+n2)*S1+n1;
     }
     const type& get(size_t n4,size_t n3,size_t n2,size_t n1) const
-      { ALIGNED(get_arr()); return get_arr()[getidx(n4,n3,n2,n1)]; }
+      { ALIGNED(arr); return arr[getidx(n4,n3,n2,n1)]; }
+
+    // should not be here
+    //
+    type& fetch(size_t n4,size_t n3,size_t n2,size_t n1) const
+      { ALIGNED(arr); return arr[getidx(n4,n3,n2,n1)]; }
+    void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)
+      { ALIGNED(arr); arr[getidx(n4,n3,n2,n1)] = value; }
 };
 
 template <class type>
 class Arr4 : public ConstArr4<type>
 {
-    using BaseArr<type>::get_arr;
+    //using BaseArr<type>::get_arr;
+    using ConstArr4<type>::arr;
     using ConstArr4<type>::S4;
     using ConstArr4<type>::S3;
     using ConstArr4<type>::S2;
@@ -536,12 +563,8 @@ class Arr4 : public ConstArr4<type>
     void free(){ delArray4<type>((type****)arr4); }
     inline ArrayGet3<type> operator[](size_t n4){
       check_bounds(n4, S4);
-      return ArrayGet3<type>(get_arr(), n4*S3, S3, S2, S1);
+      return ArrayGet3<type>(arr, n4*S3, S3, S2, S1);
     }
-    type& fetch(size_t n4,size_t n3,size_t n2,size_t n1) const
-      { ALIGNED(get_arr()); return get_arr()[getidx(n4,n3,n2,n1)]; }
-    void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)
-      { ALIGNED(get_arr()); get_arr()[getidx(n4,n3,n2,n1)] = value; }
     // unfortunately this causes ambiguity
     //operator type****(){ return (type****) arr4; }
     type**** fetch_arr4(){ return (type****) arr4; }
