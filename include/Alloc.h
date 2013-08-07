@@ -512,7 +512,7 @@ class ConstArr4 //: public BaseArr<type>
     { }
     ConstArr4(type*const*const*const* in,
       size_t s4, size_t s3, size_t s2, size_t s1) :
-      size(s4*s3*s2*s1), aar(***in),
+      size(s4*s3*s2*s1), arr(***in),
       //BaseArr<type>(***in, s4*s3*s2*s1),
       S4(s4), S3(s3), S2(s2), S1(s1),
       arr4(in)
