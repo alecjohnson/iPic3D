@@ -543,17 +543,7 @@ for(size_t k=0; k<dim3; k++) \
 printf("%d ms = Total time " #arg2 "\n", tv_to_ms(stopwatch(LAP)));
 
 template <class type>
-inline type norm2P(const Arr3<type>& vect, int nx, int ny, int nz) {
-  type local_result = 0;
-  for (int i = 0; i < nx; i++)
-    for (int j = 0; j < ny; j++)
-      for (int k = 0; k < nz; k++)
-        local_result += vect.get(i,j,k) * vect.get(i,j,k);
-  return (local_result);
-}
-
-template <class type>
-void set_prod3(Arr3<type>& Aarr,const Arr3<type>& Barr,const Arr3<type>& Carr,int ITERS, size_t dim1,size_t dim2,size_t dim3)
+void set_prod3(Arr3<type> Aarr,ConstArr3<type> Barr,Arr3<type> Carr,int ITERS, size_t dim1,size_t dim2,size_t dim3)
 {
    for(int t=0; t<ITERS; t++)
    for(size_t i=0; i<dim1; i++)
@@ -640,8 +630,6 @@ void testArr3()
    printf("%d ms = Total time (i,j,k) Vicenc array\n", tv_to_ms(stopwatch(LAP)));
 
    set_prod3(Aarr,Barr,Carr,ITERS,dim1,dim2,dim3);
-   dprint(Aarr[0][1][2]);
-   dprint(norm2P(Aarr, dim1,dim2,dim3));
 
    for(int t=0; t<ITERS; t++)
    for(size_t i=0; i<dim1; i++)
@@ -673,13 +661,6 @@ void testArr3()
    Aarr.free();
    Barr.free();
    Carr.free();
-}
-
-template <class type>
-void testConstArr4(const ConstArr4<type>& in)
-{
-  dprint(in.get(0,1,2,3));
-  dprint(in[0][1][2][3]);
 }
 
 template <class type>
@@ -823,7 +804,6 @@ void testArr4()
 
    printf("Verification done!\n");
    stopwatch(STOP);
-   testConstArr4(Abra);
 
    Apar.free();
    Bpar.free();
@@ -831,15 +811,6 @@ void testArr4()
    Abra.free();
    Bbra.free();
    Cbra.free();
-}
-
-/** method to calculate the square norm of a vector */
-inline double norm2(const doubleArr3& vect, int nx, int ny) {
-  double result = 0;
-  for (int i = 0; i < nx; i++)
-    for (int j = 0; j < ny; j++)
-      result += vect.get(i,j,0) * vect.get(i,j,0);
-  return (result);
 }
 
 int main()
@@ -860,7 +831,4 @@ int main()
   testArr4<int>();
   printf("=== testing Arr4<double> ===\n");
   testArr4<double>();
-
-  doubleArr3 myArr(8,8,8);
-  norm2(myArr,8,8);
 }

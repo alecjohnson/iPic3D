@@ -2,7 +2,7 @@
 #define IPIC_ALLOC_H
 #include <cstddef> // for alignment stuff
 #include "asserts.h" // for assert_le, assert_lt
-#include "errors.h" // for assert_le, assert_lt
+//#include "errors.h" // for assert_le, assert_lt
 #include "arraysfwd.h"
 //#include "arrays.h" // fixed-dimension arrays
 
@@ -17,7 +17,47 @@
     For examples of use of this class,
     see test_arrays.cpp
 
-    An alternative would be to use boost arrays.
+    Compiler options:
+    -DCHECK_BOUNDS: check bounds when performing array access
+      (major performance penalty).
+    -DFLAT_ARRAYS: use calculated 1d subscript to dereference
+      even for arr[i][j][k] notation.
+    -DCHAINED_ARRAYS: use hierarchy of pointers to dereference
+      even for arr.get(i,j,k) notation.
+
+    By default, chained pointers are used for arr[i][j][k]
+    notation (unless -DCHECK_BOUNDS is turned on, in which case
+    we don't care about performance anyway), and calculated 1d
+    subscript is used for arr.get(i,j,k) notation.
+
+    An alternative would have been use boost arrays.  Use of our
+    own array class allows flexibility for our choice of array
+    implementation, including the possibility of using boost
+    for the implementation, while avoiding boost as an external
+    dependency.  On some systems, it may be preferable to use
+    native arrays with hard-coded dimensions; this could suit us
+    well, since all arrays are approximately the same size, but
+    would require a recompile when changing the maximum array size.
+
+    Rather than using these templates directly, the typedefs
+    declared in "arraysfwd.h" should be used:
+
+    * const_arr3_double = const_array_ref3<double>
+    * arr3_double = array_ref3<double>
+    * array3_double = array3<double>
+
+    The point is that we do not want to hard-code the fact that
+    we are using templates, and we may well wish to eliminate use
+    of templates in the future.  (Alternatives are to use the
+    preprocessor or to have separate implementations for each
+    type (double, int, possibly float) if we go to use of mixed
+    precision).  Support for templates is notoriously buggy in
+    compilers, particularly when it comes to inheritance, and I
+    in fact had to eliminate inheriting from the base_arr class
+    and use the "protected" hack below in order to get this
+    code to compile on the latest intel compiler (2013) and on
+    g++ 4.0 (2005); g++ 4.2 (2007) compiled (but unfortunately,
+    for my g++ 4.2, iPic3D suffered from stack frame corruption.)
 */
 #define ALIGNMENT (64)
 #ifdef __INTEL_COMPILER
@@ -429,7 +469,7 @@ class ConstArr3 // : public BaseArr<type>
       S3(s3), S2(s2), S1(s1),
       arr3(in)
     { }
-  #ifdef FLAT_ARRAYS
+  #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
     const ConstArrayGet2<type> operator[](size_t n3)const{
       check_bounds(n3, S3);
       return ConstArrayGet2<type>(arr, n3*S2, S2, S1);
@@ -438,20 +478,31 @@ class ConstArr3 // : public BaseArr<type>
     // this causes operator[] to dereference via chained pointer
     operator type***(){ return (type***) arr3; }
   #endif
-    inline size_t getidx(size_t n3, size_t n2, size_t n1) const
+    void check_idx_bounds(size_t n3, size_t n2, size_t n1) const
     {
       check_bounds(n3, S3);
       check_bounds(n2, S2);
       check_bounds(n1, S1);
-      return (n3*S2+n2)*S1+n1;
     }
+    inline size_t getidx(size_t n3, size_t n2, size_t n1) const
+      { check_idx_bounds(n3,n2,n1); return (n3*S2+n2)*S1+n1; }
+  #ifdef CHAINED_ARRAYS
+    const type& get(size_t n3,size_t n2,size_t n1) const
+      { check_idx_bounds(n3,n2,n1); return arr3[n3][n2][n1]; }
+  protected: // hack: here rather than in ConstArr3 due to icpc compile error
+    type& fetch(size_t n3,size_t n2,size_t n1) const
+      { check_idx_bounds(n3,n2,n1); return arr3[n3][n2][n1]; }
+    void set(size_t n3,size_t n2,size_t n1, type value)
+      { check_idx_bounds(n3,n2,n1); arr3[n3][n2][n1] = value; }
+  #else
     const type& get(size_t n3,size_t n2,size_t n1) const
       { ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
-  protected: // here rather than in ConstArr3 due to icpc compile error
+  protected: // hack: here rather than in ConstArr3 due to icpc compile error
     type& fetch(size_t n3,size_t n2,size_t n1) const
       { ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
     void set(size_t n3,size_t n2,size_t n1, type value)
       { ALIGNED(arr); arr[getidx(n3,n2,n1)] = value; }
+  #endif
 };
 
 template <class type>
@@ -476,7 +527,7 @@ class Arr3 : public ConstArr3<type>
       ConstArr3<type>(in,s3,s2,s1)
     { }
     void free(){ delArray3<type>((type***)arr3); }
-  #ifdef FLAT_ARRAYS
+  #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
     inline ArrayGet2<type> operator[](size_t n3){
       check_bounds(n3, S3);
       return ArrayGet2<type>(arr, n3*S2, S2, S1);
@@ -520,7 +571,7 @@ class ConstArr4 //: public BaseArr<type>
       S4(s4), S3(s3), S2(s2), S1(s1),
       arr4(in)
     { }
-  #ifdef FLAT_ARRAYS
+  #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
     const ConstArrayGet3<type> operator[](size_t n4)const{
       check_bounds(n4, S4);
       return ConstArrayGet3<type>(arr, n4*S3, S3, S2, S1);
@@ -529,22 +580,32 @@ class ConstArr4 //: public BaseArr<type>
     // this causes operator[] to dereference via chained pointer
     operator type****(){ return (type****) arr4; }
   #endif
-    inline size_t getidx(size_t n4, size_t n3, size_t n2, size_t n1) const
+    void check_idx_bounds(size_t n4, size_t n3, size_t n2, size_t n1) const
     {
       check_bounds(n4, S4);
       check_bounds(n3, S3);
       check_bounds(n2, S2);
       check_bounds(n1, S1);
-      return ((n4*S3+n3)*S2+n2)*S1+n1;
     }
+    inline size_t getidx(size_t n4, size_t n3, size_t n2, size_t n1) const
+      { check_idx_bounds(n4,n3,n2,n1); return ((n4*S3+n3)*S2+n2)*S1+n1; }
+  #ifdef CHAINED_ARRAYS
     const type& get(size_t n4,size_t n3,size_t n2,size_t n1) const
       { ALIGNED(arr); return arr[getidx(n4,n3,n2,n1)]; }
-
-  protected: // here rather than in ConstArr4 due to icpc compile error
+  protected: // hack: here rather than in ConstArr4 due to icpc compile error
     type& fetch(size_t n4,size_t n3,size_t n2,size_t n1) const
       { ALIGNED(arr); return arr[getidx(n4,n3,n2,n1)]; }
     void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)
       { ALIGNED(arr); arr[getidx(n4,n3,n2,n1)] = value; }
+  #else
+    const type& get(size_t n4,size_t n3,size_t n2,size_t n1) const
+      { check_idx_bounds(n4,n3,n2,n1); return arr4[n4][n3][n2][n1]; }
+  protected: // hack: here rather than in ConstArr4 due to icpc compile error
+    type& fetch(size_t n4,size_t n3,size_t n2,size_t n1) const
+      { check_idx_bounds(n4,n3,n2,n1); return arr4[n4][n3][n2][n1]; }
+    void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)
+      { check_idx_bounds(n4,n3,n2,n1); arr4[n4][n3][n2][n1] = value; }
+  #endif
 };
 
 template <class type>
@@ -567,7 +628,7 @@ class Arr4 : public ConstArr4<type>
       size_t s4, size_t s3, size_t s2, size_t s1) :
       ConstArr4<type>(in,s4,s3,s2,s1)
     { }
-  #ifdef FLAT_ARRAYS
+  #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
     inline ArrayGet3<type> operator[](size_t n4){
       check_bounds(n4, S4);
       return ArrayGet3<type>(arr, n4*S3, S3, S2, S1);
