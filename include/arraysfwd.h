@@ -36,17 +36,17 @@ namespace iPic3D
 //typedef array_ref2<int> intArr2;
 //typedef array_ref3<int> intArr3;
 //typedef array_ref4<int> intArr4;
-//typedef const_array_ref1<double> doubleArr1;
-//typedef const_array_ref2<double> doubleArr2;
+//typedef const_array_ref1<double> array_ref1_double;
+//typedef const_array_ref2<double> array_ref2_double;
 //
-typedef iPic3D::const_array_ref3<double> doubleCar3;
-typedef iPic3D::const_array_ref4<double> doubleCar4;
-typedef iPic3D::array_ref1<double> doubleArr1;
-typedef iPic3D::array_ref2<double> doubleArr2;
-typedef iPic3D::array_ref3<double> doubleArr3;
-typedef iPic3D::array_ref4<double> doubleArr4;
-typedef iPic3D::array1<double> doubleArray1;
-typedef iPic3D::array2<double> doubleArray2;
-typedef iPic3D::array3<double> doubleArray3;
-typedef iPic3D::array4<double> doubleArray4;
+typedef iPic3D::const_array_ref3<double> const_arr3_double;
+typedef iPic3D::const_array_ref4<double> const_arr4_double;
+typedef iPic3D::array_ref1<double> array_ref1_double;
+typedef iPic3D::array_ref2<double> array_ref2_double;
+typedef iPic3D::array_ref3<double> array_ref3_double;
+typedef iPic3D::array_ref4<double> array_ref4_double;
+typedef iPic3D::array1<double> array1_double;
+typedef iPic3D::array2<double> array2_double;
+typedef iPic3D::array3<double> array3_double;
+typedef iPic3D::array4<double> array4_double;
 #endif

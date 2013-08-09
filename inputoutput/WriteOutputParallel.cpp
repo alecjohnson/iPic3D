@@ -41,7 +41,7 @@ void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCt
   /* Write the Electric field */
   /* ------------------------ */
 
-  doubleArray3 arr3(nxc-2,nyc-2,nzc-2);
+  array3_double arr3(nxc-2,nyc-2,nzc-2);
 
   grpname = "Fields";
   dtaname = "Ex";

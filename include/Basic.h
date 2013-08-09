@@ -64,7 +64,7 @@ inline double norm2(double **vect, int nx, int ny) {
   return (result);
 }
 /** method to calculate the square norm of a vector */
-inline double norm2(const doubleArr3& vect, int nx, int ny) {
+inline double norm2(const array_ref3_double& vect, int nx, int ny) {
   double result = 0;
   for (int i = 0; i < nx; i++)
     for (int j = 0; j < ny; j++)
@@ -82,7 +82,7 @@ inline double norm2(double *vect, int nx) {
 
 
 /** method to calculate the parallel dot product */
-inline double norm2P(const doubleArr3& vect, int nx, int ny, int nz) {
+inline double norm2P(const array_ref3_double& vect, int nx, int ny, int nz) {
   double result = 0;
   double local_result = 0;
   for (int i = 0; i < nx; i++)
@@ -128,7 +128,7 @@ inline void sum(double *vect1, double *vect2, int n) {
 
 }
 /** method to calculate the sum of two vectors vector1 = vector1 + vector2*/
-inline void sum(doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny, int nz) {
+inline void sum(array_ref3_double& vect1, const array_ref3_double& vect2, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
@@ -136,14 +136,14 @@ inline void sum(doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny, int 
 }
 
 /** method to calculate the sum of two vectors vector1 = vector1 + vector2*/
-inline void sum(doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny) {
+inline void sum(array_ref3_double& vect1, const array_ref3_double& vect2, int nx, int ny) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       vect1.fetch(i,j,0) += vect2.get(i,j,0);
 }
 
 /** method to calculate the sum of two vectors vector1 = vector1 + vector2*/
-inline void sum(doubleArr3& vect1, const doubleArr4& vect2, int nx, int ny, int nz, int ns) {
+inline void sum(array_ref3_double& vect1, const array_ref4_double& vect2, int nx, int ny, int nz, int ns) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
@@ -151,13 +151,13 @@ inline void sum(doubleArr3& vect1, const doubleArr4& vect2, int nx, int ny, int 
 }
 
 /** method to calculate the sum of two vectors vector1 = vector1 + vector2*/
-inline void sum(doubleArr3& vect1, const doubleArr4& vect2, int nx, int ny, int ns) {
+inline void sum(array_ref3_double& vect1, const array_ref4_double& vect2, int nx, int ny, int ns) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       vect1.fetch(i,j,0) += vect2.get(ns,i,j,0);
 }
 /** method to calculate the subtraction of two vectors vector1 = vector1 - vector2*/
-inline void sub(doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny, int nz) {
+inline void sub(array_ref3_double& vect1, const array_ref3_double& vect2, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
@@ -165,7 +165,7 @@ inline void sub(doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny, int 
 }
 
 /** method to calculate the subtraction of two vectors vector1 = vector1 - vector2*/
-inline void sub(doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny) {
+inline void sub(array_ref3_double& vect1, const array_ref3_double& vect2, int nx, int ny) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       vect1.fetch(i,j,0) -= vect2.get(i,j,0);
@@ -173,7 +173,7 @@ inline void sub(doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny) {
 
 
 /** method to sum 4 vectors vector1 = alfa*vector1 + beta*vector2 + gamma*vector3 + delta*vector4 */
-inline void sum4(doubleArr3& vect1, double alfa, const doubleArr3& vect2, double beta, const doubleArr3& vect3, double gamma, const doubleArr3& vect4, double delta, const doubleArr3& vect5, int nx, int ny, int nz) {
+inline void sum4(array_ref3_double& vect1, double alfa, const array_ref3_double& vect2, double beta, const array_ref3_double& vect3, double gamma, const array_ref3_double& vect4, double delta, const array_ref3_double& vect5, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
@@ -187,7 +187,7 @@ inline void scale(double *vect, double alfa, int n) {
 }
 
 /** method to calculate the scalar-vector product */
-inline void scale(doubleArr3& vect, double alfa, int nx, int ny) {
+inline void scale(array_ref3_double& vect, double alfa, int nx, int ny) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       vect.fetch(i,j,0) *= alfa;
@@ -195,7 +195,7 @@ inline void scale(doubleArr3& vect, double alfa, int nx, int ny) {
 
 
 /** method to calculate the scalar-vector product */
-inline void scale(doubleArr3& vect, double alfa, int nx, int ny, int nz) {
+inline void scale(array_ref3_double& vect, double alfa, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
@@ -209,7 +209,7 @@ inline void scale(double vect[][2][2], double alfa, int nx, int ny, int nz) {
         vect[i][j][k] *= alfa;
 }
 /** method to calculate the scalar-vector product */
-inline void scale(doubleArr3& vect1, const doubleArr3& vect2, double alfa, int nx, int ny, int nz) {
+inline void scale(array_ref3_double& vect1, const array_ref3_double& vect2, double alfa, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
@@ -217,7 +217,7 @@ inline void scale(doubleArr3& vect1, const doubleArr3& vect2, double alfa, int n
 }
 
 /** method to calculate the scalar-vector product */
-inline void scale(doubleArr3& vect1, const doubleArr3& vect2, double alfa, int nx, int ny) {
+inline void scale(array_ref3_double& vect1, const array_ref3_double& vect2, double alfa, int nx, int ny) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       vect1.fetch(i,j,0) = vect2.get(i,j,0) * alfa;
@@ -230,7 +230,7 @@ inline void scale(double *vect1, double *vect2, double alfa, int n) {
 }
 
 /** method to calculate vector1 = vector1 + alfa*vector2   */
-inline void addscale(double alfa, doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny, int nz) {
+inline void addscale(double alfa, array_ref3_double& vect1, const array_ref3_double& vect2, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
@@ -245,7 +245,7 @@ inline void addscale(double alfa, double vect1[][2][2], double vect2[][2][2], in
 
 }
 /** method to calculate vector1 = vector1 + alfa*vector2   */
-inline void addscale(double alfa, doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny) {
+inline void addscale(double alfa, array_ref3_double& vect1, const array_ref3_double& vect2, int nx, int ny) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       vect1.fetch(i,j,0) += alfa * vect2.get(i,j,0);
@@ -263,7 +263,7 @@ inline void addscale(double alfa, double beta, double *vect1, double *vect2, int
 
 }
 /** method to calculate vector1 = beta*vector1 + alfa*vector2 */
-inline void addscale(double alfa, double beta, doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny, int nz) {
+inline void addscale(double alfa, double beta, array_ref3_double& vect1, const array_ref3_double& vect2, int nx, int ny, int nz) {
 
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
@@ -273,7 +273,7 @@ inline void addscale(double alfa, double beta, doubleArr3& vect1, const doubleAr
 
 }
 /** method to calculate vector1 = beta*vector1 + alfa*vector2 */
-inline void addscale(double alfa, double beta, doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny) {
+inline void addscale(double alfa, double beta, array_ref3_double& vect1, const array_ref3_double& vect2, int nx, int ny) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       vect1.fetch(i,j,0) = beta * vect1.get(i,j,0) + alfa * vect2.get(i,j,0);
@@ -282,21 +282,21 @@ inline void addscale(double alfa, double beta, doubleArr3& vect1, const doubleAr
 
 
 /** method to calculate vector1 = alfa*vector2 + beta*vector3 */
-inline void scaleandsum(doubleArr3& vect1, double alfa, double beta, const doubleArr3& vect2, const doubleArr3& vect3, int nx, int ny, int nz) {
+inline void scaleandsum(array_ref3_double& vect1, double alfa, double beta, const array_ref3_double& vect2, const array_ref3_double& vect3, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
         vect1.fetch(i,j,k) = alfa * vect2.get(i,j,k) + beta * vect3.get(i,j,k);
 }
 /** method to calculate vector1 = alfa*vector2 + beta*vector3 with vector2 depending on species*/
-inline void scaleandsum(doubleArr3& vect1, double alfa, double beta, const doubleArr4& vect2, const doubleArr3& vect3, int ns, int nx, int ny, int nz) {
+inline void scaleandsum(array_ref3_double& vect1, double alfa, double beta, const array_ref4_double& vect2, const array_ref3_double& vect3, int ns, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
         vect1.fetch(i,j,k) = alfa * vect2.get(ns,i,j,k) + beta * vect3.get(i,j,k);
 }
 /** method to calculate vector1 = alfa*vector2*vector3 with vector2 depending on species*/
-inline void prod(doubleArr3& vect1, double alfa, const doubleArr4& vect2, int ns, const doubleArr3& vect3, int nx, int ny, int nz) {
+inline void prod(array_ref3_double& vect1, double alfa, const array_ref4_double& vect2, int ns, const array_ref3_double& vect3, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
@@ -304,21 +304,21 @@ inline void prod(doubleArr3& vect1, double alfa, const doubleArr4& vect2, int ns
 
 }
 /** method to calculate vect1 = vect2/alfa */
-inline void div(doubleArr3& vect1, double alfa, const doubleArr3& vect2, int nx, int ny, int nz) {
+inline void div(array_ref3_double& vect1, double alfa, const array_ref3_double& vect2, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
         vect1.fetch(i,j,k) = vect2.get(i,j,k) / alfa;
 
 }
-inline void prod6(doubleArr3& vect1, const doubleArr3& vect2, const doubleArr3& vect3, const doubleArr3& vect4, const doubleArr3& vect5, const doubleArr3& vect6, const doubleArr3& vect7, int nx, int ny, int nz) {
+inline void prod6(array_ref3_double& vect1, const array_ref3_double& vect2, const array_ref3_double& vect3, const array_ref3_double& vect4, const array_ref3_double& vect5, const array_ref3_double& vect6, const array_ref3_double& vect7, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
         vect1.fetch(i,j,k) = vect2.get(i,j,k) * vect3.get(i,j,k) + vect4.get(i,j,k) * vect5.get(i,j,k) + vect6.get(i,j,k) * vect7.get(i,j,k);
 }
 /** method used for calculating PI */
-inline void proddiv(doubleArr3& vect1, const doubleArr3& vect2, double alfa, const doubleArr3& vect3, const doubleArr3& vect4, const doubleArr3& vect5, const doubleArr3& vect6, double beta, const doubleArr3& vect7, const doubleArr3& vect8, double gamma, const doubleArr3& vect9, int nx, int ny, int nz) {
+inline void proddiv(array_ref3_double& vect1, const array_ref3_double& vect2, double alfa, const array_ref3_double& vect3, const array_ref3_double& vect4, const array_ref3_double& vect5, const array_ref3_double& vect6, double beta, const array_ref3_double& vect7, const array_ref3_double& vect8, double gamma, const array_ref3_double& vect9, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
@@ -328,7 +328,7 @@ inline void proddiv(doubleArr3& vect1, const doubleArr3& vect2, double alfa, con
   // ***vect1++ = (***vect2++ + alfa*((***vect3++)*(***vect4++) - (***vect5++)*(***vect6++)) + beta*(***vect7++)*(***vect8++))/(1+gamma*(***vect9++));
 }
 /** method to calculate the opposite of a vector */
-inline void neg(doubleArr3& vect, int nx, int ny, int nz) {
+inline void neg(array_ref3_double& vect, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
@@ -336,13 +336,13 @@ inline void neg(doubleArr3& vect, int nx, int ny, int nz) {
 }
 
 /** method to calculate the opposite of a vector */
-inline void neg(doubleArr3& vect, int nx, int ny) {
+inline void neg(array_ref3_double& vect, int nx, int ny) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       vect.fetch(i,j,0) = -vect.get(i,j,0);
 }
 /** method to calculate the opposite of a vector */
-inline void neg(doubleArr3& vect, int nx) {
+inline void neg(array_ref3_double& vect, int nx) {
   for (register int i = 0; i < nx; i++)
     vect.fetch(i,0,0) = -vect.get(i,0,0);
 }
@@ -354,7 +354,7 @@ inline void neg(double *vect, int n) {
 
 }
 /** method to set equal two vectors */
-inline void eq(doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny, int nz) {
+inline void eq(array_ref3_double& vect1, const array_ref3_double& vect2, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
@@ -362,7 +362,7 @@ inline void eq(doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny, int n
 
 }
 /** method to set equal two vectors */
-inline void eq(doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny) {
+inline void eq(array_ref3_double& vect1, const array_ref3_double& vect2, int nx, int ny) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       vect1.fetch(i,j,0) = vect2.get(i,j,0);
@@ -370,14 +370,14 @@ inline void eq(doubleArr3& vect1, const doubleArr3& vect2, int nx, int ny) {
 }
 
 /** method to set equal two vectors */
-inline void eq(doubleArr4& vect1, const doubleArr3& vect2, int nx, int ny, int is) {
+inline void eq(array_ref4_double& vect1, const array_ref3_double& vect2, int nx, int ny, int is) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       vect1.fetch(is,i,j,0) = vect2.get(i,j,0);
 
 }
 /** method to set equal two vectors */
-inline void eq(doubleArr4& vect1, const doubleArr3& vect2, int nx, int ny, int nz, int is) {
+inline void eq(array_ref4_double& vect1, const array_ref3_double& vect2, int nx, int ny, int nz, int is) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
@@ -390,7 +390,7 @@ inline void eq(double *vect1, double *vect2, int n) {
     vect1[i] = vect2[i];
 }
 /** method to set a vector to a Value */
-inline void eqValue(double value, doubleArr3& vect, int nx, int ny, int nz) {
+inline void eqValue(double value, array_ref3_double& vect, int nx, int ny, int nz) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       for (register int k = 0; k < nz; k++)
@@ -405,14 +405,14 @@ inline void eqValue(double value, double vect[][2][2], int nx, int ny, int nz) {
 
 }
 /** method to set a vector to a Value */
-inline void eqValue(double value, doubleArr3& vect, int nx, int ny) {
+inline void eqValue(double value, array_ref3_double& vect, int nx, int ny) {
   for (register int i = 0; i < nx; i++)
     for (register int j = 0; j < ny; j++)
       vect.fetch(i,j,0) = value;
 
 }
 /** method to set a vector to a Value */
-inline void eqValue(double value, doubleArr3& vect, int nx) {
+inline void eqValue(double value, array_ref3_double& vect, int nx) {
   for (register int i = 0; i < nx; i++)
     vect.fetch(i,0,0) = value;
 

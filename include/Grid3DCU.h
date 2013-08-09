@@ -42,76 +42,76 @@ public:
   /** print grid info */
   void print(VirtualTopology3D * ptVCT);
   /** calculate a derivative along a direction on nodes */
-  void derivN(doubleArr3& derN,
-    doubleCar4& scFieldC, int ns, int dir);
+  void derivN(array_ref3_double& derN,
+    const_arr4_double& scFieldC, int ns, int dir);
   /** calculate gradient on nodes, given a scalar field defined on central points  */
-  void gradC2N(doubleArr3& gradXN, doubleArr3& gradYN, doubleArr3& gradZN,
-    doubleCar3& scFieldC);
+  void gradC2N(array_ref3_double& gradXN, array_ref3_double& gradYN, array_ref3_double& gradZN,
+    const_arr3_double& scFieldC);
   /** calculate gradient on nodes, given a scalar field defined on central points  */
-  void gradN2C(doubleArr3& gradXC, doubleArr3& gradYC, doubleArr3& gradZC,
-    doubleCar3& scFieldN);
+  void gradN2C(array_ref3_double& gradXC, array_ref3_double& gradYC, array_ref3_double& gradZC,
+    const_arr3_double& scFieldN);
   /** calculate divergence on central points, given a vector field defined on nodes  */
-  void divN2C(doubleArr3& divC,
-    doubleCar3& vecFieldXN,
-    doubleCar3& vecFieldYN,
-    doubleCar3& vecFieldZN);
+  void divN2C(array_ref3_double& divC,
+    const_arr3_double& vecFieldXN,
+    const_arr3_double& vecFieldYN,
+    const_arr3_double& vecFieldZN);
   /** calculate divergence on nodes, given a vector field defined on central points  */
-  void divC2N(doubleArr3& divN,
-    doubleCar3& vecFieldXC,
-    doubleCar3& vecFieldYC,
-    doubleCar3& vecFieldZC);
+  void divC2N(array_ref3_double& divN,
+    const_arr3_double& vecFieldXC,
+    const_arr3_double& vecFieldYC,
+    const_arr3_double& vecFieldZC);
   /** calculate curl on nodes, given a vector field defined on central points  */
-  void curlC2N(doubleArr3& curlXN, doubleArr3& curlYN,
-    doubleArr3& curlZN,
-    doubleCar3& vecFieldXC,
-    doubleCar3& vecFieldYC,
-    doubleCar3& vecFieldZC);
+  void curlC2N(array_ref3_double& curlXN, array_ref3_double& curlYN,
+    array_ref3_double& curlZN,
+    const_arr3_double& vecFieldXC,
+    const_arr3_double& vecFieldYC,
+    const_arr3_double& vecFieldZC);
   /** calculate curl on central points, given a vector field defined on nodes  */
-  void curlN2C(doubleArr3& curlXC, doubleArr3& curlYC, doubleArr3& curlZC,
-    doubleCar3& vecFieldXN,
-    doubleCar3& vecFieldYN,
-    doubleCar3& vecFieldZN);
+  void curlN2C(array_ref3_double& curlXC, array_ref3_double& curlYC, array_ref3_double& curlZC,
+    const_arr3_double& vecFieldXN,
+    const_arr3_double& vecFieldYN,
+    const_arr3_double& vecFieldZN);
 
   /** calculate divergence on central points, given a Tensor field defined on nodes  */
-  void divSymmTensorN2C(doubleArr3& divCX, doubleArr3& divCY, doubleArr3& divCZ,
-    doubleCar4& pXX,
-    doubleCar4& pXY,
-    doubleCar4& pXZ,
-    doubleCar4& pYY,
-    doubleCar4& pYZ,
-    doubleCar4& pZZ, int ns);
+  void divSymmTensorN2C(array_ref3_double& divCX, array_ref3_double& divCY, array_ref3_double& divCZ,
+    const_arr4_double& pXX,
+    const_arr4_double& pXY,
+    const_arr4_double& pXZ,
+    const_arr4_double& pYY,
+    const_arr4_double& pYZ,
+    const_arr4_double& pZZ, int ns);
 
   /** calculate laplacian on nodes, given a scalar field defined on nodes */
-  void lapN2N(doubleArr3& lapN,
-    doubleCar3& scFieldN, VirtualTopology3D * vct);
+  void lapN2N(array_ref3_double& lapN,
+    const_arr3_double& scFieldN, VirtualTopology3D * vct);
   /** calculate laplacian on central points, given a scalar field defined on central points for Poisson */
-  void lapC2Cpoisson(doubleArr3& lapC,
-    doubleArr3& scFieldC, VirtualTopology3D * vct);
+  void lapC2Cpoisson(array_ref3_double& lapC,
+    array_ref3_double& scFieldC, VirtualTopology3D * vct);
   /** calculate laplacian on central points, given a scalar field defined on central points */
-  void lapC2C(doubleArr3& lapC,
-    doubleCar3& scFieldC, VirtualTopology3D * vct);
+  void lapC2C(array_ref3_double& lapC,
+    const_arr3_double& scFieldC, VirtualTopology3D * vct);
 
   /** calculate divergence on boundaries */
-  void divBCleft(doubleArr3& divBC,
-    doubleCar3& vectorX,
-    doubleCar3& vectorY,
-    doubleCar3& vectorZ, int leftActiveNode, int dirDER);
+  void divBCleft(array_ref3_double& divBC,
+    const_arr3_double& vectorX,
+    const_arr3_double& vectorY,
+    const_arr3_double& vectorZ, int leftActiveNode, int dirDER);
   /** calculate divergence on boundaries */
-  void divBCright(doubleArr3& divBC,
-    doubleCar3& vectorX,
-    doubleCar3& vectorY,
-    doubleCar3& vectorZ, int rightActiveNode, int dirDER);
+  void divBCright(array_ref3_double& divBC,
+    const_arr3_double& vectorX,
+    const_arr3_double& vectorY,
+    const_arr3_double& vectorZ, int rightActiveNode, int dirDER);
   /** calculate derivative on boundaries */
-  void derBC(doubleArr3& derBC,
-    doubleCar3& vector, int leftActiveNode, int dirDER);
+  void derBC(array_ref3_double& derBC,
+    const_arr3_double& vector, int leftActiveNode, int dirDER);
 
 
   /** interpolate on nodes from central points */
-  void interpC2N(doubleArr3& vecFieldN, doubleCar3& vecFieldC);
+  void interpC2N(array_ref3_double& vecFieldN, const_arr3_double& vecFieldC);
   /** interpolate on central points from nodes */
-  void interpN2C(doubleArr3& vecFieldC, doubleCar3& vecFieldN);
+  void interpN2C(array_ref3_double& vecFieldC, const_arr3_double& vecFieldN);
   /** interpolate on central points from nodes */
-  void interpN2C(doubleArr4& vecFieldC, int ns, doubleCar4& vecFieldN);
+  void interpN2C(array_ref4_double& vecFieldC, int ns, const_arr4_double& vecFieldN);
 
   // /////////// PRIVATE VARIABLES //////////////
 private:

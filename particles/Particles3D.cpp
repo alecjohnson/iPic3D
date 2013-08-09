@@ -316,12 +316,12 @@ int Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
     cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
   }
   double start_mover_PC = MPI_Wtime();
-  doubleCar3 Ex = EMf->getEx();
-  doubleCar3 Ey = EMf->getEy();
-  doubleCar3 Ez = EMf->getEz();
-  doubleCar3 Bx = EMf->getBx();
-  doubleCar3 By = EMf->getBy();
-  doubleCar3 Bz = EMf->getBz();
+  const_arr3_double Ex = EMf->getEx();
+  const_arr3_double Ey = EMf->getEy();
+  const_arr3_double Ez = EMf->getEz();
+  const_arr3_double Bx = EMf->getBx();
+  const_arr3_double By = EMf->getBy();
+  const_arr3_double Bz = EMf->getBz();
 
   const double dto2 = .5 * dt, qomdt2 = qom * dto2 / c;
   const double inv_dx = 1.0 / dx, inv_dy = 1.0 / dy, inv_dz = 1.0 / dz;
