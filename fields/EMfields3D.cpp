@@ -245,16 +245,16 @@ void EMfields3D::sumMoments(const Particles3Dcomm& pcls, Grid * grid, VirtualTop
     Moments& speciesMoments = fetch_momentsArray(thread_num);
     speciesMoments.set_to_zero();
     //
-    doubleArr3& rho = speciesMoments.fetch_rho();
-    doubleArr3& Jx  = speciesMoments.fetch_Jx();
-    doubleArr3& Jy  = speciesMoments.fetch_Jy();
-    doubleArr3& Jz  = speciesMoments.fetch_Jz();
-    doubleArr3& Pxx = speciesMoments.fetch_Pxx();
-    doubleArr3& Pxy = speciesMoments.fetch_Pxy();
-    doubleArr3& Pxz = speciesMoments.fetch_Pxz();
-    doubleArr3& Pyy = speciesMoments.fetch_Pyy();
-    doubleArr3& Pyz = speciesMoments.fetch_Pyz();
-    doubleArr3& Pzz = speciesMoments.fetch_Pzz();
+    doubleArr3 rho = speciesMoments.fetch_rho();
+    doubleArr3 Jx  = speciesMoments.fetch_Jx();
+    doubleArr3 Jy  = speciesMoments.fetch_Jy();
+    doubleArr3 Jz  = speciesMoments.fetch_Jz();
+    doubleArr3 Pxx = speciesMoments.fetch_Pxx();
+    doubleArr3 Pxy = speciesMoments.fetch_Pxy();
+    doubleArr3 Pxz = speciesMoments.fetch_Pxz();
+    doubleArr3 Pyy = speciesMoments.fetch_Pyy();
+    doubleArr3 Pyz = speciesMoments.fetch_Pyz();
+    doubleArr3 Pzz = speciesMoments.fetch_Pzz();
     // The following loop is expensive, so it is wise to assume that the
     // compiler is stupid.  Therefore we should on the one hand
     // expand things out and on the other hand avoid repeating computations.

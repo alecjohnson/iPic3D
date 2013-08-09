@@ -6,7 +6,8 @@ OBJECTS = \
   ../utility/asserts.o \
   debug.o
 
-FLAGS = -O3 -DNO_MPI -fno-exceptions #-ggdb -DCHECK_BOUNDS
+ARRAY_FLAGS = #-DCHAINED_ARRAYS #-DFLAT_ARRAYS #-DCHECK_BOUNDS
+FLAGS = -O3 -DNO_MPI -fno-exceptions $(ARRAY_FLAGS) #-ggdb 
 
 COMPILER = c++ #icpc # g++
 

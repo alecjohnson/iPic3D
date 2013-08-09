@@ -2,26 +2,29 @@
 #ifndef arraysfwd_h
 #define arraysfwd_h
 
-template <class T>
-class ConstArr3;
-template <class T>
-class ConstArr4;
-template <class T>
-class Arr1;
-template <class T>
-class Arr2;
-template <class T>
-class Arr3;
-template <class T>
-class Arr4;
-template <class T>
-class Array1;
-template <class T>
-class Array2;
-template <class T>
-class Array3;
-template <class T>
-class Array4;
+namespace iPic3D
+{
+  template <class T>
+  class const_array_ref3;
+  template <class T>
+  class const_array_ref4;
+  template <class T>
+  class array_ref1;
+  template <class T>
+  class array_ref2;
+  template <class T>
+  class array_ref3;
+  template <class T>
+  class array_ref4;
+  template <class T>
+  class array1;
+  template <class T>
+  class array2;
+  template <class T>
+  class array3;
+  template <class T>
+  class array4;
+}
 
 // These aliases are defined for the following flexibilization purposes:
 // - to avoid filling the code with template brackets
@@ -29,21 +32,21 @@ class Array4;
 // - so that they can be redefined according to the user's
 //   preferred array implementation.
 //
-//typedef Arr1<int> intArr1;
-//typedef Arr2<int> intArr2;
-//typedef Arr3<int> intArr3;
-//typedef Arr4<int> intArr4;
-//typedef ConstArr1<double> doubleArr1;
-//typedef ConstArr2<double> doubleArr2;
+//typedef array_ref1<int> intArr1;
+//typedef array_ref2<int> intArr2;
+//typedef array_ref3<int> intArr3;
+//typedef array_ref4<int> intArr4;
+//typedef const_array_ref1<double> doubleArr1;
+//typedef const_array_ref2<double> doubleArr2;
 //
-typedef ConstArr3<double> doubleCar3;
-typedef ConstArr4<double> doubleCar4;
-typedef Arr1<double> doubleArr1;
-typedef Arr2<double> doubleArr2;
-typedef Arr3<double> doubleArr3;
-typedef Arr4<double> doubleArr4;
-typedef Array1<double> doubleArray1;
-typedef Array2<double> doubleArray2;
-typedef Array3<double> doubleArray3;
-typedef Array4<double> doubleArray4;
+typedef iPic3D::const_array_ref3<double> doubleCar3;
+typedef iPic3D::const_array_ref4<double> doubleCar4;
+typedef iPic3D::array_ref1<double> doubleArr1;
+typedef iPic3D::array_ref2<double> doubleArr2;
+typedef iPic3D::array_ref3<double> doubleArr3;
+typedef iPic3D::array_ref4<double> doubleArr4;
+typedef iPic3D::array1<double> doubleArray1;
+typedef iPic3D::array2<double> doubleArray2;
+typedef iPic3D::array3<double> doubleArray3;
+typedef iPic3D::array4<double> doubleArray4;
 #endif
