@@ -1,51 +1,27 @@
 cmake_minimum_required(VERSION 2.8.8) 
-# compiler set in ../cmake/cmake_template.cmake.XeonPhi
-#message ("for Xeon Phi:")
-#message ("cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/cmake_template.cmake.XeonPhi")
-#message ("for Xeon:")
-#message ("cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/cmake_template.cmake.Xeon")
+
+#
+# Make sure that toolchain file is provided
+#
+if (NOT DEFINED CMAKE_TOOLCHAIN_FILE) 
+  message(FATAL_ERROR "Toolchain file required. Try: <build_dir>$ cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/<toolchain_file>")
+endif()
+
 #
 # Project declaration
 #
-
 project(iPic3D)
+
+#
+# External Dependencies
+#
+find_package(HDF5 COMPONENTS HL C REQUIRED)
 
 #
 # Set exec path
 #
-
 set(EXECUTABLE_OUTPUT_PATH exec/${CMAKE_BUILD_TYPE})
 set(LIBRARY_OUTPUT_PATH lib)
-
-#
-# Set compiler flags per system
-#
-if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "k1om") ## Xeon Phi
-   #set(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions -vec-report -mmic")
-   #set(CMAKE_CXX_FLAGS "-openmp -g -mmic") # set flags for Xeon Phi, totalview
-elseif (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64") ## Xeon
-   #set(CMAKE_CXX_COMPILER "icpc")  
-   #set(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions -vec-report")
-else()
-   #message("Toolchain file required")
-   #set(CMAKE_CXX_FLAGS "-O3")
-endif()
-
-#
-# Find third class libraries
-#
-if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "k1om") ## Xeon Phi
-   set(CMAKE_PREFIX_PATH /opt/hdf5/1.8.10-patch1-mic)			
-   set(VARIOUS_LIB /opt/intel/lib/mic)
-   set (EXTRA_LIBS ${VARIOUS_LIB}/libimf.so ${VARIOUS_LIB}/libsvml.so ${VARIOUS_LIB}/libirng.so ${VARIOUS_LIB}/libintlc.so ${MPELIB})
-else()
-   find_package(MPI REQUIRED)
-   set(EXTRA_LIBS "")   
-endif()
-
-find_package(HDF5 COMPONENTS HL C REQUIRED)
-message("HDF5_INCLUDE_DIRS is ${HDF5_INCLUDE_DIRS}")
-
 
 #
 # include and lib directories
@@ -105,9 +81,9 @@ file(
 set(TEST_B $ENV{BATSRUS})
 if(DEFINED TEST_B)
   add_definitions( -DBATSRUS )
-  message(" WARNING: BATSRUS flag is active.")
+  message("WARNING: BATSRUS flag is active.")
 else(DEFINED TEST_B)
-  message(" INFO: BATSRUS is not active.")
+  message("INFO: BATSRUS is not active.")
 endif(DEFINED TEST_B)
 
 #
@@ -165,10 +141,11 @@ target_link_libraries(
 ## debug releases have a _d appended to the executable
 set_target_properties(iPic3D PROPERTIES DEBUG_POSTFIX "_d")
 
-
-message("Which system am I compiling for:")
-message("CMAKE_SYSTEM_PROCESSOR is ${CMAKE_SYSTEM_PROCESSOR}")
-
-message("Compiler & compiler flags:")
-message("CMAKE_CXX_COMPILER is ${CMAKE_CXX_COMPILER}")
-message("CMAKE_CXX_FLAGS is ${CMAKE_CXX_FLAGS}")
+#
+# Some useful infos
+#
+message("INFO: CMAKE_SYSTEM_PROCESSOR : ${CMAKE_SYSTEM_PROCESSOR}")
+message("INFO: CMAKE_CXX_COMPILER : ${CMAKE_CXX_COMPILER}")
+message("INFO: CMAKE_CXX_FLAGS : ${CMAKE_CXX_FLAGS}")
+message("INFO: MPI_CXX_COMPILER : ${MPI_CXX_COMPILER}")
+message("INFO: HDF5_ROOT : $ENV{HDF5_ROOT}")
