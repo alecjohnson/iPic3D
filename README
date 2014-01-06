@@ -1,13 +1,32 @@
 ==== CPU ==== 
 
--- Compilation 
+ Compilation 
+ -----------
 
-$ mkdir build 
-$ cd build
-$ cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/cmake_template.cmake.Xeon
-$ make
-$ mkdir data
+ $ mkdir build.xeon
+ $ cd build.xeon
+ $ cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/cmake_template.cmake.Xeon
+ $ make
+ $ mkdir data
 
--- Execution
+ Execution
+ ---------
 
-$ mpiexec -n 4 exec/iPic3D ../inputfiles/GEM.inp
+ $ mpiexec -n 4 exec/iPic3D ../inputfiles/GEM.inp
+
+
+==== Xeon Phi ==== 
+
+ Compilation 
+ -----------
+
+ $ mkdir build.xeonphi
+ $ cd build.xeonphi
+ $ cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/cmake_template.cmake.XeonPhi
+ $ make
+ $ mkdir data
+ 
+ Execution
+ ---------
+ 
+ $ mpiexec -n 4 exec/iPic3D ../inputfiles/GEM.inp
