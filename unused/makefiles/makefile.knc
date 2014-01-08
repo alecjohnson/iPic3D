@@ -1,4 +1,6 @@
-#DYLD_LIBRARY_PATH = /users/cpa/volshevs/local/hdf5/lib
+#module load impi #/4.1.0.030
+#module load knc/mic
+#export PATH="$PATH:/opt/hdf5/1.8.10-patch1"
 
 CPP = mpiicpc
 #CPP = mpicxx
@@ -31,7 +33,7 @@ clean:
 	rm -rf *.o iPIC3D
 
 run:
-	mpiexec.hydra -np 4 -env OMP_NUM_THREADS=1 ./iPIC3D inputfiles/GEM.inp
+	mpiexec.hydra -np 8 -env OMP_NUM_THREADS=4 ./iPIC3D inputfiles/GEM.inp
 
 tags: retags
 

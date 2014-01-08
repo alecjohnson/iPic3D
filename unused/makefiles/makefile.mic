@@ -45,9 +45,10 @@ dummytargetforcomment:
 	mpiexec.hydra -host knc2-mic0 -n 16 -env OMP_NUM_THREADS=15 -wdir /home/eajohnson /home/eajohnson/iPIC3D /home/eajohnson/DOUBLE.inp
 	KMP_AFFINITY="balance" mpiexec.hydra -host knc2-mic0 -n 16 -env OMP_NUM_THREADS=15 iPIC3D inputfiles/DOUBLE.inp
 	mpiexec.hydra -host knc2-mic0 -n 16 -env OMP_NUM_THREADS=15 -env KMP_AFFINITY=balance ./iPIC3D inputfiles/DOUBLE.inp
+	mpiexec.hydra -host `hostname`-mic1 -n 60 -env OMP_NUM_THREADS=4 ./iPIC3D inputfiles/Small.inp
 
 run:
-	mpiexec.hydra -host `hostname`-mic1 -n 60 -env OMP_NUM_THREADS=4 ./iPIC3D inputfiles/Small.inp
+	LD_LIBRARY_PATH=/opt/hdf5/1.8.10-patch1-mic/lib:/opt/intel/composer:/opt/intel/composer_xe_2013.4.183/compiler/lib/mic         mpiexec.hydra -host `hostname`-mic1 -n 60 -env OMP_NUM_THREADS=1 ./iPIC3D inputfiles/GEM.inp
 
 monitor:
 	less +F data/ConservedQuantities.txt
