@@ -30,10 +30,11 @@ MPIdata& MPIdata::instance()
 }
 
 void MPIdata::init(int *argc, char ***argv) {
+  int thread_level_provided;
   assert(!MPIdata_is_initialized);
 
   /* Initialize the MPI API */
-  MPI_Init(argc, argv);
+  MPI_Init_thread(argc, argv, MPI_THREAD_FUNNELED, &thread_level_provided);
 
   /* Set rank */
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);

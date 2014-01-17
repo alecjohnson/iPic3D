@@ -40,6 +40,11 @@ int c_Solver::Init(int argc, char **argv) {
   /* If I'm particles solver then I spawn fields solver */
   if (PARTICLES == solver_type)
   {
+    MPI_Info info;
+
+    MPI_Info_create(&info);
+    MPI_Info_set(info, "hostfile", "spawnfile");
+
     MPI_Comm_spawn(
       "exec/iPic3D_fields",  // Filename
       &argv[1],              // Arguments, same as particles solver
@@ -49,6 +54,8 @@ int c_Solver::Init(int argc, char **argv) {
       MPI_COMM_WORLD,        // Group of spawning procs
       &mpi->intercomm,       // Intercommunicator to children
       MPI_ERRCODES_IGNORE);  // Error codes
+
+    MPI_Info_free(&info);
   }
 
   col = new Collective(argc, argv); // Every proc loads the parameters of simulation from class Collective
@@ -426,11 +433,13 @@ void c_Solver::WriteOutput(int cycle) {
 }
 
 void c_Solver::Finalize() {
+#if FILE_IO
   if (mem_avail == 0 // write the restart only if the simulation finished successfully
    && col->getCallFinalize())
   {
     writeRESTART(RestartDirName, myrank, (col->getNcycles() + first_cycle) - 1, ns, mpi, vct, col, grid, EMf, part, 0);
   }
+#endif
 
   // stop profiling
   my_clock->stopTiming();

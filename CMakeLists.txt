@@ -16,6 +16,12 @@ project(iPic3D)
 # External Dependencies
 #
 find_package(HDF5 COMPONENTS HL C REQUIRED)
+# We use the HDF5 header files only, so unset the libraries
+if (__MIC__)
+  set(HDF5_LIBRARY_DIRS)
+  set(HDF5_LIBRARIES)
+  set(HDF5_HL_LIBRARIES)
+endif()
 
 #
 # Set exec path
@@ -54,9 +60,16 @@ file(
 # Source file list
 #
 
+# As there's no HDF5 library for MIC, we only link 
+# empty functions for the symbols needed 
+if (__MIC__)
+  set(IPIC3D_MIC_HDF5_SYMBOLS mic/hdf5_symbols.c)
+endif()
+
 file(
         GLOB
         src_files
+        ${IPIC3D_MIC_HDF5_SYMBOLS}
         ConfigFile/src/*.cpp
         PSKOutput3D/*.cpp
         bc/*.cpp
@@ -148,4 +161,10 @@ message("INFO: CMAKE_SYSTEM_PROCESSOR : ${CMAKE_SYSTEM_PROCESSOR}")
 message("INFO: CMAKE_CXX_COMPILER : ${CMAKE_CXX_COMPILER}")
 message("INFO: CMAKE_CXX_FLAGS : ${CMAKE_CXX_FLAGS}")
 message("INFO: MPI_CXX_COMPILER : ${MPI_CXX_COMPILER}")
-message("INFO: HDF5_ROOT : $ENV{HDF5_ROOT}")
+if (__MIC__)
+  message("INFO: CMAKE_C_COMPILER : ${CMAKE_C_COMPILER}")
+  message("INFO: CMAKE_C_FLAGS : ${CMAKE_C_FLAGS}")
+  message("INFO: MPI_C_COMPILER : ${MPI_C_COMPILER}")
+else()
+  message("INFO: HDF5_ROOT : $ENV{HDF5_ROOT}")
+endif()

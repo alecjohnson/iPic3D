@@ -21,7 +21,18 @@ declare_dprintvar_fileLine(int);
 declare_dprintvar_fileLine(double);
 declare_dprintvar_fileLine(const char *);
 
-// Switch file I/O on/off
-#define FILE_IO 1
+/*
+ * Switch file I/O on/off
+ *
+ * Can only be switched on if not compiled for Intel Xeon Phi,
+ * as HDF5 version <= 1.8.12 (current) is not available for Xeon Phi.
+ *
+ */
+#define FILE_IO 0
+// Make sure that FILE_IO is not used with Xeon Phi
+#ifdef __MIC__
+  #undef FILE_IO
+  #define FILE_IO 0
+#endif
 
 #endif

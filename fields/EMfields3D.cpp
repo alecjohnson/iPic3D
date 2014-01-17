@@ -1615,12 +1615,15 @@ void EMfields3D::init(VirtualTopology3D * vct, Grid * grid, Collective *col) {
       grid->interpN2C(rhocs, is, rhons);
   }
   else {                        // READING FROM RESTART
+#if (__MIC__)
+    cout << "ERROR: NOT ABLE TO LOAD EM FIELD FROM RESTART FILE AS HDF5 FILE I/O IS NOT POSSIBLE ON Xeon Phi" << endl;
+#else
     if (vct->getCartesian_rank() == 0)
       cout << "LOADING EM FIELD FROM RESTART FILE in " + RestartDirName + "/restart.hdf" << endl;
     stringstream ss;
     ss << vct->getCartesian_rank();
     string name_file = RestartDirName + "/restart" + ss.str() + ".hdf";
-    // hdf stuff 
+    // hdf stuff
     hid_t file_id, dataspace;
     hid_t datatype, dataset_id;
     herr_t status;
@@ -1752,6 +1755,7 @@ void EMfields3D::init(VirtualTopology3D * vct, Grid * grid, Collective *col) {
     status = H5Fclose(file_id);
     delete[]temp_storage;
     delete[]species_name;
+#endif
   }
 }
 
