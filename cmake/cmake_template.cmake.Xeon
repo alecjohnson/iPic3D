@@ -12,4 +12,5 @@ SET(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions -vec-report -g -w2" CACHE STRIN
 # GCC
 #SET(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions -ftree-vectorizer-verbose=0 -g -Wall" CACHE STRING "" FORCE)
 
-SET(ENV{HDF5_ROOT} "/opt/hdf5/1.8.11/")
+SET(ENV{HDF5_ROOT} $ENV{HOME}/opt/hdf5/1.8.12-serial)
+#SET(ENV{HDF5_ROOT} $ENV{TACC_HDF5_DIR})

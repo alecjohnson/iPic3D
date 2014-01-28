@@ -8,7 +8,7 @@ SET(CMAKE_CXX_COMPILER mpicxx)
 SET(MPI_CXX_COMPILER mpicxx)
 # "CACHE STRING "" FORCE" is a workaround so that FLAGS are not ignored
 # Intel
-SET(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions -vec-report -g -w2" CACHE STRING "" FORCE)
+SET(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions -vec-report -w2" CACHE STRING "" FORCE)
 # GCC
 #SET(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions -ftree-vectorizer-verbose=0 -g -Wall" CACHE STRING "" FORCE)
 

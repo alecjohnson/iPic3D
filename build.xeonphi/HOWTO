@@ -1,0 +1,6 @@
+Use modules: intel/14.0.1.106 impi/4.1.1.036
+
+1) $ . ~/spawn/env.sh
+2) Edit spawnfile (+ run_fields.sh)
+3) $ export OMP_NUM_THREADS=16 (MIC)
+4) $ mpiexec.hydra -iface br0 -np 4 -host c557-701-mic0 -env LD_LIBRARY_PATH $MIC_LD_LIBRARY_PATH exec/iPic3D ../inputfiles/GEM.inp

@@ -46,10 +46,10 @@ int c_Solver::Init(int argc, char **argv) {
     MPI_Info_set(info, "hostfile", "spawnfile");
 
     MPI_Comm_spawn(
-      "exec/iPic3D_fields",  // Filename
+      "run_fields.sh",  // Filename
       &argv[1],              // Arguments, same as particles solver
       nprocs,                // Number MPI procs
-      MPI_INFO_NULL,         // Info argument
+      info,//MPI_INFO_NULL,         // Info argument
       0,                     // Root
       MPI_COMM_WORLD,        // Group of spawning procs
       &mpi->intercomm,       // Intercommunicator to children

@@ -12,7 +12,7 @@ SET(MPI_C_COMPILER mpicc)
 SET(MPI_CXX_COMPILER mpicxx)
 # "CACHE STRING "" FORCE" is a workaround so that FLAGS are not ignored
 # Intel
-SET(CMAKE_CXX_FLAGS "-D__MIC__ -mmic -O3 -openmp -fno-exceptions -vec-report -g -w2" CACHE STRING "" FORCE)
-SET(CMAKE_C_FLAGS "-D__MIC__ -mmic -O3 -openmp -vec-report -g -w2" CACHE STRING "" FORCE)
+SET(CMAKE_CXX_FLAGS "-D__MIC__ -mmic -O3 -openmp -fno-exceptions -vec-report -w2" CACHE STRING "" FORCE)
+SET(CMAKE_C_FLAGS "-D__MIC__ -mmic -O3 -openmp -vec-report -w2" CACHE STRING "" FORCE)
 
 SET(ENV{HDF5_ROOT} $ENV{HOME}/opt/hdf5/1.8.12-serial)
