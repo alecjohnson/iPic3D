@@ -318,6 +318,148 @@ void Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
   }
   const_arr4_pfloat fieldForPcls = EMf->get_fieldForPcls();
 
+  const pfloat dto2 = .5 * dt, qdto2mc = qom * dto2 / c;
+  const pfloat inv_dx = 1.0 / dx, inv_dy = 1.0 / dy, inv_dz = 1.0 / dz;
+  #pragma omp for
+  // why does single precision make no difference in execution speed?
+  //#pragma simd vectorlength(VECTOR_WIDTH)
+  for (int pidx = 0; pidx < nop; pidx++) {
+    // copy the particle
+    const pfloat xorig = x[pidx];
+    const pfloat yorig = y[pidx];
+    const pfloat zorig = z[pidx];
+    const pfloat uorig = u[pidx];
+    const pfloat vorig = v[pidx];
+    const pfloat worig = w[pidx];
+    pfloat xavg = xorig;
+    pfloat yavg = yorig;
+    pfloat zavg = zorig;
+    pfloat uavg;
+    pfloat vavg;
+    pfloat wavg;
+    // calculate the average velocity iteratively
+    for (int innter = 0; innter < NiterMover; innter++) {
+      // interpolation G-->P
+      const pfloat ixd = floor((xavg - xstart) * inv_dx);
+      const pfloat iyd = floor((yavg - ystart) * inv_dy);
+      const pfloat izd = floor((zavg - zstart) * inv_dz);
+      int ix = 2 + int (ixd);
+      int iy = 2 + int (iyd);
+      int iz = 2 + int (izd);
+      if (ix < 1)
+        ix = 1;
+      if (iy < 1)
+        iy = 1;
+      if (iz < 1)
+        iz = 1;
+      if (ix > nxn - 1)
+        ix = nxn - 1;
+      if (iy > nyn - 1)
+        iy = nyn - 1;
+      if (iz > nzn - 1)
+        iz = nzn - 1;
+
+      const pfloat xi0   = xavg - grid->get_pfloat_XN(ix-1);
+      const pfloat eta0  = yavg - grid->get_pfloat_YN(iy-1);
+      const pfloat zeta0 = zavg - grid->get_pfloat_ZN(iz-1);
+      const pfloat xi1   = grid->get_pfloat_XN(ix) - xavg;
+      const pfloat eta1  = grid->get_pfloat_YN(iy) - yavg;
+      const pfloat zeta1 = grid->get_pfloat_ZN(iz) - zavg;
+
+      pfloat Exl = 0.0;
+      pfloat Eyl = 0.0;
+      pfloat Ezl = 0.0;
+      pfloat Bxl = 0.0;
+      pfloat Byl = 0.0;
+      pfloat Bzl = 0.0;
+
+      pfloat weights[8];
+      const pfloat weight0 = invVOL*xi0;
+      const pfloat weight1 = invVOL*xi1;
+      const pfloat weight00 = weight0*eta0;
+      const pfloat weight01 = weight0*eta1;
+      const pfloat weight10 = weight1*eta0;
+      const pfloat weight11 = weight1*eta1;
+      weights[0] = weight00*zeta0; // weight000
+      weights[1] = weight00*zeta1; // weight001
+      weights[2] = weight01*zeta0; // weight010
+      weights[3] = weight01*zeta1; // weight011
+      weights[4] = weight10*zeta0; // weight100
+      weights[5] = weight10*zeta1; // weight101
+      weights[6] = weight11*zeta0; // weight110
+      weights[7] = weight11*zeta1; // weight111
+      //weights[0] = xi0 * eta0 * zeta0 * qi * invVOL; // weight000
+      //weights[1] = xi0 * eta0 * zeta1 * qi * invVOL; // weight001
+      //weights[2] = xi0 * eta1 * zeta0 * qi * invVOL; // weight010
+      //weights[3] = xi0 * eta1 * zeta1 * qi * invVOL; // weight011
+      //weights[4] = xi1 * eta0 * zeta0 * qi * invVOL; // weight100
+      //weights[5] = xi1 * eta0 * zeta1 * qi * invVOL; // weight101
+      //weights[6] = xi1 * eta1 * zeta0 * qi * invVOL; // weight110
+      //weights[7] = xi1 * eta1 * zeta1 * qi * invVOL; // weight111
+
+      // creating these aliases seems to accelerate this method by about 30%
+      // on the Xeon host, processor, suggesting deficiency in the optimizer.
+      //
+      arr1_pfloat_get field_components[8];
+      field_components[0] = fieldForPcls[ix  ][iy  ][iz  ]; // field000
+      field_components[1] = fieldForPcls[ix  ][iy  ][iz-1]; // field001
+      field_components[2] = fieldForPcls[ix  ][iy-1][iz  ]; // field010
+      field_components[3] = fieldForPcls[ix  ][iy-1][iz-1]; // field011
+      field_components[4] = fieldForPcls[ix-1][iy  ][iz  ]; // field100
+      field_components[5] = fieldForPcls[ix-1][iy  ][iz-1]; // field101
+      field_components[6] = fieldForPcls[ix-1][iy-1][iz  ]; // field110
+      field_components[7] = fieldForPcls[ix-1][iy-1][iz-1]; // field111
+
+      for(int c=0; c<8; c++)
+      {
+        Bxl += weights[c] * field_components[c][0];
+        Byl += weights[c] * field_components[c][1];
+        Bzl += weights[c] * field_components[c][2];
+        Exl += weights[c] * field_components[c][3];
+        Eyl += weights[c] * field_components[c][4];
+        Ezl += weights[c] * field_components[c][5];
+      }
+      const double Omx = qdto2mc*Bxl;
+      const double Omy = qdto2mc*Byl;
+      const double Omz = qdto2mc*Bzl;
+
+      // end interpolation
+      const pfloat omsq = (Omx * Omx + Omy * Omy + Omz * Omz);
+      const pfloat denom = 1.0 / (1.0 + omsq);
+      // solve the position equation
+      const pfloat ut = uorig + qdto2mc * Exl;
+      const pfloat vt = vorig + qdto2mc * Eyl;
+      const pfloat wt = worig + qdto2mc * Ezl;
+      //const pfloat udotb = ut * Bxl + vt * Byl + wt * Bzl;
+      const pfloat udotOm = ut * Omx + vt * Omy + wt * Omz;
+      // solve the velocity equation
+      uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
+      vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
+      wavg = (wt + (ut * Omy - vt * Omx + udotOm * Omz)) * denom;
+      // update average position
+      xavg = xorig + uavg * dto2;
+      yavg = yorig + vavg * dto2;
+      zavg = zorig + wavg * dto2;
+    }                           // end of iteration
+    // update the final position and velocity
+    x[pidx] = xorig + uavg * dt;
+    y[pidx] = yorig + vavg * dt;
+    z[pidx] = zorig + wavg * dt;
+    u[pidx] = 2.0 * uavg - uorig;
+    v[pidx] = 2.0 * vavg - vorig;
+    w[pidx] = 2.0 * wavg - worig;
+  }                             // END OF ALL THE PARTICLES
+}
+
+#if 0 // OLD CODE
+/** mover with a Predictor-Corrector scheme */
+void Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
+  #pragma omp master
+  if (vct->getCartesian_rank() == 0) {
+    cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
+  }
+  const_arr4_pfloat fieldForPcls = EMf->get_fieldForPcls();
+
   const pfloat dto2 = .5 * dt, qomdt2 = qom * dto2 / c;
   const pfloat inv_dx = 1.0 / dx, inv_dy = 1.0 / dy, inv_dz = 1.0 / dz;
   // don't bother trying to push any particles simultaneously;
@@ -622,6 +764,7 @@ void Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
     w[rest] = wp;
   }                             // END OF ALL THE PARTICLES
 }
+#endif
 
 /** communicate particle after moving them */
 int Particles3D::communicate_particles(VirtualTopology3D * vct)
