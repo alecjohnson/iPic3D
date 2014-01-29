@@ -21,13 +21,26 @@ set(LIBRARY_OUTPUT_PATH lib)
 # Set compiler flags per system
 #
 if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "k1om") ## Xeon Phi
-   set(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions -vec-report -mmic")
+   option(IPIC_XEONPHI "ipic xeon phi standard compile flags" on)
+   if(IPIC_XEONPHI) 
+     set(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions -vec-report -mmic")
+   else()
+     set(CMAKE_CXX_FLAGS "-mmic")
+   endif()
+   #set(CMAKE_CXX_FLAGS "$(CMAKE_CXX_FLAGS) -mmic")
+   #set(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions -vec-report -mmic")
    #set(CMAKE_CXX_FLAGS "-openmp -g -mmic") # set flags for Xeon Phi, totalview
 elseif (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64") ## Xeon
-   set(CMAKE_CXX_COMPILER "icpc")  
-   set(CMAKE_CXX_FLAGS "-O3 -openmp -g -xHost -fno-exceptions -vec-report")
+   option(IPIC_XEON "icpc with optimization" on)
+   if(IPIC_XEON) 
+     # reporting: -g -vec-report
+     # optimization: -O3 -xHost -fno-exceptions
+     set(CMAKE_CXX_FLAGS "-openmp -fno-exceptions -O3 -xHost -vec-report")
+     set(CMAKE_CXX_COMPILER "icpc")  
+   endif()
+   #set(CMAKE_CXX_FLAGS "-O3 -openmp -g -xHost -fno-exceptions -vec-report")
 else()
-   set(CMAKE_CXX_FLAGS "-O3")
+   #set(CMAKE_CXX_FLAGS "-O3")
 endif()
 
 #
