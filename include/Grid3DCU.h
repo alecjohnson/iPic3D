@@ -144,6 +144,8 @@ private:
   int cxlast; // nxc-1;
   int cylast; // nyc-1;
   int czlast; // nzc-1;
+  int num_cells; // nxc*nyc*nzc;
+  int num_cells_per_thread;
   /** node coordinate */
   pfloat *pfloat_node_xcoord;
   pfloat *pfloat_node_ycoord;
@@ -168,10 +170,84 @@ public: // accessors (inline)
   double getDX() { return (dx); }
   double getDY() { return (dy); }
   double getDZ() { return (dz); }
+  // for rapid access
   double get_invdx() { return (invdx); }
   double get_invdy() { return (invdy); }
   double get_invdz() { return (invdz); }
+  int get_num_cells() { return num_cells; }
+  //int get_num_cells_per_thread() { return num_cells_per_thread; }
+  // would it be faster to look this up in an array?
+  int get_thread_for_cell(int idx) {
+    return idx/num_cells_per_thread;
+  }
   //
+  // calculate cell of particle
+  //
+  // (These need to be inline for fast processing.)
+  void get_cell_coordinates(
+    int& cx, int& cy, int& cz,
+    double xpos, double ypos, double zpos)
+  {
+      // xStart marks start of domain excluding ghosts
+      const double rel_xpos = xpos - xStart;
+      const double rel_ypos = ypos - yStart;
+      const double rel_zpos = zpos - zStart;
+      // cell position minus 1 (due to ghost cells)
+      const double cxm1_pos = rel_xpos * invdx;
+      const double cym1_pos = rel_ypos * invdy;
+      const double czm1_pos = rel_zpos * invdz;
+      cx = 1 + int(floor(cxm1_pos));
+      cy = 1 + int(floor(cym1_pos));
+      cz = 1 + int(floor(czm1_pos));
+  }
+  void make_cell_coordinates_safe(int& cx, int& cy, int& cz)
+  {
+    // if the cell is outside the domain, then treat it as
+    // in the nearest ghost cell.
+    //
+    if (cx < 0) cx = 0;
+    if (cy < 0) cy = 0;
+    if (cz < 0) cz = 0;
+    if (cx > cxlast) cx = cxlast; //nxc-1;
+    if (cy > cylast) cy = cylast; //nyc-1;
+    if (cz > czlast) cz = czlast; //nzc-1;
+  }
+  void get_safe_cell_coordinates(
+    int& cx, int& cy, int& cz,
+    double x, double y, double z)
+  {
+    get_cell_coordinates(cx,cy,cz,x,y,z);
+    make_cell_coordinates_safe(cx,cy,cz);
+  }
+  // get one-dimensional index of cell at position
+  int get_cell_idx_for_coordinates(int cx, int cy, int cz)
+  {
+    return cz+nzc*(cy+nyc*cx);
+  }
+  int get_safe_cell_idx(double x, double y, double z)
+  {
+    int cx, cy, cz;
+    get_safe_cell_coordinates(cx,cy,cz,x,y,z);
+    return get_cell_idx_for_coordinates(cx, cy, cz);
+  }
+  /*! version that assumes particle is in domain */
+  void get_cell_for_pos_in_domain(
+    int& cx, int& cy, int& cz, 
+    pfloat xpos, pfloat ypos, pfloat zpos)
+  {
+    // xstart is left edge of domain excluding ghost cells
+    // cx=0 for ghost cell layer.
+    cx = 1 + int(floor((xpos - xStart) * invdx));
+    cy = 1 + int(floor((ypos - yStart) * invdy));
+    cz = 1 + int(floor((zpos - zStart) * invdz));
+    //
+    assert_le(0,cx);
+    assert_le(0,cy);
+    assert_le(0,cz);
+    assert_le(cx,nxc);
+    assert_le(cy,nyc);
+    assert_le(cz,nzc);
+  }
   // coordinate accessors
   //
   // calculated equivalents (preferred for accelerator?):

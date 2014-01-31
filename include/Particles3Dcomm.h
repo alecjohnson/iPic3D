@@ -12,6 +12,10 @@ developers: Stefano Markidis, Giovanni Lapenta
 #include "Grid.h"
 #include "Field.h"
 #include "Particle.h"
+#include "ParticleList.h"
+#include "arraysfwd.h"
+
+using namespace iPic3D;
 /**
  * 
  * class for particles of the same species with communications methods
@@ -76,9 +80,14 @@ public:
   void sort_particles_serial(Grid * grid, VirtualTopology3D * vct);
   void sort_particles_serial_AoS(Grid * grid, VirtualTopology3D * vct);
   void sort_particles_serial_SoA(Grid * grid, VirtualTopology3D * vct);
+  /*! sort particles with respect to provided position data */
+  void Particles3Dcomm::sort_particles_into_cells(
+    Grid * grid, VirtualTopology3D * vct);
 
   // get accessors for optional arrays
   //
+  array_ref3<SpeciesParticleList>& get_pclGrid();
+
   SpeciesParticle *fetch_pcls(){ return _pcls; }
   SpeciesParticle *fetch_pclstmp(){ return _pclstmp; }
   double * fetch_xavg() { return _xavg; }
@@ -144,6 +153,29 @@ public:
   { return (*bucket_offset)[cx][cy][cz]; }
 
 protected:
+
+  // Apparently the orginal conception of the particles
+  // class envisioned that the grid data and processor
+  // topology would be independent of particle data.
+  // Unfortunately, it is necessary to couple particles
+  // to grid organization in order to efficiently map
+  // between particles and the grid.  As a consequence,
+  // it seems, more and more grid and topology data
+  // was copied into this class for convenience.
+  // At this point we might as well include pointers to
+  // grid and topology data rather than continuing to
+  // perpetuate this pattern.  Passing the same data to
+  // the majority of the methods in a class is a sure sign
+  // that the data belongs in the class (or a child class).
+  //
+  // I think that a more feasible strategy would be
+  // to create an abstract KineticSolver class containing
+  // virtual methods to be implemented by any particle
+  // or continuum model capable of providing the moments
+  // needed to couple to the implicit moment method. -eaj
+  //
+  Grid* _grid;
+
   /** number of this species */
   int ns;
   /** maximum number of particles of this species on this domain. used for memory allocation */
@@ -200,10 +232,12 @@ protected:
   bool TrackParticleID;
   /** ParticleID */
   long long *ParticleID;
-  //
+
   // AoS representation
   //
   SpeciesParticle *_pcls;
+  // store particles per mesh cell (for efficient sorting)
+  ParticleGrid* particleGrid;
 
   // structures for sorting particles
   //

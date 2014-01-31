@@ -67,6 +67,7 @@ Particles3Dcomm::~Particles3Dcomm() {
   delete[]q;
   delete[]ParticleID;
   // AoS representation
+  AlignedFree(_pcls);
   delete[]_pcls;
   // average position used in particle advance
   delete[]_xavg;
@@ -81,7 +82,7 @@ Particles3Dcomm::~Particles3Dcomm() {
   delete[]_wtmp;
   delete[]_qtmp;
   delete[]_ParticleIDtmp;
-  delete[] _pclstmp;
+  AlignedFree(_pclstmp);
   // extra xavg for sort
   delete[]_xavgtmp;
   delete[]_yavgtmp;
@@ -99,6 +100,7 @@ Particles3Dcomm::~Particles3Dcomm() {
 }
 /** constructors fo a single species*/
 void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3D * vct, Grid * grid) {
+  _grid = grid;
   // info from collectiveIO
   ns = species;
   npcel = col->getNpcel(species);
@@ -173,6 +175,8 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
   bcPfaceZleft = col->getBcPfaceZleft();
   //
   // allocate arrays for sorting particles
+  //
+  particleGrid = new array_ref3<SpeciesParticleList>(nxc,nyc,nzc);
   //
   numpcls_in_bucket = new array3_int(nxc,nyc,nzc);
   numpcls_in_bucket_now = new array3_int(nxc,nyc,nzc);
@@ -264,6 +268,11 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
       assert_eq(sizeof(SpeciesParticle),64);
       ALIGNED(_pcls);
     #endif
+
+    // allocate particle grid
+    int num_cells = grid->get_num_cells();
+    int list_size_per_cell = npmax/num_cells + 1;
+    particleGrid = new ParticleGrid(nxc,nyc,nzc, list_size_per_cell);
   }
 
   ParticleID = 0;
@@ -1421,136 +1430,184 @@ void Particles3Dcomm::sort_particles_serial_SoA_by_xavg(
   }
 }
 
-//void Particles3Dcomm::sort_particles_parallel(
-//  double *xpos, double *ypos, double *zpos,
-//  Grid * grid, VirtualTopology3D * vct)
-//{
-//  // should change this to first communicate particles so that
-//  // they are in the correct process and all particles
-//  // lie in this subdomain.
+// sort particles into AoS lists in cells
 //
-//  // count the number of particles to go in each bucket
-//  numpcls_in_bucket.setall(0);
-//  #pragma omp parallel
-//  {
-//    const int thread_num = omp_get_thread_num();
-//    arr3_int numpcls_in_bucket_thr = fetch_numpcls_in_bucket_thr(thread_num);
-//    numpcls_in_bucket_thr.setall(0);
-//    // iterate through particles and count where they will go
-//    #pragma omp for // nowait
-//    for (int pidx = 0; pidx < nop; pidx++)
-//    {
-//      // get the cell indices of the particle
-//      // (should change this to use xavg[pidx])
-//      const pfloat xpos = xpos[pidx];
-//      const pfloat ypos = ypos[pidx];
-//      const pfloat zpos = zpos[pidx];
-//      int cx,cy,cz;
-//      get_safe_cell_for_pos(cx,cy,cz,xpos,ypos,zpos);
+void Particles3Dcomm::sort_particles_into_cells_serial(
+  Grid * grid, VirtualTopology3D * vct)
+{
+  #pragma omp master
+  {
+    // iterate through the cells and put the particles
+    // in the correct bin.
+    int num_cells = grid->get_num_cells();
+    for(int c = 0; c<=num_cells; c++)
+    {
+      // get particle list for this mesh cell
+      ParticleList& particleList = particleGrid.get_particleList(c);
+
+      // iterate through particles in this mesh cell
+      // and transfer misplaced particles to the appropriate cell
+      for(int pidx=0; pidx<particleList.get_numPcls(); pidx++)
+      {
+        const SpeciesParticle* pcl = particleList.get_pcl(pidx);
+        ALIGNED(pcl);
+        int cx,cy,cz;
+        grid->get_cell_coordinates(cx,cy,cz,pcl.get_x(),pcl.get_y(),pcl.get_z());
+        // should really put the bad guys in interprocess communication buffer...
+        grid->make_cell_coordinates_safe(cx,cy,cz);
+        int true_cell = grid->get_cell_idx_for_coordinates(cx,cy,cz);
+        // if the particle is in the wrong cell, then move it
+        if(true_cell!=c)
+        {
+          // transfer particle to correct cell
+          {
+            ParticleList& destinationList = particleGrid.get_particleList(true_cell);
+            destinationList.push_back(pcl);
+          }
+          // delete particle from this cell
+          particleList.delete_pcl(pidx);
+        }
+      }
+    }
+
+    // check that sort was correctly completed
+    if(true)
+      check_sort_particles_into_cells(grid);
+  }
+}
+
+void Particles3Dcomm::check_sort_particles_into_cells(Grid * grid)
+{
+  // iterate through the cells and check that the particles
+  // are in the correct bin.
+  int num_cells = grid->get_num_cells();
+  #pragma omp for
+  for(int c = 0; c<=num_cells; c++)
+  {
+    // get particle list for this mesh cell
+    ParticleList& particleList = particleGrid.get_particleList(c);
+  
+    // iterate through particles in this mesh cell
+    // and transfer misplaced particles to the appropriate cell
+    for(int pidx=0; pidx<particleList.get_numPcls(); pidx++)
+    {
+      const SpeciesParticle* pcl = particleList.get_pcl(pidx);
+      ALIGNED(pcl);
+      int cx,cy,cz;
+      grid->get_cell_coordinates(cx,cy,cz,pcl.get_x(),pcl.get_y(),pcl.get_z());
+      // should really put the bad guys in interprocess communication buffer...
+      grid->make_cell_coordinates_safe(cx,cy,cz);
+      int true_cell = grid->get_cell_idx_for_coordinates(cx,cy,cz);
+      // if the particle is in the wrong cell, then move it
+      assert_eq(true_cell,c);
+    }
+  }
+}
+
+// sort particles into AoS lists in cells
 //
-//      // need to allocate these
-//      //
-//      //xidx[pidx]=cx;
-//      //yidx[pidx]=cy;
-//      //zidx[pidx]=cz;
-//
-//      // increment the number of particles in bucket of this particle
-//      numpcls_in_bucket_thr[cx][cy][cz]++;
-//    }
-//    // reduce the thread buckets into the main bucket
-//    // #pragma omp critical (numpcls_in_bucket_reduction)
-//    {
-//      #pragma omp for collapse(2)
-//      for(int cx=0;cx<nxc;cx++)
-//      for(int cy=0;cy<nyc;cy++)
-//      for(int th=0;th<num_threads;th++)
-//      for(int cz=0;cz<nzc;cz++)
-//      {
-//        numpcls_in_bucket[cx][cy][cz]
-//          += get_numpcls_in_bucket_thr(th)[cx][cy][cz];
-//      }
-//    }
-//
-//    // compute prefix sum to determine initial position
-//    // of each bucket (could parallelize this)
-//    //
-//    int accpcls=0;
-//    #pragma omp critical (bucket_offset_reduction)
-//    for(int cx=0;cx<nxc;cx++)
-//    for(int cy=0;cy<nyc;cy++)
-//    for(int cz=0;cz<nzc;cz++)
-//    {
-//      bucket_offset[cx][cy][cz] = accpcls;
-//      accpcls += numpcls_in_bucket[cx][cy][cz];
-//    }
-//
-//    // cycle through the mesh cells mod 3
-//    // (or mod(2*N+1), where N is number of mesh cells
-//    // that a slow particle can move).
-//    // This ensures that slow particles can be moved
-//    // to their destinations without write conflicts
-//    // among threads.  But what about cache contention?
-//    //
-//    for(int cxmod3=0; cxmod3<3; cxmod3++)
-//    #pragma omp for collapse(2)
-//    for(int cx=cxmod3; cx<nxc; cx+=3)
-//    for(int cy=0; cy<nyc; cy++)
-//    for(int cz=0; cz<nzc; cz++)
-//    {
-//      // put the slow particles where they are supposed to go and
-//      // set aside the fast particles for separate processing.
-//      // (to vectorize would need to sort separately in each
-//      // dimension of space).
-//      //
-//      // problem: particles might have to be moved not because
-//      // they are fast but because of an overall shift in the
-//      // number of particles in a location, e.g. because of
-//      // particles flowing in from a jet. Need a different
-//      // approach, where memory is allocated for each cell.
-//      _numpcls_in_bucket = numpcls_in_bucket[cx][cy][cz];
-//      for(int pidx=bucket_offset[cx][cy][cz]; pidx<_numpcls_in_bucket; pidx++)
-//      {
-//        const int outcx = xidx[pidx];
-//        const int outcy = yidx[pidx];
-//        const int outcz = zidx[pidx];
-//        const int cxlower = outcx <= 0 ? 0 : outcx-1;
-//        const int cxupper = outcx >= (nxc-1) ? nxc-1 : outcx+1;
-//        const int lowerindex = bucket_offset[cxlower][cylower][czlower];
-//        const int upperoffset = bucket_offset[cxupper][cyupper][czupper];
-//        const int upperindex = upperoffset + numpcls_in_bucket[outcx][outcy][outcz];
-//        ...
-//      }
-//    }
-//    // (1) put fast particles that must be moved more than one
-//    // mesh cell at the end of the cell's list, and
-//    // (2) put slow particles in the correct location
-//
-//    // count the number of particles that need to be moved
-//    // more than one mesh cell and allocate a special buffer for them.
-//    // (could change to count number of particles that need
-//    // to move more than N mesh cells).
-//    //
-//    int numpcls_long_move_thr = 0;
-//    #pragma omp for // nowait
-//    for (int i = 0; i < nop; i++)
-//    {
-//      const int cx = xidx[pidx];
-//      const int cy = yidx[pidx];
-//      const int cz = zidx[pidx];
-//
-//      const int cxlower = cx <= 0 ? 0 : cx-1;
-//      const int cxupper = cx >= (nxc-1) ? nxc-1 : cx+1;
-//      const int lowerindex = bucket_offset[cxlower][cylower][czlower];
-//      const int upperoffset = bucket_offset[cxupper][cyupper][czupper];
-//      const int upperindex = upperoffset + numpcls_in_bucket[cx][cy][cz];
-//      if(i < lowerindex || i > upperindex)
-//      {
-//        numpcls_long_move_thr++;
-//      }
-//    }
-//  }
-//}
-//#endif
+void Particles3Dcomm::sort_particles_into_cells(
+  Grid * grid, VirtualTopology3D * vct)
+{
+  #pragma omp parallel
+  {
+    const int this_thread = omp_get_thread_num();
+    const int num_threads = omp_get_max_threads();
+    // these indices really ought to be defined with a lookup table
+    // so that all threads have about the same amount of work to do,
+    // e.g. based on integrating the number of particles.
+    const int start_idx = particleThreadBins.get_first_idx(this_thread);
+    const int stop_idx = particleThreadBins.get_first_idx(this_thread+1);
+    ParticleBins& particleBins = particleThreadBins.get_bins(this_thread);
+    particleBins.clear();
+    // iterate through the cells for this thread and put the particles
+    // in the correct bin.
+    for(int c = start_idx; c<=stop_idx; c++)
+    {
+      // get particle list for this mesh cell
+      ParticleList& particleList = particleGrid.get_particleList(c);
+
+      // iterate through particles in this mesh cell
+      // and transfer misplaced particles to the appropriate bin
+      for(int pidx=0; pidx<particleList.get_numPcls(); pidx++)
+      {
+        const SpeciesParticle* pcl = particleList.get_pcl(pidx);
+        ALIGNED(pcl);
+        int cx,cy,cz;
+        grid->get_cell_coordinates(cx,cy,cz,pcl.get_x(),pcl.get_y(),pcl.get_z());
+        // should really put the bad guys in interprocess communication buffer...
+        grid->make_cell_coordinates_safe(cx,cy,cz);
+        int true_cell = grid->get_cell_idx_for_coordinates(cx,cy,cz);
+        // if the particle is in the wrong cell, then move it
+        if(true_cell!=c)
+        {
+          // add particle to 
+          int destination_thread = grid->get_thread_for_cell(true_cell);
+          // if the particle is in the subdomain of this thread,
+          // then put it in the correct mesh cell
+          if(destination_thread==this_thread)
+          {
+            ParticleList& destinationList = particleGrid.get_particleList(true_cell);
+            destinationList.push_back(pcl);
+          }
+          else // put the particle in the correct exchange bin
+          {
+            particleBins.add_pcl_to_buffer(pcl,
+              source_thread, destination_thread, true_cell);
+          }
+          // delete particle from this cell
+          particleList.delete_pcl(pidx);
+        }
+      }
+    }
+
+    // waiting on finished threads seems too complicated for the benefit
+    //#pragma omp atomic
+    //particleThreadBins.add_to_finished_threads(num_thread);
+
+    // should arrange so that all threads have approximately
+    // the same amount of work to do.  For this we would need
+    // to implement get_thread_for_cell with a lookup table.
+    #pragma omp barrier
+
+    // optimization would build a list of completed threads
+    //#pragma omp barrier
+
+    // iterate through all buffers for which this thread
+    // is the destination and transfer particles from buffers to grid
+    for(int source_thread=0; source_thread<num_threads; source_thread++)
+    {
+      ParticleList& pcls
+        = particleThreadBins.get_buffer(source_thread, this_thread);
+      int num_pcls = pcls.size();
+      if(source_thread==this_thread)
+        assert_eq(num_pcls,0);
+      // copy particles from memory
+      for(int pidx=0; pidx<num_pcls; pidx++)
+      {
+        SpeciesParticle* pcl = pcls.get_pcl(pidx)
+        ALIGNED(pcl);
+        // We recalculate the cell of this particle
+        // (would be better to store cellidx in a parallel
+        // set of buffers along with xavg data)
+        grid->get_safe_cell_coordinates(cx,cy,cz,pcl.get_x(),pcl.get_y(),pcl.get_z());
+        int cellidx = grid->get_cell_idx_for_coordinates(cx,cy,cz);
+        if(true) // making checks
+        {
+          int true_thread = grid->get_thread_for_cell(cellidx);
+          assert_eq(true_thread, this_thread);
+        }
+        ParticleList& destinationList = particleGrid.get_particleList(cell);
+        destinationList.push_back(pcl);
+      }
+    }
+
+    #pragma omp barrier
+    // check that sort was correctly completed
+    if(true)
+      check_sort_particles_into_cells(grid);
+  }
+}
 
 void Particles3Dcomm::copyParticlesToSoA()
 {
@@ -1623,3 +1680,4 @@ void Particles3Dcomm::convertParticlesToSoA()
   }
 }
 
+/***** end particle sorting routines *****/

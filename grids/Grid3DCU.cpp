@@ -2,6 +2,7 @@
 #include <mpi.h>
 #include "Grid3DCU.h"
 #include "MPIdata.h"
+#include "ompdefs.h"
 
 /*! constructor */
 Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct) {
@@ -31,6 +32,12 @@ Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct) {
   cxlast = nxc-1;
   cylast = nyc-1;
   czlast = nzc-1;
+  // index of last cell in domain
+  cxlast = nxc-1;
+  cylast = nyc-1;
+  czlast = nzc-1;
+  num_cells = nxc*nyc*nzc;
+  num_cells_per_thread = num_cells/omp_get_max_threads();
   dx = col->getLx() / col->getNxc();
   dy = col->getLy() / col->getNyc();
   dz = col->getLz() / col->getNzc();
