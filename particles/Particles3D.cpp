@@ -611,10 +611,10 @@ void Particles3D::mover_PC_AoS_vec(Grid * grid, VirtualTopology3D * vct, Field *
     // actually, all the particles are aligned,
     // but the compiler should be able to see that.
     ALIGNED(pcl[0]);
-    double xorig[NUM_PCLS_MOVED_AT_A_TIME][3];
-    double uorig[NUM_PCLS_MOVED_AT_A_TIME][3];
-    double  xavg[NUM_PCLS_MOVED_AT_A_TIME][3];
-    double  uavg[NUM_PCLS_MOVED_AT_A_TIME][3];
+    double xorig[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(64)));
+    double uorig[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(64)));
+    double  xavg[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(64)));
+    double  uavg[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(64)));
     // gather data into vectors
     // #pragma simd collapse(2)
     for(int i=0;i<NUM_PCLS_MOVED_AT_A_TIME;i++)
@@ -628,22 +628,22 @@ void Particles3D::mover_PC_AoS_vec(Grid * grid, VirtualTopology3D * vct, Field *
 
       // compute weights for field components
       //
-      double weights[NUM_PCLS_MOVED_AT_A_TIME][8];
-      int cx[NUM_PCLS_MOVED_AT_A_TIME][3];
+      double weights[NUM_PCLS_MOVED_AT_A_TIME][8] __attribute__((aligned(64)));
+      int cx[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(64)));
       for(int i=0;i<NUM_PCLS_MOVED_AT_A_TIME;i++)
       {
         grid->get_safe_cell_and_weights(xavg[i],cx[i],weights[i]);
       }
 
-      arr1_double_get field_components[NUM_PCLS_MOVED_AT_A_TIME][8];
+      arr1_double_get field_components[NUM_PCLS_MOVED_AT_A_TIME][8] __attribute__((aligned(64)));
       for(int i=0;i<NUM_PCLS_MOVED_AT_A_TIME;i++)
       {
         get_field_components_for_cell(field_components[i],fieldForPcls,
           cx[i][0],cx[i][1],cx[i][2]);
       }
 
-      double E[NUM_PCLS_MOVED_AT_A_TIME][3];
-      double B[NUM_PCLS_MOVED_AT_A_TIME][3];
+      double E[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(64)));
+      double B[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(64)));
       // could do this with memset
       // #pragma simd collapse(2)
       for(int i=0;i<NUM_PCLS_MOVED_AT_A_TIME;i++)
@@ -659,7 +659,7 @@ void Particles3D::mover_PC_AoS_vec(Grid * grid, VirtualTopology3D * vct, Field *
         B[i][j] += weights[i][c] * field_components[i][c][j];
         E[i][j] += weights[i][c] * field_components[i][c][j+3];
       }
-      double Om[NUM_PCLS_MOVED_AT_A_TIME][3];
+      double Om[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(64)));
       for(int i=0; i<NUM_PCLS_MOVED_AT_A_TIME;i++)
       for(int j=0;j<3;j++)
       {
@@ -668,8 +668,8 @@ void Particles3D::mover_PC_AoS_vec(Grid * grid, VirtualTopology3D * vct, Field *
 
       // can these dot products vectorize if
       // NUM_PCLS_MOVED_AT_A_TIME is large enough?
-      double omsq[NUM_PCLS_MOVED_AT_A_TIME];
-      double denom[NUM_PCLS_MOVED_AT_A_TIME];
+      double omsq[NUM_PCLS_MOVED_AT_A_TIME] __attribute__((aligned(64)));
+      double denom[NUM_PCLS_MOVED_AT_A_TIME] __attribute__((aligned(64)));
       for(int i=0; i<NUM_PCLS_MOVED_AT_A_TIME;i++)
       {
         omsq[i] = Om[i][0] * Om[i][0]
@@ -678,13 +678,13 @@ void Particles3D::mover_PC_AoS_vec(Grid * grid, VirtualTopology3D * vct, Field *
         denom[i] = 1.0 / (1.0 + omsq[i]);
       }
       // solve the position equation
-      double ut[NUM_PCLS_MOVED_AT_A_TIME][3];
+      double ut[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(64)));
       for(int i=0; i<NUM_PCLS_MOVED_AT_A_TIME;i++)
       for(int j=0;j<3;j++)
       {
         ut[i][j] = uorig[i][j] + qdto2mc * E[i][j];
       }
-      double udotOm[NUM_PCLS_MOVED_AT_A_TIME];
+      double udotOm[NUM_PCLS_MOVED_AT_A_TIME] __attribute__((aligned(64)));
       for(int i=0; i<NUM_PCLS_MOVED_AT_A_TIME;i++)
       {
         udotOm[i] = ut[i][0] * Om[i][0]
