@@ -69,12 +69,22 @@ def construct_run_command(args):
     inputfile = 'src/inputfiles/GEM.inp'
     hostname = ''
     mpirun = 'mpiexec'
+    # these parameters should be read out of a configuration file
+    # that is populated when you run "ipic [-s system] cmake <src>"
     global system
     if system == 'xeon' or system == 'mic':
       if system == 'xeon':
         mpirun = 'mpiexec.hydra' # is this line needed?
         # calculate number of threads per process
-        # - should extract this stuff from /proc/cpuinfo
+        # + could extract this stuff from /proc/cpuinfo
+        #   via commands such as:
+        #   grep processor /proc/cpuinfo  | wc # gives 32
+        #   grep -m 1 siblings /proc/cpuinfo # gives 16
+        #   grep -m 1 cores /proc/cpuinfo # gives 8
+        # + key:
+        #   - siblings reside on same processor (16=8*2)
+        #   - cores is number of cores per processor
+        #   - "processor" = hardware thread
         num_nodes = 1
         num_processors_per_node = 2
         num_cores_per_processor = 8
@@ -87,7 +97,8 @@ def construct_run_command(args):
         mpirun = 'mpiexec.hydra'
         # calculate number of threads per process
         # - could use ssh to extract this stuff from /proc/cpuinfo
-        #   on the machine we will run on
+        #   on the machine we will run on via e.g.
+        #   ssh $hostname grep -m 1 cores /proc/cpuinfo | awk '{print $4}'61
         num_nodes = 1
         num_processors_per_node = 1
         num_cores_per_processor = 57 # 57 on knc2, 60 on knc1
