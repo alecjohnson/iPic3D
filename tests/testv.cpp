@@ -285,7 +285,7 @@ void test_mover_vec()
 
   const double start = omp_get_wtime();
 
-  const int NUM_PCLS_MOVED_AT_A_TIME = 8;
+  const int NUM_PCLS_MOVED_AT_A_TIME = 2;
   const int D=3; // dimensions of space
   assert(NUMPCLS%NUM_PCLS_MOVED_AT_A_TIME==0);
   for (int pidx = 0; pidx < NUMPCLS; pidx+=NUM_PCLS_MOVED_AT_A_TIME)
