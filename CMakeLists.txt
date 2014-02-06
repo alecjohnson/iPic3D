@@ -23,7 +23,7 @@ set(LIBRARY_OUTPUT_PATH lib)
 if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "k1om") ## Xeon Phi
    option(IPIC_XEONPHI "ipic xeon phi standard compile flags" on)
    if(IPIC_XEONPHI) 
-     set(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions -vec-report -mmic")
+     set(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions -fp-model fast=2 -vec-report -mmic")
    else()
      set(CMAKE_CXX_FLAGS "-mmic")
    endif()
