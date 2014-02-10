@@ -1,8 +1,4 @@
 
-#ifndef NO_MPI
-  #include "MPIdata.h" // for get_rank
-#endif
-#include "ompdefs.h" // for omp_get_thread_num
 #include "debug.h"
 #include "parallel.h" // temporary
 
