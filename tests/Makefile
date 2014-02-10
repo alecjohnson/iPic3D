@@ -1,20 +1,27 @@
 
 INCLUDE = -I../include
 
-OBJECTS = \
+test_arrays_objects = \
   test_arrays.o \
   ../utility/asserts.o \
+  debug.o
+
+test_particles_objects = \
   debug.o
 
 ARRAY_FLAGS = #-DCHAINED_ARRAYS #-DFLAT_ARRAYS #-DCHECK_BOUNDS
 FLAGS = -O3 -DNO_MPI -fno-exceptions $(ARRAY_FLAGS) #-ggdb 
 
-COMPILER = c++ #icpc # g++
+COMPILER = terminal-g++ #icpc # g++
 
-test: clean_test_arrays test_arrays
+test_particles: test_class_structure.cpp $(test_particles_objects)
+	$(COMPILER) test_class_structure.cpp $(FLAGS) $(INCLUDE) $(test_particles_objects) -o test_particles
 
-test_arrays: clean_test_arrays $(OBJECTS)
-	$(COMPILER) $(FLAGS) $(INCLUDE) $(OBJECTS) -o test_arrays
+test: test.cpp
+	$(COMPILER) test.cpp -o test
+
+test_arrays: clean_test_arrays $(test_arrays_objects)
+	$(COMPILER) $(FLAGS) $(INCLUDE) $(test_arrays_objects) -o test_arrays
 
 test_arrays.o:
 	$(COMPILER) $(FLAGS) -c test_arrays.cpp $(INCLUDE) -o test_arrays.o
@@ -27,7 +34,7 @@ debug.o:
 	$(COMPILER) $(FLAGS) -c ../utility/debug.cpp $(INCLUDE) -o debug.o
 
 clean: clean_old_test_arrays clean_test_arrays
-	rm -f test_arrays $(OBJECTS)
+	rm -f test_arrays $(test_arrays_objects)
 
 clean_test_arrays:
 	rm -f test_arrays test_arrays.o
