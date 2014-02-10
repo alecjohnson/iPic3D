@@ -1,6 +1,6 @@
 #ifndef IPIC_ALLOC_H
 #define IPIC_ALLOC_H
-#include <cstddef> // for alignment stuff
+#include <stddef.h> // for alignment stuff
 #include "asserts.h" // for assert_le, assert_lt
 //#include "errors.h" // for assert_le, assert_lt
 #include "arraysfwd.h"
@@ -69,6 +69,13 @@
     #define AlignedAlloc(T, NUM) \
         (T *const __restrict__)(_mm_malloc(sizeof(T)*NUM, ALIGNMENT))
     #define AlignedFree(S) (_mm_free(S))
+#elif defined(NO_NEW)
+    #include "malloc.h"
+    #define __restrict__
+    #define ALIGNED(X)
+    #define AlignedAlloc(T, NUM) \
+        (T *const)(malloc(sizeof(T)*NUM))
+    #define AlignedFree(S) (::free(S))
 #else
     #define ALIGNED(X)
     #define AlignedFree(S) (delete[] S)

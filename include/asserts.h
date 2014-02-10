@@ -1,8 +1,8 @@
 #ifndef __ASSERTS_H__
 #define __ASSERTS_H__
 
-#include <cstdlib>
-#include <cstdio>
+#include <stdlib.h>
+#include <stdio.h>
 
 // asserts higher than MAX_ASSERT_LEVEL are compiled out
 // (to avoid slowing execution)
