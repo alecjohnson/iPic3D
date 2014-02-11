@@ -222,7 +222,7 @@ namespace iPic3D
       type* const __restrict__ arr;
     public:
       const type* get_arr()const{return arr;}
-      type* fetch_arr()const{return arr;}
+      type* fetch_arr(){return arr;}
       type& fetch(size_t i){return arr[i];}
       base_arr(size_t s) : size(s), arr(AlignedAlloc(type, s)) {}
       base_arr(type* in, size_t s) : size(s), arr(in) {}
@@ -233,7 +233,6 @@ namespace iPic3D
         // #pragma omp for
         for(size_t i=0;i<size;i++) arr[i]=val;
       }
-      //type* fetch_arr(){return arr;}
   };
   
   // classes to dereference arrays.
@@ -432,15 +431,17 @@ namespace iPic3D
   {
     public:
       using base_arr<type>::get_arr;
+      using base_arr<type>::fetch_arr;
       using base_arr<type>::fetch;
     private:
       using base_arr<type>::arr;
+      using base_arr<type>::free;
     private: // data
       const size_t S2,S1;
       //type* const __restrict__ arr;
     public:
       ~array_ref2(){}
-      void free() { AlignedFree(arr); }
+      void free() { base_arr<type>::free(); }
       array_ref2(size_t s2, size_t s1) :
         S2(s2), S1(s1),
         base_arr<type>(s2*s1)
@@ -456,7 +457,7 @@ namespace iPic3D
       // dereference via calculated index
       inline array_fetch1<type> operator[](size_t n2){
         check_bounds(n2, S2);
-        return array_fetch1<type>(arr, n2*S1, S1);
+        return array_fetch1<type>(base_arr<type>::fetch_arr(), n2*S1, S1);
       }
       inline size_t getidx(size_t n2, size_t n1) const
       {
@@ -481,8 +482,8 @@ namespace iPic3D
       using base_arr<type>::get_arr;
       using base_arr<type>::fetch_arr;
       using base_arr<type>::fetch;
-    private:
-      using base_arr<type>::size;
+    protected:
+      //using base_arr<type>::size;
       using base_arr<type>::arr;
     protected: // data
       const size_t S3,S2,S1;
@@ -543,8 +544,8 @@ namespace iPic3D
       using base_arr<type>::get_arr;
       using base_arr<type>::fetch;
     private:
-      using base_arr<type>::arr;
-      using base_arr<type>::size;
+      //using base_arr<type>::arr;
+      //using base_arr<type>::size;
       using const_array_ref3<type>::S3;
       using const_array_ref3<type>::S2;
       using const_array_ref3<type>::S1;

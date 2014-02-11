@@ -32,14 +32,14 @@ int main()
     printf("arr2.fetch(%d) = %d\n", i, arr2.fetch(i));
     
   array3<int> arr3(2,3,4);
-  //for(int i=0;i<2;i++)
-  //for(int j=0;j<3;j++)
-  //for(int k=0;k<4;k++)
-  //  arr2[i][j]=i+j+k;
-  //for(int i=0;i<2;i++)
-  //for(int j=0;j<3;j++)
-  //for(int k=0;k<4;k++)
-  //  printf("arr3[%d][%d][%d] = %d\n", i,j,k, arr3[i][j][k]);
-  //for(int i=0;i<2*3*4;i++)
-  //  printf("arr3.fetch(%d) = %d\n", i, arr3.fetch(i));
+  for(int i=0;i<2;i++)
+  for(int j=0;j<3;j++)
+  for(int k=0;k<4;k++)
+    arr3[i][j][k]=i+j+k;
+  for(int i=0;i<2;i++)
+  for(int j=0;j<3;j++)
+  for(int k=0;k<4;k++)
+    printf("arr3[%d][%d][%d] = %d\n", i,j,k, arr3[i][j][k]);
+  for(int i=0;i<2*3*4;i++)
+    printf("arr3.fetch(%d) = %d\n", i, arr3.fetch(i));
 }
