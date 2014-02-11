@@ -1,11 +1,23 @@
-#include "../include/debug.h"
-#include "../include/assert.h"
-#include "../include/ipicdefs.h" // for pfloat
-#include "../include/arraysfwd.h"
+#include "debug.h"
+#include "assert.h"
+#include "ipicmath.h" // for pow2roundup
+#include "ipicdefs.h" // for pfloat
+#include "arraysfwd.h"
 #define NO_NEW
-#include "../include/Alloc.h"
+#include "Alloc.h"
 
 using namespace iPic3D;
+
+// Prototype for Moment-Implicit Method (MIM),
+// i.e. Implicit Moment Method (IMM).
+// IMM is the traditional name; the name MIM
+// was evidently later introduced, perhaps on the
+// grounds that in the IMM discretization of the
+// Maxwell-Kinetic system the one term that is
+// *not* implicit is the "pressure" moments.
+// A full name that really says what it is
+// would be the '"Explicit Moment" Implicit Method'.
+// MIM here is referenced as "Mi".
 
 #if 0
 
@@ -18,7 +30,7 @@ using namespace iPic3D;
    T*C thread-specific sending communication buffers
        designated as thread_buffer[sending_thread][direction].
 
-   "Sorting buffer" refers to a communication or exchange buffers.
+   "Sorting buffer" refers to a communication or exchange buffer.
 
  Move particles:
 
@@ -111,16 +123,78 @@ using namespace iPic3D;
 // that the template structure and abstract base
 // classes will compile and run properly.
 
+class Vector;
+//
+struct Scalar
+{
+  virtual void grad(Vector&)=0;
+  virtual void laplacian(Vector&)=0;
+};
+
+struct Vector
+{
+  virtual Scalar& fetch_1()=0;
+  virtual Scalar& fetch_2()=0;
+  virtual Scalar& fetch_3()=0;
+  virtual void div(Scalar&) = 0;
+  virtual void laplacian(Vector&) = 0;
+};
+
+// SymTensor2 should derive from this.
+//
+struct Tensor2
+{
+  virtual Scalar& fetch_11()=0;
+  virtual Scalar& fetch_12()=0;
+  virtual Scalar& fetch_13()=0;
+  virtual Scalar& fetch_21()=0;
+  virtual Scalar& fetch_22()=0;
+  virtual Scalar& fetch_23()=0;
+  virtual Scalar& fetch_31()=0;
+  virtual Scalar& fetch_32()=0;
+  virtual Scalar& fetch_33()=0;
+  virtual void div(Vector&)=0;
+};
+
+struct SymTensor2: public Tensor2
+{
+  virtual Scalar& fetch_11()=0;
+  virtual Scalar& fetch_12()=0;
+  virtual Scalar& fetch_13()=0;
+  virtual Scalar& fetch_21(){return fetch_12();}
+  virtual Scalar& fetch_22()=0;
+  virtual Scalar& fetch_23()=0;
+  virtual Scalar& fetch_31(){return fetch_31();}
+  virtual Scalar& fetch_32(){return fetch_32();}
+  virtual Scalar& fetch_33()=0;
+  virtual void div(Vector&)=0;
+};
+
+// Abstract base class for moments of the MIM.
+// Concrete representation is on a specific mesh.
+struct MiMoments
+{
+  virtual Scalar& fetch_f()=0;
+  virtual Vector& fetch_fu()=0;
+  virtual SymTensor2& fetch_fuu()=0;
+};
+
+struct EMfield
+{
+  virtual Vector& fetch_B()=0;
+  virtual Vector& fetch_E()=0;
+};
+
 // abstract base class that defines the field solver interface.
 //
-struct ImFieldSolver_interface
+struct MiFieldSolver_interface
 {
   virtual void AdvanceField(double dt) = 0;
 };
 
 // This field solver will assume periodic boundary conditions
 //
-class ImSpectralFieldSolver: public ImFieldSolver_interface
+class MiSpectralFieldSolver: public MiFieldSolver_interface
 {
   void AdvanceField(double dt)
   {
@@ -131,7 +205,7 @@ class ImSpectralFieldSolver: public ImFieldSolver_interface
 // This field solver will handle general boundary conditions
 // but will be only second-order accurate
 //
-struct ImFieldSolver: public ImFieldSolver_interface
+struct MiFieldSolver: public MiFieldSolver_interface
 {
   void AdvanceField(double dt)
   {
@@ -139,11 +213,101 @@ struct ImFieldSolver: public ImFieldSolver_interface
   }
 };
 
-class ImKineticSolver_interface
+// skeleton. This needs to exchange
+// fields and moments with MiFieldSolver_interface.
+class MiKineticSolver_interface
 {
  public:
-  virtual void CalculateMoments() = 0;
-  virtual void MovePcls(double dt) = 0;
+  virtual void calculate_moments(MiMoments&)const = 0;
+  // should be declared 
+  virtual void move_pcls(const EMfield&, double dt) = 0;
+};
+
+// should support access of the form pclList[i].x,
+// which could in fact also be supported
+// with an underlying SoA representation.
+//
+template<class type>
+class List
+{
+ private: // members
+  type* list;
+  int size; // number of particles in list
+  int maxsize; // maximum number of particles
+ public: // access
+  void pop()
+  {
+    assert(size>0);
+    size--;
+  }
+  void push_back(const type& element)
+  {
+    int newsize = size+1;
+    resize_if_needed(newsize);
+    list[size] = element;
+    size=newsize;
+  }
+  inline type& operator[](int i)
+  {
+    #ifdef CHECK_BOUNDS
+      assert_le(0, i);
+      assert_lt(i, size);
+    #endif
+    ALIGNED(list);
+    return list[i];
+  }
+  void delete_element(int i)
+  {
+    // works even for last particle,
+    // though pop would be faster in that case.
+    // 
+    // why doesn't this compile?
+    //this->operator[i] = list[--size];
+    #ifdef CHECK_BOUNDS
+      assert_le(0, i);
+      assert_lt(i, size);
+    #endif
+    ALIGNED(list);
+    list[i] = list[--size];
+  }
+ public: // memory
+  ~List()
+  {
+    AlignedFree(list);
+  }
+  List():
+    list(0),
+    size(0),
+    maxsize(0)
+  {}
+  // truncate and reallocate list
+  void alloc(int in)
+  {
+    maxsize = in;
+    free(list);
+    list = AlignedAlloc(type,maxsize);
+    size = 0;
+  }
+  void resize_if_needed(int needed_size)
+  {
+    if(needed_size>maxsize)
+    {
+      int newmaxsize = pow2roundup(needed_size);
+      resize(newmaxsize);
+    }
+  }
+  // change maximum size without deleting elements
+  void resize(int newmaxsize)
+  {
+    type* oldList = list;
+    assert(size < newmaxsize);
+    maxsize = newmaxsize;
+    for(int i=0;i<size;i++)
+    {
+      list[i] = oldList[i];
+    }
+    AlignedFree(oldList);
+  }
 };
 
 class Grid
@@ -187,6 +351,10 @@ class PclGrid: public Grid
  public: // will be private
   array3<PclList> pclGrid;
  public:
+  PclList& fetch(int i)
+  {
+    return pclGrid.fetch(i);
+  }
   PclList& fetch(int i, int j, int k)
   {
     return pclGrid[i][j][k];
@@ -198,11 +366,12 @@ class PclGrid: public Grid
       xStart_, yStart_, zStart_),
     pclGrid(nxc,nyc,nzc)
   {}
+  // eliminate (temporary convenience for testing)
   PclGrid(int nxc_, int nyc_, int nzc_)
    :Grid(nxc_, nyc_, nzc_, 1, 1, 1, 0, 0, 0),
     pclGrid(nxc,nyc,nzc)
   {}
-  // resize all particle lists to hold as much as npc particles
+  // resize all particle lists to hold as many as npc particles
   void resize(int npc)
   {
     for(int i=0;i<nxc;i++)
@@ -219,95 +388,55 @@ class PclGrid: public Grid
   }
 };
 
+struct PclRef
+{
+  // grid element of list where particle resides
+  // (assumes PclGrid has underlying 1D array)
+  int cell;
+  // index of particle in list
+  int pcl;
+};
+
+class PclRefList: public List<PclRef>
+{
+};
+
 template<class PclList>
 class PclSolver:
   public PclGrid<PclList>,
-  public ImKineticSolver_interface
+  public MiKineticSolver_interface
 {
+  // particle sorting buffers
+  //
+  // number of directions to communicate
+  int C; // perhaps 6 or 26
+  // number of threads per process
+  int T;
+  array1<PclList> send_buffers; // C
+  array1<PclList> recv_buffers; // C
+  array2<PclRefList> tsend_buffers; // TxC
+  array2<PclRefList> texch_buffers; // TxT
  public:
-  void CalculateMoments(){}
-  void MovePcls(double dt)
+  PclSolver(int C_, int T_)
+   :C(C_),
+    T(T_),
+    send_buffers(C),
+    recv_buffers(C),
+    tsend_buffers(T,C),
+    texch_buffers(T,T)
+  {
+  }
+  void calculate_moments(MiMoments&)const
+  {
+    dprint("gothere");
+  }
+  void move_pcls(const EMfield&, double dt)
   {
     dprint(dt);
   }
-};
-
-// should support access of the form pclList[i].x,
-// which could in fact also be supported
-// with an underlying SoA representation.
-//
-template<class Pcl>
-class PclList_AoS
-{
- private: // members
-  Pcl* pclList;
-  int last; // index of last particle in list
-  int maxsize; // maximum number of particles
- public: // access
-  void pop()
+  void sort_particles()
   {
-    assert(last>=0);
-    last--;
-    // return pclList[last--];
-  }
-  void push_back(const Pcl& pcl)
-  {
-    last++;
-    pclList[last] = pcl;
-    assert(last<maxsize);
-  }
-  inline Pcl& operator[](int i)
-  {
-    #ifdef CHECK_BOUNDS
-      assert_le(0, i);
-      assert_le(i, last);
-    #endif
-    ALIGNED(pclList);
-    return pclList[i];
-  }
-  void delete_pcl(int i)
-  {
-    // works even for last particle,
-    // though pop would be faster in that case.
-    // 
-    // why doesn't this compile?
-    //this->operator[i] = pclList[last--];
-    #ifdef CHECK_BOUNDS
-      assert_le(0, i);
-      assert_le(i, last);
-    #endif
-    ALIGNED(pclList);
-    pclList[i] = pclList[last--];
-  }
- public: // memory
-  ~PclList_AoS()
-  {
-    AlignedFree(pclList);
-  }
-  PclList_AoS():
-    pclList(0),
-    last(-1),
-    maxsize(0)
-  {}
-  // truncate and reallocate list
-  void alloc(int in)
-  {
-    maxsize = in;
-    free(pclList);
-    pclList = AlignedAlloc(Pcl,maxsize);
-    last = -1;
-  }
-  // change maximum size without deleting pcls
-  void resize(int newmaxsize)
-  {
-    Pcl* oldPclList = pclList;
-    assert(last+1 < newmaxsize);
-    maxsize = newmaxsize;
-    for(int i=0;i<=last;i++)
-    {
-      pclList[i] = oldPclList[i];
-    }
-    AlignedFree(oldPclList);
+    
   }
 };
 
@@ -325,7 +454,7 @@ struct SpeciesPcl
 };
 
 // 512 bytes (cache-line-sized)
-class ImPcl
+class MiPcl
 {
   int cx;
   int cy;
@@ -346,7 +475,7 @@ class ImPcl
 
 // 1024 bits, for 3rd-order mover
 //
-class ImPcl3
+class MiPcl3
 {
   double x;
   double y;
@@ -387,8 +516,8 @@ class ImPcl3
 //int test_PclList()
 //{
 //  // create grid of particles
-//  //PclGrid<PclList_AoS<SpeciesPcl>> pclGrid;
-//  PclList_AoS<SpeciesPcl> pclList;
+//  //PclGrid<List<SpeciesPcl>> pclGrid;
+//  List<SpeciesPcl> pclList;
 //  pclList.alloc(5);
 //  SpeciesPcl pcl0;
 //  SpeciesPcl pcl1;
@@ -408,14 +537,14 @@ class ImPcl3
 int test_PclGrid()
 {
   // create grid of particles
-  PclGrid<PclList_AoS<SpeciesPcl> > pclGrid(2,3,4);
+  PclGrid<List<SpeciesPcl> > pclGrid(2,3,4);
   pclGrid.alloc(2); // at most 2 particles per cell
   SpeciesPcl pcl;
   pcl.x=1.234;
   pclGrid.fetch(1,2,3).push_back(pcl);
   pcl.x=2.345;
   pclGrid.fetch(1,2,3).push_back(pcl);
-  PclList_AoS<SpeciesPcl>& pclList = pclGrid.fetch(1,2,3);
+  List<SpeciesPcl>& pclList = pclGrid.fetch(1,2,3);
   //SpeciesPcl& pcl0 = pclList[0];
   printf(
     "pclGrid[%d][%d][%d][%d].x = %g\n",
@@ -423,6 +552,10 @@ int test_PclGrid()
   printf(
     "pclGrid[%d][%d][%d][%d].x = %g\n",
     1,2,3,1,pclList[1]);
+}
+
+void test_sort()
+{
 }
 
 int main()
