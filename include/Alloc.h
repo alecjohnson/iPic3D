@@ -70,7 +70,7 @@
         (T *const __restrict__)(_mm_malloc(sizeof(T)*NUM, ALIGNMENT))
     #define AlignedFree(S) (_mm_free(S))
 #elif defined(NO_NEW)
-    #include "malloc.h"
+    #include "stdlib.h" // for malloc
     #define __restrict__
     #define ALIGNED(X)
     #define AlignedAlloc(T, NUM) \

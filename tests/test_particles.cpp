@@ -560,6 +560,6 @@ void test_sort()
 
 int main()
 {
-  printf("hello world\n");
+  dprintf("hello world\n");
   test_PclGrid();
 }

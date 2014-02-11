@@ -12,7 +12,7 @@ test_particles_objects = \
 ARRAY_FLAGS = #-DCHAINED_ARRAYS #-DFLAT_ARRAYS #-DCHECK_BOUNDS
 FLAGS = -O3 -DNO_MPI -fno-exceptions $(ARRAY_FLAGS) #-ggdb 
 
-COMPILER = terminal-g++ #icpc # g++
+COMPILER = g++ #terminal-g++ #icpc
 
 test_particles: test_particles.cpp $(test_particles_objects)
 	$(COMPILER) test_particles.cpp $(FLAGS) $(INCLUDE) $(test_particles_objects) -o test_particles
