@@ -220,8 +220,10 @@ namespace iPic3D
       size_t size;
     protected:
       type* const __restrict__ arr;
-      type* get_arr()const{return arr;}
     public:
+      const type* get_arr()const{return arr;}
+      type* fetch_arr()const{return arr;}
+      type& fetch(size_t i){return arr[i];}
       base_arr(size_t s) : size(s), arr(AlignedAlloc(type, s)) {}
       base_arr(type* in, size_t s) : size(s), arr(in) {}
       ~base_arr(){}
@@ -426,23 +428,30 @@ namespace iPic3D
   };
   
   template <class type>
-  class array_ref2
+  class array_ref2: public base_arr<type>
   {
+    public:
+      using base_arr<type>::get_arr;
+      using base_arr<type>::fetch;
+    private:
+      using base_arr<type>::arr;
     private: // data
       const size_t S2,S1;
-      type* const __restrict__ arr;
+      //type* const __restrict__ arr;
     public:
       ~array_ref2(){}
       void free() { AlignedFree(arr); }
       array_ref2(size_t s2, size_t s1) :
         S2(s2), S1(s1),
-        arr(AlignedAlloc(type, s2*s1))
+        base_arr<type>(s2*s1)
+        //arr(AlignedAlloc(type, s2*s1))
       {
       }
       array_ref2(type*const* in,
         size_t s2, size_t s1) :
         S2(s2), S1(s1),
-        arr(*in)
+        //arr(*in)
+        base_arr<type>(in, s1*s2)
       { }
       // dereference via calculated index
       inline array_fetch1<type> operator[](size_t n2){
@@ -466,27 +475,33 @@ namespace iPic3D
   };
   
   template <class type>
-  class const_array_ref3 // : public base_arr<type>
+  class const_array_ref3 : public base_arr<type>
   {
-      //using base_arr<type>::get_arr;
-      //using base_arr<type>::arr;
+    public:
+      using base_arr<type>::get_arr;
+      using base_arr<type>::fetch_arr;
+      using base_arr<type>::fetch;
+    private:
+      using base_arr<type>::size;
+      using base_arr<type>::arr;
     protected: // data
-      size_t size;
+      //size_t size;
       const size_t S3,S2,S1;
-      type* const __restrict__ arr;
+      //type* const __restrict__ arr;
       type*const*const*const arr3;
     public:
       ~const_array_ref3(){}
       const_array_ref3(size_t s3, size_t s2, size_t s1) :
-        size(s3*s2*s1), arr(AlignedAlloc(type, size)),
+        //size(s3*s2*s1),
         //base_arr<type>(s3*s2*s1),
         S3(s3), S2(s2), S1(s1),
-        arr3(newArray3<type>(arr,s3,s2,s1))
+        arr3(newArray3<type>(fetch_arr(),s3,s2,s1)),
+        base_arr(&arr3[0][0][0],s3*s2*s1)
       { }
       const_array_ref3(type*const*const* in,
         size_t s3, size_t s2, size_t s1) :
-        size(s3*s2*s1), arr(**in),
-        //base_arr<type>(**in, s3*s2*s1),
+        size(s3*s2*s1),
+        base_arr<type>(**in, s3*s2*s1),
         S3(s3), S2(s2), S1(s1),
         arr3(in)
       { }
@@ -529,10 +544,13 @@ namespace iPic3D
   template <class type>
   class array_ref3 : public const_array_ref3<type>
   {
-      //using base_arr<type>::arr;
-      //using base_arr<type>::get_arr;
+    public:
+      using base_arr<type>::get_arr;
+      using base_arr<type>::fetch;
+    private:
+      using base_arr<type>::arr;
       using const_array_ref3<type>::size;
-      using const_array_ref3<type>::arr;
+      //using const_array_ref3<type>::arr;
       using const_array_ref3<type>::S3;
       using const_array_ref3<type>::S2;
       using const_array_ref3<type>::S1;
@@ -551,7 +569,7 @@ namespace iPic3D
     #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
       inline array_fetch2<type> operator[](size_t n3){
         check_bounds(n3, S3);
-        return array_fetch2<type>(arr, n3*S2, S2, S1);
+        return array_fetch2<type>(base_arr<type>::fetch_arr(), n3*S2, S2, S1);
       }
     #else
       // this causes operator[] to dereference via chained pointer
@@ -561,10 +579,10 @@ namespace iPic3D
         { return const_array_ref3<type>::fetch(n3,n2,n1); }
       void set(size_t n3,size_t n2,size_t n1, type value)
         { const_array_ref3<type>::set(n3,n2,n1, value); }
-      void setall(type val){
-        // #pragma omp for
-        for(size_t i=0;i<size;i++) arr[i]=val;
-      }
+      //void setall(type val){
+      //  // #pragma omp for
+      //  for(size_t i=0;i<size;i++) arr[i]=val;
+      //}
       type*** fetch_arr3(){ return (type***) arr3; }
   };
   

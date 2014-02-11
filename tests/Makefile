@@ -17,8 +17,8 @@ COMPILER = terminal-g++ #icpc # g++
 test_particles: test_particles.cpp $(test_particles_objects)
 	$(COMPILER) test_particles.cpp $(FLAGS) $(INCLUDE) $(test_particles_objects) -o test_particles
 
-test: test.cpp
-	$(COMPILER) test.cpp -o test
+test: test.cpp ../include/Alloc.h
+	$(COMPILER) test.cpp $(FLAGS) $(INCLUDE) -o test
 
 test_arrays: clean_test_arrays $(test_arrays_objects)
 	$(COMPILER) $(FLAGS) $(INCLUDE) $(test_arrays_objects) -o test_arrays
