@@ -14,8 +14,8 @@ FLAGS = -O3 -DNO_MPI -fno-exceptions $(ARRAY_FLAGS) #-ggdb
 
 COMPILER = terminal-g++ #icpc # g++
 
-test_particles: test_class_structure.cpp $(test_particles_objects)
-	$(COMPILER) test_class_structure.cpp $(FLAGS) $(INCLUDE) $(test_particles_objects) -o test_particles
+test_particles: test_particles.cpp $(test_particles_objects)
+	$(COMPILER) test_particles.cpp $(FLAGS) $(INCLUDE) $(test_particles_objects) -o test_particles
 
 test: test.cpp
 	$(COMPILER) test.cpp -o test
