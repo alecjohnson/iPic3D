@@ -13,6 +13,8 @@
 #include "asserts.h"
 #include "debug.h"
 
+using namespace iPic3D;
+
 /**** begin Jorge Amaya's array allocation methods ****/
 
 /*! The allocator for 4D array */
@@ -543,7 +545,7 @@ for(size_t k=0; k<dim3; k++) \
 printf("%d ms = Total time " #arg2 "\n", tv_to_ms(stopwatch(LAP)));
 
 template <class type>
-void set_prod3(array_ref3<type> Aarr,const_arr3<type> Barr,array_ref3<type> Carr,int ITERS, size_t dim1,size_t dim2,size_t dim3)
+void set_prod3(array_ref3<type> Aarr,const_array_ref3<type> Barr,array_ref3<type> Carr,int ITERS, size_t dim1,size_t dim2,size_t dim3)
 {
    for(int t=0; t<ITERS; t++)
    for(size_t i=0; i<dim1; i++)
