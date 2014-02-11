@@ -485,22 +485,17 @@ namespace iPic3D
       using base_arr<type>::size;
       using base_arr<type>::arr;
     protected: // data
-      //size_t size;
       const size_t S3,S2,S1;
-      //type* const __restrict__ arr;
       type*const*const*const arr3;
     public:
       ~const_array_ref3(){}
       const_array_ref3(size_t s3, size_t s2, size_t s1) :
-        //size(s3*s2*s1),
-        //base_arr<type>(s3*s2*s1),
+        base_arr<type>(s3*s2*s1),
         S3(s3), S2(s2), S1(s1),
-        arr3(newArray3<type>(fetch_arr(),s3,s2,s1)),
-        base_arr(&arr3[0][0][0],s3*s2*s1)
+        arr3(newArray3<type>(fetch_arr(),s3,s2,s1))
       { }
       const_array_ref3(type*const*const* in,
         size_t s3, size_t s2, size_t s1) :
-        size(s3*s2*s1),
         base_arr<type>(**in, s3*s2*s1),
         S3(s3), S2(s2), S1(s1),
         arr3(in)
@@ -549,8 +544,7 @@ namespace iPic3D
       using base_arr<type>::fetch;
     private:
       using base_arr<type>::arr;
-      using const_array_ref3<type>::size;
-      //using const_array_ref3<type>::arr;
+      using base_arr<type>::size;
       using const_array_ref3<type>::S3;
       using const_array_ref3<type>::S2;
       using const_array_ref3<type>::S1;
@@ -579,10 +573,6 @@ namespace iPic3D
         { return const_array_ref3<type>::fetch(n3,n2,n1); }
       void set(size_t n3,size_t n2,size_t n1, type value)
         { const_array_ref3<type>::set(n3,n2,n1, value); }
-      //void setall(type val){
-      //  // #pragma omp for
-      //  for(size_t i=0;i<size;i++) arr[i]=val;
-      //}
       type*** fetch_arr3(){ return (type***) arr3; }
   };
   
