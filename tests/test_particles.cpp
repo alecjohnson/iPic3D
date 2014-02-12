@@ -440,7 +440,7 @@ class PclSolver:
   }
 };
 
-// 512 bytes (cache-line-sized)
+// 512 bits (cache-line-sized)
 struct SpeciesPcl
 {
   double x;
@@ -453,7 +453,7 @@ struct SpeciesPcl
   long long ID;
 };
 
-// 512 bytes (cache-line-sized)
+// 512 bits (cache-line-sized)
 class MiPcl
 {
   int cx;
