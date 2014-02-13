@@ -11,6 +11,11 @@ FLAGS = -O3 -DNO_MPI -fno-exceptions $(ARRAY_FLAGS) #-ggdb
 
 COMPILER = c++ #icpc # g++
 
+testv2.mic: testv2.cpp Makefile
+	icpc -S -O3 testv2.cpp -o testv2.xeon.s
+	icpc -mmic -S -O3 testv2.cpp -o testv2.mic.s
+	#icc -mmic -S -O3 testv2.cpp -std=c99
+
 testv.mic: testv.cpp Makefile
 	icpc testv.cpp -g -O3 -fopenmp -fp-model fast=2 -vec-report6 -mmic -o testv.mic
 
