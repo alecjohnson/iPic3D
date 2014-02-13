@@ -132,6 +132,7 @@ void test_mover()
   const double start = omp_get_wtime();
 
   const int NUM_PCLS_MOVED_AT_A_TIME = 2;
+  const int D=4;
   assert(NUMPCLS%NUM_PCLS_MOVED_AT_A_TIME==0);
   for (int pidx = 0; pidx < NUMPCLS; pidx+=NUM_PCLS_MOVED_AT_A_TIME)
   {
@@ -144,10 +145,10 @@ void test_mover()
     // actually, all the particles are aligned,
     // but the compiler should be able to see that.
     ALIGNED(pcl[0]);
-    double xorig[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(ALIGNMENT)));
-    double uorig[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(ALIGNMENT)));
-    double  xavg[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(ALIGNMENT)));
-    double  uavg[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(ALIGNMENT)));
+    double xorig[NUM_PCLS_MOVED_AT_A_TIME][D] __attribute__((aligned(ALIGNMENT)));
+    double uorig[NUM_PCLS_MOVED_AT_A_TIME][D] __attribute__((aligned(ALIGNMENT)));
+    double  xavg[NUM_PCLS_MOVED_AT_A_TIME][D] __attribute__((aligned(ALIGNMENT)));
+    double  uavg[NUM_PCLS_MOVED_AT_A_TIME][D] __attribute__((aligned(ALIGNMENT)));
     // gather data into vectors
     for(int i=0;i<NUM_PCLS_MOVED_AT_A_TIME;i++)
     for(int j=0;j<3;j++)
@@ -162,7 +163,7 @@ void test_mover()
       // // compute weights for field components
       // //
       // double weights[NUM_PCLS_MOVED_AT_A_TIME][8] __attribute__((aligned(ALIGNMENT)));
-      // int cx[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(ALIGNMENT)));
+      // int cx[NUM_PCLS_MOVED_AT_A_TIME][D] __attribute__((aligned(ALIGNMENT)));
       // for(int i=0;i<NUM_PCLS_MOVED_AT_A_TIME;i++)
       // {
       //   grid->get_safe_cell_and_weights(xavg[i],cx[i],weights[i]);
@@ -175,8 +176,8 @@ void test_mover()
       //     cx[i][0],cx[i][1],cx[i][2]);
       // }
 
-      double E[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(ALIGNMENT)));
-      double B[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(ALIGNMENT)));
+      double E[NUM_PCLS_MOVED_AT_A_TIME][D] __attribute__((aligned(ALIGNMENT)));
+      double B[NUM_PCLS_MOVED_AT_A_TIME][D] __attribute__((aligned(ALIGNMENT)));
       //// could do this with memset
       //for(int i=0;i<NUM_PCLS_MOVED_AT_A_TIME;i++)
       //for(int j=0;j<3;j++)
@@ -197,7 +198,7 @@ void test_mover()
         B[i][j] = flds[pidx+i].getB(j);
         E[i][j] = flds[pidx+i].getE(j);
       }
-      double Om[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(ALIGNMENT)));
+      double Om[NUM_PCLS_MOVED_AT_A_TIME][D] __attribute__((aligned(ALIGNMENT)));
       for(int i=0; i<NUM_PCLS_MOVED_AT_A_TIME;i++)
       for(int j=0;j<3;j++)
       {
@@ -216,7 +217,7 @@ void test_mover()
         denom[i] = 1.0 / (1.0 + omsq[i]);
       }
       // solve the position equation
-      double ut[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(ALIGNMENT)));
+      double ut[NUM_PCLS_MOVED_AT_A_TIME][D] __attribute__((aligned(ALIGNMENT)));
       for(int i=0; i<NUM_PCLS_MOVED_AT_A_TIME;i++)
       for(int j=0;j<3;j++)
       {
@@ -233,7 +234,10 @@ void test_mover()
       for(int i=0;i<NUM_PCLS_MOVED_AT_A_TIME;i++)
       for(int j=0;j<3;j++)
       {
-        // these cross-products might not vectorize so well...
+        // With D=4, the cross product can be handled with 64-bit cross-product swizzles.
+        // With D=4, the scalar-vector product can be handled with 64-bit broadcast
+        // with 4-element granularity.  See pages 27, 29, and 30 in the
+        // "Intel Xeon Phi Coprocessor Instruction Set Reference Manual".
         uavg[i][0] = (ut[i][0] + (ut[i][1] * Om[i][2] - ut[i][2] * Om[i][1] + udotOm[i] * Om[i][0])) * denom[i];
         uavg[i][1] = (ut[i][1] + (ut[i][2] * Om[i][0] - ut[i][0] * Om[i][2] + udotOm[i] * Om[i][1])) * denom[i];
         uavg[i][2] = (ut[i][2] + (ut[i][0] * Om[i][1] - ut[i][1] * Om[i][0] + udotOm[i] * Om[i][2])) * denom[i];
@@ -254,10 +258,10 @@ void test_mover()
     }
   }
   const double end = omp_get_wtime();
-  printf(" moving in test_mover() took %g s.\n", end - start);
+  printf(" moving in test_mover_AoS() took %g s.\n", end - start);
 }
 
-void test_mover_vec()
+void test_mover_AoS_vec()
 {
   // initialize particles and field data
   //
@@ -370,14 +374,13 @@ void test_mover_vec()
         Om[k] = qdto2mc*B[k];
       }
 
-      double omsq[NUM_PCLS_MOVED_AT_A_TIME] __attribute__((aligned(ALIGNMENT)));
       double denom[NUM_PCLS_MOVED_AT_A_TIME] __attribute__((aligned(ALIGNMENT)));
       for(int i=0; i<NUM_PCLS_MOVED_AT_A_TIME;i++)
       {
-        omsq[i] = Om[i*D+0] * Om[i*D+0]
+        double omsqp1 = 1.0 + Om[i*D+0] * Om[i*D+0]
                 + Om[i*D+1] * Om[i*D+1]
                 + Om[i*D+2] * Om[i*D+2];
-        denom[i] = 1.0 / (1.0 + omsq[i]);
+        denom[i] = 1.0 / omsqp1;
       }
       // solve the position equation
       double ut[NUM_PCLS_MOVED_AT_A_TIME*D] __attribute__((aligned(ALIGNMENT)));
@@ -410,6 +413,14 @@ void test_mover_vec()
         uxOm_B[i*D+1] =  ut[i*D+0] * Om[i*D+2];
         uxOm_B[i*D+2] =  ut[i*D+1] * Om[i*D+0];
       }
+      // with D=4 this can be done with a broadcast with 4-element granularity
+      double denomv[NUM_PCLS_MOVED_AT_A_TIME*D] __attribute__((aligned(ALIGNMENT)));
+      for(int i=0; i<NUM_PCLS_MOVED_AT_A_TIME;i++)
+      {
+        denomv[i*D+0] = denom[i];
+        denomv[i*D+1] = denom[i];
+        denomv[i*D+2] = denom[i];
+      }
       for(int k=0; k<NUM_PCLS_MOVED_AT_A_TIME*D;k++)
       {
         int i=k/D; //k=i*D+j;
@@ -438,15 +449,15 @@ void test_mover_vec()
     }
   }
   const double end = omp_get_wtime();
-  printf(" moving in test_mover_vec() took %g s.\n", end - start);
+  printf(" moving in test_mover_AoS_vec() took %g s.\n", end - start);
 }
 
 //void time_test_mover()
 //{
 //  const double start = omp_get_wtime();
-//  test_mover();
+//  test_mover_AoS();
 //  const double end = omp_get_wtime();
-//  printf("test_mover() took %g s.\n", end - start);
+//  printf("test_mover_AoS() took %g s.\n", end - start);
 //}
 
 void vmul ( int n, double *a, double *b, double *c )
@@ -492,7 +503,7 @@ int main()
   //printf("omp_get_thread_num==%d\n",omp_get_thread_num());
   printf("omp_get_max_threads==%d\n",omp_get_max_threads());
   //test_vectorization();
-  test_mover();
-  test_mover_vec();
+  test_mover_AoS();
+  test_mover_AoS_vec();
 }
 
