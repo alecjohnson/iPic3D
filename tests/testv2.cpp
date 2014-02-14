@@ -317,9 +317,6 @@ void test_push_pcls_in_cell_SoA()
         {
           w[0][i] = 1.-w[1][i];
         }
-        // This can be done in two vectorized
-        // multiplications with one swizzle
-        // and two shuffles, but can the compiler see that?
         weights[0] = w[0][0]*w[0][1]*w[0][2]; // weight000
         weights[1] = w[0][0]*w[0][1]*w[1][2]; // weight001
         weights[2] = w[0][0]*w[1][1]*w[0][2]; // weight010
@@ -427,7 +424,7 @@ void test_push_pcls_in_cell_vectorized_AoS()
       xorig[p][i] = pcl[p].get_x(i);
       uorig[p][i] = pcl[p].get_u(i);
     }
-    #pragma simd collapse(2)
+    //#pragma simd collapse(2) // this generates 56 instructions
     for(int p=0; p<NPB; p++)
     for(int i=0;i<D;i++)
     {
@@ -440,7 +437,6 @@ void test_push_pcls_in_cell_vectorized_AoS()
     double E[NPB][D]ALLOC_ALIGNED;
     double ws[2][NPB][D]ALLOC_ALIGNED;
     // if(vectorized_w)
-    #pragma simd collapse(2)
     for(int p=0; p<NPB; p++)
     for(int i=0;i<D;i++)
     {
@@ -468,12 +464,10 @@ void test_push_pcls_in_cell_vectorized_AoS()
       //else
       {
         double w[2][D]ALLOC_ALIGNED;
-        #pragma simd
         for(int i=0;i<D;i++)
         {
           w[1][i] = dx_inv[i]*(xavg[p][i]-cellstart[i]);
         }
-        #pragma simd
         for(int i=0;i<D;i++)
         {
           w[0][i] = 1.-w[1][i];
@@ -506,10 +500,10 @@ void test_push_pcls_in_cell_vectorized_AoS()
     {
       double Om[NPB][D]ALLOC_ALIGNED;
       double denom[NPB]ALLOC_ALIGNED;
-      #pragma simd
-      for(int i=0;i<NPB*D;i++)
+      for(int p=0;p<NPB;p++)
+      for(int i=0;i<D;i++)
       {
-        Om[0][i] = qdto2mc*B[0][i];
+        Om[p][i] = qdto2mc*B[p][i];
       }
       for(int p=0;p<NPB;p++)
       {
@@ -517,21 +511,20 @@ void test_push_pcls_in_cell_vectorized_AoS()
                      + Om[p][0] * Om[p][0]
                      + Om[p][1] * Om[p][1]
                      + Om[p][2] * Om[p][2];
-        denom[p] = 1.0f/omsq_p1;
+        // This generates 29 instructions
+        //denom[p] = 1.0f/float(omsq_p1);
+        // This generates 42 instructions
+        //denom[p] = 1.0f/omsq_p1;
+        // This generates 42 instructions
+        denom[p] = 1.0/omsq_p1;
       }
       double ut[NPB][D]ALLOC_ALIGNED;
       double udotOm[NPB]ALLOC_ALIGNED;
       // solve the position equation
-      //#pragma simd collapse(2)
-      //for(int p=0;p<NPB;p++)
-      //for(int i=0;i<D;i++)
-      //{
-      //  ut[p][i] = uorig[p][i] + qdto2mc*E[p][i];
-      //}
-      #pragma simd
-      for(int i=0;i<NPB*D;i++)
+      for(int p=0;p<NPB;p++)
+      for(int i=0;i<D;i++)
       {
-        ut[0][i] = uorig[0][i] + qdto2mc*E[0][i];
+        ut[p][i] = uorig[p][i] + qdto2mc*E[p][i];
       }
       for(int p=0;p<NPB;p++)
       {
@@ -539,17 +532,14 @@ void test_push_pcls_in_cell_vectorized_AoS()
       }
       // solve the velocity equation 
       //
-      #pragma simd // how do I tell it to recognize the swizzle?
+      //#pragma simd // how do I tell it to recognize the swizzle?
       for(int p=0;p<NPB;p++)
       {
         uavg[p][0] = (ut[p][0] + (ut[p][1] * Om[p][2] - ut[p][2] * Om[p][1] + udotOm[p] * Om[p][0])) * denom[p];
         uavg[p][1] = (ut[p][1] + (ut[p][2] * Om[p][0] - ut[p][0] * Om[p][2] + udotOm[p] * Om[p][1])) * denom[p];
         uavg[p][2] = (ut[p][2] + (ut[p][0] * Om[p][1] - ut[p][1] * Om[p][0] + udotOm[p] * Om[p][2])) * denom[p];
-        if(D==4) // to help with recognizing swizzle
-        uavg[p][3] = (ut[p][3] + (ut[p][3] * Om[p][3] - ut[p][3] * Om[p][3] + udotOm[p] * Om[p][3])) * denom[p];
       }
       // update average position
-      #pragma simd collapse(2)
       for(int p=0;p<NPB;p++)
       for(int i=0;i<D;i++)
       {
