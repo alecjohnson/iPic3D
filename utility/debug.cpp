@@ -4,7 +4,6 @@
 #endif
 #include "ompdefs.h" // for omp_get_thread_num
 #include "debug.h"
-#include "parallel.h" // temporary
 
 #define implement_dprintvar_fileLine(code,type) \
   void printvar_fileLine(const char* func, const char* file, int line, \
@@ -70,8 +69,6 @@ void fprintf_fileLine(FILE * fptr,
   const char *type, const char *func, const char *file, int line_number,
   const char *format, ...)
 {
-  if(!is_output_thread()) return; // temporary
-
   // writing directly to fptr would avoid limiting the length
   // of the output string, but by first writing to a string
   // we achieve thread safety.
