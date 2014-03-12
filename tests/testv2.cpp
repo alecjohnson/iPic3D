@@ -134,7 +134,17 @@ class PclBlock
   double data[8][8];
  public:
   // convert between AoS and SoA
-  //void transpose() { }
+  // (should be implemented with intrinsics)
+  void transpose()
+  {
+    double temp[8][8]ALLOC_ALIGNED;
+    for(int i=0;i<8;i++)
+    for(int j=0;j<8;j++)
+    {
+      temp[i][j] = data[j][i];
+    }
+    memcpy(&data[0][0],&temp[0][0],sizeof(double)*8*8);
+  }
   // assumes AoS
   SpeciesPcl& fetch_pcl(int p){return (SpeciesPcl&)data[p];}
   // assumes SoA
@@ -711,6 +721,137 @@ void move_bucket_old()
     }
 }
 
+void move_SoA_blocks()
+{
+    const double dto2 = usample();
+    const double qdto2mc = usample();
+    const double cellstartx=usample();
+    const double cellstarty=usample();
+    const double cellstartz=usample();
+    const double dx_inv=usample();
+    const double dy_inv=usample();
+    const double dz_inv=usample();
+    #pragma omp parallel 
+    {
+      const double start = time_msec();
+      #pragma omp for
+      for(int bidx = 0; bidx < NUMBLKS; bidx++)
+      {
+        PclBlock& pclBlock = pclBlocks[bidx];
+        pclBlock.transpose();
+        double* x = pclBlock.fetch_x();
+        double* y = pclBlock.fetch_y();
+        double* z = pclBlock.fetch_z();
+        double* u = pclBlock.fetch_u();
+        double* v = pclBlock.fetch_v();
+        double* w = pclBlock.fetch_w();
+        ASSERT_ALIGNED(x);
+        ASSERT_ALIGNED(y);
+        ASSERT_ALIGNED(z);
+        ASSERT_ALIGNED(u);
+        ASSERT_ALIGNED(v);
+        ASSERT_ALIGNED(w);
+        #pragma omp simd
+        for(int pidx = 0; pidx < 8; pidx++)
+        {
+            // copy the particle
+            const double xorig = x[pidx];
+            const double yorig = y[pidx];
+            const double zorig = z[pidx];
+            const double uorig = u[pidx];
+            const double vorig = v[pidx];
+            const double worig = w[pidx];
+
+            // initialize xavg to xorig
+            double xavg = x[pidx];
+            double yavg = y[pidx];
+            double zavg = z[pidx];
+
+            // compute weights for field components
+            //
+            double weights[8];
+            // fraction of the distance from the right of the cell
+            const double w1x = dx_inv*(xavg - cellstartx);
+            const double w1y = dy_inv*(yavg - cellstarty);
+            const double w1z = dz_inv*(zavg - cellstartz);
+            // fraction of distance from the left
+            const double w0x = 1-w1x;
+            const double w0y = 1-w1y;
+            const double w0z = 1-w1z;
+            const double weight00 = w0x*w0y;
+            const double weight01 = w0x*w1y;
+            const double weight10 = w1x*w0y;
+            const double weight11 = w1x*w1y;
+            weights[0] = weight00*w0z; // weight000
+            weights[1] = weight00*w1z; // weight001
+            weights[2] = weight01*w0z; // weight010
+            weights[3] = weight01*w1z; // weight011
+            weights[4] = weight10*w0z; // weight100
+            weights[5] = weight10*w1z; // weight101
+            weights[6] = weight11*w0z; // weight110
+            weights[7] = weight11*w1z; // weight111
+
+            double Exl = 0.0;
+            double Eyl = 0.0;
+            double Ezl = 0.0;
+            double Bxl = 0.0;
+            double Byl = 0.0;
+            double Bzl = 0.0;
+
+            // would expanding this out help to vectorize?
+            for(int c=0; c<8; c++)
+            {
+                Bxl += weights[c] * field_components[c][0];
+                Byl += weights[c] * field_components[c][1];
+                Bzl += weights[c] * field_components[c][2];
+                Exl += weights[c] * field_components[c][3];
+                Eyl += weights[c] * field_components[c][4];
+                Ezl += weights[c] * field_components[c][5];
+            }
+
+            const double Omx = qdto2mc*Bxl;
+            const double Omy = qdto2mc*Byl;
+            const double Omz = qdto2mc*Bzl;
+
+            // end interpolation
+            const double omsq_p1 = 1.0 + (Omx * Omx + Omy * Omy + Omz * Omz);
+            const double denom = 1.0f / float(omsq_p1);
+            // solve the position equation
+            const double ut = uorig + qdto2mc * Exl;
+            const double vt = vorig + qdto2mc * Eyl;
+            const double wt = worig + qdto2mc * Ezl;
+            //const double udotb = ut * Bxl + vt * Byl + wt * Bzl;
+            const double udotOm = ut * Omx + vt * Omy + wt * Omz;
+            // solve the velocity equation
+            const double uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
+            const double vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
+            const double wavg = (wt + (ut * Omy - vt * Omx + udotOm * Omz)) * denom;
+            // update average position
+            xavg = xorig + uavg * dto2;
+            yavg = yorig + vavg * dto2;
+            zavg = zorig + wavg * dto2;
+
+            // update particle (assuming this is last iteration)
+            {
+                //x[pidx] = xorig + uavg * dt;
+                //y[pidx] = yorig + vavg * dt;
+                //z[pidx] = zorig + wavg * dt;
+                x[pidx] = 2.0 * xavg - xorig;
+                y[pidx] = 2.0 * yavg - yorig;
+                z[pidx] = 2.0 * zavg - zorig;
+                u[pidx] = 2.0 * uavg - uorig;
+                v[pidx] = 2.0 * vavg - vorig;
+                w[pidx] = 2.0 * wavg - worig;
+            }
+        }
+        pclBlock.transpose();
+      }
+      const double end = time_msec();
+      printf("(in thread %d) %s took %g ms.\n",
+        omp_get_thread_num(), __func__, end - start);
+    }
+}
+
 void test_push_pcls_in_cell_AoS_scatter_gather_vectorization()
 {
   double dto2 = usample();
@@ -1126,8 +1267,12 @@ int main()
   move_bucket_old();
   move_bucket_old();
   printf("# \n");
+  printf("# move particles in 8-particle transposable blocks:\n");
+  move_SoA_blocks();
+  move_SoA_blocks();
+  printf("# \n");
   printf("# this rewrite of move_bucket_old uses three-element arrays\n");
-  printf("# instead of three separate variables, which if the compiler were\n")
+  printf("# instead of three separate variables, which if the compiler were\n");
   printf("# intelligent would make no difference; for some bizarre reason\n");
   printf("# this takes twice as long to run when 'denom' is calculated\n");
   printf("# with double precision as for single precision, whereas in\n");
