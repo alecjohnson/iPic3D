@@ -11,6 +11,12 @@ FLAGS = -O3 -DNO_MPI -fno-exceptions $(ARRAY_FLAGS) #-ggdb
 
 COMPILER = c++ #icpc # g++
 
+testvrinke.mic: testvrinke.cpp
+	KMP_AFFINITY=balanced,granularity=thread icpc -mmic $(FLAGS) -fopenmp testvrinke.cpp $(INCLUDE) -o testvrinke.mic
+
+run.testvrinke.mic:
+	OMP_NUM_THREADS=50 mpirun -n 1 -host `hostname`-mic1 -env OMP_NUM_THREADS=50 ./testvrinke.mic
+
 testv2.mic: testv2.cpp Makefile
 	icpc -mmic -S -O3 testv2.cpp -o testv2.mic.s
 	icpc -S -O3 testv2.cpp -o testv2.xeon.s
