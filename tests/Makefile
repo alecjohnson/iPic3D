@@ -17,10 +17,19 @@ testvrinke.mic: testvrinke.cpp
 run.testvrinke.mic:
 	OMP_NUM_THREADS=50 mpirun -n 1 -host `hostname`-mic1 -env OMP_NUM_THREADS=50 ./testvrinke.mic
 
+#icpc -mmic -S -O3 testv2.cpp -o testv2.mic.s
 testv2.mic: testv2.cpp Makefile
-	icpc -mmic -S -O3 testv2.cpp -o testv2.mic.s
-	icpc -S -O3 testv2.cpp -o testv2.xeon.s
-	#icc -mmic -S -O3 testv2.cpp -std=c99
+	KMP_AFFINITY=compact icpc -mmic $(FLAGS) -fopenmp testv2.cpp $(INCLUDE) -o testv2.mic
+
+#icc -mmic -S -O3 testv2.cpp -std=c99
+testv2.xeon: testv2.cpp Makefile
+	KMP_AFFINITY=compact icpc $(FLAGS) -fopenmp testv2.cpp $(INCLUDE) -o testv2.xeon
+
+run.testv2.mic:
+	mpirun -n 1 -host `hostname`-mic1 -env OMP_NUM_THREADS=2 ./testv2.mic
+
+run.testv2.xeon:
+	mpirun -n 1 -env OMP_NUM_THREADS=2 ./testv2.xeon
 
 testv.mic: testv.cpp Makefile
 	icpc testv.cpp -g -O3 -fopenmp -fp-model fast=2 -vec-report6 -mmic -o testv.mic
