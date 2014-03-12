@@ -1,10 +1,9 @@
-#include <mpi.h>
-#include <iostream>
+#ifndef NO_MPI
+  #include <mpi.h>
+#endif
+#include <stdio.h>
 #include <assert.h>
 #include "MPIdata.h"
-
-using std::cout;
-using std::endl;
 
 // code to check that init() is called before instance()
 //
@@ -32,6 +31,10 @@ MPIdata& MPIdata::instance()
 void MPIdata::init(int *argc, char ***argv) {
   assert(!MPIdata_is_initialized);
 
+ #ifdef NO_MPI
+  rank = 0;
+  nprocs = 1;
+ #else // NO_MPI
   /* Initialize the MPI API */
   MPI_Init(argc, argv);
 
@@ -40,19 +43,20 @@ void MPIdata::init(int *argc, char ***argv) {
 
   /* Set total number of processors */
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+ #endif // NO_MPI
 
   MPIdata_is_initialized = true;
 }
 
 void MPIdata::finalize_mpi() {
+ #ifndef NO_MPI
   MPI_Finalize();
+ #endif
 }
 
 void MPIdata::Print(void) {
-  cout << endl;
-  cout << "Number of processes = " << get_nprocs() << endl;
-  cout << "-------------------------" << endl;
-  cout << endl;
+  printf("\nNumber of processes = %d\n"
+         "-------------------------\n\n", get_nprocs());
 }
 
 // extern MPIdata *mpi; // instantiated in iPIC3D.cpp

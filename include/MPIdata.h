@@ -10,7 +10,9 @@ email                : markidis@lanl.gov, lapenta@lanl.gov
 #ifndef MPIDATA_H
 #define MPIDATA_H
 
+#ifndef NO_MPI
 #include <mpi.h>
+#endif
 /**
  * MPI Data Structure. This class contains:
  *
@@ -44,7 +46,7 @@ public:
   /** print MPI data structure */
   void Print(void);
   /** MPI status during the communication */
-  MPI_Status status;
+  //MPI_Status status;
 public:
   static int get_rank(){return instance().rank;}
   static int get_nprocs(){return instance().nprocs;}
