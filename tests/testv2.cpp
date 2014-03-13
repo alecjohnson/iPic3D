@@ -1,5 +1,7 @@
 #include <omp.h>
-#include "stdio.h"
+#include <stdio.h>
+//#include "time.h" // for clock_gettime()
+#include <stdint.h> // for uint64_t
 #include <stdlib.h> // rand()
 #include <sys/time.h>
 #include <limits.h> // RAND_MAX
@@ -9,6 +11,118 @@
 #define ALIGNMENT 64
 #define ALLOC_ALIGNED __attribute__((aligned(ALIGNMENT)));
 #define ASSERT_ALIGNED(X) __assume_aligned(X, ALIGNMENT)
+
+//******** timing ************
+
+#if 0
+// measure time using cycle counters
+//
+inline timespec get_timespec()
+{
+  // uncomment the desired choice of clock
+  //
+  // system-wide realtime clock
+  //clockid_t clk_id = REALTIME;
+  // timer provided by the CPU for each process
+  //clockid_t clk_id = CLOCK_PROCESS_CPUTIME_ID;
+  // timer provided by the CPU for each thread
+  clockid_t clk_id = CLOCK_THREAD_CPUTIME_ID;
+
+  timespec thetime;
+  clock_gettime(clk_id, &thetime);
+  return thetime;
+}
+
+inline timespec diff_timespec(timespec start, timespec end)
+{
+  timespec diff;
+  diff.tv_nsec = end.tv_nsec-start.tv_nsec;
+  diff.tv_sec = end.tv_sec-start.tv_sec;
+  if(diff.tv_nsec<0) // must we borrow?
+  {
+    diff.tv_nsec+=1e9;
+    diff.tv_sec-=1;
+  }
+  return diff;
+}
+
+inline double get_sec(timespec start_time)
+{
+  timespec end_time = get_timespec();
+  timespec diff_time = diff_timespec(start_time,end_time);
+  return diff_time.tv_sec+1.e-9*diff_time.tv_nsec;
+}
+
+inline double get_msec(timespec start_time)
+{
+  return 1.e3*get_sec(start_time);
+}
+// measure time using clock_gettime
+// (more accurate, but requires -lrt when compiling
+// and for some reason forces me to compile on
+// miclogin rather than knc1 or I can't run the binary.)
+//
+#define Time timespec
+#define get_time() get_timespec()
+#define report_time(start) \
+ { \
+   printf("(in thread %d) %s took %g ms.\n", \
+     omp_get_thread_num(), __func__, get_msec(start)); \
+ }
+#endif
+
+
+#if 0
+// measure wall time
+inline double time_msec()
+{
+  static struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (tv.tv_sec + tv.tv_usec * 1.e-6)*1.e3;
+  // this is another way
+  return 1.e3*omp_get_wtime();
+}
+
+// measure time using gettimeofday
+//
+#define Time double
+#define report_time(start) \
+ { \
+   const double end = time_msec(); \
+   printf("(in thread %d) %s took %g ms.\n", \
+     omp_get_thread_num(), __func__, end - start); \
+ }
+#define get_time() time_msec()
+#endif
+
+// cycle-level timing
+//
+// read time stamp counter
+// could also call __rdtsc intrinsic
+// taken from
+// http://stackoverflow.com/questions/13772567/get-cpu-cycle-count
+//typedef unsigned long uint64_t;
+uint64_t rdtsc(){
+    unsigned int lo,hi;
+    // could first call cpuid to serialize.
+    __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
+    return ((uint64_t)hi << 32) | lo;
+}
+
+// measure time using timestamp counter
+#define Time uint64_t
+#define report_time(start) \
+ { \
+   uint64_t end = rdtsc(); \
+   printf("(in thread %d) %s took %8.6f Mcycles\n", \
+     omp_get_thread_num(), __func__, (end - start)*1.e-6); \
+ }
+ //  printf("(in thread %d) %s took %d cycles\n", \
+ //    omp_get_thread_num(), __func__, end - start); \
+ //
+#define get_time() rdtsc()
+
+//******** tests ************
 
 const int D=4;
 // const int NPB=2; // number of particles in a block
@@ -25,17 +139,6 @@ double Ey;
 double Ez;
 double field_components[8][8]ALLOC_ALIGNED;
 double fields[8]ALLOC_ALIGNED;
-
-inline double time_msec()
-{
-  // this seems more reliable; gettimeofday even results in negative times
-  return 1000.*omp_get_wtime();
-  static struct timeval tv;
-
-  gettimeofday(&tv, NULL);
-
-  return (tv.tv_sec + tv.tv_usec * (double) 1e-3);
-}
 
 void test_alex()
 {
@@ -188,7 +291,7 @@ void copy_SoA_to_AoS_particles()
 {
   #pragma omp parallel
   {
-  const double start = time_msec();
+  const Time start = get_time();
   #pragma omp for simd
   for(int i=0;i<NUMPCLS;i++)
   {
@@ -201,9 +304,7 @@ void copy_SoA_to_AoS_particles()
      pcls[i].q = q[i];
      pcls[i].ID = ID[i];
   }
-  const double end = time_msec();
-  printf("(in thread %d) %s took %g ms.\n",
-    omp_get_thread_num(), __func__, end - start);
+  report_time(start);
   }
 }
 
@@ -211,7 +312,7 @@ void copy_AoS_to_SoA_particles()
 {
   #pragma omp parallel
   {
-  const double start = time_msec();
+  const Time start = get_time();
   #pragma omp for simd
   for(int i=0;i<NUMPCLS;i++)
   {
@@ -224,9 +325,7 @@ void copy_AoS_to_SoA_particles()
     q[i] = pcls[i].q;
     ID[i] = pcls[i].ID;
   }
-  const double end = time_msec();
-  printf("(in thread %d) %s took %g ms.\n",
-    omp_get_thread_num(), __func__, end - start);
+  report_time(start);
   }
 }
 
@@ -234,7 +333,7 @@ void copy_AoS_particles_to_another_array()
 {
   #pragma omp parallel
   {
-  const double start = time_msec();
+  const Time start = get_time();
   #pragma omp for
   for(int p=0;p<NUMPCLS;p++)
   {
@@ -242,26 +341,22 @@ void copy_AoS_particles_to_another_array()
     ASSERT_ALIGNED(&pcls[0]);
     pcls2[p] = pcls[p];
   }
-  const double end = time_msec();
-  printf("(in thread %d) %s took %g ms.\n",
-    omp_get_thread_num(), __func__, end - start);
+  report_time(start);
   }
 }
 
 void copy_AoS_particles_to_another_array_via_memcpy()
 {
-  const double start = time_msec();
+  const Time start = get_time();
   memcpy(&pcls2[0],&pcls[0],sizeof(pcls[0])*NUMPCLS);
-  const double end = time_msec();
-  printf("(in thread %d) %s took %g ms.\n",
-    omp_get_thread_num(), __func__, end - start);
+  report_time(start);
 }
 
 void copy_AoS_to_AoS_particle_blocks()
 {
   #pragma omp parallel
   {
-  const double start = time_msec();
+  const Time start = get_time();
   #pragma omp for
   for(int b=0;b<NUMBLKS;b++)
   {
@@ -274,20 +369,16 @@ void copy_AoS_to_AoS_particle_blocks()
       (*pcl) = pcls[b*8+p];
     }
   }
-  const double end = time_msec();
-  printf("(in thread %d) %s took %g ms.\n",
-    omp_get_thread_num(), __func__, end - start);
+  report_time(start);
   }
 }
 
 void copy_AoS_to_AoS_particle_blocks_via_memcpy()
 {
   // How to parallelize memcpy?
-  const double start = time_msec();
+  const Time start = get_time();
   memcpy(&pclBlocks[0],&pcls[0],sizeof(pcls[0])*NUMPCLS);
-  const double end = time_msec();
-  printf("(in thread %d) %s took %g ms.\n",
-    omp_get_thread_num(), __func__, end - start);
+  report_time(start);
 }
 
 void initialize_data()
@@ -347,7 +438,7 @@ void test_push_pcls_in_cell()
 
   // iterate over all particles in this mesh cell
   //
-  const double start = time_msec();
+  const Time start = get_time();
   for(int pi=0;pi<NUMPCLS;pi+=1)
   {
     SpeciesPcl* pcl = &pcls[pi];
@@ -461,9 +552,7 @@ void test_push_pcls_in_cell()
       }
     }
   }
-  const double end = time_msec();
-  printf("(in thread %d) %s took %g ms.\n",
-    omp_get_thread_num(), __func__, end - start);
+  report_time(start);
 }
 
 void test_push_pcls_in_cell_SoA_vectorized()
@@ -483,7 +572,7 @@ void test_push_pcls_in_cell_SoA_vectorized()
 
   // iterate over all particles in this mesh cell
   //
-  const double start = time_msec();
+  const Time start = get_time();
   #pragma omp for simd
   for(int pi=0;pi<NUMPCLS;pi+=1)
   {
@@ -599,9 +688,7 @@ void test_push_pcls_in_cell_SoA_vectorized()
       w[pi] = 2*uavg[2] - uorig[2];
     }
   }
-  const double end = time_msec();
-  printf("(in thread %d) %s took %g ms.\n",
-    omp_get_thread_num(), __func__, end - start);
+  report_time(start);
   }
 }
 
@@ -621,7 +708,7 @@ void move_bucket_old()
     const double dz_inv=usample();
     #pragma omp parallel 
     {
-        const double start = time_msec();
+        const Time start = get_time();
         #pragma omp for simd
         for(int pidx = 0; pidx < NUMPCLS; pidx++)
         {
@@ -715,12 +802,11 @@ void move_bucket_old()
                 w[pidx] = 2.0 * wavg - worig;
             }
         }
-        const double end = time_msec();
-        printf("(in thread %d) %s took %g ms.\n",
-          omp_get_thread_num(), __func__, end - start);
+        report_time(start);
     }
 }
 
+// move particles in 8-particle transposable blocks
 void move_SoA_blocks()
 {
     const double dto2 = usample();
@@ -733,7 +819,7 @@ void move_SoA_blocks()
     const double dz_inv=usample();
     #pragma omp parallel 
     {
-      const double start = time_msec();
+      const Time start = get_time();
       #pragma omp for
       for(int bidx = 0; bidx < NUMBLKS; bidx++)
       {
@@ -846,9 +932,7 @@ void move_SoA_blocks()
         }
         pclBlock.transpose();
       }
-      const double end = time_msec();
-      printf("(in thread %d) %s took %g ms.\n",
-        omp_get_thread_num(), __func__, end - start);
+      report_time(start);
     }
 }
 
@@ -868,7 +952,7 @@ void test_push_pcls_in_cell_AoS_scatter_gather_vectorization()
 
   // iterate over all particles in this mesh cell
   //
-  const double start = time_msec();
+  const Time start = get_time();
   //simd accelerates execution by a factor of 3
   #pragma omp for simd
   for(int pi=0;pi<NUMPCLS;pi+=1)
@@ -1003,9 +1087,7 @@ void test_push_pcls_in_cell_AoS_scatter_gather_vectorization()
       }
     }
   }
-  const double end = time_msec();
-  printf("(in thread %d) %s took %g ms.\n",
-    omp_get_thread_num(), __func__, end - start);
+  report_time(start);
   }
 }
 
@@ -1026,7 +1108,7 @@ void test_push_pcls_in_cell_AoS_localized_vectorization()
 
   // iterate over all particles in this mesh cell
   //
-  const double start = time_msec();
+  const Time start = get_time();
   #pragma omp for
   for(int pi=0;pi<NUMPCLS;pi+=NPB)
   {
@@ -1195,9 +1277,7 @@ void test_push_pcls_in_cell_AoS_localized_vectorization()
       }
     }
   }
-  const double end = time_msec();
-  printf("(in thread %d) %s took %g ms.\n",
-    omp_get_thread_num(), __func__, end - start);
+  report_time(start);
   }
 }
 
@@ -1221,20 +1301,16 @@ void sample_field(
 
 void donothing_in_serial()
 {
-  const double start = time_msec();
-  const double end = time_msec();
-  printf("(in thread %d) %s took %g ms.\n",
-    omp_get_thread_num(), __func__, end - start);
+  const Time start = get_time();
+  report_time(start);
 }
 
 void donothing_in_parallel()
 {
   #pragma omp parallel
   {
-  const double start = time_msec();
-  const double end = time_msec();
-  printf("(in thread %d) %s took %g ms.\n",
-    omp_get_thread_num(), __func__, end - start);
+  const Time start = get_time();
+  report_time(start);
   }
 }
 
