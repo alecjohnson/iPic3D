@@ -6,6 +6,7 @@ OBJECTS = \
   ../utility/asserts.o \
   debug.o
 
+# need -lrt to handle clock_gettime()
 ARRAY_FLAGS = #-DCHAINED_ARRAYS #-DFLAT_ARRAYS #-DCHECK_BOUNDS
 FLAGS = -O3 -DNO_MPI -fno-exceptions $(ARRAY_FLAGS) #-ggdb 
 
