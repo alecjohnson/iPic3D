@@ -68,13 +68,13 @@ def construct_run_command(args):
     output = 'data'
     inputfile = 'src/inputfiles/GEM.inp'
     hostname = ''
-    mpirun = 'mpiexec'
+    mpirun = 'mpirun'
     # these parameters should be read out of a configuration file
     # that is populated when you run "ipic [-s system] cmake <src>"
     global system
     if system == 'xeon' or system == 'mic':
       if system == 'xeon':
-        mpirun = 'mpiexec.hydra' # is this line needed?
+        mpirun = 'mpirun.hydra' # is this line needed?
         # calculate number of threads per process
         # + could extract this stuff from /proc/cpuinfo
         #   via commands such as:
