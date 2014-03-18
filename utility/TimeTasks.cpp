@@ -20,6 +20,10 @@ static const char *taskNames[] = // order must agree with Tasks in TimeTasks.h
   "bfield",
   "moment_accumulation",
   "moment_reduction",
+  "mover_pcl_sorting",
+  "mover_pcl_moving",
+  "mover_pcl_total",
+  "cycle_total",
   "number_of_tasks"
 };
 
@@ -151,6 +155,33 @@ void TimeTasks::print_cycle_times(int cycle)
     fflush(file);
   }
 }
+
+void TimeTasks::print_cycle_times_subtasks(int cycle)
+{
+  FILE* file = stdout;
+  // we could report average for all processes
+  if(!MPIdata::get_rank())
+  {
+    fflush(file);
+    fprintf(file,"=== times for cycle %d for rank %d === \n",
+      cycle,
+      MPIdata::get_rank());
+    fprintf(file, TIMING_PREFIX "time   subtask\n");
+    for(int e=LAST+1; e<NUMBER_OF_TASKS; e++)
+    {
+      // Skip printing the previous subtasks
+      if (e >= MOVER_PCL_SORTING) {
+        assert_eq(stack_depth[e],0);
+        fprintf(file, TIMING_PREFIX "%6.3f %s\n",
+            get_time(e),
+            get_taskname(e));
+      }
+    }
+
+    fflush(file);
+  }
+}
+
 
 // The following three methods provide for a hack by which
 // the timeTasks copies of all threads are averaged.

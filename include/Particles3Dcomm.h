@@ -57,6 +57,47 @@ public:
   int maxNpExiting();
   /** calculate the weights given the position of particles */
   // void calculateWeights(double*** weight, double xp, double yp, double zp,int ix, int iy, int iz, Grid* grid);
+
+  /*! sort particles for vectorized push (needs to be parallelized) */
+  void sort_particles_serial_SoA_by_xavg(Grid * grid, VirtualTopology3D * vct);
+  void get_safe_cell_for_pos(
+    int& cx, int& cy, int& cz,
+    pfloat xpos, pfloat ypos, pfloat zpos)
+  {
+    // xstart is left edge of domain excluding ghost cells
+    // cx=0 for ghost cell layer.
+    cx = 1 + int(floor((xpos - xstart) * inv_dx));
+    cy = 1 + int(floor((ypos - ystart) * inv_dy));
+    cz = 1 + int(floor((zpos - zstart) * inv_dz));
+    //
+    // if the cell is outside the domain, then treat it as
+    // in the nearest ghost cell.
+    //
+    if (cx < 0) cx = 0;
+    if (cy < 0) cy = 0;
+    if (cz < 0) cz = 0;
+    // number of cells in x direction including ghosts is nxc
+    if (cx >= nxc) cx = nxc-1;
+    if (cy >= nyc) cy = nyc-1;
+    if (cz >= nzc) cz = nzc-1;
+  }
+
+  // get accessors for optinal arrays
+  double * fetch_xavg() { return _xavg; }
+  double * fetch_yavg() { return _yavg; }
+  double * fetch_zavg() { return _zavg; }
+  double * fetch_xtmp() { return _xtmp; }
+  double * fetch_ytmp() { return _ytmp; }
+  double * fetch_ztmp() { return _ztmp; }
+  double * fetch_utmp() { return _utmp; }
+  double * fetch_vtmp() { return _vtmp; }
+  double * fetch_wtmp() { return _wtmp; }
+  double * fetch_qtmp() { return _qtmp; }
+  double * fetch_xavgtmp() { return _xavgtmp; }
+  double * fetch_yavgtmp() { return _yavgtmp; }
+  double * fetch_zavgtmp() { return _zavgtmp; }
+  long long *fetch_ParticleIDtmp(){ return _ParticleIDtmp; }
+
   /** get X-position array for all the particles */
   double *getXall() const;
   /** get Y-position array for all the particles */
@@ -107,6 +148,10 @@ public:
 public:
   // accessors
   int get_ns()const{return ns;}
+  int get_numpcls_in_bucket(int cx, int cy, int cz)const
+  { return (*numpcls_in_bucket)[cx][cy][cz]; }
+  int get_bucket_offset(int cx, int cy, int cz)const
+  { return (*bucket_offset)[cx][cy][cz]; }
 
 protected:
   /** number of this species */
@@ -158,6 +203,47 @@ protected:
   /** ParticleID */
   long long *ParticleID;
   /** rank of processor in which particle is created (for ID) */
+
+  // structures for sorting particles
+  //
+  /** Average position data (used during particle push) **/
+  //
+  double *_xavg;
+  double *_yavg;
+  double *_zavg;
+  //
+  // alternate temporary storage for sorting particles
+  //
+  long long *_ParticleIDtmp;
+  double *_xtmp;
+  double *_ytmp;
+  double *_ztmp;
+  double *_utmp;
+  double *_vtmp;
+  double *_wtmp;
+  double *_qtmp;
+  double *_xavgtmp;
+  double *_yavgtmp;
+  double *_zavgtmp;
+  //
+  // references for buckets
+  //
+  array3_int* numpcls_in_bucket;
+  array3_int* numpcls_in_bucket_now; // accumulator used during sorting
+  //array3_int* bucket_size; // maximum number of particles in bucket
+  array3_int* bucket_offset;
+  //
+  // bucket totals per thread
+  //
+  //int num_threads;
+  //array3_int* numpcls_in_bucket_thr;
+  //arr3_int fetch_numpcls_in_bucket_thr(int i)
+  //{
+  //  assert_le(0,i);
+  //  assert_lt(i,num_threads);
+  //  return *(numpcls_in_bucket_thr[i]);
+  //};
+
   int BirthRank[2];
   /** number of variables to be stored in buffer for communication for each particle  */
   int nVar;
@@ -178,6 +264,8 @@ protected:
   /** number of grid 
           nodes */
   int nxn, nyn, nzn;
+  /** number of grid cells */
+  int nxc, nyc, nzc;
   /** buffers for communication */
   /** size of sending buffers for exiting particles, DEFINED IN METHOD "COMMUNICATE" */
   int buffer_size;
@@ -260,6 +348,11 @@ protected:
   double Q_removed;
   /** density of the injection of the particles */
   double Ninj;
+
+  // convenience values from grid
+  double inv_dx;
+  double inv_dy;
+  double inv_dz;
 };
 
 

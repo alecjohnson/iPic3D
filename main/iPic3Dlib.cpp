@@ -46,10 +46,12 @@ int c_Solver::Init(int argc, char **argv) {
     MPI_Info_set(info, "hostfile", "spawnfile");
 
     MPI_Comm_spawn(
-      "run_fields.sh",  // Filename
+      //"exec/iPic3D_fields",// Filename
+      "run_fields.sh",       // Filename
       &argv[1],              // Arguments, same as particles solver
       nprocs,                // Number MPI procs
-      info,//MPI_INFO_NULL,         // Info argument
+      //MPI_INFO_NULL,       // Info argument
+      info,                  // Info argument
       0,                     // Root
       MPI_COMM_WORLD,        // Group of spawning procs
       &mpi->intercomm,       // Intercommunicator to children
@@ -298,7 +300,9 @@ bool c_Solver::ParticlesMover() {
       // #pragma omp task inout(part[i]) in(grid) target_device(booster)
       //
       // should merely pass EMf->get_fieldForPcls() rather than EMf.
-      part[i].mover_PC(grid, vct, EMf); // use the Predictor Corrector scheme 
+      // use the Predictor Corrector scheme
+      //part[i].mover_PC(grid, vct, EMf);
+      part[i].mover_PC_vectorized(grid, vct, EMf);
     }
     for (int i = 0; i < ns; i++)  // move each species
     {

@@ -320,6 +320,11 @@ void Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
 
   const pfloat dto2 = .5 * dt, qdto2mc = qom * dto2 / c;
   const pfloat inv_dx = 1.0 / dx, inv_dy = 1.0 / dy, inv_dz = 1.0 / dz;
+
+  #pragma omp barrier
+  #pragma omp master
+  timeTasks_begin_task(TimeTasks::MOVER_PCL_MOVING);
+
   #pragma omp for
   // why does single precision make no difference in execution speed?
   //#pragma simd vectorlength(VECTOR_WIDTH)
@@ -410,6 +415,26 @@ void Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
       field_components[6] = fieldForPcls[ix-1][iy-1][iz  ]; // field110
       field_components[7] = fieldForPcls[ix-1][iy-1][iz-1]; // field111
 
+#if 0
+      pfloat Bxyzl_Exyzl[6] = {0.0};
+//#pragma simd
+      for (int i = 0; i < 6; i++)
+      {
+        Bxyzl_Exyzl[i] += weights[0] * field_components[0][i];
+        Bxyzl_Exyzl[i] += weights[1] * field_components[1][i];
+        Bxyzl_Exyzl[i] += weights[2] * field_components[2][i];
+        Bxyzl_Exyzl[i] += weights[3] * field_components[3][i];
+        Bxyzl_Exyzl[i] += weights[4] * field_components[4][i];
+        Bxyzl_Exyzl[i] += weights[5] * field_components[5][i];
+        Bxyzl_Exyzl[i] += weights[6] * field_components[6][i];
+        Bxyzl_Exyzl[i] += weights[7] * field_components[7][i];
+      }
+
+      const double Omx = qdto2mc*Bxyzl_Exyzl[0];
+      const double Omy = qdto2mc*Bxyzl_Exyzl[1];
+      const double Omz = qdto2mc*Bxyzl_Exyzl[2];
+#endif
+#if 1
       for(int c=0; c<8; c++)
       {
         Bxl += weights[c] * field_components[c][0];
@@ -422,14 +447,23 @@ void Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
       const double Omx = qdto2mc*Bxl;
       const double Omy = qdto2mc*Byl;
       const double Omz = qdto2mc*Bzl;
+#endif
 
       // end interpolation
       const pfloat omsq = (Omx * Omx + Omy * Omy + Omz * Omz);
       const pfloat denom = 1.0 / (1.0 + omsq);
+#if 0
+      // solve the position equation
+      const pfloat ut = uorig + qdto2mc * Bxyzl_Exyzl[3];
+      const pfloat vt = vorig + qdto2mc * Bxyzl_Exyzl[4];
+      const pfloat wt = worig + qdto2mc * Bxyzl_Exyzl[5];
+#endif
+#if 1
       // solve the position equation
       const pfloat ut = uorig + qdto2mc * Exl;
       const pfloat vt = vorig + qdto2mc * Eyl;
       const pfloat wt = worig + qdto2mc * Ezl;
+#endif
       //const pfloat udotb = ut * Bxl + vt * Byl + wt * Bzl;
       const pfloat udotOm = ut * Omx + vt * Omy + wt * Omz;
       // solve the velocity equation
@@ -449,6 +483,8 @@ void Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
     v[pidx] = 2.0 * vavg - vorig;
     w[pidx] = 2.0 * wavg - worig;
   }                             // END OF ALL THE PARTICLES
+  #pragma omp master
+  timeTasks_end_task(TimeTasks::MOVER_PCL_MOVING);
 }
 
 #if 0 // OLD CODE
@@ -765,6 +801,200 @@ void Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
   }                             // END OF ALL THE PARTICLES
 }
 #endif
+
+/** mover with a Predictor-Corrector scheme */
+void Particles3D::mover_PC_vectorized(
+  Grid * grid, VirtualTopology3D * vct, Field * EMf)
+{
+  //convertParticlesToSoA();
+  assert_eq(nxc,nxn-1);
+  assert_eq(nyc,nyn-1);
+  assert_eq(nzc,nzn-1);
+  #pragma omp master
+  if (vct->getCartesian_rank() == 0) {
+    cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
+  }
+  const_arr4_pfloat fieldForPcls = EMf->get_fieldForPcls();
+
+  // initialize average positions
+  #pragma omp for schedule(static)
+  for(int pidx = 0; pidx < nop; pidx++)
+  {
+    _xavg[pidx] = x[pidx];
+    _yavg[pidx] = y[pidx];
+    _zavg[pidx] = z[pidx];
+  }
+
+  const pfloat dto2 = .5 * dt, qdto2mc = qom * dto2 / c;
+  for(int niter=1; niter<=NiterMover; niter++)
+  {
+    // sort particles based on the time-averaged position
+    if(niter>1) // on first iteration already was sorted to sum moments
+    {
+      #pragma omp master
+      {
+        timeTasks_begin_task(TimeTasks::MOVER_PCL_SORTING);
+        // this changes the definitions of x,y,z,u,v,w,_xavg,_yavg,_zavg,etc.
+        sort_particles_serial_SoA_by_xavg(grid,vct);
+        timeTasks_end_task(TimeTasks::MOVER_PCL_SORTING);
+      }
+      #pragma omp barrier
+    }
+
+    #pragma omp master
+    { timeTasks_begin_task(TimeTasks::MOVER_PCL_MOVING); }
+    // move particles in parallel
+    //
+    // iterate over mesh cells
+    //const int ncells=nxc*nyc*nzc;
+    //int *numpcls_in_bucket_1d = &numpcls_in_bucket[0][0][0];
+    //int *bucket_offset_1d = &bucket_offset[0][0][0];
+    ALIGNED(x);
+    ALIGNED(y);
+    ALIGNED(z);
+    ALIGNED(u);
+    ALIGNED(v);
+    ALIGNED(w);
+    ALIGNED(_xavg);
+    ALIGNED(_yavg);
+    ALIGNED(_zavg);
+    int serial_pidx = 0;
+    #pragma omp for collapse(2) // schedule(static)
+    for(int cx=0;cx<nxc;cx++)
+    for(int cy=0;cy<nyc;cy++)
+    for(int cz=0;cz<nzc;cz++)
+    //for(int cell=0; cell<ncells; cell++)
+    {
+      // interface to the right of cell
+      const int ix = cx+1;
+      const int iy = cy+1;
+      const int iz = cz+1;
+
+      arr1_double_get field_components[8];
+      field_components[0] = fieldForPcls[ix][iy][iz]; // field000
+      field_components[1] = fieldForPcls[ix][iy][cz]; // field001
+      field_components[2] = fieldForPcls[ix][cy][iz]; // field010
+      field_components[3] = fieldForPcls[ix][cy][cz]; // field011
+      field_components[4] = fieldForPcls[cx][iy][iz]; // field100
+      field_components[5] = fieldForPcls[cx][iy][cz]; // field101
+      field_components[6] = fieldForPcls[cx][cy][iz]; // field110
+      field_components[7] = fieldForPcls[cx][cy][cz]; // field111
+
+      // push all particles in mesh cell
+      //
+      //const int numpcls_in_cell = numpcls_in_bucket_1d[cell];
+      const int numpcls_in_cell = get_numpcls_in_bucket(cx,cy,cz);
+      const int bucket_offset = get_bucket_offset(cx,cy,cz);
+      const int bucket_end = bucket_offset+numpcls_in_cell;
+      // This pragma help on Xeon but hurts on Xeon Phi.
+      // On the Phi we could accelerate by processing two particles at a time.
+      // there should be no function calls in this loop (except inlined calls)
+      //#pragma simd
+      for(int pidx=bucket_offset; pidx<bucket_end; pidx++)
+      {
+        // copy the particle
+        const pfloat xorig = x[pidx];
+        const pfloat yorig = y[pidx];
+        const pfloat zorig = z[pidx];
+        const pfloat uorig = u[pidx];
+        const pfloat vorig = v[pidx];
+        const pfloat worig = w[pidx];
+
+        // compute weights for field components
+        //
+        double weights[8];
+        const double abs_xpos = _xavg[pidx];
+        const double abs_ypos = _yavg[pidx];
+        const double abs_zpos = _zavg[pidx];
+        // xstart marks start of domain excluding ghosts
+        const double rel_xpos = abs_xpos - xstart;
+        const double rel_ypos = abs_ypos - ystart;
+        const double rel_zpos = abs_zpos - zstart;
+        // cell position minus 1 (due to ghost cells)
+        const double cxm1_pos = rel_xpos * inv_dx;
+        const double cym1_pos = rel_ypos * inv_dy;
+        const double czm1_pos = rel_zpos * inv_dz;
+        // index of interface to right of cell
+        const int ix = cx + 1;
+        const int iy = cy + 1;
+        const int iz = cz + 1;
+        // fraction of the distance from the right of the cell
+        const double w1x = cx - cxm1_pos;
+        const double w1y = cy - cym1_pos;
+        const double w1z = cz - czm1_pos;
+        // fraction of distance from the left
+        const double w0x = 1-w1x;
+        const double w0y = 1-w1y;
+        const double w0z = 1-w1z;
+        const double weight00 = w0x*w0y;
+        const double weight01 = w0x*w1y;
+        const double weight10 = w1x*w0y;
+        const double weight11 = w1x*w1y;
+        weights[0] = weight00*w0z; // weight000
+        weights[1] = weight00*w1z; // weight001
+        weights[2] = weight01*w0z; // weight010
+        weights[3] = weight01*w1z; // weight011
+        weights[4] = weight10*w0z; // weight100
+        weights[5] = weight10*w1z; // weight101
+        weights[6] = weight11*w0z; // weight110
+        weights[7] = weight11*w1z; // weight111
+
+        pfloat Exl = 0.0;
+        pfloat Eyl = 0.0;
+        pfloat Ezl = 0.0;
+        pfloat Bxl = 0.0;
+        pfloat Byl = 0.0;
+        pfloat Bzl = 0.0;
+
+        // would expanding this out help to vectorize?
+        for(int c=0; c<8; c++)
+        {
+          Bxl += weights[c] * field_components[c][0];
+          Byl += weights[c] * field_components[c][1];
+          Bzl += weights[c] * field_components[c][2];
+          Exl += weights[c] * field_components[c][3];
+          Eyl += weights[c] * field_components[c][4];
+          Ezl += weights[c] * field_components[c][5];
+        }
+        const double Omx = qdto2mc*Bxl;
+        const double Omy = qdto2mc*Byl;
+        const double Omz = qdto2mc*Bzl;
+
+        // end interpolation
+        const pfloat omsq = (Omx * Omx + Omy * Omy + Omz * Omz);
+        const pfloat denom = 1.0 / (1.0 + omsq);
+        // solve the position equation
+        const pfloat ut = uorig + qdto2mc * Exl;
+        const pfloat vt = vorig + qdto2mc * Eyl;
+        const pfloat wt = worig + qdto2mc * Ezl;
+        //const pfloat udotb = ut * Bxl + vt * Byl + wt * Bzl;
+        const pfloat udotOm = ut * Omx + vt * Omy + wt * Omz;
+        // solve the velocity equation
+        const pfloat uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
+        const pfloat vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
+        const pfloat wavg = (wt + (ut * Omy - vt * Omx + udotOm * Omz)) * denom;
+        // update average position
+        _xavg[pidx] = xorig + uavg * dto2;
+        _yavg[pidx] = yorig + vavg * dto2;
+        _zavg[pidx] = zorig + wavg * dto2;
+
+        // if it is the last iteration, update the position and velocity
+        // (hopefully this will not compromise vectorization...)
+        if(niter==NiterMover)
+        {
+          x[pidx] = xorig + uavg * dt;
+          y[pidx] = yorig + vavg * dt;
+          z[pidx] = zorig + wavg * dt;
+          u[pidx] = 2.0 * uavg - uorig;
+          v[pidx] = 2.0 * vavg - vorig;
+          w[pidx] = 2.0 * wavg - worig;
+        }
+      }
+    }
+    #pragma omp master
+    { timeTasks_end_task(TimeTasks::MOVER_PCL_MOVING); }
+  }
+}
 
 /** communicate particle after moving them */
 int Particles3D::communicate_particles(VirtualTopology3D * vct)

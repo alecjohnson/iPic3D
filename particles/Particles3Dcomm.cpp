@@ -60,6 +60,25 @@ Particles3Dcomm::~Particles3Dcomm() {
   delete[]v;
   delete[]w;
   delete[]q;
+  delete[]ParticleID;
+  // average position used in particle advance
+  delete[]_xavg;
+  delete[]_yavg;
+  delete[]_zavg;
+  // deallocate alternate storage
+  delete[]_xtmp;
+  delete[]_ytmp;
+  delete[]_ztmp;
+  delete[]_utmp;
+  delete[]_vtmp;
+  delete[]_wtmp;
+  delete[]_qtmp;
+  delete[]_ParticleIDtmp;
+  // extra xavg for sort
+  delete[]_xavgtmp;
+  delete[]_yavgtmp;
+  delete[]_zavgtmp;
+
   // deallocate buffers
   delete[]b_X_RIGHT;
   delete[]b_X_LEFT;
@@ -67,6 +86,9 @@ Particles3Dcomm::~Particles3Dcomm() {
   delete[]b_Y_LEFT;
   delete[]b_Z_RIGHT;
   delete[]b_Z_LEFT;
+  delete numpcls_in_bucket;
+  delete numpcls_in_bucket_now;
+  delete bucket_offset;
 }
 /** constructors fo a single species*/
 void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3D * vct, Grid * grid) {
@@ -112,10 +134,19 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
   dx = grid->getDX();
   dy = grid->getDY();
   dz = grid->getDZ();
+  inv_dx = 1/dx;
+  inv_dy = 1/dy;
+  inv_dz = 1/dz;
 
   nxn = grid->getNXN();
   nyn = grid->getNYN();
   nzn = grid->getNZN();
+  nxc = grid->getNXC();
+  nyc = grid->getNYC();
+  nzc = grid->getNZC();
+  assert_eq(nxc,nxn-1);
+  assert_eq(nyc,nyn-1);
+  assert_eq(nzc,nzn-1);
   invVOL = grid->getInvVOL();
   // info from VirtualTopology3D
   cVERBOSE = vct->getcVERBOSE();
@@ -131,6 +162,19 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
   bcPfaceYleft = col->getBcPfaceYleft();
   bcPfaceZright = col->getBcPfaceZright();
   bcPfaceZleft = col->getBcPfaceZleft();
+  //
+  // allocate arrays for sorting particles
+  //
+  numpcls_in_bucket = new array3_int(nxc,nyc,nzc);
+  numpcls_in_bucket_now = new array3_int(nxc,nyc,nzc);
+  bucket_offset = new array3_int(nxc,nyc,nzc);
+  //num_threads = omp_get_max_threads();
+  //numpcls_in_bucket_thr = (arr3_int*)malloc(sizeof(void*)*num_threads);
+  //for(int i=0; i<num_threads; i++)
+  //{
+  //  numpcls_in_bucket_thr[i] = new array3_int(nxc,nyc,nzc);
+  //}
+
   // //////////////////////////////////////////////////////////////
   // ////////////// ALLOCATE ARRAYS /////////////////////////
   // //////////////////////////////////////////////////////////////
@@ -144,6 +188,40 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
   w = new double[npmax];
   // charge
   q = new double[npmax];
+  // average positions, used in iterative particle advance
+  _xavg = 0;
+  _yavg = 0;
+  _zavg = 0;
+  _xtmp = 0;
+  _ytmp = 0;
+  _ztmp = 0;
+  _utmp = 0;
+  _vtmp = 0;
+  _wtmp = 0;
+  _qtmp = 0;
+  _xavgtmp = 0;
+  _yavgtmp = 0;
+  _zavgtmp = 0;
+  _ParticleIDtmp = 0;
+  _xavg=new double[npmax];
+  _yavg=new double[npmax];
+  _zavg=new double[npmax];
+  _xtmp=new double[npmax];
+  _ytmp=new double[npmax];
+  _ztmp=new double[npmax];
+  _utmp=new double[npmax];
+  _vtmp=new double[npmax];
+  _wtmp=new double[npmax];
+  _qtmp=new double[npmax];
+  _xavgtmp=new double[npmax];
+  _yavgtmp=new double[npmax];
+  _zavgtmp=new double[npmax];
+  if(TrackParticleID)
+  {
+    _ParticleIDtmp = new long long[npmax];
+  }
+
+  ParticleID = 0;
   // ID
   if (TrackParticleID) {
     ParticleID = new long long[npmax];
@@ -954,3 +1032,174 @@ void Particles3Dcomm::PrintNp(VirtualTopology3D * ptVCT)  const {
   cout << "Subgrid (" << ptVCT->getCoordinates(0) << "," << ptVCT->getCoordinates(1) << "," << ptVCT->getCoordinates(2) << ")" << endl;
   cout << endl;
 }
+
+/*
+ * Particle sorting routines
+ */
+
+// need to sort and communicate particles after each iteration
+void Particles3Dcomm::sort_particles_serial_SoA_by_xavg(
+  Grid * grid, VirtualTopology3D * vct)
+{
+  double * xtmp = fetch_xtmp();
+  double * ytmp = fetch_ytmp();
+  double * ztmp = fetch_ztmp();
+  double * utmp = fetch_utmp();
+  double * vtmp = fetch_vtmp();
+  double * wtmp = fetch_wtmp();
+  double * qtmp = fetch_qtmp();
+  double* xavg = fetch_xavg();
+  double* yavg = fetch_yavg();
+  double* zavg = fetch_zavg();
+  double* xavgtmp = fetch_xavgtmp();
+  double* yavgtmp = fetch_yavgtmp();
+  double* zavgtmp = fetch_zavgtmp();
+
+  long long* ParticleIDtmp = 0;
+  if (TrackParticleID) ParticleIDtmp = fetch_ParticleIDtmp();
+
+  // sort the particles
+  {
+    numpcls_in_bucket->setall(0);
+    // iterate through particles and count where they will go
+    for (int pidx = 0; pidx < nop; pidx++)
+    {
+      // get the cell indices of the particle
+      //
+      int cx,cy,cz;
+      get_safe_cell_for_pos(cx,cy,cz,xavg[pidx],yavg[pidx],zavg[pidx]);
+      //
+      // is it better just to recompute this?
+      //
+      //xcell[pidx]=cx;
+      //ycell[pidx]=cy;
+      //zcell[pidx]=cz;
+
+      // increment the number of particles in bucket of this particle
+      (*numpcls_in_bucket)[cx][cy][cz]++;
+    }
+
+    // compute prefix sum to determine initial position
+    // of each bucket (could parallelize this)
+    //
+    int accpcls=0;
+    for(int cx=0;cx<nxc;cx++)
+    for(int cy=0;cy<nyc;cy++)
+    for(int cz=0;cz<nzc;cz++)
+    {
+      (*bucket_offset)[cx][cy][cz] = accpcls;
+      accpcls += (*numpcls_in_bucket)[cx][cy][cz];
+    }
+    assert_eq(accpcls,nop);
+
+    numpcls_in_bucket_now->setall(0);
+
+    // put the particles where they are supposed to go
+    for (int pidx = 0; pidx < nop; pidx++)
+    {
+      // get the cell indices of the particle
+      //
+      int cx,cy,cz;
+      get_safe_cell_for_pos(cx,cy,cz,xavg[pidx],yavg[pidx],zavg[pidx]);
+      //
+      //cx = xcell[pidx];
+      //cy = ycell[pidx];
+      //cz = zcell[pidx];
+
+      // compute where the data should go
+      const int numpcls_now = (*numpcls_in_bucket_now)[cx][cy][cz]++;
+      const int outpidx = (*bucket_offset)[cx][cy][cz] + numpcls_now;
+      assert_lt(outpidx, nop);
+      assert_ge(outpidx, 0);
+      assert_lt(pidx, nop);
+      assert_ge(pidx, 0);
+
+      // copy particle data to new location
+      //
+      xtmp[outpidx] = x[pidx];
+      ytmp[outpidx] = y[pidx];
+      ztmp[outpidx] = z[pidx];
+      utmp[outpidx] = u[pidx];
+      vtmp[outpidx] = v[pidx];
+      wtmp[outpidx] = w[pidx];
+      qtmp[outpidx] = q[pidx];
+      xavgtmp[outpidx] = xavg[pidx];
+      yavgtmp[outpidx] = yavg[pidx];
+      zavgtmp[outpidx] = zavg[pidx];
+      if (TrackParticleID)
+      {
+        ParticleIDtmp[outpidx] = ParticleID[pidx];
+      }
+    }
+    // swap the tmp particle memory with the official particle memory
+    {
+      swap(_xtmp,x);
+      swap(_ytmp,y);
+      swap(_ztmp,z);
+      swap(_utmp,u);
+      swap(_vtmp,v);
+      swap(_wtmp,w);
+      swap(_qtmp,q);
+      swap(_ParticleIDtmp,ParticleID);
+      swap(_xavgtmp,_xavg);
+      swap(_yavgtmp,_yavg);
+      swap(_zavgtmp,_zavg);
+    }
+    xavg = _xavg;
+    yavg = _yavg;
+    zavg = _zavg;
+
+    // check that the number of bins was correct
+    //
+    if(true)
+    {
+      for(int cx=0;cx<nxc;cx++)
+      for(int cy=0;cy<nyc;cy++)
+      for(int cz=0;cz<nzc;cz++)
+      {
+        assert_eq((*numpcls_in_bucket_now)[cx][cy][cz], (*numpcls_in_bucket)[cx][cy][cz]);
+      }
+    }
+    int serial_pidx=0;
+    // confirm that the particles were sorted correctly
+    for(int cx=0;cx<nxc;cx++)
+    for(int cy=0;cy<nyc;cy++)
+    for(int cz=0;cz<nzc;cz++)
+    {
+      const int numpcls_in_cell = get_numpcls_in_bucket(cx,cy,cz);
+      const int bucket_offset = get_bucket_offset(cx,cy,cz);
+      const int bucket_end = bucket_offset+numpcls_in_cell;
+      for(int pidx=bucket_offset; pidx<bucket_end; pidx++)
+      {
+        // serial case: check that pidx is correct
+        assert_eq(pidx,serial_pidx);
+        serial_pidx++;
+        // confirm that particle is in correct cell
+        if(true)
+        {
+          int cx_,cy_,cz_;
+          get_safe_cell_for_pos(cx_,cy_,cz_,xavg[pidx],yavg[pidx],zavg[pidx]);
+          if((cx_!=cx)
+           ||(cy_!=cy)
+           ||(cz_!=cz))
+          {
+            dprint(cx)
+            dprintf("\n\t cx =%d, cy =%d, cz =%d"
+                    "\n\t cx_=%d, cy_=%d, cz_=%d"
+                    "\n\t cxf=%f, cyf=%f, czf=%f",
+                    cx,cy,cz,
+                    cx_,cy_,cz_,
+                    1.+(xavg[pidx]-xstart)*inv_dx,
+                    1.+(yavg[pidx]-ystart)*inv_dy,
+                    1.+(zavg[pidx]-zstart)*inv_dz);
+            dprint(serial_pidx);
+          }
+          assert_eq(cx_,cx);
+          assert_eq(cy_,cy);
+          assert_eq(cz_,cz);
+        }
+      }
+    }
+  }
+}
+

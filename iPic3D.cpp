@@ -16,19 +16,28 @@ int main(int argc, char **argv) {
   KCode.Init(argc, argv);
 
   for (int i = KCode.FirstCycle(); i < KCode.LastCycle(); i++) {
+    double time_start, time_end;
 
     if (KCode.get_myrank() == 0) cout << " ======= Cycle " << i << " ======= " << endl;
 
     if (!b_err) {
-      //timeTasks.resetCycle();
+      timeTasks.resetCycle();
+      timeTasks_begin_task(TimeTasks::CYCLE_TOTAL);
 
       KCode.CalculateMoments(i);
       KCode.CalculateField(i);
+
+
+      timeTasks_begin_task(TimeTasks::MOVER_PCL_TOTAL);
       b_err = KCode.ParticlesMover();
+      timeTasks_end_task(TimeTasks::MOVER_PCL_TOTAL);
+
       KCode.CalculateB();
 
       // print out total time for all tasks
       //timeTasks.print_cycle_times(i);
+      timeTasks_end_task(TimeTasks::CYCLE_TOTAL);
+      timeTasks.print_cycle_times_subtasks(i);
     }
 
     if (b_err) {

@@ -29,6 +29,10 @@ class TimeTasks
     BFIELD,
     MOMENT_ACCUMULATION,
     MOMENT_REDUCTION,
+    MOVER_PCL_SORTING,
+    MOVER_PCL_MOVING,
+    MOVER_PCL_TOTAL,
+    CYCLE_TOTAL,
     NUMBER_OF_TASKS // this line should be last
   };
 
@@ -78,6 +82,7 @@ class TimeTasks
   // reporting
   //
   void print_cycle_times(int cycle);
+  void print_cycle_times_subtasks(int cycle);
 
  private:
 
