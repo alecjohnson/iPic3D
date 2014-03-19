@@ -1,6 +1,92 @@
-Use modules: intel/14.0.1.106 impi/4.1.1.036
+I) Build Particles Solver for Intel Xeon Phi
+--------------------------------------------
 
-1) $ . ~/spawn/env.sh
-2) Edit spawnfile (+ run_fields.sh)
-3) $ export OMP_NUM_THREADS=16 (MIC)
-4) $ mpiexec.hydra -iface br0 -np 4 -host c557-701-mic0 -env LD_LIBRARY_PATH $MIC_LD_LIBRARY_PATH exec/iPic3D ../inputfiles/GEM.inp
+1) Adjust HDF5 root path in ../cmake/cmake_template.cmake.XeonPhi
+
+2) Configure for compilation
+
+   $ cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/cmake_template.cmake.XeonPhi
+
+3) Compile
+
+   $ make
+
+4) After successful compilation, the following files exist
+
+   exec/iPic3D         (Particles solver)
+   exec/iPic3D_fields  (Fields solver - not used as fields solver runs on Xeon)
+
+II) Execute iPic3D
+------------------
+
+We start the particles solver processes on Xeon Phi and create the same number
+of fields solver processes on Xeon by using MPI_Comm_spawn().
+
+1) Edit "spawnfile" which contains the hostnames for the fields processes.
+   We provide 4 hostnames, one per spawned fields process.
+
+   For example:
+
+      c557-201
+      c557-201
+      c557-201
+      c557-201
+
+   This provides hostnames for 4 fields processes on the same Xeon host.
+
+2) The executable file provided to MPI_Comm_spawn() for creating the fields
+   processes is the shell script "run_fields.sh". Adjust the number of OpenMP
+   threads per spawned fields process in this file.
+
+3) Set the number of OpenMP threads for each particles process running on Xeon
+   Phi.
+
+   For example:
+   
+      $ export OMP_NUM_THREADS=16
+
+   We do this on the host which will issue mpiexec to start program execution.
+
+4) Start program execution. The mpiexec command is issued on any Xeon host.
+   As this starts the particles processes on the Xeon Phis at first, make sure
+   that the library path is correctly set for Xeon Phi (see -env parameter to
+   mpiexec).
+
+   We run the test case GEM.inp with 4 particles and 4 fields processes for 10
+   cycles.
+    
+    - 4 particles processes on Xeon Phi host "c557-701-mic0"
+    - 4 fields processes on Xeon host "c557-201" (provided in spawnfile)
+
+   $ mpiexec -n 4 -host c557-701-mic0 -env LD_LIBRARY_PATH $MIC_LD_LIBRARY_PATH \
+     exec/iPic3D ../inputfiles/GEM.inp
+
+   Note that both Xeon and Xeon Phi hosts need to have access to the program's
+   directory.
+
+5) On successful program start, the output is similar to:
+
+   Particles solver: 0
+   Particles solver: 1
+   Particles solver: 2
+   Particles solver: 3
+   Fields solver: 0 argv[1]: ../inputfiles/GEM.inp
+   Fields solver: 1 argv[1]: ../inputfiles/GEM.inp
+   Fields solver: 2 argv[1]: ../inputfiles/GEM.inp
+   Fields solver: 3 argv[1]: ../inputfiles/GEM.inp
+
+   Number of processes = 4
+   -------------------------
+
+
+   Virtual Cartesian Processors Topology
+   -------------------------------------
+   Processors grid: 2x2x1
+   Periodicity Field X: 1
+   Periodicity Field Y: 0
+   Periodicity Field z: 1
+   Periodicity Particles X: 1
+   Periodicity Particles Y: 0
+   Periodicity Particles z: 1
+
+   [...]

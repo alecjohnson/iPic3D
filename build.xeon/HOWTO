@@ -1,0 +1,17 @@
+Build Fields Solver for Intel Xeon
+----------------------------------
+
+1) Adjust HDF5 root path in ../cmake/cmake_template.cmake.Xeon
+
+2) Configure for compilation
+
+   $ cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/cmake_template.cmake.Xeon
+
+3) Compile
+
+   $ make
+
+4) After successful compilation, the following files exist
+
+   exec/iPic3D         (Particles solver - not used as particles solver runs on Xeon Phi)
+   exec/iPic3D_fields  (Fields solver)

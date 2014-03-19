@@ -1,32 +1,13 @@
-==== CPU ==== 
+Building and Running iPic3D with Split Execution on Xeon and Xeon Phi
+---------------------------------------------------------------------
 
- Compilation 
- -----------
+This version of iPic3D runs the particles solver on Xeon Phi and the fields
+solver on Xeon CPUs.
 
- $ mkdir build.xeon
- $ cd build.xeon
- $ cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/cmake_template.cmake.Xeon
- $ make
- $ mkdir data
+For instructions on how to build and run the code, visit the directories
+below in the given order:
 
- Execution
- ---------
+  build.xeon
+  build.xeonphi
 
- $ mpiexec -n 4 exec/iPic3D ../inputfiles/GEM.inp
-
-
-==== Xeon Phi ==== 
-
- Compilation 
- -----------
-
- $ mkdir build.xeonphi
- $ cd build.xeonphi
- $ cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/cmake_template.cmake.XeonPhi
- $ make
- $ mkdir data
- 
- Execution
- ---------
- 
- $ mpiexec -n 4 exec/iPic3D ../inputfiles/GEM.inp
+Each directory has a "HOWTO" file with detailed instructions.
