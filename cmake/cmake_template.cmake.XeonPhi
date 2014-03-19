@@ -12,10 +12,11 @@ SET(MPI_C_COMPILER mpicc)
 SET(MPI_CXX_COMPILER mpicxx)
 # "CACHE STRING "" FORCE" is a workaround so that FLAGS are not ignored
 # Intel
-#SET(CMAKE_CXX_FLAGS "-D__MIC__ -mmic -O3 -openmp -fno-exceptions" CACHE STRING "" FORCE)
-#SET(CMAKE_C_FLAGS "-D__MIC__ -mmic -O3 -openmp" CACHE STRING "" FORCE)
-SET(CMAKE_CXX_FLAGS "-D__MIC__ -O3 -openmp -fno-exceptions" CACHE STRING "" FORCE)
-SET(CMAKE_C_FLAGS "-D__MIC__ -O3 -openmp" CACHE STRING "" FORCE)
+SET(CMAKE_CXX_FLAGS "-D__MIC__ -mmic -O3 -openmp -fno-exceptions" CACHE STRING "" FORCE)
+SET(CMAKE_C_FLAGS "-D__MIC__ -mmic -O3 -openmp" CACHE STRING "" FORCE)
+# Use following two lines instead of the two above to compile for Xeon and not Xeon Phi
+#SET(CMAKE_CXX_FLAGS "-D__MIC__ -O3 -openmp -fno-exceptions" CACHE STRING "" FORCE)
+#SET(CMAKE_C_FLAGS "-D__MIC__ -O3 -openmp" CACHE STRING "" FORCE)
 
 # Set root path to HDF5 library
 SET(ENV{HDF5_ROOT} /opt/hdf5/1.8.11)
