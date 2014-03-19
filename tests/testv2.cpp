@@ -6,11 +6,22 @@
 #include <sys/time.h>
 #include <limits.h> // RAND_MAX
 #include <string.h> // memcpy
+#include <stdint.h> // for uint64_t etc.
+#include <algorithm> // for std::max
+#include <cmath> // for std::abs
+#include <assert.h>
 #include "../utility/debug.cpp"
+#include "../utility/asserts.cpp"
+#include "../utility/errors.cpp"
 
 #define ALIGNMENT 64
-#define ALLOC_ALIGNED __attribute__((aligned(ALIGNMENT)));
-#define ASSERT_ALIGNED(X) __assume_aligned(X, ALIGNMENT)
+#ifdef __INTEL_COMPILER
+  #define ALLOC_ALIGNED __attribute__((aligned(ALIGNMENT)));
+  #define ASSERT_ALIGNED(X) __assume_aligned(X, ALIGNMENT)
+#else
+    #define ALLOC_ALIGNED
+    #define ASSERT_ALIGNED(X)
+#endif
 
 //******** timing ************
 
@@ -124,6 +135,7 @@ uint64_t rdtsc(){
 
 //******** tests ************
 
+const int NiterMover=3;
 const int D=4;
 // const int NPB=2; // number of particles in a block
 //#define D (4)
@@ -201,11 +213,37 @@ void test_AoS()
    }
 }
 
+// sample from (0,1)
 double usample()
 {
+  // sample from [0,1]
   const double RAND_MAX_inv = 1./RAND_MAX;
   return rand()*RAND_MAX_inv;
+  //
+  // sample from (0,1)
+  const double max_inv = 1./(double(RAND_MAX)+2);
+  return (double(rand())+1)*max_inv;
 }
+
+// 512 bytes (cache-line-sized)
+struct FloatPcl
+{
+  float x;
+  float y;
+  float z;
+  float t; // time pushed so far
+  float u;
+  float v;
+  float w;
+  float q; // charge
+  float xavg;
+  float yavg;
+  float zavg;
+  float qom; // charge-to-mass ratio
+  float m; // mass
+  long long ID;
+  int32_t tmp; // filler
+};
 
 // 512 bits (cache-line-sized)
 struct SpeciesPcl
@@ -221,10 +259,10 @@ struct SpeciesPcl
   void set_u(int i, double in){u[i]=in;}
   void init_random(int i)
   {
-    for(int i=0;i<3;i++)
+    for(int j=0;j<3;j++)
     {
-      x[i] = usample();
-      u[i] = usample();
+      x[j] = usample();
+      u[j] = usample();
     }
     q=usample();
     ID=i;
@@ -273,6 +311,10 @@ class MiPcl
   int cx[3];
 };
 
+double dt;
+double dx;
+double dy;
+double dz;
 const int NUMPCLS=NPB*256;
 const int NUMBLKS=(NUMPCLS-1)/8+1;
 SpeciesPcl pcls[NUMPCLS]ALLOC_ALIGNED;
@@ -286,13 +328,17 @@ double v[NUMPCLS]ALLOC_ALIGNED;
 double w[NUMPCLS]ALLOC_ALIGNED;
 double q[NUMPCLS]ALLOC_ALIGNED;
 long long ID[NUMPCLS]ALLOC_ALIGNED;
+// portion of dt remaining for particle
+double tpcl[NUMPCLS]ALLOC_ALIGNED;
+int destination[NUMPCLS]ALLOC_ALIGNED;
 
 void copy_SoA_to_AoS_particles()
 {
   #pragma omp parallel
   {
   const Time start = get_time();
-  #pragma omp for simd
+  #pragma omp for
+  #pragma simd
   for(int i=0;i<NUMPCLS;i++)
   {
      pcls[i].set_x(0,x[i]);
@@ -313,7 +359,8 @@ void copy_AoS_to_SoA_particles()
   #pragma omp parallel
   {
   const Time start = get_time();
-  #pragma omp for simd
+  #pragma omp for
+  #pragma simd
   for(int i=0;i<NUMPCLS;i++)
   {
     x[i] = pcls[i].get_x(0);
@@ -324,6 +371,30 @@ void copy_AoS_to_SoA_particles()
     w[i] = pcls[i].get_u(2);
     q[i] = pcls[i].q;
     ID[i] = pcls[i].ID;
+  }
+  report_time(start);
+  }
+}
+
+// Sebastian's revised version
+//
+void copy_AoS_particles_to_another_array_rev()
+{
+  uint64_t *p1 = (uint64_t *) pcls;  ASSERT_ALIGNED(p1);
+  uint64_t *p2 = (uint64_t *) pcls2; ASSERT_ALIGNED(p2);
+  #pragma omp parallel
+  {
+  //printf("sizeof(SpeciesPcl): %d\n", sizeof(SpeciesPcl));
+  const Time start = get_time();
+  // With schedule() we make sure that every thread gets aligned
+  // consecutive chunk of pcls to copy
+  #pragma omp for schedule(static,NUMPCLS*4) nowait
+  for(int p=0;p<NUMPCLS*8;p++)
+  {
+    //ASSERT_ALIGNED(&pcls2[0]);
+    //ASSERT_ALIGNED(&pcls[0]);
+    //pcls2[p] = pcls[p];
+    p2[p] = p1[p];
   }
   report_time(start);
   }
@@ -389,9 +460,16 @@ void initialize_data()
 
   // initialize particles
   //
+  dt = usample();
+  dprint(dt);
+  dx = usample();
+  dy = usample();
+  dz = usample();
   for(int i=0;i<NUMPCLS;i++)
   {
     pcls[i].init_random(i);
+    // ensure that tpcl is no greater than dt
+    tpcl[i] = dt*usample();
   }
   // do everything twice in a row to expose cache issues
   //
@@ -573,7 +651,8 @@ void test_push_pcls_in_cell_SoA_vectorized()
   // iterate over all particles in this mesh cell
   //
   const Time start = get_time();
-  #pragma omp for simd
+  #pragma omp for
+  #pragma simd
   for(int pi=0;pi<NUMPCLS;pi+=1)
   {
     double xorig[D];
@@ -709,7 +788,8 @@ void move_bucket_old()
     #pragma omp parallel 
     {
         const Time start = get_time();
-        #pragma omp for simd
+        #pragma omp for
+        #pragma simd
         for(int pidx = 0; pidx < NUMPCLS; pidx++)
         {
             // copy the particle
@@ -728,14 +808,14 @@ void move_bucket_old()
             // compute weights for field components
             //
             double weights[8];
-            // fraction of the distance from the right of the cell
-            const double w1x = dx_inv*(xavg - cellstartx);
-            const double w1y = dy_inv*(yavg - cellstarty);
-            const double w1z = dz_inv*(zavg - cellstartz);
-            // fraction of distance from the left
-            const double w0x = 1-w1x;
-            const double w0y = 1-w1y;
-            const double w0z = 1-w1z;
+            // fraction of the distance from the left of the cell
+            const double w0x = dx_inv*(xavg - cellstartx);
+            const double w0y = dy_inv*(yavg - cellstarty);
+            const double w0z = dz_inv*(zavg - cellstartz);
+            // fraction of distance from the right
+            const double w1x = 1.-w0x;
+            const double w1y = 1.-w0y;
+            const double w1z = 1.-w0z;
             const double weight00 = w0x*w0y;
             const double weight01 = w0x*w1y;
             const double weight10 = w1x*w0y;
@@ -806,6 +886,403 @@ void move_bucket_old()
     }
 }
 
+// assumes dXfull, dYfull, dZfull are nonnegative
+//
+// returns desingularized version of
+//   min(dXwant/dXfull, dYwant/dYfull, dZwant/dZfull)
+// calculated with a single reciprocal.
+//
+static inline float get_truncation_ratio(
+  //int&direction,
+  float dXwant, float dXfull,
+  float dYwant, float dYfull,
+  float dZwant, float dZfull)
+{
+  const float motion_freedom = 1.e-2;
+  // This modification of the input modifies the truncation ratio
+  // and is designed to ensure the following properties:
+  // * particle is stopped before going
+  //   motion_freedom beyond the boundary
+  // * if want>full then (modified) ratio > 1
+  //   (particles that should not be stopped aren't)
+  // * if want<full then modified_ratio > ratio
+  //   (so particle is always allowed to leave)
+  //
+  // If we are willing to accept that particles never stop
+  // exactly at cell boundaries, we could replace "max" with
+  // addition here.
+  //
+  // make sure that distance to wall is strictly positive
+  //
+  dXwant = std::max(motion_freedom,dXwant);
+  dYwant = std::max(motion_freedom,dYwant);
+  dZwant = std::max(motion_freedom,dZwant);
+  //
+  // avoid division singularities
+  //
+  dXfull = std::max(motion_freedom,dXfull);
+  dYfull = std::max(motion_freedom,dYfull);
+  dZfull = std::max(motion_freedom,dZfull);
+
+  const float denominator = dXfull*dYfull*dZfull;
+  const float dXprod = dXwant*dYfull*dZfull;
+  const float dYprod = dYwant*dXfull*dZfull;
+  const float dZprod = dZwant*dXfull*dYfull;
+  float numerator; // = denominator;
+  if(dXprod<dYprod)
+  {
+    if(dXprod<dZprod)
+    {
+      numerator = dXprod;
+      //direction = 1;
+    }
+    else
+    {
+      numerator = dZprod;
+      //direction = 4;
+    }
+  }
+  else
+  {
+    if(dYprod<dZprod)
+    {
+      numerator = dYprod;
+      //direction = 2;
+    }
+    else
+    {
+      numerator = dZprod;
+      //direction = 4;
+    }
+  }
+  return numerator/denominator;
+}
+
+// in which direction are we most outside?
+// +/-1: +/-X
+// +/-2: +/-Y
+// +/-4: +/-Z
+static inline int get_direction(float Xpos, float Ypos, float Zpos)
+{
+  int direction;
+  const float aX = std::abs(Xpos);
+  const float aY = std::abs(Ypos);
+  const float aZ = std::abs(Zpos);
+  //
+  // This way requires 8 comparisons and 7 masked assignments
+  //
+  //if(aX > aY) direction = (aX>aZ) ? 1 : 4;
+  //else direction = (aY>aZ) ? 2 : 4;
+  //const float low = max(xpos,ypos,zpos);
+  //const float hgh = min(xpos,ypos,zpos);
+  //if(hgh < -low) direction = -direction;
+  //
+  // This way requires 7 comparisons and 8 masked assignments
+  //
+  if(aX>aY)
+  {
+    if (aX>aZ)
+    {
+      if(Xpos > 0)
+        direction = 1;
+      else
+        direction = -1;
+    }
+    else
+    {
+      if(Zpos > 0)
+        direction = 4;
+      else
+        direction = -4;
+    }
+  }
+  else
+  {
+    if(aY>aZ)
+    {
+      if(Ypos > 0)
+        direction = 2;
+      else
+        direction = -2;
+    }
+    else
+    {
+      if(Zpos > 0)
+        direction = 4;
+      else
+        direction = -4;
+    }
+  }
+  return direction;
+}
+
+// try to take a time step that stops particle at a face
+//
+// alternative approach: allow to move at most one mesh cell.
+// requires computing norm of motion.  Use infinity norm.
+//
+void push_pcls_in_cell_SoA_stopping_at_face()
+{
+    // time step resolution (analogous to FLT_MIN,
+    // defines a limit on precision)
+    const float dt_min = 1e-6*dt;
+    // shortest allowed subcycle time step
+    // (assumed to be no less than dt_min)
+    const float min_dt = 1e-5*dt;
+    //const double dto2 = usample();
+    //const double qdto2mc = usample();
+    const double qo2mc = usample();
+    const double dx_over_two = dx/2;
+    const double dy_over_two = dy/2;
+    const double dz_over_two = dz/2;
+    const double two_over_dx = 2/dx;
+    const double two_over_dy = 2/dy;
+    const double two_over_dz = 2/dz;
+    const double xmiddle = usample(); // position of middle of cell
+    const double ymiddle = usample(); // position of middle of cell
+    const double zmiddle = usample(); // position of middle of cell
+    #pragma omp parallel 
+    {
+        const Time start = get_time();
+        #pragma omp for
+        #pragma simd
+        for(int pidx = 0; pidx < NUMPCLS; pidx++)
+        {
+          // copy the particle
+          //
+          // x is physical position
+          // X is position is in canonical coordinates (-1 <=~ X <=~ 1)
+          //
+          //const float Xorig = X[pidx];
+          //const float Yorig = Y[pidx];
+          //const float Zorig = Z[pidx];
+          const float Xorig = (x[pidx]-xmiddle)*two_over_dx;
+          const float Yorig = (y[pidx]-ymiddle)*two_over_dy;
+          const float Zorig = (z[pidx]-zmiddle)*two_over_dz;
+          // u is physical velocity
+          const float uorig = u[pidx];
+          const float vorig = v[pidx];
+          const float worig = w[pidx];
+          const float tpcl_ = tpcl[pidx];
+          //assert_le(tpcl_, dt);
+
+          // The computed time step needs to be double
+          // precision up to the point where the calculation is
+          // unique for every particle.
+          //
+          // compute time remaining for particle until
+          // next synchonization point.  Note that if tpcl_==0
+          // then there is no loss of precision at this point.
+          double dtpcl = dt-tpcl_;
+          // initialize subcycle time to be remaining time
+          // (used in first iteration of iterative solver)
+          //
+          double dtcycle = dtpcl;
+
+          // initialize xavg to xorig
+          float Xavg = Xorig;
+          float Yavg = Yorig;
+          float Zavg = Zorig;
+
+          // purpose of iterative solver is to find
+          // dtcycle, Xavg.., and uavg...
+          float uavg, vavg, wavg;
+
+          // this is the part that must vectorize
+          // #pragma omp simd
+          for(int niter=0;niter<NiterMover;niter++)
+          {
+            // compute weights for field components
+            //
+            float weights[8];
+            // fraction of the distance from the left of the cell
+            const float w0x = 0.5*Xavg + 0.5;
+            const float w0y = 0.5*Yavg + 0.5;
+            const float w0z = 0.5*Zavg + 0.5;
+            // fraction of distance from the right
+            const double w1x = 1.-w0x;
+            const double w1y = 1.-w0y;
+            const double w1z = 1.-w0z;
+            const double weight00 = w0x*w0y;
+            const double weight01 = w0x*w1y;
+            const double weight10 = w1x*w0y;
+            const double weight11 = w1x*w1y;
+            weights[0] = weight00*w0z; // weight000
+            weights[1] = weight00*w1z; // weight001
+            weights[2] = weight01*w0z; // weight010
+            weights[3] = weight01*w1z; // weight011
+            weights[4] = weight10*w0z; // weight100
+            weights[5] = weight10*w1z; // weight101
+            weights[6] = weight11*w0z; // weight110
+            weights[7] = weight11*w1z; // weight111
+
+            float Exl = 0.0;
+            float Eyl = 0.0;
+            float Ezl = 0.0;
+            float Bxl = 0.0;
+            float Byl = 0.0;
+            float Bzl = 0.0;
+
+            // field_components is double precision; loss of
+            // precision at this point is expected to mitigated
+            // by the large number of particles.  When we sum
+            // moments we will go back to double precision.
+            //
+            for(int c=0; c<8; c++)
+            {
+                Bxl += weights[c] * field_components[c][0];
+                Byl += weights[c] * field_components[c][1];
+                Bzl += weights[c] * field_components[c][2];
+                Exl += weights[c] * field_components[c][3];
+                Eyl += weights[c] * field_components[c][4];
+                Ezl += weights[c] * field_components[c][5];
+            }
+
+            const double qdto2mc = qo2mc*dtcycle;
+            const float Omx = qdto2mc*Bxl;
+            const float Omy = qdto2mc*Byl;
+            const float Omz = qdto2mc*Bzl;
+
+            // end interpolation
+            const float omsq_p1 = 1.0 + (Omx * Omx + Omy * Omy + Omz * Omz);
+            const float denom = 1.0f / omsq_p1;
+            // solve the position equation
+            const float ut = uorig + qdto2mc * Exl;
+            const float vt = vorig + qdto2mc * Eyl;
+            const float wt = worig + qdto2mc * Ezl;
+            //const double udotb = ut * Bxl + vt * Byl + wt * Bzl;
+            const float udotOm = ut * Omx + vt * Omy + wt * Omz;
+            // solve the velocity equation
+            const float uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
+            const float vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
+            const float wavg = (wt + (ut * Omy - vt * Omx + udotOm * Omz)) * denom;
+
+            // stop the particle at the cell boundary
+            //
+            // compute the displacement assuming the particle is not stopped
+            //
+            const float dxpcl = dtcycle*uavg;
+            const float dypcl = dtcycle*vavg;
+            const float dzpcl = dtcycle*wavg;
+            const float dXpcl = dxpcl*two_over_dx;
+            const float dYpcl = dypcl*two_over_dy;
+            const float dZpcl = dzpcl*two_over_dz;
+            const float Xnew = Xorig + dXpcl;
+            const float Ynew = Yorig + dYpcl;
+            const float Znew = Zorig + dZpcl;
+            //
+            // compute the factor by which the motion
+            // (time step) must be multiplied for the particle
+            // to stop at the cell boundary.
+            //
+            // 1. compute the distance moved.
+            //
+            const float dXmag = std::abs(dXpcl);
+            const float dYmag = std::abs(dYpcl);
+            const float dZmag = std::abs(dZpcl);
+            //
+            // 2. compute the distance to the wall
+            //    (if moving away then allow no motion)
+            //
+            float dXwall, dYwall, dZwall;
+            const float hghXwall=1., lowXwall=-1.;
+            const float hghYwall=1., lowYwall=-1.;
+            const float hghZwall=1., lowZwall=-1.;
+            // calculate (signed) distance to wall in direction of motion
+            if(dXpcl > 0)
+              dXwall = hghXwall - Xorig;
+            else
+              dXwall = Xorig - lowXwall;
+            //
+            if(dYpcl > 0)
+              dYwall = hghYwall - Yorig;
+            else
+              dYwall = Yorig - lowYwall;
+            //
+            if(dZpcl > 0)
+              dZwall = hghZwall - Zorig;
+            else
+              dZwall = Zorig - lowZwall;
+            //
+            // The following alternative avoids comparisons, but
+            // unfortunately a singularity arises if the particle
+            // begins just outside the cell and is heading toward
+            // the cell; dealing with this singularity requires
+            // comparisons...
+            //
+            // distance from orig pos to wall
+            // (unless motion would not even bring particle to
+            // the middle of the cell, in which case this is
+            // the distance to the reflection of the other wall
+            // across the final position, which would at least
+            // double the distance and therefore should not cause
+            // a problem in the final result; a subsequent iteration
+            // should then be able to take the particle to the wall...).
+            //dXwall = dXmag + 1 - abs(Xnew);
+            //dXwall = max(abs(Xorig)-1, dXwall);
+            //
+            // 3. compute the ratio to truncate motion
+            //
+            const float ratio = get_truncation_ratio(
+              dXwall, dXmag,
+              dYwall, dYmag,
+              dZwall, dZmag);
+            //
+            // 4. truncate or adjust the time step and motion accordingly
+            //
+            const float dtproposed = dtcycle*ratio;
+            // enforce a minimum dtcycle
+            dtcycle = std::max(min_dt, dtproposed);
+            // but cap final time at synchronization time
+            // (at which point double precision is here restored)
+            dtcycle = std::min(dtpcl, dtcycle);
+
+            // apply the corrected time step
+            Xavg = Xorig + 0.5*dtcycle*uavg;
+            Yavg = Yorig + 0.5*dtcycle*vavg;
+            Zavg = Zorig + 0.5*dtcycle*wavg;
+          }
+
+          // update particle after the last iteration
+          const float Xend = 2.0 * Xavg - Xorig;
+          const float Yend = 2.0 * Yavg - Yorig;
+          const float Zend = 2.0 * Zavg - Zorig;
+          {
+            //X[pidx] = Xnew;
+            //Y[pidx] = Ynew;
+            //Z[pidx] = Znew;
+            x[pidx] = Xend*dx_over_two+xmiddle;
+            y[pidx] = Yend*dy_over_two+ymiddle;
+            z[pidx] = Zend*dz_over_two+zmiddle;
+            u[pidx] = 2.0 * uavg - uorig;
+            v[pidx] = 2.0 * vavg - vorig;
+            w[pidx] = 2.0 * wavg - worig;
+            tpcl[pidx] += dtcycle;
+          }
+
+          // if the particle is done being moved then it
+          // can be presumed inside the box
+          if(tpcl[pidx] > (dt-dt_min))
+          {
+            destination[pidx] = 0;
+          }
+          else
+          // particle is not done, so move to neighbor
+          {
+            // for non-canonical coordinates
+            //destination[pidx] = get_direction(
+            //  (x[pidx]-xmiddle)*two_over_dx,
+            //  (y[pidy]-ymiddle)*two_over_dy,
+            //  (z[pidz]-zmiddle)*two_over_dx);
+
+            // for canonical coordinates
+            destination[pidx] = get_direction(Xend, Yend, Zend);
+          }
+        }
+        report_time(start);
+    }
+}
+
 // move particles in 8-particle transposable blocks
 void move_SoA_blocks()
 {
@@ -856,14 +1333,14 @@ void move_SoA_blocks()
             // compute weights for field components
             //
             double weights[8];
-            // fraction of the distance from the right of the cell
-            const double w1x = dx_inv*(xavg - cellstartx);
-            const double w1y = dy_inv*(yavg - cellstarty);
-            const double w1z = dz_inv*(zavg - cellstartz);
-            // fraction of distance from the left
-            const double w0x = 1-w1x;
-            const double w0y = 1-w1y;
-            const double w0z = 1-w1z;
+            // fraction of the distance from the left of the cell
+            const double w0x = dx_inv*(xavg - cellstartx);
+            const double w0y = dy_inv*(yavg - cellstarty);
+            const double w0z = dz_inv*(zavg - cellstartz);
+            // fraction of distance from the right
+            const double w1x = 1-w0x;
+            const double w1y = 1-w0y;
+            const double w1z = 1-w0z;
             const double weight00 = w0x*w0y;
             const double weight01 = w0x*w1y;
             const double weight10 = w1x*w0y;
@@ -954,7 +1431,8 @@ void test_push_pcls_in_cell_AoS_scatter_gather_vectorization()
   //
   const Time start = get_time();
   //simd accelerates execution by a factor of 3
-  #pragma omp for simd
+  #pragma omp for
+  #pragma simd
   for(int pi=0;pi<NUMPCLS;pi+=1)
   {
     SpeciesPcl* pcl = &pcls[pi];
@@ -1373,6 +1851,10 @@ int main()
   printf("#\n");
   test_push_pcls_in_cell_AoS_localized_vectorization();
   test_push_pcls_in_cell_AoS_localized_vectorization();
+  printf("# \n");
+  printf("# move particles stopping at boundary of mesh cell:\n");
+  push_pcls_in_cell_SoA_stopping_at_face();
+  push_pcls_in_cell_SoA_stopping_at_face();
   printf("#\n");
   printf("#\n");
   printf("# demonstrating that the time required to query the time is negligible:\n");

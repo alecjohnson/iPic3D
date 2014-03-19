@@ -18,6 +18,9 @@ testvrinke.mic: testvrinke.cpp
 run.testvrinke.mic:
 	OMP_NUM_THREADS=50 mpirun -n 1 -host `hostname`-mic1 -env OMP_NUM_THREADS=50 ./testvrinke.mic
 
+testv2: testv2.cpp Makefile
+	$(COMPILER) $(FLAGS) -fopenmp testv2.cpp $(INCLUDE) -o testv2
+
 #icpc -mmic -S -O3 testv2.cpp -o testv2.mic.s
 testv2.mic: testv2.cpp Makefile
 	KMP_AFFINITY=compact icpc -mmic $(FLAGS) -fopenmp testv2.cpp $(INCLUDE) -o testv2.mic
