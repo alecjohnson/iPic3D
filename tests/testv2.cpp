@@ -6,7 +6,6 @@
 #include <sys/time.h>
 #include <limits.h> // RAND_MAX
 #include <string.h> // memcpy
-#include <stdint.h> // for uint64_t etc.
 #include <algorithm> // for std::max
 #include <cmath> // for std::abs
 #include <assert.h>
@@ -22,6 +21,13 @@
     #define ALLOC_ALIGNED
     #define ASSERT_ALIGNED(X)
 #endif
+
+// double-precision float
+typedef double dfloat;
+// float used when pushing particles
+typedef dfloat pfloat;
+// float used for computing reciprocal
+typedef float rfloat;
 
 //******** timing ************
 
@@ -57,14 +63,14 @@ inline timespec diff_timespec(timespec start, timespec end)
   return diff;
 }
 
-inline double get_sec(timespec start_time)
+inline dfloat get_sec(timespec start_time)
 {
   timespec end_time = get_timespec();
   timespec diff_time = diff_timespec(start_time,end_time);
   return diff_time.tv_sec+1.e-9*diff_time.tv_nsec;
 }
 
-inline double get_msec(timespec start_time)
+inline dfloat get_msec(timespec start_time)
 {
   return 1.e3*get_sec(start_time);
 }
@@ -85,7 +91,7 @@ inline double get_msec(timespec start_time)
 
 #if 0
 // measure wall time
-inline double time_msec()
+inline dfloat time_msec()
 {
   static struct timeval tv;
   gettimeofday(&tv, NULL);
@@ -96,10 +102,10 @@ inline double time_msec()
 
 // measure time using gettimeofday
 //
-#define Time double
+#define Time dfloat
 #define report_time(start) \
  { \
-   const double end = time_msec(); \
+   const dfloat end = time_msec(); \
    printf("(in thread %d) %s took %g ms.\n", \
      omp_get_thread_num(), __func__, end - start); \
  }
@@ -141,16 +147,16 @@ const int D=4;
 //#define D (4)
 //#define NPB (8)
 const int NPB=8;
-double field_transpose[6][8] ALLOC_ALIGNED;
-double weights[8]ALLOC_ALIGNED;
-double Bx;
-double By;
-double Bz;
-double Ex;
-double Ey;
-double Ez;
-double field_components[8][8]ALLOC_ALIGNED;
-double fields[8]ALLOC_ALIGNED;
+dfloat field_transpose[6][8] ALLOC_ALIGNED;
+dfloat weights[8]ALLOC_ALIGNED;
+dfloat Bx;
+dfloat By;
+dfloat Bz;
+dfloat Ex;
+dfloat Ey;
+dfloat Ez;
+dfloat field_components[8][8]ALLOC_ALIGNED;
+dfloat fields[8]ALLOC_ALIGNED;
 
 void test_alex()
 {
@@ -180,19 +186,19 @@ void test_alex2()
 // in order to get it to vectorize the way I want.
 //
 void sample_field(
-  double fields[2*D],
-  double weights[8],
-  double field_components[8][2*D]);
+  dfloat fields[2*D],
+  dfloat weights[8],
+  dfloat field_components[8][2*D]);
 
 //void sample_field(
-//  double fields[2*D],
-//  double weights[8],
-//  double field_components[8][2*D])__attribute__((noinline));
+//  dfloat fields[2*D],
+//  dfloat weights[8],
+//  dfloat field_components[8][2*D])__attribute__((noinline));
 
 void test_AoS()
 {
-   double B[4]ALLOC_ALIGNED;
-   double E[4]ALLOC_ALIGNED;
+   dfloat B[4]ALLOC_ALIGNED;
+   dfloat E[4]ALLOC_ALIGNED;
    sample_field(fields,weights,field_components);
    //for(int c=0; c<8; c++)
    //#pragma simd
@@ -214,15 +220,15 @@ void test_AoS()
 }
 
 // sample from (0,1)
-double usample()
+dfloat usample()
 {
   // sample from [0,1]
-  const double RAND_MAX_inv = 1./RAND_MAX;
+  const dfloat RAND_MAX_inv = 1./RAND_MAX;
   return rand()*RAND_MAX_inv;
   //
   // sample from (0,1)
-  const double max_inv = 1./(double(RAND_MAX)+2);
-  return (double(rand())+1)*max_inv;
+  const dfloat max_inv = 1./(dfloat(RAND_MAX)+2);
+  return (dfloat(rand())+1)*max_inv;
 }
 
 // 512 bytes (cache-line-sized)
@@ -248,15 +254,15 @@ struct FloatPcl
 // 512 bits (cache-line-sized)
 struct SpeciesPcl
 {
-  double x[3];
-  double q;
-  double u[3];
+  dfloat x[3];
+  dfloat q;
+  dfloat u[3];
   long long ID;
  public:
-  double get_x(int i){return x[i];}
-  double get_u(int i){return u[i];}
-  void set_x(int i, double in){x[i]=in;}
-  void set_u(int i, double in){u[i]=in;}
+  dfloat get_x(int i){return x[i];}
+  dfloat get_u(int i){return u[i];}
+  void set_x(int i, dfloat in){x[i]=in;}
+  void set_u(int i, dfloat in){u[i]=in;}
   void init_random(int i)
   {
     for(int j=0;j<3;j++)
@@ -272,30 +278,30 @@ struct SpeciesPcl
 // 8 particles
 class PclBlock
 {
-  double data[8][8];
+  dfloat data[8][8];
  public:
   // convert between AoS and SoA
   // (should be implemented with intrinsics)
   void transpose()
   {
-    double temp[8][8]ALLOC_ALIGNED;
+    dfloat temp[8][8]ALLOC_ALIGNED;
     for(int i=0;i<8;i++)
     for(int j=0;j<8;j++)
     {
       temp[i][j] = data[j][i];
     }
-    memcpy(&data[0][0],&temp[0][0],sizeof(double)*8*8);
+    memcpy(&data[0][0],&temp[0][0],sizeof(dfloat)*8*8);
   }
   // assumes AoS
   SpeciesPcl& fetch_pcl(int p){return (SpeciesPcl&)data[p];}
   // assumes SoA
-  double* fetch_x(){return data[0];}
-  double* fetch_y(){return data[1];}
-  double* fetch_z(){return data[2];}
-  double* fetch_q(){return data[3];}
-  double* fetch_u(){return data[4];}
-  double* fetch_v(){return data[5];}
-  double* fetch_w(){return data[6];}
+  dfloat* fetch_x(){return data[0];}
+  dfloat* fetch_y(){return data[1];}
+  dfloat* fetch_z(){return data[2];}
+  dfloat* fetch_q(){return data[3];}
+  dfloat* fetch_u(){return data[4];}
+  dfloat* fetch_v(){return data[5];}
+  dfloat* fetch_w(){return data[6];}
   long long* fetch_ID(){return (long long*) data[7];}
 };
 
@@ -311,25 +317,25 @@ class MiPcl
   int cx[3];
 };
 
-double dt;
-double dx;
-double dy;
-double dz;
+dfloat dt;
+dfloat dx;
+dfloat dy;
+dfloat dz;
 const int NUMPCLS=NPB*256;
 const int NUMBLKS=(NUMPCLS-1)/8+1;
 SpeciesPcl pcls[NUMPCLS]ALLOC_ALIGNED;
 SpeciesPcl pcls2[NUMPCLS]ALLOC_ALIGNED;
 PclBlock pclBlocks[NUMBLKS]ALLOC_ALIGNED;
-double x[NUMPCLS]ALLOC_ALIGNED;
-double y[NUMPCLS]ALLOC_ALIGNED;
-double z[NUMPCLS]ALLOC_ALIGNED;
-double u[NUMPCLS]ALLOC_ALIGNED;
-double v[NUMPCLS]ALLOC_ALIGNED;
-double w[NUMPCLS]ALLOC_ALIGNED;
-double q[NUMPCLS]ALLOC_ALIGNED;
+dfloat x[NUMPCLS]ALLOC_ALIGNED;
+dfloat y[NUMPCLS]ALLOC_ALIGNED;
+dfloat z[NUMPCLS]ALLOC_ALIGNED;
+dfloat u[NUMPCLS]ALLOC_ALIGNED;
+dfloat v[NUMPCLS]ALLOC_ALIGNED;
+dfloat w[NUMPCLS]ALLOC_ALIGNED;
+dfloat q[NUMPCLS]ALLOC_ALIGNED;
 long long ID[NUMPCLS]ALLOC_ALIGNED;
 // portion of dt remaining for particle
-double tpcl[NUMPCLS]ALLOC_ALIGNED;
+dfloat tpcl[NUMPCLS]ALLOC_ALIGNED;
 int destination[NUMPCLS]ALLOC_ALIGNED;
 
 void copy_SoA_to_AoS_particles()
@@ -504,10 +510,10 @@ void initialize_data()
 //
 void test_push_pcls_in_cell()
 {
-  double dto2 = usample();
-  double qdto2mc = usample();
-  double cellstart[D];
-  double dx_inv[D];
+  dfloat dto2 = usample();
+  dfloat qdto2mc = usample();
+  dfloat cellstart[D];
+  dfloat dx_inv[D];
   for(int i=0;i<3;i++)
   {
     cellstart[i]=usample();
@@ -522,9 +528,9 @@ void test_push_pcls_in_cell()
     SpeciesPcl* pcl = &pcls[pi];
     // because SpeciesPcl fits in cache line:
     ASSERT_ALIGNED(pcl);
-    double xorig[D]ALLOC_ALIGNED;
-    double xavg[D]ALLOC_ALIGNED;
-    double uorig[D]ALLOC_ALIGNED;
+    dfloat xorig[D]ALLOC_ALIGNED;
+    dfloat xavg[D]ALLOC_ALIGNED;
+    dfloat uorig[D]ALLOC_ALIGNED;
 
     // gather position and velocity data from particle block
     //
@@ -541,13 +547,13 @@ void test_push_pcls_in_cell()
 
     // sample field for this block of particles
     //
-    double B[D]ALLOC_ALIGNED;
-    double E[D]ALLOC_ALIGNED;
+    dfloat B[D]ALLOC_ALIGNED;
+    dfloat E[D]ALLOC_ALIGNED;
     {
-      double fields[D*2]ALLOC_ALIGNED;
-      double weights[8]ALLOC_ALIGNED;
+      dfloat fields[D*2]ALLOC_ALIGNED;
+      dfloat weights[8]ALLOC_ALIGNED;
       {
-        double w[2][D]ALLOC_ALIGNED;
+        dfloat w[2][D]ALLOC_ALIGNED;
         #pragma simd
         for(int i=0;i<D;i++)
         {
@@ -582,20 +588,20 @@ void test_push_pcls_in_cell()
 
     // use sampled field to push particle block
     //
-    double uavg[D]ALLOC_ALIGNED;
+    dfloat uavg[D]ALLOC_ALIGNED;
     {
-      double Om[D]ALLOC_ALIGNED;
-      double denom;
+      dfloat Om[D]ALLOC_ALIGNED;
+      dfloat denom;
       for(int i=0;i<D;i++)
       {
         Om[i] = qdto2mc*B[i];
       }
       {
-        double omsq_p1 = 1. + Om[0]*Om[0] + Om[1]*Om[1] + Om[2]*Om[2];
-        denom = 1.0f/float(omsq_p1);
+        dfloat omsq_p1 = 1. + Om[0]*Om[0] + Om[1]*Om[1] + Om[2]*Om[2];
+        denom = 1/rfloat(omsq_p1);
       }
-      double ut[D]ALLOC_ALIGNED;
-      double udotOm;
+      dfloat ut[D]ALLOC_ALIGNED;
+      dfloat udotOm;
       // solve the position equation
       for(int i=0;i<D;i++)
       {
@@ -636,10 +642,10 @@ void test_push_pcls_in_cell()
 void test_push_pcls_in_cell_SoA_vectorized()
 {
   const int D=3;
-  double dto2 = usample();
-  double qdto2mc = usample();
-  double cellstart[D];
-  double dx_inv[D];
+  dfloat dto2 = usample();
+  dfloat qdto2mc = usample();
+  dfloat cellstart[D];
+  dfloat dx_inv[D];
   for(int i=0;i<3;i++)
   {
     cellstart[i]=usample();
@@ -655,9 +661,9 @@ void test_push_pcls_in_cell_SoA_vectorized()
   #pragma simd
   for(int pi=0;pi<NUMPCLS;pi+=1)
   {
-    double xorig[D];
-    double xavg[D];
-    double uorig[D];
+    dfloat xorig[D];
+    dfloat xavg[D];
+    dfloat uorig[D];
 
     // get data from particle
     {
@@ -676,13 +682,13 @@ void test_push_pcls_in_cell_SoA_vectorized()
 
     // sample field for this block of particles
     //
-    double B[D];
-    double E[D];
+    dfloat B[D];
+    dfloat E[D];
     {
-      double fields[D*2];
-      double weights[8];
+      dfloat fields[D*2];
+      dfloat weights[8];
       {
-        double w[2][D];
+        dfloat w[2][D];
         for(int i=0;i<D;i++)
         {
           w[1][i] = dx_inv[i]*(xavg[i]-cellstart[i]);
@@ -717,23 +723,23 @@ void test_push_pcls_in_cell_SoA_vectorized()
 
     // use sampled field to push particle block
     //
-    double uavg[D];
+    dfloat uavg[D];
     {
-      double Om[D];
-      double denom;
+      dfloat Om[D];
+      dfloat denom;
       for(int i=0;i<D;i++)
       {
         Om[i] = qdto2mc*B[i];
       }
-      //const double omsq_p1 = 1.0+(Om[0] * Om[0] + Om[1] * Om[1] + Om[2] * Om[2]);
-      //const double denom = 1.0f / float(omsq_p1);
+      //const dfloat omsq_p1 = 1.0+(Om[0] * Om[0] + Om[1] * Om[1] + Om[2] * Om[2]);
+      //const dfloat denom = 1/rfloat(omsq_p1);
       {
-        double omsq_p1 = 1. + Om[0]*Om[0] + Om[1]*Om[1] + Om[2]*Om[2];
-        denom = 1.0f/float(omsq_p1);
+        dfloat omsq_p1 = 1. + Om[0]*Om[0] + Om[1]*Om[1] + Om[2]*Om[2];
+        denom = 1/rfloat(omsq_p1);
         //denom = 1.0/omsq_p1;
       }
-      double ut[D];
-      double udotOm;
+      dfloat ut[D];
+      dfloat udotOm;
       // solve the position equation
       for(int i=0;i<D;i++)
       {
@@ -773,18 +779,18 @@ void test_push_pcls_in_cell_SoA_vectorized()
 
 // This should require the same execution time as the previous
 // method but in fact takes less time, especially if denom is
-// calculated with double precision.
+// calculated with dfloat precision.
 //
 void move_bucket_old()
 {
-    const double dto2 = usample();
-    const double qdto2mc = usample();
-    const double cellstartx=usample();
-    const double cellstarty=usample();
-    const double cellstartz=usample();
-    const double dx_inv=usample();
-    const double dy_inv=usample();
-    const double dz_inv=usample();
+    const dfloat dto2 = usample();
+    const dfloat qdto2mc = usample();
+    const dfloat cellstartx=usample();
+    const dfloat cellstarty=usample();
+    const dfloat cellstartz=usample();
+    const dfloat dx_inv=usample();
+    const dfloat dy_inv=usample();
+    const dfloat dz_inv=usample();
     #pragma omp parallel 
     {
         const Time start = get_time();
@@ -793,33 +799,33 @@ void move_bucket_old()
         for(int pidx = 0; pidx < NUMPCLS; pidx++)
         {
             // copy the particle
-            const double xorig = x[pidx];
-            const double yorig = y[pidx];
-            const double zorig = z[pidx];
-            const double uorig = u[pidx];
-            const double vorig = v[pidx];
-            const double worig = w[pidx];
+            const dfloat xorig = x[pidx];
+            const dfloat yorig = y[pidx];
+            const dfloat zorig = z[pidx];
+            const dfloat uorig = u[pidx];
+            const dfloat vorig = v[pidx];
+            const dfloat worig = w[pidx];
 
             // initialize xavg to xorig
-            double xavg = x[pidx];
-            double yavg = y[pidx];
-            double zavg = z[pidx];
+            dfloat xavg = x[pidx];
+            dfloat yavg = y[pidx];
+            dfloat zavg = z[pidx];
 
             // compute weights for field components
             //
-            double weights[8];
+            dfloat weights[8];
             // fraction of the distance from the left of the cell
-            const double w0x = dx_inv*(xavg - cellstartx);
-            const double w0y = dy_inv*(yavg - cellstarty);
-            const double w0z = dz_inv*(zavg - cellstartz);
+            const dfloat w0x = dx_inv*(xavg - cellstartx);
+            const dfloat w0y = dy_inv*(yavg - cellstarty);
+            const dfloat w0z = dz_inv*(zavg - cellstartz);
             // fraction of distance from the right
-            const double w1x = 1.-w0x;
-            const double w1y = 1.-w0y;
-            const double w1z = 1.-w0z;
-            const double weight00 = w0x*w0y;
-            const double weight01 = w0x*w1y;
-            const double weight10 = w1x*w0y;
-            const double weight11 = w1x*w1y;
+            const dfloat w1x = 1.-w0x;
+            const dfloat w1y = 1.-w0y;
+            const dfloat w1z = 1.-w0z;
+            const dfloat weight00 = w0x*w0y;
+            const dfloat weight01 = w0x*w1y;
+            const dfloat weight10 = w1x*w0y;
+            const dfloat weight11 = w1x*w1y;
             weights[0] = weight00*w0z; // weight000
             weights[1] = weight00*w1z; // weight001
             weights[2] = weight01*w0z; // weight010
@@ -829,14 +835,10 @@ void move_bucket_old()
             weights[6] = weight11*w0z; // weight110
             weights[7] = weight11*w1z; // weight111
 
-            double Exl = 0.0;
-            double Eyl = 0.0;
-            double Ezl = 0.0;
-            double Bxl = 0.0;
-            double Byl = 0.0;
-            double Bzl = 0.0;
-
-            // would expanding this out help to vectorize?
+            // Interpolate the electromagnetic field
+            //
+            dfloat Exl=0.0, Eyl=0.0, Ezl=0.0;
+            dfloat Bxl=0.0, Byl=0.0, Bzl=0.0;
             for(int c=0; c<8; c++)
             {
                 Bxl += weights[c] * field_components[c][0];
@@ -847,23 +849,23 @@ void move_bucket_old()
                 Ezl += weights[c] * field_components[c][5];
             }
 
-            const double Omx = qdto2mc*Bxl;
-            const double Omy = qdto2mc*Byl;
-            const double Omz = qdto2mc*Bzl;
+            const dfloat Omx = qdto2mc*Bxl;
+            const dfloat Omy = qdto2mc*Byl;
+            const dfloat Omz = qdto2mc*Bzl;
 
             // end interpolation
-            const double omsq_p1 = 1.0 + (Omx * Omx + Omy * Omy + Omz * Omz);
-            const double denom = 1.0f / float(omsq_p1);
+            const dfloat omsq_p1 = 1.0 + (Omx * Omx + Omy * Omy + Omz * Omz);
+            const dfloat denom = 1/rfloat(omsq_p1);
             // solve the position equation
-            const double ut = uorig + qdto2mc * Exl;
-            const double vt = vorig + qdto2mc * Eyl;
-            const double wt = worig + qdto2mc * Ezl;
-            //const double udotb = ut * Bxl + vt * Byl + wt * Bzl;
-            const double udotOm = ut * Omx + vt * Omy + wt * Omz;
+            const dfloat ut = uorig + qdto2mc * Exl;
+            const dfloat vt = vorig + qdto2mc * Eyl;
+            const dfloat wt = worig + qdto2mc * Ezl;
+            //const dfloat udotb = ut * Bxl + vt * Byl + wt * Bzl;
+            const dfloat udotOm = ut * Omx + vt * Omy + wt * Omz;
             // solve the velocity equation
-            const double uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
-            const double vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
-            const double wavg = (wt + (ut * Omy - vt * Omx + udotOm * Omz)) * denom;
+            const dfloat uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
+            const dfloat vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
+            const dfloat wavg = (wt + (ut * Omy - vt * Omx + udotOm * Omz)) * denom;
             // update average position
             xavg = xorig + uavg * dto2;
             yavg = yorig + vavg * dto2;
@@ -892,13 +894,13 @@ void move_bucket_old()
 //   min(dXwant/dXfull, dYwant/dYfull, dZwant/dZfull)
 // calculated with a single reciprocal.
 //
-static inline float get_truncation_ratio(
+static inline pfloat get_truncation_ratio(
   //int&direction,
-  float dXwant, float dXfull,
-  float dYwant, float dYfull,
-  float dZwant, float dZfull)
+  pfloat dXwant, pfloat dXfull,
+  pfloat dYwant, pfloat dYfull,
+  pfloat dZwant, pfloat dZfull)
 {
-  const float motion_freedom = 1.e-2;
+  const pfloat motion_freedom = 1.e-2;
   // This modification of the input modifies the truncation ratio
   // and is designed to ensure the following properties:
   // * particle is stopped before going
@@ -924,11 +926,11 @@ static inline float get_truncation_ratio(
   dYfull = std::max(motion_freedom,dYfull);
   dZfull = std::max(motion_freedom,dZfull);
 
-  const float denominator = dXfull*dYfull*dZfull;
-  const float dXprod = dXwant*dYfull*dZfull;
-  const float dYprod = dYwant*dXfull*dZfull;
-  const float dZprod = dZwant*dXfull*dYfull;
-  float numerator; // = denominator;
+  const pfloat denominator = dXfull*dYfull*dZfull;
+  const pfloat dXprod = dXwant*dYfull*dZfull;
+  const pfloat dYprod = dYwant*dXfull*dZfull;
+  const pfloat dZprod = dZwant*dXfull*dYfull;
+  pfloat numerator; // = denominator;
   if(dXprod<dYprod)
   {
     if(dXprod<dZprod)
@@ -955,26 +957,26 @@ static inline float get_truncation_ratio(
       //direction = 4;
     }
   }
-  return numerator/denominator;
+  return numerator/rfloat(denominator);
 }
 
 // in which direction are we most outside?
 // +/-1: +/-X
 // +/-2: +/-Y
 // +/-4: +/-Z
-static inline int get_direction(float Xpos, float Ypos, float Zpos)
+static inline int get_direction(pfloat Xpos, pfloat Ypos, pfloat Zpos)
 {
   int direction;
-  const float aX = std::abs(Xpos);
-  const float aY = std::abs(Ypos);
-  const float aZ = std::abs(Zpos);
+  const pfloat aX = std::abs(Xpos);
+  const pfloat aY = std::abs(Ypos);
+  const pfloat aZ = std::abs(Zpos);
   //
   // This way requires 8 comparisons and 7 masked assignments
   //
   //if(aX > aY) direction = (aX>aZ) ? 1 : 4;
   //else direction = (aY>aZ) ? 2 : 4;
-  //const float low = max(xpos,ypos,zpos);
-  //const float hgh = min(xpos,ypos,zpos);
+  //const pfloat low = max(xpos,ypos,zpos);
+  //const pfloat hgh = min(xpos,ypos,zpos);
   //if(hgh < -low) direction = -direction;
   //
   // This way requires 7 comparisons and 8 masked assignments
@@ -1025,27 +1027,27 @@ void push_pcls_in_cell_SoA_stopping_at_face()
 {
     // time step resolution (analogous to FLT_MIN,
     // defines a limit on precision)
-    const float dt_min = 1e-6*dt;
+    const pfloat dt_min = 1e-6*dt;
     // shortest allowed subcycle time step
     // (assumed to be no less than dt_min)
-    const float min_dt = 1e-5*dt;
-    //const double dto2 = usample();
-    //const double qdto2mc = usample();
-    const double qo2mc = usample();
-    const double dx_over_two = dx/2;
-    const double dy_over_two = dy/2;
-    const double dz_over_two = dz/2;
-    const double two_over_dx = 2/dx;
-    const double two_over_dy = 2/dy;
-    const double two_over_dz = 2/dz;
-    const double xmiddle = usample(); // position of middle of cell
-    const double ymiddle = usample(); // position of middle of cell
-    const double zmiddle = usample(); // position of middle of cell
+    const pfloat min_dt = 1e-5*dt;
+    //const dfloat dto2 = usample();
+    //const dfloat qdto2mc = usample();
+    const dfloat qo2mc = usample();
+    const dfloat dx_over_two = dx/2;
+    const dfloat dy_over_two = dy/2;
+    const dfloat dz_over_two = dz/2;
+    const dfloat two_over_dx = 2/dx;
+    const dfloat two_over_dy = 2/dy;
+    const dfloat two_over_dz = 2/dz;
+    const dfloat xmiddle = usample(); // position of middle of cell
+    const dfloat ymiddle = usample(); // position of middle of cell
+    const dfloat zmiddle = usample(); // position of middle of cell
     #pragma omp parallel 
     {
         const Time start = get_time();
         #pragma omp for
-        #pragma simd
+        #pragma simd // vectorlength(16) // why doesn't this help?
         for(int pidx = 0; pidx < NUMPCLS; pidx++)
         {
           // copy the particle
@@ -1053,40 +1055,40 @@ void push_pcls_in_cell_SoA_stopping_at_face()
           // x is physical position
           // X is position is in canonical coordinates (-1 <=~ X <=~ 1)
           //
-          //const float Xorig = X[pidx];
-          //const float Yorig = Y[pidx];
-          //const float Zorig = Z[pidx];
-          const float Xorig = (x[pidx]-xmiddle)*two_over_dx;
-          const float Yorig = (y[pidx]-ymiddle)*two_over_dy;
-          const float Zorig = (z[pidx]-zmiddle)*two_over_dz;
+          //const pfloat Xorig = X[pidx];
+          //const pfloat Yorig = Y[pidx];
+          //const pfloat Zorig = Z[pidx];
+          const pfloat Xorig = (x[pidx]-xmiddle)*two_over_dx;
+          const pfloat Yorig = (y[pidx]-ymiddle)*two_over_dy;
+          const pfloat Zorig = (z[pidx]-zmiddle)*two_over_dz;
           // u is physical velocity
-          const float uorig = u[pidx];
-          const float vorig = v[pidx];
-          const float worig = w[pidx];
-          const float tpcl_ = tpcl[pidx];
+          const pfloat uorig = u[pidx];
+          const pfloat vorig = v[pidx];
+          const pfloat worig = w[pidx];
+          const pfloat tpcl_ = tpcl[pidx];
           //assert_le(tpcl_, dt);
 
-          // The computed time step needs to be double
+          // The computed time step needs to be dfloat
           // precision up to the point where the calculation is
           // unique for every particle.
           //
           // compute time remaining for particle until
           // next synchonization point.  Note that if tpcl_==0
           // then there is no loss of precision at this point.
-          double dtpcl = dt-tpcl_;
+          dfloat dtpcl = dt-tpcl_;
           // initialize subcycle time to be remaining time
           // (used in first iteration of iterative solver)
           //
-          double dtcycle = dtpcl;
+          dfloat dtcycle = dtpcl;
 
           // initialize xavg to xorig
-          float Xavg = Xorig;
-          float Yavg = Yorig;
-          float Zavg = Zorig;
+          pfloat Xavg = Xorig;
+          pfloat Yavg = Yorig;
+          pfloat Zavg = Zorig;
 
           // purpose of iterative solver is to find
           // dtcycle, Xavg.., and uavg...
-          float uavg, vavg, wavg;
+          pfloat uavg, vavg, wavg;
 
           // this is the part that must vectorize
           // #pragma omp simd
@@ -1094,19 +1096,19 @@ void push_pcls_in_cell_SoA_stopping_at_face()
           {
             // compute weights for field components
             //
-            float weights[8];
+            pfloat weights[8];
             // fraction of the distance from the left of the cell
-            const float w0x = 0.5*Xavg + 0.5;
-            const float w0y = 0.5*Yavg + 0.5;
-            const float w0z = 0.5*Zavg + 0.5;
+            const pfloat w0x = 0.5*Xavg + 0.5;
+            const pfloat w0y = 0.5*Yavg + 0.5;
+            const pfloat w0z = 0.5*Zavg + 0.5;
             // fraction of distance from the right
-            const double w1x = 1.-w0x;
-            const double w1y = 1.-w0y;
-            const double w1z = 1.-w0z;
-            const double weight00 = w0x*w0y;
-            const double weight01 = w0x*w1y;
-            const double weight10 = w1x*w0y;
-            const double weight11 = w1x*w1y;
+            const dfloat w1x = 1.-w0x;
+            const dfloat w1y = 1.-w0y;
+            const dfloat w1z = 1.-w0z;
+            const dfloat weight00 = w0x*w0y;
+            const dfloat weight01 = w0x*w1y;
+            const dfloat weight10 = w1x*w0y;
+            const dfloat weight11 = w1x*w1y;
             weights[0] = weight00*w0z; // weight000
             weights[1] = weight00*w1z; // weight001
             weights[2] = weight01*w0z; // weight010
@@ -1116,17 +1118,17 @@ void push_pcls_in_cell_SoA_stopping_at_face()
             weights[6] = weight11*w0z; // weight110
             weights[7] = weight11*w1z; // weight111
 
-            float Exl = 0.0;
-            float Eyl = 0.0;
-            float Ezl = 0.0;
-            float Bxl = 0.0;
-            float Byl = 0.0;
-            float Bzl = 0.0;
+            pfloat Exl = 0.0;
+            pfloat Eyl = 0.0;
+            pfloat Ezl = 0.0;
+            pfloat Bxl = 0.0;
+            pfloat Byl = 0.0;
+            pfloat Bzl = 0.0;
 
-            // field_components is double precision; loss of
+            // field_components is dfloat precision; loss of
             // precision at this point is expected to mitigated
             // by the large number of particles.  When we sum
-            // moments we will go back to double precision.
+            // moments we will go back to dfloat precision.
             //
             for(int c=0; c<8; c++)
             {
@@ -1138,38 +1140,38 @@ void push_pcls_in_cell_SoA_stopping_at_face()
                 Ezl += weights[c] * field_components[c][5];
             }
 
-            const double qdto2mc = qo2mc*dtcycle;
-            const float Omx = qdto2mc*Bxl;
-            const float Omy = qdto2mc*Byl;
-            const float Omz = qdto2mc*Bzl;
+            const dfloat qdto2mc = qo2mc*dtcycle;
+            const pfloat Omx = qdto2mc*Bxl;
+            const pfloat Omy = qdto2mc*Byl;
+            const pfloat Omz = qdto2mc*Bzl;
 
             // end interpolation
-            const float omsq_p1 = 1.0 + (Omx * Omx + Omy * Omy + Omz * Omz);
-            const float denom = 1.0f / omsq_p1;
+            const pfloat omsq_p1 = 1.0 + (Omx * Omx + Omy * Omy + Omz * Omz);
+            const pfloat denom = 1/rfloat(omsq_p1);
             // solve the position equation
-            const float ut = uorig + qdto2mc * Exl;
-            const float vt = vorig + qdto2mc * Eyl;
-            const float wt = worig + qdto2mc * Ezl;
-            //const double udotb = ut * Bxl + vt * Byl + wt * Bzl;
-            const float udotOm = ut * Omx + vt * Omy + wt * Omz;
+            const pfloat ut = uorig + qdto2mc * Exl;
+            const pfloat vt = vorig + qdto2mc * Eyl;
+            const pfloat wt = worig + qdto2mc * Ezl;
+            //const dfloat udotb = ut * Bxl + vt * Byl + wt * Bzl;
+            const pfloat udotOm = ut * Omx + vt * Omy + wt * Omz;
             // solve the velocity equation
-            const float uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
-            const float vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
-            const float wavg = (wt + (ut * Omy - vt * Omx + udotOm * Omz)) * denom;
+            const pfloat uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
+            const pfloat vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
+            const pfloat wavg = (wt + (ut * Omy - vt * Omx + udotOm * Omz)) * denom;
 
             // stop the particle at the cell boundary
             //
             // compute the displacement assuming the particle is not stopped
             //
-            const float dxpcl = dtcycle*uavg;
-            const float dypcl = dtcycle*vavg;
-            const float dzpcl = dtcycle*wavg;
-            const float dXpcl = dxpcl*two_over_dx;
-            const float dYpcl = dypcl*two_over_dy;
-            const float dZpcl = dzpcl*two_over_dz;
-            const float Xnew = Xorig + dXpcl;
-            const float Ynew = Yorig + dYpcl;
-            const float Znew = Zorig + dZpcl;
+            const pfloat dxpcl = dtcycle*uavg;
+            const pfloat dypcl = dtcycle*vavg;
+            const pfloat dzpcl = dtcycle*wavg;
+            const pfloat dXpcl = dxpcl*two_over_dx;
+            const pfloat dYpcl = dypcl*two_over_dy;
+            const pfloat dZpcl = dzpcl*two_over_dz;
+            const pfloat Xnew = Xorig + dXpcl;
+            const pfloat Ynew = Yorig + dYpcl;
+            const pfloat Znew = Zorig + dZpcl;
             //
             // compute the factor by which the motion
             // (time step) must be multiplied for the particle
@@ -1177,17 +1179,17 @@ void push_pcls_in_cell_SoA_stopping_at_face()
             //
             // 1. compute the distance moved.
             //
-            const float dXmag = std::abs(dXpcl);
-            const float dYmag = std::abs(dYpcl);
-            const float dZmag = std::abs(dZpcl);
+            const pfloat dXmag = std::abs(dXpcl);
+            const pfloat dYmag = std::abs(dYpcl);
+            const pfloat dZmag = std::abs(dZpcl);
             //
             // 2. compute the distance to the wall
             //    (if moving away then allow no motion)
             //
-            float dXwall, dYwall, dZwall;
-            const float hghXwall=1., lowXwall=-1.;
-            const float hghYwall=1., lowYwall=-1.;
-            const float hghZwall=1., lowZwall=-1.;
+            pfloat dXwall, dYwall, dZwall;
+            const pfloat hghXwall=1., lowXwall=-1.;
+            const pfloat hghYwall=1., lowYwall=-1.;
+            const pfloat hghZwall=1., lowZwall=-1.;
             // calculate (signed) distance to wall in direction of motion
             if(dXpcl > 0)
               dXwall = hghXwall - Xorig;
@@ -1215,7 +1217,7 @@ void push_pcls_in_cell_SoA_stopping_at_face()
             // the middle of the cell, in which case this is
             // the distance to the reflection of the other wall
             // across the final position, which would at least
-            // double the distance and therefore should not cause
+            // dfloat the distance and therefore should not cause
             // a problem in the final result; a subsequent iteration
             // should then be able to take the particle to the wall...).
             //dXwall = dXmag + 1 - abs(Xnew);
@@ -1223,18 +1225,18 @@ void push_pcls_in_cell_SoA_stopping_at_face()
             //
             // 3. compute the ratio to truncate motion
             //
-            const float ratio = get_truncation_ratio(
+            const pfloat ratio = get_truncation_ratio(
               dXwall, dXmag,
               dYwall, dYmag,
               dZwall, dZmag);
             //
             // 4. truncate or adjust the time step and motion accordingly
             //
-            const float dtproposed = dtcycle*ratio;
+            const pfloat dtproposed = dtcycle*ratio;
             // enforce a minimum dtcycle
             dtcycle = std::max(min_dt, dtproposed);
             // but cap final time at synchronization time
-            // (at which point double precision is here restored)
+            // (at which point dfloat precision is here restored)
             dtcycle = std::min(dtpcl, dtcycle);
 
             // apply the corrected time step
@@ -1244,9 +1246,9 @@ void push_pcls_in_cell_SoA_stopping_at_face()
           }
 
           // update particle after the last iteration
-          const float Xend = 2.0 * Xavg - Xorig;
-          const float Yend = 2.0 * Yavg - Yorig;
-          const float Zend = 2.0 * Zavg - Zorig;
+          const pfloat Xend = 2.0 * Xavg - Xorig;
+          const pfloat Yend = 2.0 * Yavg - Yorig;
+          const pfloat Zend = 2.0 * Zavg - Zorig;
           {
             //X[pidx] = Xnew;
             //Y[pidx] = Ynew;
@@ -1286,14 +1288,14 @@ void push_pcls_in_cell_SoA_stopping_at_face()
 // move particles in 8-particle transposable blocks
 void move_SoA_blocks()
 {
-    const double dto2 = usample();
-    const double qdto2mc = usample();
-    const double cellstartx=usample();
-    const double cellstarty=usample();
-    const double cellstartz=usample();
-    const double dx_inv=usample();
-    const double dy_inv=usample();
-    const double dz_inv=usample();
+    const dfloat dto2 = usample();
+    const dfloat qdto2mc = usample();
+    const dfloat cellstartx=usample();
+    const dfloat cellstarty=usample();
+    const dfloat cellstartz=usample();
+    const dfloat dx_inv=usample();
+    const dfloat dy_inv=usample();
+    const dfloat dz_inv=usample();
     #pragma omp parallel 
     {
       const Time start = get_time();
@@ -1302,12 +1304,12 @@ void move_SoA_blocks()
       {
         PclBlock& pclBlock = pclBlocks[bidx];
         pclBlock.transpose();
-        double* x = pclBlock.fetch_x();
-        double* y = pclBlock.fetch_y();
-        double* z = pclBlock.fetch_z();
-        double* u = pclBlock.fetch_u();
-        double* v = pclBlock.fetch_v();
-        double* w = pclBlock.fetch_w();
+        dfloat* x = pclBlock.fetch_x();
+        dfloat* y = pclBlock.fetch_y();
+        dfloat* z = pclBlock.fetch_z();
+        dfloat* u = pclBlock.fetch_u();
+        dfloat* v = pclBlock.fetch_v();
+        dfloat* w = pclBlock.fetch_w();
         ASSERT_ALIGNED(x);
         ASSERT_ALIGNED(y);
         ASSERT_ALIGNED(z);
@@ -1318,33 +1320,33 @@ void move_SoA_blocks()
         for(int pidx = 0; pidx < 8; pidx++)
         {
             // copy the particle
-            const double xorig = x[pidx];
-            const double yorig = y[pidx];
-            const double zorig = z[pidx];
-            const double uorig = u[pidx];
-            const double vorig = v[pidx];
-            const double worig = w[pidx];
+            const dfloat xorig = x[pidx];
+            const dfloat yorig = y[pidx];
+            const dfloat zorig = z[pidx];
+            const dfloat uorig = u[pidx];
+            const dfloat vorig = v[pidx];
+            const dfloat worig = w[pidx];
 
             // initialize xavg to xorig
-            double xavg = x[pidx];
-            double yavg = y[pidx];
-            double zavg = z[pidx];
+            dfloat xavg = x[pidx];
+            dfloat yavg = y[pidx];
+            dfloat zavg = z[pidx];
 
             // compute weights for field components
             //
-            double weights[8];
+            dfloat weights[8];
             // fraction of the distance from the left of the cell
-            const double w0x = dx_inv*(xavg - cellstartx);
-            const double w0y = dy_inv*(yavg - cellstarty);
-            const double w0z = dz_inv*(zavg - cellstartz);
+            const dfloat w0x = dx_inv*(xavg - cellstartx);
+            const dfloat w0y = dy_inv*(yavg - cellstarty);
+            const dfloat w0z = dz_inv*(zavg - cellstartz);
             // fraction of distance from the right
-            const double w1x = 1-w0x;
-            const double w1y = 1-w0y;
-            const double w1z = 1-w0z;
-            const double weight00 = w0x*w0y;
-            const double weight01 = w0x*w1y;
-            const double weight10 = w1x*w0y;
-            const double weight11 = w1x*w1y;
+            const dfloat w1x = 1-w0x;
+            const dfloat w1y = 1-w0y;
+            const dfloat w1z = 1-w0z;
+            const dfloat weight00 = w0x*w0y;
+            const dfloat weight01 = w0x*w1y;
+            const dfloat weight10 = w1x*w0y;
+            const dfloat weight11 = w1x*w1y;
             weights[0] = weight00*w0z; // weight000
             weights[1] = weight00*w1z; // weight001
             weights[2] = weight01*w0z; // weight010
@@ -1354,12 +1356,12 @@ void move_SoA_blocks()
             weights[6] = weight11*w0z; // weight110
             weights[7] = weight11*w1z; // weight111
 
-            double Exl = 0.0;
-            double Eyl = 0.0;
-            double Ezl = 0.0;
-            double Bxl = 0.0;
-            double Byl = 0.0;
-            double Bzl = 0.0;
+            dfloat Exl = 0.0;
+            dfloat Eyl = 0.0;
+            dfloat Ezl = 0.0;
+            dfloat Bxl = 0.0;
+            dfloat Byl = 0.0;
+            dfloat Bzl = 0.0;
 
             // would expanding this out help to vectorize?
             for(int c=0; c<8; c++)
@@ -1372,23 +1374,23 @@ void move_SoA_blocks()
                 Ezl += weights[c] * field_components[c][5];
             }
 
-            const double Omx = qdto2mc*Bxl;
-            const double Omy = qdto2mc*Byl;
-            const double Omz = qdto2mc*Bzl;
+            const dfloat Omx = qdto2mc*Bxl;
+            const dfloat Omy = qdto2mc*Byl;
+            const dfloat Omz = qdto2mc*Bzl;
 
             // end interpolation
-            const double omsq_p1 = 1.0 + (Omx * Omx + Omy * Omy + Omz * Omz);
-            const double denom = 1.0f / float(omsq_p1);
+            const dfloat omsq_p1 = 1.0 + (Omx * Omx + Omy * Omy + Omz * Omz);
+            const dfloat denom = 1/rfloat(omsq_p1);
             // solve the position equation
-            const double ut = uorig + qdto2mc * Exl;
-            const double vt = vorig + qdto2mc * Eyl;
-            const double wt = worig + qdto2mc * Ezl;
-            //const double udotb = ut * Bxl + vt * Byl + wt * Bzl;
-            const double udotOm = ut * Omx + vt * Omy + wt * Omz;
+            const dfloat ut = uorig + qdto2mc * Exl;
+            const dfloat vt = vorig + qdto2mc * Eyl;
+            const dfloat wt = worig + qdto2mc * Ezl;
+            //const dfloat udotb = ut * Bxl + vt * Byl + wt * Bzl;
+            const dfloat udotOm = ut * Omx + vt * Omy + wt * Omz;
             // solve the velocity equation
-            const double uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
-            const double vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
-            const double wavg = (wt + (ut * Omy - vt * Omx + udotOm * Omz)) * denom;
+            const dfloat uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
+            const dfloat vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
+            const dfloat wavg = (wt + (ut * Omy - vt * Omx + udotOm * Omz)) * denom;
             // update average position
             xavg = xorig + uavg * dto2;
             yavg = yorig + vavg * dto2;
@@ -1415,10 +1417,10 @@ void move_SoA_blocks()
 
 void test_push_pcls_in_cell_AoS_scatter_gather_vectorization()
 {
-  double dto2 = usample();
-  double qdto2mc = usample();
-  double cellstart[D];
-  double dx_inv[D];
+  dfloat dto2 = usample();
+  dfloat qdto2mc = usample();
+  dfloat cellstart[D];
+  dfloat dx_inv[D];
   for(int i=0;i<3;i++)
   {
     cellstart[i]=usample();
@@ -1438,9 +1440,9 @@ void test_push_pcls_in_cell_AoS_scatter_gather_vectorization()
     SpeciesPcl* pcl = &pcls[pi];
     // because SpeciesPcl fits in cache line:
     ASSERT_ALIGNED(pcl);
-    double xorig[D]ALLOC_ALIGNED;
-    double xavg[D]ALLOC_ALIGNED;
-    double uorig[D]ALLOC_ALIGNED;
+    dfloat xorig[D]ALLOC_ALIGNED;
+    dfloat xavg[D]ALLOC_ALIGNED;
+    dfloat uorig[D]ALLOC_ALIGNED;
 
     // gather position and velocity data from particle block
     //
@@ -1456,23 +1458,23 @@ void test_push_pcls_in_cell_AoS_scatter_gather_vectorization()
 
     // sample field for this block of particles
     //
-    double B[D]ALLOC_ALIGNED;
-    double E[D]ALLOC_ALIGNED;
+    dfloat B[D]ALLOC_ALIGNED;
+    dfloat E[D]ALLOC_ALIGNED;
     {
-      double fields[D*2]ALLOC_ALIGNED;
-      double weights[8]ALLOC_ALIGNED;
+      dfloat fields[D*2]ALLOC_ALIGNED;
+      dfloat weights[8]ALLOC_ALIGNED;
       if(true)
       {
-        const double w1x = dx_inv[0]*(xavg[0] - cellstart[0]);
-        const double w1y = dx_inv[1]*(xavg[1] - cellstart[1]);
-        const double w1z = dx_inv[2]*(xavg[2] - cellstart[2]);
-        const double w0x = 1-w1x;
-        const double w0y = 1-w1y;
-        const double w0z = 1-w1z;
-        const double weight00 = w0x*w0y;
-        const double weight01 = w0x*w1y;
-        const double weight10 = w1x*w0y;
-        const double weight11 = w1x*w1y;
+        const dfloat w1x = dx_inv[0]*(xavg[0] - cellstart[0]);
+        const dfloat w1y = dx_inv[1]*(xavg[1] - cellstart[1]);
+        const dfloat w1z = dx_inv[2]*(xavg[2] - cellstart[2]);
+        const dfloat w0x = 1-w1x;
+        const dfloat w0y = 1-w1y;
+        const dfloat w0z = 1-w1z;
+        const dfloat weight00 = w0x*w0y;
+        const dfloat weight01 = w0x*w1y;
+        const dfloat weight10 = w1x*w0y;
+        const dfloat weight11 = w1x*w1y;
         weights[0] = weight00*w0z; // weight000
         weights[1] = weight00*w1z; // weight001
         weights[2] = weight01*w0z; // weight010
@@ -1484,7 +1486,7 @@ void test_push_pcls_in_cell_AoS_scatter_gather_vectorization()
       }
       else
       {
-        double w[2][D]ALLOC_ALIGNED;
+        dfloat w[2][D]ALLOC_ALIGNED;
         for(int i=0;i<D;i++)
         {
           w[1][i] = dx_inv[i]*(xavg[i]-cellstart[i]);
@@ -1519,20 +1521,20 @@ void test_push_pcls_in_cell_AoS_scatter_gather_vectorization()
 
     // use sampled field to push particle block
     //
-    double uavg[D]ALLOC_ALIGNED;
+    dfloat uavg[D]ALLOC_ALIGNED;
     {
-      double Om[D]ALLOC_ALIGNED;
-      double denom;
+      dfloat Om[D]ALLOC_ALIGNED;
+      dfloat denom;
       for(int i=0;i<D;i++)
       {
         Om[i] = qdto2mc*B[i];
       }
       {
-        double omsq_p1 = 1. + Om[0]*Om[0] + Om[1]*Om[1] + Om[2]*Om[2];
-        denom = 1.0f/float(omsq_p1);
+        dfloat omsq_p1 = 1. + Om[0]*Om[0] + Om[1]*Om[1] + Om[2]*Om[2];
+        denom = 1/rfloat(omsq_p1);
       }
-      double ut[D]ALLOC_ALIGNED;
-      double udotOm;
+      dfloat ut[D]ALLOC_ALIGNED;
+      dfloat udotOm;
       // solve the position equation
       for(int i=0;i<D;i++)
       {
@@ -1572,10 +1574,10 @@ void test_push_pcls_in_cell_AoS_scatter_gather_vectorization()
 // test pushing all particles in a mesh cell
 void test_push_pcls_in_cell_AoS_localized_vectorization()
 {
-  double dto2 = usample();
-  double qdto2mc = usample();
-  double cellstart[D];
-  double dx_inv[D];
+  dfloat dto2 = usample();
+  dfloat qdto2mc = usample();
+  dfloat cellstart[D];
+  dfloat dx_inv[D];
   for(int i=0;i<3;i++)
   {
     cellstart[i]=usample();
@@ -1593,9 +1595,9 @@ void test_push_pcls_in_cell_AoS_localized_vectorization()
     SpeciesPcl* pcl = &pcls[pi];
     // because SpeciesPcl fits in cache line:
     ASSERT_ALIGNED(pcl);
-    double xorig[NPB][D]ALLOC_ALIGNED;
-    double xavg[NPB][D]ALLOC_ALIGNED;
-    double uorig[NPB][D]ALLOC_ALIGNED;
+    dfloat xorig[NPB][D]ALLOC_ALIGNED;
+    dfloat xavg[NPB][D]ALLOC_ALIGNED;
+    dfloat uorig[NPB][D]ALLOC_ALIGNED;
 
     // gather position and velocity data from particle block
     //
@@ -1614,9 +1616,9 @@ void test_push_pcls_in_cell_AoS_localized_vectorization()
 
     // sample field for this block of particles
     //
-    double B[NPB][D]ALLOC_ALIGNED;
-    double E[NPB][D]ALLOC_ALIGNED;
-    double ws[2][NPB][D]ALLOC_ALIGNED;
+    dfloat B[NPB][D]ALLOC_ALIGNED;
+    dfloat E[NPB][D]ALLOC_ALIGNED;
+    dfloat ws[2][NPB][D]ALLOC_ALIGNED;
     bool vectorized_w = false;
     if(vectorized_w)
     {
@@ -1626,10 +1628,10 @@ void test_push_pcls_in_cell_AoS_localized_vectorization()
         ws[1][p][i] = dx_inv[i]*(xavg[p][i]-cellstart[i]);
         ws[0][p][i] = 1.-ws[1][p][i];
       }
-      double fields[NPB][2*D]ALLOC_ALIGNED;
+      dfloat fields[NPB][2*D]ALLOC_ALIGNED;
       for(int p=0; p<NPB; p++)
       {
-        double weights[8]ALLOC_ALIGNED;
+        dfloat weights[8]ALLOC_ALIGNED;
         {
           // This can be done in two vectorized
           // multiplications with one swizzle
@@ -1657,10 +1659,10 @@ void test_push_pcls_in_cell_AoS_localized_vectorization()
     {
       for(int p=0; p<NPB; p++)
       {
-        double fields[2*D]ALLOC_ALIGNED;
-        double weights[8]ALLOC_ALIGNED;
+        dfloat fields[2*D]ALLOC_ALIGNED;
+        dfloat weights[8]ALLOC_ALIGNED;
         {
-          double w[2][D]ALLOC_ALIGNED;
+          dfloat w[2][D]ALLOC_ALIGNED;
           for(int i=0;i<D;i++)
           {
             w[1][i] = dx_inv[i]*(xavg[p][i]-cellstart[i]);
@@ -1693,10 +1695,10 @@ void test_push_pcls_in_cell_AoS_localized_vectorization()
 
     // use sampled field to push particle block
     //
-    double uavg[NPB][D]ALLOC_ALIGNED;
+    dfloat uavg[NPB][D]ALLOC_ALIGNED;
     {
-      double Om[NPB][D]ALLOC_ALIGNED;
-      double denom[NPB]ALLOC_ALIGNED;
+      dfloat Om[NPB][D]ALLOC_ALIGNED;
+      dfloat denom[NPB]ALLOC_ALIGNED;
       for(int p=0;p<NPB;p++)
       for(int i=0;i<D;i++)
       {
@@ -1704,7 +1706,7 @@ void test_push_pcls_in_cell_AoS_localized_vectorization()
       }
       for(int p=0;p<NPB;p++)
       {
-        double omsq_p1 = 1.
+        dfloat omsq_p1 = 1.
                      + Om[p][0] * Om[p][0]
                      + Om[p][1] * Om[p][1]
                      + Om[p][2] * Om[p][2];
@@ -1715,8 +1717,8 @@ void test_push_pcls_in_cell_AoS_localized_vectorization()
         // This generates 42 instructions
         denom[p] = 1.0/omsq_p1;
       }
-      double ut[NPB][D]ALLOC_ALIGNED;
-      double udotOm[NPB]ALLOC_ALIGNED;
+      dfloat ut[NPB][D]ALLOC_ALIGNED;
+      dfloat udotOm[NPB]ALLOC_ALIGNED;
       // solve the position equation
       for(int p=0;p<NPB;p++)
       for(int i=0;i<D;i++)
@@ -1762,9 +1764,9 @@ void test_push_pcls_in_cell_AoS_localized_vectorization()
 // This is declared noinline in order to force vectorization the way I want.
 //
 void sample_field(
-  double fields[2*D],
-  double weights[8],
-  double field_components[8][2*D])
+  dfloat fields[2*D],
+  dfloat weights[8],
+  dfloat field_components[8][2*D])
 {
   ASSERT_ALIGNED(fields);
   ASSERT_ALIGNED(weights);
@@ -1827,11 +1829,8 @@ int main()
   printf("# \n");
   printf("# this rewrite of move_bucket_old uses three-element arrays\n");
   printf("# instead of three separate variables, which if the compiler were\n");
-  printf("# intelligent would make no difference; for some bizarre reason\n");
-  printf("# this takes twice as long to run when 'denom' is calculated\n");
-  printf("# with double precision as for single precision, whereas in\n");
-  printf("# move_bucket_old, changing to double precision increases the\n");
-  printf("# cost very little.\n");
+  printf("# intelligent would make no difference; for some reason\n");
+  printf("# this is a bit slower.\n");
   printf("# \n");
   test_push_pcls_in_cell_SoA_vectorized();
   test_push_pcls_in_cell_SoA_vectorized();
