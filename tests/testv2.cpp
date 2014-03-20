@@ -1018,11 +1018,6 @@ static inline int get_direction(pfloat Xpos, pfloat Ypos, pfloat Zpos)
   return direction;
 }
 
-// try to take a time step that stops particle at a face
-//
-// alternative approach: allow to move at most one mesh cell.
-// requires computing norm of motion.  Use infinity norm.
-//
 void push_pcls_in_cell_SoA_stopping_at_face()
 {
     // time step resolution (analogous to FLT_MIN,
@@ -1282,6 +1277,290 @@ void push_pcls_in_cell_SoA_stopping_at_face()
           }
         }
         report_time(start);
+    }
+}
+
+// try to take a time step that stops particle at a face
+//
+void push_SoA_blocks_stopping_at_face()
+{
+    // time step resolution (analogous to FLT_MIN,
+    // defines a limit on precision)
+    const pfloat dt_min = 1e-6*dt;
+    // shortest allowed subcycle time step
+    // (assumed to be no less than dt_min)
+    const pfloat min_dt = 1e-5*dt;
+    //const dfloat dto2 = usample();
+    //const dfloat qdto2mc = usample();
+    const dfloat qo2mc = usample();
+    const dfloat dx_over_two = dx/2;
+    const dfloat dy_over_two = dy/2;
+    const dfloat dz_over_two = dz/2;
+    const dfloat two_over_dx = 2/dx;
+    const dfloat two_over_dy = 2/dy;
+    const dfloat two_over_dz = 2/dz;
+    const dfloat xmiddle = usample(); // position of middle of cell
+    const dfloat ymiddle = usample(); // position of middle of cell
+    const dfloat zmiddle = usample(); // position of middle of cell
+    #pragma omp parallel 
+    {
+      const Time start = get_time();
+      #pragma omp for
+      for(int bidx = 0; bidx < NUMBLKS; bidx++)
+      {
+        PclBlock& pclBlock = pclBlocks[bidx];
+        pclBlock.transpose();
+        dfloat* x = pclBlock.fetch_x();
+        dfloat* y = pclBlock.fetch_y();
+        dfloat* z = pclBlock.fetch_z();
+        dfloat* u = pclBlock.fetch_u();
+        dfloat* v = pclBlock.fetch_v();
+        dfloat* w = pclBlock.fetch_w();
+        ASSERT_ALIGNED(x);
+        ASSERT_ALIGNED(y);
+        ASSERT_ALIGNED(z);
+        ASSERT_ALIGNED(u);
+        ASSERT_ALIGNED(v);
+        ASSERT_ALIGNED(w);
+
+        // push all the particles in the block
+        #pragma simd
+        for(int pidx = 0; pidx < 8; pidx++)
+        {
+          // copy the particle
+          //
+          // x is physical position
+          // X is position is in canonical coordinates (-1 <=~ X <=~ 1)
+          //
+          //const pfloat Xorig = X[pidx];
+          //const pfloat Yorig = Y[pidx];
+          //const pfloat Zorig = Z[pidx];
+          const pfloat Xorig = (x[pidx]-xmiddle)*two_over_dx;
+          const pfloat Yorig = (y[pidx]-ymiddle)*two_over_dy;
+          const pfloat Zorig = (z[pidx]-zmiddle)*two_over_dz;
+          // u is physical velocity
+          const pfloat uorig = u[pidx];
+          const pfloat vorig = v[pidx];
+          const pfloat worig = w[pidx];
+          const pfloat tpcl_ = tpcl[pidx];
+          //assert_le(tpcl_, dt);
+
+          // The computed time step needs to be dfloat
+          // precision up to the point where the calculation is
+          // unique for every particle.
+          //
+          // compute time remaining for particle until
+          // next synchonization point.  Note that if tpcl_==0
+          // then there is no loss of precision at this point.
+          dfloat dtpcl = dt-tpcl_;
+          // initialize subcycle time to be remaining time
+          // (used in first iteration of iterative solver)
+          //
+          dfloat dtcycle = dtpcl;
+
+          // initialize xavg to xorig
+          pfloat Xavg = Xorig;
+          pfloat Yavg = Yorig;
+          pfloat Zavg = Zorig;
+
+          // purpose of iterative solver is to find
+          // dtcycle, Xavg.., and uavg...
+          pfloat uavg, vavg, wavg;
+
+          // this is the part that must vectorize
+          // #pragma omp simd
+          for(int niter=0;niter<NiterMover;niter++)
+          {
+            // compute weights for field components
+            //
+            pfloat weights[8];
+            // fraction of the distance from the left of the cell
+            const pfloat w0x = 0.5*Xavg + 0.5;
+            const pfloat w0y = 0.5*Yavg + 0.5;
+            const pfloat w0z = 0.5*Zavg + 0.5;
+            // fraction of distance from the right
+            const dfloat w1x = 1.-w0x;
+            const dfloat w1y = 1.-w0y;
+            const dfloat w1z = 1.-w0z;
+            const dfloat weight00 = w0x*w0y;
+            const dfloat weight01 = w0x*w1y;
+            const dfloat weight10 = w1x*w0y;
+            const dfloat weight11 = w1x*w1y;
+            weights[0] = weight00*w0z; // weight000
+            weights[1] = weight00*w1z; // weight001
+            weights[2] = weight01*w0z; // weight010
+            weights[3] = weight01*w1z; // weight011
+            weights[4] = weight10*w0z; // weight100
+            weights[5] = weight10*w1z; // weight101
+            weights[6] = weight11*w0z; // weight110
+            weights[7] = weight11*w1z; // weight111
+
+            pfloat Exl = 0.0;
+            pfloat Eyl = 0.0;
+            pfloat Ezl = 0.0;
+            pfloat Bxl = 0.0;
+            pfloat Byl = 0.0;
+            pfloat Bzl = 0.0;
+
+            // field_components is dfloat precision; loss of
+            // precision at this point is expected to mitigated
+            // by the large number of particles.  When we sum
+            // moments we will go back to dfloat precision.
+            //
+            for(int c=0; c<8; c++)
+            {
+                Bxl += weights[c] * field_components[c][0];
+                Byl += weights[c] * field_components[c][1];
+                Bzl += weights[c] * field_components[c][2];
+                Exl += weights[c] * field_components[c][3];
+                Eyl += weights[c] * field_components[c][4];
+                Ezl += weights[c] * field_components[c][5];
+            }
+
+            const dfloat qdto2mc = qo2mc*dtcycle;
+            const pfloat Omx = qdto2mc*Bxl;
+            const pfloat Omy = qdto2mc*Byl;
+            const pfloat Omz = qdto2mc*Bzl;
+
+            // end interpolation
+            const pfloat omsq_p1 = 1.0 + (Omx * Omx + Omy * Omy + Omz * Omz);
+            const pfloat denom = 1/rfloat(omsq_p1);
+            // solve the position equation
+            const pfloat ut = uorig + qdto2mc * Exl;
+            const pfloat vt = vorig + qdto2mc * Eyl;
+            const pfloat wt = worig + qdto2mc * Ezl;
+            //const dfloat udotb = ut * Bxl + vt * Byl + wt * Bzl;
+            const pfloat udotOm = ut * Omx + vt * Omy + wt * Omz;
+            // solve the velocity equation
+            const pfloat uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
+            const pfloat vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
+            const pfloat wavg = (wt + (ut * Omy - vt * Omx + udotOm * Omz)) * denom;
+
+            // stop the particle at the cell boundary
+            //
+            // compute the displacement assuming the particle is not stopped
+            //
+            const pfloat dxpcl = dtcycle*uavg;
+            const pfloat dypcl = dtcycle*vavg;
+            const pfloat dzpcl = dtcycle*wavg;
+            const pfloat dXpcl = dxpcl*two_over_dx;
+            const pfloat dYpcl = dypcl*two_over_dy;
+            const pfloat dZpcl = dzpcl*two_over_dz;
+            const pfloat Xnew = Xorig + dXpcl;
+            const pfloat Ynew = Yorig + dYpcl;
+            const pfloat Znew = Zorig + dZpcl;
+            //
+            // compute the factor by which the motion
+            // (time step) must be multiplied for the particle
+            // to stop at the cell boundary.
+            //
+            // 1. compute the distance moved.
+            //
+            const pfloat dXmag = std::abs(dXpcl);
+            const pfloat dYmag = std::abs(dYpcl);
+            const pfloat dZmag = std::abs(dZpcl);
+            //
+            // 2. compute the distance to the wall
+            //    (if moving away then allow no motion)
+            //
+            pfloat dXwall, dYwall, dZwall;
+            const pfloat hghXwall=1., lowXwall=-1.;
+            const pfloat hghYwall=1., lowYwall=-1.;
+            const pfloat hghZwall=1., lowZwall=-1.;
+            // calculate (signed) distance to wall in direction of motion
+            if(dXpcl > 0)
+              dXwall = hghXwall - Xorig;
+            else
+              dXwall = Xorig - lowXwall;
+            //
+            if(dYpcl > 0)
+              dYwall = hghYwall - Yorig;
+            else
+              dYwall = Yorig - lowYwall;
+            //
+            if(dZpcl > 0)
+              dZwall = hghZwall - Zorig;
+            else
+              dZwall = Zorig - lowZwall;
+            //
+            // The following alternative avoids comparisons, but
+            // unfortunately a singularity arises if the particle
+            // begins just outside the cell and is heading toward
+            // the cell; dealing with this singularity requires
+            // comparisons...
+            //
+            // distance from orig pos to wall
+            // (unless motion would not even bring particle to
+            // the middle of the cell, in which case this is
+            // the distance to the reflection of the other wall
+            // across the final position, which would at least
+            // dfloat the distance and therefore should not cause
+            // a problem in the final result; a subsequent iteration
+            // should then be able to take the particle to the wall...).
+            //dXwall = dXmag + 1 - abs(Xnew);
+            //dXwall = max(abs(Xorig)-1, dXwall);
+            //
+            // 3. compute the ratio to truncate motion
+            //
+            const pfloat ratio = get_truncation_ratio(
+              dXwall, dXmag,
+              dYwall, dYmag,
+              dZwall, dZmag);
+            //
+            // 4. truncate or adjust the time step and motion accordingly
+            //
+            const pfloat dtproposed = dtcycle*ratio;
+            // enforce a minimum dtcycle
+            dtcycle = std::max(min_dt, dtproposed);
+            // but cap final time at synchronization time
+            // (at which point dfloat precision is here restored)
+            dtcycle = std::min(dtpcl, dtcycle);
+
+            // apply the corrected time step
+            Xavg = Xorig + 0.5*dtcycle*uavg;
+            Yavg = Yorig + 0.5*dtcycle*vavg;
+            Zavg = Zorig + 0.5*dtcycle*wavg;
+          }
+
+          // update particle after the last iteration
+          const pfloat Xend = 2.0 * Xavg - Xorig;
+          const pfloat Yend = 2.0 * Yavg - Yorig;
+          const pfloat Zend = 2.0 * Zavg - Zorig;
+          {
+            //X[pidx] = Xnew;
+            //Y[pidx] = Ynew;
+            //Z[pidx] = Znew;
+            x[pidx] = Xend*dx_over_two+xmiddle;
+            y[pidx] = Yend*dy_over_two+ymiddle;
+            z[pidx] = Zend*dz_over_two+zmiddle;
+            u[pidx] = 2.0 * uavg - uorig;
+            v[pidx] = 2.0 * vavg - vorig;
+            w[pidx] = 2.0 * wavg - worig;
+            tpcl[pidx] += dtcycle;
+          }
+
+          // if the particle is done being moved then it
+          // can be presumed inside the box
+          if(tpcl[pidx] > (dt-dt_min))
+          {
+            destination[pidx] = 0;
+          }
+          else
+          // particle is not done, so move to neighbor
+          {
+            // for non-canonical coordinates
+            //destination[pidx] = get_direction(
+            //  (x[pidx]-xmiddle)*two_over_dx,
+            //  (y[pidy]-ymiddle)*two_over_dy,
+            //  (z[pidz]-zmiddle)*two_over_dx);
+
+            // for canonical coordinates
+            destination[pidx] = get_direction(Xend, Yend, Zend);
+          }
+        }
+        pclBlock.transpose();
+      }
+      report_time(start);
     }
 }
 
@@ -1854,6 +2133,11 @@ int main()
   printf("# move particles stopping at boundary of mesh cell:\n");
   push_pcls_in_cell_SoA_stopping_at_face();
   push_pcls_in_cell_SoA_stopping_at_face();
+  printf("#\n");
+  printf("# move particles in 8-particle transposable blocks\n");
+  printf("# stopping at boundary of mesh cell:\n");
+  push_SoA_blocks_stopping_at_face();
+  push_SoA_blocks_stopping_at_face();
   printf("#\n");
   printf("#\n");
   printf("# demonstrating that the time required to query the time is negligible:\n");
