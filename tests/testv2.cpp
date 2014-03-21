@@ -219,18 +219,27 @@ void test_AoS()
    }
 }
 
-// sample from (0,1)
-dfloat usample()
+// sample from open unit interval (0,1)
+dfloat sample_openu()
 {
-  // sample from [0,1]
-  const dfloat RAND_MAX_inv = 1./RAND_MAX;
-  return rand()*RAND_MAX_inv;
-  //
-  // sample from (0,1)
   const dfloat max_inv = 1./(dfloat(RAND_MAX)+2);
   return (dfloat(rand())+1)*max_inv;
 }
 
+// sample from closed unit interval [0,1]
+dfloat usample()
+{
+  const dfloat RAND_MAX_inv = 1./RAND_MAX;
+  return rand()*RAND_MAX_inv;
+  //
+}
+
+// time step
+dfloat dt;
+// cell dimensions
+dfloat dx;
+dfloat dy;
+dfloat dz;
 // 512 bytes (cache-line-sized)
 struct FloatPcl
 {
@@ -257,7 +266,8 @@ struct SpeciesPcl
   dfloat x[3];
   dfloat q;
   dfloat u[3];
-  long long ID;
+  dfloat t;
+  //long long ID;
  public:
   dfloat get_x(int i){return x[i];}
   dfloat get_u(int i){return u[i];}
@@ -271,7 +281,8 @@ struct SpeciesPcl
       u[j] = usample();
     }
     q=usample();
-    ID=i;
+    t=usample()*dt;
+    //ID=i;
   }
 };
 
@@ -280,9 +291,94 @@ class PclBlock
 {
   dfloat data[8][8];
  public:
-  // convert between AoS and SoA
-  // (should be implemented with intrinsics)
-  void transpose()
+  const void* get_data_memory()const
+  {
+    return &data[0][0];
+  }
+  // transpose each 2x2 block
+  //
+  // will compiler be smart enough to recognize the shuffle,
+  // or will the shifted index confuse it?
+  void trans2x2(dfloat data1[8], dfloat data2[8])
+  {
+    dfloat buff1[8]ALLOC_ALIGNED;
+    ASSERT_ALIGNED(&data1[0]);
+    ASSERT_ALIGNED(&data2[0]);
+    ASSERT_ALIGNED(&buff1[0]);
+    // copy the data that we will first overwrite
+    //#pragma simd
+    // by copying all the data we avoid a mask
+    for(int i=0; i<8; i++)
+      buff1[i] = data1[i];
+    // data1: copy odds from evens of data2
+    //#pragma simd
+    for(int i=1; i<8; i+=2)
+      data1[i] = data2[i-1];
+    // data2: copy evens from odds of buff1
+    //#pragma simd
+    for(int i=0; i<7; i+=2)
+      data2[i] = buff1[i+1];
+  }
+  // used to transpose the 2x2 blocks in each 4x4 block
+  void trans4x4(dfloat data1[8], dfloat data2[8])
+  {
+    dfloat buff1[8]ALLOC_ALIGNED;
+    ASSERT_ALIGNED(&data1[0]);
+    ASSERT_ALIGNED(&data2[0]);
+    ASSERT_ALIGNED(&buff1[0]);
+    //#pragma simd
+    for(int i=0; i<8; i++)
+      buff1[i] = data1[i];
+    // is compiler smart enough to generate shuffle or mask?
+    //#pragma simd
+    for(int i=2; i<8; i++)
+      if((i/2)%2) data1[i] = data2[i-2];
+    //#pragma simd
+    for(int i=0; i<6; i++)
+      if(!((i/2)%2)) data2[i] = buff1[i+2];
+  }
+  // used to transpose the 4x4 blocks in the 8x8 matrix
+  void trans8x8(dfloat data1[8], dfloat data2[8])
+  {
+    dfloat buff1[8]ALLOC_ALIGNED;
+    ASSERT_ALIGNED(&data1[0]);
+    ASSERT_ALIGNED(&data2[0]);
+    ASSERT_ALIGNED(&buff1[0]);
+    // copy the data that we will first overwrite
+    //#pragma simd
+    // by copying all the data we avoid a mask
+    for(int i=0; i<8; i++)
+      buff1[i] = data1[i];
+    //#pragma simd
+    for(int i=0; i<4; i++)
+      data1[i+4] = data2[i];
+    //#pragma simd
+    for(int i=0; i<4; i++)
+      data2[i] = buff1[i+4];
+  }
+  // transpose with blocked algorithm in
+  // transpose with blocked algorithm in
+  // 24=8*3 = 8*log_2(8) vector instructions
+  // (could be implemented with intrinsics)
+  //
+  // unfortunately this runs slower than naive transpose.
+  // must resort to intrinsics?
+  void vectorized_transpose()
+  {
+    dfloat buff[8][8]ALLOC_ALIGNED;
+    // 1. transpose each 2x2 block.
+    for(int i=0; i<8; i+=2)
+      trans2x2(data[i], data[i+1]);
+    // 2. transpose each 4x4 block of 2x2 blocks
+    trans4x4(data[0], data[2]);
+    trans4x4(data[1], data[3]);
+    trans4x4(data[4], data[6]);
+    trans4x4(data[5], data[7]);
+    // 3. swap lower left and upper right 4x4 blocks
+    for(int i=0; i<4; i+=1)
+      trans8x8(data[i], data[i+4]);
+  }
+  void naive_transpose()
   {
     dfloat temp[8][8]ALLOC_ALIGNED;
     for(int i=0;i<8;i++)
@@ -291,6 +387,12 @@ class PclBlock
       temp[i][j] = data[j][i];
     }
     memcpy(&data[0][0],&temp[0][0],sizeof(dfloat)*8*8);
+  }
+  // convert between AoS and SoA
+  void transpose()
+  {
+    //naive_transpose();
+    vectorized_transpose();
   }
   // assumes AoS
   SpeciesPcl& fetch_pcl(int p){return (SpeciesPcl&)data[p];}
@@ -302,8 +404,19 @@ class PclBlock
   dfloat* fetch_u(){return data[4];}
   dfloat* fetch_v(){return data[5];}
   dfloat* fetch_w(){return data[6];}
-  long long* fetch_ID(){return (long long*) data[7];}
+  dfloat* fetch_t(){return data[7];}
+  // we will not track IDs
+  //long long* fetch_ID(){return (long long*) data[7];}
 };
+bool operator== (const PclBlock &lhs, const PclBlock &rhs)
+{
+  const void* lhsdata = lhs.get_data_memory();
+  const void* rhsdata = rhs.get_data_memory();
+  return !memcmp(lhsdata, rhsdata, sizeof(dfloat)*8*8);
+  //for(int i=0; i<8; i++)
+  //for(int j=0; j<8; j++)
+  //  lhs.data[i][j]==rhs.data[i][j];
+}
 
 // 512 bits (cache-line-sized)
 class MiPcl
@@ -317,10 +430,6 @@ class MiPcl
   int cx[3];
 };
 
-dfloat dt;
-dfloat dx;
-dfloat dy;
-dfloat dz;
 const int NUMPCLS=NPB*256;
 const int NUMBLKS=(NUMPCLS-1)/8+1;
 SpeciesPcl pcls[NUMPCLS]ALLOC_ALIGNED;
@@ -335,7 +444,7 @@ dfloat w[NUMPCLS]ALLOC_ALIGNED;
 dfloat q[NUMPCLS]ALLOC_ALIGNED;
 long long ID[NUMPCLS]ALLOC_ALIGNED;
 // portion of dt remaining for particle
-dfloat tpcl[NUMPCLS]ALLOC_ALIGNED;
+dfloat t[NUMPCLS]ALLOC_ALIGNED;
 int destination[NUMPCLS]ALLOC_ALIGNED;
 
 void copy_SoA_to_AoS_particles()
@@ -354,7 +463,7 @@ void copy_SoA_to_AoS_particles()
      pcls[i].set_u(1,v[i]);
      pcls[i].set_u(2,w[i]);
      pcls[i].q = q[i];
-     pcls[i].ID = ID[i];
+     pcls[i].t = t[i];
   }
   report_time(start);
   }
@@ -376,7 +485,7 @@ void copy_AoS_to_SoA_particles()
     v[i] = pcls[i].get_u(1);
     w[i] = pcls[i].get_u(2);
     q[i] = pcls[i].q;
-    ID[i] = pcls[i].ID;
+    t[i] = pcls[i].t;
   }
   report_time(start);
   }
@@ -445,6 +554,11 @@ void copy_AoS_to_AoS_particle_blocks()
       ASSERT_ALIGNED(&pcls[0]);
       (*pcl) = pcls[b*8+p];
     }
+    PclBlock tmpBlock1 = pclBlock;
+    PclBlock tmpBlock2 = pclBlock;
+    tmpBlock1.naive_transpose();
+    tmpBlock2.vectorized_transpose();
+    assert(tmpBlock1==tmpBlock2);
   }
   report_time(start);
   }
@@ -466,7 +580,7 @@ void initialize_data()
 
   // initialize particles
   //
-  dt = usample();
+  dt = sample_openu();
   dprint(dt);
   dx = usample();
   dy = usample();
@@ -474,8 +588,8 @@ void initialize_data()
   for(int i=0;i<NUMPCLS;i++)
   {
     pcls[i].init_random(i);
-    // ensure that tpcl is no greater than dt
-    tpcl[i] = dt*usample();
+    // ensure that t is no greater than dt
+    t[i] = dt*usample();
   }
   // do everything twice in a row to expose cache issues
   //
@@ -1060,17 +1174,17 @@ void push_pcls_in_cell_SoA_stopping_at_face()
           const pfloat uorig = u[pidx];
           const pfloat vorig = v[pidx];
           const pfloat worig = w[pidx];
-          const pfloat tpcl_ = tpcl[pidx];
-          //assert_le(tpcl_, dt);
+          const pfloat torig = t[pidx];
+          //assert_le(torig, dt);
 
           // The computed time step needs to be dfloat
           // precision up to the point where the calculation is
           // unique for every particle.
           //
           // compute time remaining for particle until
-          // next synchonization point.  Note that if tpcl_==0
+          // next synchonization point.  Note that if torig==0
           // then there is no loss of precision at this point.
-          dfloat dtpcl = dt-tpcl_;
+          dfloat dtpcl = dt-torig;
           // initialize subcycle time to be remaining time
           // (used in first iteration of iterative solver)
           //
@@ -1254,12 +1368,12 @@ void push_pcls_in_cell_SoA_stopping_at_face()
             u[pidx] = 2.0 * uavg - uorig;
             v[pidx] = 2.0 * vavg - vorig;
             w[pidx] = 2.0 * wavg - worig;
-            tpcl[pidx] += dtcycle;
+            t[pidx] += dtcycle;
           }
 
           // if the particle is done being moved then it
           // can be presumed inside the box
-          if(tpcl[pidx] > (dt-dt_min))
+          if(t[pidx] > (dt-dt_min))
           {
             destination[pidx] = 0;
           }
@@ -1316,12 +1430,14 @@ void push_SoA_blocks_stopping_at_face()
         dfloat* u = pclBlock.fetch_u();
         dfloat* v = pclBlock.fetch_v();
         dfloat* w = pclBlock.fetch_w();
+        dfloat* t = pclBlock.fetch_t();
         ASSERT_ALIGNED(x);
         ASSERT_ALIGNED(y);
         ASSERT_ALIGNED(z);
         ASSERT_ALIGNED(u);
         ASSERT_ALIGNED(v);
         ASSERT_ALIGNED(w);
+        ASSERT_ALIGNED(t);
 
         // push all the particles in the block
         #pragma simd
@@ -1342,17 +1458,17 @@ void push_SoA_blocks_stopping_at_face()
           const pfloat uorig = u[pidx];
           const pfloat vorig = v[pidx];
           const pfloat worig = w[pidx];
-          const pfloat tpcl_ = tpcl[pidx];
-          //assert_le(tpcl_, dt);
+          const pfloat torig = t[pidx];
+          //assert_le(torig, dt);
 
           // The computed time step needs to be dfloat
           // precision up to the point where the calculation is
           // unique for every particle.
           //
           // compute time remaining for particle until
-          // next synchonization point.  Note that if tpcl_==0
+          // next synchonization point.  Note that if torig==0
           // then there is no loss of precision at this point.
-          dfloat dtpcl = dt-tpcl_;
+          dfloat dtpcl = dt-torig;
           // initialize subcycle time to be remaining time
           // (used in first iteration of iterative solver)
           //
@@ -1536,12 +1652,12 @@ void push_SoA_blocks_stopping_at_face()
             u[pidx] = 2.0 * uavg - uorig;
             v[pidx] = 2.0 * vavg - vorig;
             w[pidx] = 2.0 * wavg - worig;
-            tpcl[pidx] += dtcycle;
+            t[pidx] += dtcycle;
           }
 
           // if the particle is done being moved then it
           // can be presumed inside the box
-          if(tpcl[pidx] > (dt-dt_min))
+          if(t[pidx] > (dt-dt_min))
           {
             destination[pidx] = 0;
           }
