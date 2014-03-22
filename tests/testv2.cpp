@@ -8,6 +8,8 @@
 #include <string.h> // memcpy
 #include <algorithm> // for std::max
 #include <cmath> // for std::abs
+// change to include this conditionally
+#include <micvec.h>
 #include <assert.h>
 #include "../utility/debug.cpp"
 #include "../utility/asserts.cpp"
@@ -16,10 +18,10 @@
 #define ALIGNMENT 64
 #ifdef __INTEL_COMPILER
   #define ALLOC_ALIGNED __attribute__((aligned(ALIGNMENT)));
-  #define ASSERT_ALIGNED(X) __assume_aligned(X, ALIGNMENT)
+  #define ASSUME_ALIGNED(X) __assume_aligned(X, ALIGNMENT)
 #else
     #define ALLOC_ALIGNED
-    #define ASSERT_ALIGNED(X)
+    #define ASSUME_ALIGNED(X)
 #endif
 
 // double-precision float
@@ -286,6 +288,136 @@ struct SpeciesPcl
   }
 };
 
+// transpose each 2x2 block in the two rows of a 2x8 matrix
+// used to transpose the 2x2 blocks of the 8x8 matrix
+inline void trans2x2(double in1[8], double in2[8])
+{
+  F64vec8& data1 = (F64vec8&)in1[0];
+  F64vec8& data2 = (F64vec8&)in2[0];
+  // copy the data that we will first overwrite
+  const F64vec8 buff1 = data1;
+
+  // data1: copy odds from evens of data2,
+  //   i.e.,
+  // for(int i=1; i<8; i+=2) data1[i] = data2[i-1];
+  //
+  const __mmask16 rmask_01010101 = _mm512_int2mask(0xaa); // mask=10101010
+  // replace unmasked data1 with swizzled data2
+  // (hopefully compiler will see that this can be done in
+  // a single vector instruction)
+  data1 = F64vec8(_mm512_mask_swizzle_pd(__m512d(data1),
+    rmask_01010101, __m512d(data2),_MM_SWIZ_REG_CDAB));
+  //cout << "swizzle for pattern 'cdab' with rmask=01010101\n"
+  //  << data1 << endl;
+
+  // data2: copy evens from odds of buff1,
+  //   i.e.,
+  // for(int i=0; i<7; i+=2) data2[i] = buff1[i+1];
+  //
+  const __mmask16 rmask_10101010 = _mm512_int2mask(0x55); // mask=01010101
+  // replace unmasked data2 with swizzled buff1
+  data2 = F64vec8(_mm512_mask_swizzle_pd(__m512d(data2),
+    rmask_10101010, __m512d(buff1),_MM_SWIZ_REG_CDAB));
+  //cout << "swizzle for pattern 'cdab' with rmask=10101010\n"
+  //  << data2 << endl;
+}
+
+// transpose 1x2 elements of each 2x4 block in the two rows of a 2x8 matrix
+// used to transpose the 2x2 elements of the 4x4 blocks of the 8x8 matrix
+inline void trans4x4(double in1[8], double in2[8])
+{
+  F64vec8& data1 = (F64vec8&)in1[0];
+  F64vec8& data2 = (F64vec8&)in2[0];
+  // copy the data that we will first overwrite
+  const F64vec8 buff1 = data1;
+
+  // data1: copy odd 1x2 elements from even 1x2 elements of data2,
+  //   i.e.,
+  // for(int i=2; i<8; i++) if((i/2)%2) data1[i] = data2[i-2];
+  //
+  // replace unmasked data1 with swizzled data2
+  const __mmask16 rmask_00110011 = _mm512_int2mask(0xcc); // mask = 11001100
+  data1 = F64vec8(_mm512_mask_swizzle_pd(__m512d(data1),
+    rmask_00110011, __m512d(data2),_MM_SWIZ_REG_BADC));
+  //cout << "swizzle for pattern 'badc' with rmask=00110011\n"
+  //  << outp1 << endl;
+
+  // data2: copy even 1x2 elements from odd 1x2 from odds of buff1,
+  //   i.e.,
+  // for(int i=0; i<6; i++) if(!((i/2)%2)) data2[i] = buff1[i+2];
+  //
+  const __mmask16 rmask_11001100 = _mm512_int2mask(0x33); // mask=00110011
+  data2 = F64vec8(_mm512_mask_swizzle_pd(__m512d(data2),
+    rmask_11001100, __m512d(buff1),_MM_SWIZ_REG_BADC));
+  //cout << "swizzle for pattern 'badc' with rmask=11001100\n"
+  //  << outp2 << endl;
+}
+
+// transpose 1x4 elements of each 2x4 block in the two rows of a 2x8 matrix
+// used to transpose the 4x4 elements of the 8x8 matrix
+inline void trans8x8(double in1[8], double in2[8])
+{
+  F64vec8& data1 = (F64vec8&)in1[0];
+  F64vec8& data2 = (F64vec8&)in2[0];
+  // copy the data that we will first overwrite
+  const F64vec8 buff1 = data1;
+
+  // for swizzle intel supports 256-bit lanes with 64-bit elements
+  // (as well as 128-bit lanes with 32-bit elements),
+  // but for shuffle intel only supports 128-bit lanes with 32-bit
+  // elements, so we must cast to 32-bit data types, do the
+  // shuffle, and cast back.
+  //
+  // The amount of (nested) casting needed here
+  // in order to "convert" between 32-bit integer and
+  // 64-bit double precision data seems kind of unbelievable...
+
+  // data1: copy low (odd) 1x4 element from even (high) 1x4 element of data2,
+  //   i.e.,
+  // for(int i=0; i<4; i++) data1[i+4] = data2[i];
+  //
+  // replace unmasked data1 with shuffled data2
+  const __mmask16 rmask_00001111 = _mm512_int2mask(0xff00); //mask=11110000
+  data1 = F64vec8(_mm512_castps_pd(
+    _mm512_mask_permute4f128_ps(_mm512_castpd_ps(__m512d(data1)),
+      rmask_00001111, _mm512_castpd_ps(__m512d(data2)),_MM_PERM_BADC)));
+  //cout << "inter lane shuffle for pattern 'badc' with rmask=11110000\n"
+  //  << data << endl;
+
+  // data2: copy high (even) 1x4 element from odd (low) 1x4 element of buff1,
+  //   i.e.,
+  // for(int i=0; i<4; i++) data2[i] = buff1[i+4];
+  //
+  // replace unmasked data2 with shuffled data1
+  const __mmask16 rmask_11110000 = _mm512_int2mask(0x00ff); //mask=00001111
+  data2 = F64vec8(_mm512_castps_pd(
+    _mm512_mask_permute4f128_ps(_mm512_castpd_ps(__m512d(data2)),
+      rmask_11110000, _mm512_castpd_ps(__m512d(buff1)),_MM_PERM_BADC)));
+  //cout << "inter lane shuffle for pattern 'badc' with rmask=00001111\n"
+  //  << data2 << endl;
+}
+
+// transpose with blocked algorithm in
+// 24=8*3 = 8*log_2(8) vector instructions
+// (ignoring 12=4*3 copies made to
+// buffers to reduce number of registers needed)
+//
+inline void transpose_8x8_double(double data[8][8])
+{
+  ASSUME_ALIGNED(data);
+  // 1. transpose each 2x2 block.
+  for(int i=0; i<8; i+=2)
+    trans2x2(data[i], data[i+1]);
+  // 2. transpose each 4x4 block of 2x2 elements
+  trans4x4(data[0], data[2]);
+  trans4x4(data[1], data[3]);
+  trans4x4(data[4], data[6]);
+  trans4x4(data[5], data[7]);
+  // 3. swap lower left and upper right 4x4 elements
+  for(int i=0; i<4; i+=1)
+    trans8x8(data[i], data[i+4]);
+}
+
 // 8 particles
 class PclBlock
 {
@@ -294,89 +426,6 @@ class PclBlock
   const void* get_data_memory()const
   {
     return &data[0][0];
-  }
-  // transpose each 2x2 block
-  //
-  // will compiler be smart enough to recognize the shuffle,
-  // or will the shifted index confuse it?
-  void trans2x2(dfloat data1[8], dfloat data2[8])
-  {
-    dfloat buff1[8]ALLOC_ALIGNED;
-    ASSERT_ALIGNED(&data1[0]);
-    ASSERT_ALIGNED(&data2[0]);
-    ASSERT_ALIGNED(&buff1[0]);
-    // copy the data that we will first overwrite
-    //#pragma simd
-    // by copying all the data we avoid a mask
-    for(int i=0; i<8; i++)
-      buff1[i] = data1[i];
-    // data1: copy odds from evens of data2
-    //#pragma simd
-    for(int i=1; i<8; i+=2)
-      data1[i] = data2[i-1];
-    // data2: copy evens from odds of buff1
-    //#pragma simd
-    for(int i=0; i<7; i+=2)
-      data2[i] = buff1[i+1];
-  }
-  // used to transpose the 2x2 blocks in each 4x4 block
-  void trans4x4(dfloat data1[8], dfloat data2[8])
-  {
-    dfloat buff1[8]ALLOC_ALIGNED;
-    ASSERT_ALIGNED(&data1[0]);
-    ASSERT_ALIGNED(&data2[0]);
-    ASSERT_ALIGNED(&buff1[0]);
-    //#pragma simd
-    for(int i=0; i<8; i++)
-      buff1[i] = data1[i];
-    // is compiler smart enough to generate shuffle or mask?
-    //#pragma simd
-    for(int i=2; i<8; i++)
-      if((i/2)%2) data1[i] = data2[i-2];
-    //#pragma simd
-    for(int i=0; i<6; i++)
-      if(!((i/2)%2)) data2[i] = buff1[i+2];
-  }
-  // used to transpose the 4x4 blocks in the 8x8 matrix
-  void trans8x8(dfloat data1[8], dfloat data2[8])
-  {
-    dfloat buff1[8]ALLOC_ALIGNED;
-    ASSERT_ALIGNED(&data1[0]);
-    ASSERT_ALIGNED(&data2[0]);
-    ASSERT_ALIGNED(&buff1[0]);
-    // copy the data that we will first overwrite
-    //#pragma simd
-    // by copying all the data we avoid a mask
-    for(int i=0; i<8; i++)
-      buff1[i] = data1[i];
-    //#pragma simd
-    for(int i=0; i<4; i++)
-      data1[i+4] = data2[i];
-    //#pragma simd
-    for(int i=0; i<4; i++)
-      data2[i] = buff1[i+4];
-  }
-  // transpose with blocked algorithm in
-  // transpose with blocked algorithm in
-  // 24=8*3 = 8*log_2(8) vector instructions
-  // (could be implemented with intrinsics)
-  //
-  // unfortunately this runs slower than naive transpose.
-  // must resort to intrinsics?
-  void vectorized_transpose()
-  {
-    dfloat buff[8][8]ALLOC_ALIGNED;
-    // 1. transpose each 2x2 block.
-    for(int i=0; i<8; i+=2)
-      trans2x2(data[i], data[i+1]);
-    // 2. transpose each 4x4 block of 2x2 blocks
-    trans4x4(data[0], data[2]);
-    trans4x4(data[1], data[3]);
-    trans4x4(data[4], data[6]);
-    trans4x4(data[5], data[7]);
-    // 3. swap lower left and upper right 4x4 blocks
-    for(int i=0; i<4; i+=1)
-      trans8x8(data[i], data[i+4]);
   }
   void naive_transpose()
   {
@@ -392,7 +441,7 @@ class PclBlock
   void transpose()
   {
     //naive_transpose();
-    vectorized_transpose();
+    transpose_8x8_double(data);
   }
   // assumes AoS
   SpeciesPcl& fetch_pcl(int p){return (SpeciesPcl&)data[p];}
@@ -495,8 +544,8 @@ void copy_AoS_to_SoA_particles()
 //
 void copy_AoS_particles_to_another_array_rev()
 {
-  uint64_t *p1 = (uint64_t *) pcls;  ASSERT_ALIGNED(p1);
-  uint64_t *p2 = (uint64_t *) pcls2; ASSERT_ALIGNED(p2);
+  uint64_t *p1 = (uint64_t *) pcls;  ASSUME_ALIGNED(p1);
+  uint64_t *p2 = (uint64_t *) pcls2; ASSUME_ALIGNED(p2);
   #pragma omp parallel
   {
   //printf("sizeof(SpeciesPcl): %d\n", sizeof(SpeciesPcl));
@@ -506,8 +555,8 @@ void copy_AoS_particles_to_another_array_rev()
   #pragma omp for schedule(static,NUMPCLS*4) nowait
   for(int p=0;p<NUMPCLS*8;p++)
   {
-    //ASSERT_ALIGNED(&pcls2[0]);
-    //ASSERT_ALIGNED(&pcls[0]);
+    //ASSUME_ALIGNED(&pcls2[0]);
+    //ASSUME_ALIGNED(&pcls[0]);
     //pcls2[p] = pcls[p];
     p2[p] = p1[p];
   }
@@ -523,8 +572,8 @@ void copy_AoS_particles_to_another_array()
   #pragma omp for
   for(int p=0;p<NUMPCLS;p++)
   {
-    ASSERT_ALIGNED(&pcls2[0]);
-    ASSERT_ALIGNED(&pcls[0]);
+    ASSUME_ALIGNED(&pcls2[0]);
+    ASSUME_ALIGNED(&pcls[0]);
     pcls2[p] = pcls[p];
   }
   report_time(start);
@@ -550,14 +599,14 @@ void copy_AoS_to_AoS_particle_blocks()
     for(int p=0;p<8;p++)
     {
       SpeciesPcl* pcl = &pclBlock.fetch_pcl(p);
-      ASSERT_ALIGNED(pcl);
-      ASSERT_ALIGNED(&pcls[0]);
+      ASSUME_ALIGNED(pcl);
+      ASSUME_ALIGNED(&pcls[0]);
       (*pcl) = pcls[b*8+p];
     }
     PclBlock tmpBlock1 = pclBlock;
     PclBlock tmpBlock2 = pclBlock;
     tmpBlock1.naive_transpose();
-    tmpBlock2.vectorized_transpose();
+    tmpBlock2.transpose();
     assert(tmpBlock1==tmpBlock2);
   }
   report_time(start);
@@ -641,7 +690,7 @@ void test_push_pcls_in_cell()
   {
     SpeciesPcl* pcl = &pcls[pi];
     // because SpeciesPcl fits in cache line:
-    ASSERT_ALIGNED(pcl);
+    ASSUME_ALIGNED(pcl);
     dfloat xorig[D]ALLOC_ALIGNED;
     dfloat xavg[D]ALLOC_ALIGNED;
     dfloat uorig[D]ALLOC_ALIGNED;
@@ -1431,13 +1480,13 @@ void push_SoA_blocks_stopping_at_face()
         dfloat* v = pclBlock.fetch_v();
         dfloat* w = pclBlock.fetch_w();
         dfloat* t = pclBlock.fetch_t();
-        ASSERT_ALIGNED(x);
-        ASSERT_ALIGNED(y);
-        ASSERT_ALIGNED(z);
-        ASSERT_ALIGNED(u);
-        ASSERT_ALIGNED(v);
-        ASSERT_ALIGNED(w);
-        ASSERT_ALIGNED(t);
+        ASSUME_ALIGNED(x);
+        ASSUME_ALIGNED(y);
+        ASSUME_ALIGNED(z);
+        ASSUME_ALIGNED(u);
+        ASSUME_ALIGNED(v);
+        ASSUME_ALIGNED(w);
+        ASSUME_ALIGNED(t);
 
         // push all the particles in the block
         #pragma simd
@@ -1705,12 +1754,12 @@ void move_SoA_blocks()
         dfloat* u = pclBlock.fetch_u();
         dfloat* v = pclBlock.fetch_v();
         dfloat* w = pclBlock.fetch_w();
-        ASSERT_ALIGNED(x);
-        ASSERT_ALIGNED(y);
-        ASSERT_ALIGNED(z);
-        ASSERT_ALIGNED(u);
-        ASSERT_ALIGNED(v);
-        ASSERT_ALIGNED(w);
+        ASSUME_ALIGNED(x);
+        ASSUME_ALIGNED(y);
+        ASSUME_ALIGNED(z);
+        ASSUME_ALIGNED(u);
+        ASSUME_ALIGNED(v);
+        ASSUME_ALIGNED(w);
         #pragma omp simd
         for(int pidx = 0; pidx < 8; pidx++)
         {
@@ -1834,7 +1883,7 @@ void test_push_pcls_in_cell_AoS_scatter_gather_vectorization()
   {
     SpeciesPcl* pcl = &pcls[pi];
     // because SpeciesPcl fits in cache line:
-    ASSERT_ALIGNED(pcl);
+    ASSUME_ALIGNED(pcl);
     dfloat xorig[D]ALLOC_ALIGNED;
     dfloat xavg[D]ALLOC_ALIGNED;
     dfloat uorig[D]ALLOC_ALIGNED;
@@ -1989,7 +2038,7 @@ void test_push_pcls_in_cell_AoS_localized_vectorization()
   {
     SpeciesPcl* pcl = &pcls[pi];
     // because SpeciesPcl fits in cache line:
-    ASSERT_ALIGNED(pcl);
+    ASSUME_ALIGNED(pcl);
     dfloat xorig[NPB][D]ALLOC_ALIGNED;
     dfloat xavg[NPB][D]ALLOC_ALIGNED;
     dfloat uorig[NPB][D]ALLOC_ALIGNED;
@@ -2163,9 +2212,9 @@ void sample_field(
   dfloat weights[8],
   dfloat field_components[8][2*D])
 {
-  ASSERT_ALIGNED(fields);
-  ASSERT_ALIGNED(weights);
-  ASSERT_ALIGNED(field_components);
+  ASSUME_ALIGNED(fields);
+  ASSUME_ALIGNED(weights);
+  ASSUME_ALIGNED(field_components);
   for(int c=0; c<8; c++)
   #pragma simd
   for(int i=0;i<D*2;i++)
