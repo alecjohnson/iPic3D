@@ -12,6 +12,12 @@ FLAGS = -O3 -DNO_MPI -fno-exceptions $(ARRAY_FLAGS) #-ggdb
 
 COMPILER = c++ #icpc # g++
 
+testvtrans.mic: shuftest.cpp
+	icpc -mmic shuftest.cpp -o shuftest
+
+run.testvtrans.mic: shuftest.cpp
+	ssh `hostname`-mic1 tests/shuftest
+
 testvrinke.mic: testvrinke.cpp
 	KMP_AFFINITY=balanced,granularity=thread icpc -mmic $(FLAGS) -fopenmp testvrinke.cpp $(INCLUDE) -o testvrinke.mic
 
