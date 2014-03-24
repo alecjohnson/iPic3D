@@ -3,6 +3,7 @@
 #include "ipicmath.h" // for pow2roundup
 #include "ipicdefs.h" // for pfloat
 #include "arraysfwd.h"
+#include "string.h" // for memcpy
 #define NO_NEW
 #include "Alloc.h"
 
@@ -223,7 +224,7 @@ class MiKineticSolver_interface
   virtual void move_pcls(const EMfield&, double dt) = 0;
 };
 
-// should support access of the form pclList[i].x,
+// should support access of the form pclList[i].get_x(),
 // which could in fact also be supported
 // with an underlying SoA representation.
 //
@@ -232,27 +233,37 @@ class List
 {
  private: // members
   type* list;
-  int size; // number of particles in list
-  int maxsize; // maximum number of particles
- public: // access
-  void pop()
-  {
-    assert(size>0);
-    size--;
-  }
-  void push_back(const type& element)
-  {
-    int newsize = size+1;
-    resize_if_needed(newsize);
-    list[size] = element;
-    size=newsize;
-  }
-  inline type& operator[](int i)
+  int _size; // number of particles in list
+  int _maxsize; // maximum number of particles
+ private:
+  void check_index(int i)
   {
     #ifdef CHECK_BOUNDS
       assert_le(0, i);
-      assert_lt(i, size);
+      assert_lt(i, _size);
     #endif
+  }
+ public: // access
+  int size()const { return _size; }
+  int maxsize()const { return _maxsize; }
+  void pop()
+  {
+    assert(_size>0);
+    _size--;
+  }
+  void push_back(const type& element)
+  {
+    if(_size>=_maxsize)
+    {
+      int newmaxsize = pow2roundup(_size+1);
+      realloc(newmaxsize);
+    }
+    list[_size] = element;
+    _size++;
+  }
+  inline type& operator[](int i)
+  {
+    check_index(i);
     ALIGNED(list);
     return list[i];
   }
@@ -262,13 +273,10 @@ class List
     // though pop would be faster in that case.
     // 
     // why doesn't this compile?
-    //this->operator[i] = list[--size];
-    #ifdef CHECK_BOUNDS
-      assert_le(0, i);
-      assert_lt(i, size);
-    #endif
+    //this->operator[i] = list[--_size];
+    check_index(i);
     ALIGNED(list);
-    list[i] = list[--size];
+    list[i] = list[--_size];
   }
  public: // memory
   ~List()
@@ -277,36 +285,38 @@ class List
   }
   List():
     list(0),
-    size(0),
-    maxsize(0)
+    _size(0),
+    _maxsize(0)
   {}
-  // truncate and reallocate list
-  void alloc(int in)
+  // reset maximum size without deleting elements
+  void realloc(int newmaxsize)
   {
-    maxsize = in;
-    free(list);
-    list = AlignedAlloc(type,maxsize);
-    size = 0;
-  }
-  void resize_if_needed(int needed_size)
-  {
-    if(needed_size>maxsize)
+    // ignore request if requested size is too small
+    if(_size > newmaxsize) return;
+
+    // round up size to a multiple of num_elem_in_block
+    const int num_elem_in_block = 8;
+    newmaxsize = ((newmaxsize-1)/num_elem_in_block+1)*num_elem_in_block;
+    if(newmaxsize != _maxsize)
     {
-      int newmaxsize = pow2roundup(needed_size);
-      resize(newmaxsize);
+      _maxsize = newmaxsize;
+      type* oldList = list;
+      list = AlignedAlloc(type,_maxsize);
+      // use this loop instead of memcpy if elements have indirection
+      // for(int i=0;i<_size;i++) list[i] = oldList[i];
+      memcpy(list,oldList,sizeof(type)*_size);
+      AlignedFree(oldList);
     }
   }
-  // change maximum size without deleting elements
-  void resize(int newmaxsize)
+  void shrink()
   {
-    type* oldList = list;
-    assert(size < newmaxsize);
-    maxsize = newmaxsize;
-    for(int i=0;i<size;i++)
+    // shrink _maxsize by a factor of two if elements will fit.
+    int proposed_size = pow2rounddown(_maxsize/2);
+    if( _size <= proposed_size
+        && proposed_size < _maxsize)
     {
-      list[i] = oldList[i];
+      realloc(proposed_size);
     }
-    AlignedFree(oldList);
   }
 };
 
@@ -371,13 +381,13 @@ class PclGrid: public Grid
    :Grid(nxc_, nyc_, nzc_, 1, 1, 1, 0, 0, 0),
     pclGrid(nxc,nyc,nzc)
   {}
-  // resize all particle lists to hold as many as npc particles
-  void resize(int npc)
+  // realloc all particle lists to hold as many as npc particles
+  void realloc(int npc)
   {
     for(int i=0;i<nxc;i++)
     for(int j=0;j<nyc;j++)
     for(int k=0;k<nzc;k++)
-      pclGrid[i][j][k].resize(npc);
+      pclGrid[i][j][k].realloc(npc);
   }
   void alloc(int npc)
   {
@@ -440,17 +450,38 @@ class PclSolver:
   }
 };
 
-// 512 bits (cache-line-sized)
-struct SpeciesPcl
+// 256 bits (half cache line)
+struct PclPos
 {
   double x;
   double y;
   double z;
-  double q;
-  double u;
-  double v;
-  double w;
-  long long ID;
+  double t;
+};
+
+// 512 bits (cache-line-sized)
+class SpeciesPcl
+{
+  double a[8];
+ public:
+  void set(int i, double in){a[i]=in;}
+  double get(int i)const{return a[i];}
+  void set_x(double in){a[0]=in;}
+  void set_y(double in){a[1]=in;}
+  void set_z(double in){a[2]=in;}
+  void set_q(double in){a[3]=in;}
+  void set_u(double in){a[4]=in;}
+  void set_v(double in){a[5]=in;}
+  void set_w(double in){a[6]=in;}
+  void set_t(double in){a[7]=in;}
+  double get_x()const{return a[0];}
+  double get_y()const{return a[1];}
+  double get_z()const{return a[2];}
+  double get_q()const{return a[3];}
+  double get_u()const{return a[4];}
+  double get_v()const{return a[5];}
+  double get_w()const{return a[6];}
+  double get_t()const{return a[7];}
 };
 
 // 512 bits (cache-line-sized)
@@ -538,20 +569,39 @@ int test_PclGrid()
 {
   // create grid of particles
   PclGrid<List<SpeciesPcl> > pclGrid(2,3,4);
-  pclGrid.alloc(2); // at most 2 particles per cell
   SpeciesPcl pcl;
-  pcl.x=1.234;
-  pclGrid.fetch(1,2,3).push_back(pcl);
-  pcl.x=2.345;
-  pclGrid.fetch(1,2,3).push_back(pcl);
   List<SpeciesPcl>& pclList = pclGrid.fetch(1,2,3);
+  for(int i=0;i<10;i++)
+  {
+    for(int j=0;j<8;j++)
+    {
+      double num = (1+i)+.1*(1+j);
+      pcl.set(j, num);
+    }
+    dprint(pclList.size());
+    dprint(pclList.maxsize());
+    pclList.push_back(pcl);
+  }
+  for(int i=0;i<pclList.size();i++)
+  {
+    printf("pclList[%d]: ",i);
+    for(int j=0;j<8;j++)
+    {
+      printf("%4.1f ",pclList[i].get(j));
+    }
+    printf("\n");
+  }
+  pcl.set_x(1.234);
+  pclGrid.fetch(1,2,3).push_back(pcl);
+  pcl.set_x(2.345);
+  pclGrid.fetch(1,2,3).push_back(pcl);
   //SpeciesPcl& pcl0 = pclList[0];
   printf(
     "pclGrid[%d][%d][%d][%d].x = %g\n",
-    1,2,3,0,pclList[0]);
+    1,2,3,0,pclList[0].get_x());
   printf(
     "pclGrid[%d][%d][%d][%d].x = %g\n",
-    1,2,3,1,pclList[1]);
+    1,2,3,1,pclList[1].get_x());
 }
 
 void test_sort()
