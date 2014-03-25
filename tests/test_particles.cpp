@@ -224,12 +224,14 @@ class MiKineticSolver_interface
   virtual void move_pcls(const EMfield&, double dt) = 0;
 };
 
+// linear array of particles
+//
 // should support access of the form pclList[i].get_x(),
 // which could in fact also be supported
 // with an underlying SoA representation.
 //
 template<class type>
-class List
+class Larray
 {
  private: // members
   type* list;
@@ -279,11 +281,11 @@ class List
     list[i] = list[--_size];
   }
  public: // memory
-  ~List()
+  ~Larray()
   {
     AlignedFree(list);
   }
-  List():
+  Larray():
     list(0),
     _size(0),
     _maxsize(0)
@@ -312,8 +314,7 @@ class List
   {
     // shrink _maxsize by a factor of two if elements will fit.
     int proposed_size = pow2rounddown(_maxsize/2);
-    if( _size <= proposed_size
-        && proposed_size < _maxsize)
+    if( _size <= proposed_size && proposed_size < _maxsize)
     {
       realloc(proposed_size);
     }
@@ -407,7 +408,7 @@ struct PclRef
   int pcl;
 };
 
-class PclRefList: public List<PclRef>
+class PclRefList: public Larray<PclRef>
 {
 };
 
@@ -547,8 +548,8 @@ class MiPcl3
 //int test_PclList()
 //{
 //  // create grid of particles
-//  //PclGrid<List<SpeciesPcl>> pclGrid;
-//  List<SpeciesPcl> pclList;
+//  //PclGrid<Larray<SpeciesPcl>> pclGrid;
+//  Larray<SpeciesPcl> pclList;
 //  pclList.alloc(5);
 //  SpeciesPcl pcl0;
 //  SpeciesPcl pcl1;
@@ -568,9 +569,9 @@ class MiPcl3
 int test_PclGrid()
 {
   // create grid of particles
-  PclGrid<List<SpeciesPcl> > pclGrid(2,3,4);
+  PclGrid<Larray<SpeciesPcl> > pclGrid(2,3,4);
   SpeciesPcl pcl;
-  List<SpeciesPcl>& pclList = pclGrid.fetch(1,2,3);
+  Larray<SpeciesPcl>& pclList = pclGrid.fetch(1,2,3);
   for(int i=0;i<10;i++)
   {
     for(int j=0;j<8;j++)
