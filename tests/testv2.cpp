@@ -271,8 +271,18 @@ struct SpeciesPcl
   dfloat t;
   //long long ID;
  public:
-  dfloat get_x(int i){return x[i];}
-  dfloat get_u(int i){return u[i];}
+  dfloat get_x(int i)const{return x[i];}
+  dfloat get_u(int i)const{return u[i];}
+  dfloat* fetch_x(){return x;}
+  dfloat* fetch_u(){return u;}
+  void set_x(dfloat* in){
+    for(int i=0;i<3;i++)
+      x[i]=in[i];
+  }
+  void set_u(dfloat* in){
+    for(int i=0;i<3;i++)
+      u[i]=in[i];
+  }
   void set_x(int i, dfloat in){x[i]=in;}
   void set_u(int i, dfloat in){u[i]=in;}
   void init_random(int i)
@@ -355,22 +365,18 @@ inline void trans4x4(double in1[8], double in2[8])
 
 // transpose 1x4 elements of each 2x4 block in the two rows of a 2x8 matrix
 // used to transpose the 4x4 elements of the 8x8 matrix
-inline void trans8x8(double in1[8], double in2[8])
+void trans8x8(double in1[8], double in2[8])
 {
-  F64vec8& data1 = (F64vec8&)in1[0];
-  F64vec8& data2 = (F64vec8&)in2[0];
+  __m512& data1 = (__m512&)in1[0];
+  __m512& data2 = (__m512&)in2[0];
   // copy the data that we will first overwrite
-  const F64vec8 buff1 = data1;
+  const __m512 buff1 = data1;
 
   // for swizzle intel supports 256-bit lanes with 64-bit elements
   // (as well as 128-bit lanes with 32-bit elements),
   // but for shuffle intel only supports 128-bit lanes with 32-bit
   // elements, so we must cast to 32-bit data types, do the
   // shuffle, and cast back.
-  //
-  // The amount of (nested) casting needed here
-  // in order to "convert" between 32-bit integer and
-  // 64-bit double precision data seems kind of unbelievable...
 
   // data1: copy low (odd) 1x4 element from even (high) 1x4 element of data2,
   //   i.e.,
@@ -378,11 +384,7 @@ inline void trans8x8(double in1[8], double in2[8])
   //
   // replace unmasked data1 with shuffled data2
   const __mmask16 rmask_00001111 = _mm512_int2mask(0xff00); //mask=11110000
-  data1 = F64vec8(_mm512_castps_pd(
-    _mm512_mask_permute4f128_ps(_mm512_castpd_ps(__m512d(data1)),
-      rmask_00001111, _mm512_castpd_ps(__m512d(data2)),_MM_PERM_BADC)));
-  //cout << "inter lane shuffle for pattern 'badc' with rmask=11110000\n"
-  //  << data << endl;
+  data1 = _mm512_mask_permute4f128_ps(data1, rmask_00001111, data2,_MM_PERM_BADC);
 
   // data2: copy high (even) 1x4 element from odd (low) 1x4 element of buff1,
   //   i.e.,
@@ -390,11 +392,7 @@ inline void trans8x8(double in1[8], double in2[8])
   //
   // replace unmasked data2 with shuffled data1
   const __mmask16 rmask_11110000 = _mm512_int2mask(0x00ff); //mask=00001111
-  data2 = F64vec8(_mm512_castps_pd(
-    _mm512_mask_permute4f128_ps(_mm512_castpd_ps(__m512d(data2)),
-      rmask_11110000, _mm512_castpd_ps(__m512d(buff1)),_MM_PERM_BADC)));
-  //cout << "inter lane shuffle for pattern 'badc' with rmask=00001111\n"
-  //  << data2 << endl;
+  data2 = _mm512_mask_permute4f128_ps(data2, rmask_11110000, buff1,_MM_PERM_BADC);
 }
 
 // transpose with blocked algorithm in
@@ -2015,193 +2013,283 @@ void test_push_pcls_in_cell_AoS_scatter_gather_vectorization()
   }
 }
 
+// return concatenation of low half of lo and low half of hi
+inline __m512 cat_low_halves(__m512 lo, __m512 hi)
+{
+  const __mmask16 rmask_00001111 = _mm512_int2mask(0xff00); //mask=11110000
+  // low half uses lo, and high half uses low half of hi
+  return _mm512_mask_permute4f128_ps(lo, rmask_00001111, hi,_MM_PERM_BADC);
+}
+
+// return concatenation of hgh half of lo and hgh half of hi
+inline __m512 cat_hgh_halves(__m512 lo, __m512 hi)
+{
+  const __mmask16 rmask_11110000 = _mm512_int2mask(0x00ff); //mask=00001111
+  // high half uses hi, and low half uses high half of lo
+  return _mm512_mask_permute4f128_ps(hi, rmask_11110000, lo,_MM_PERM_BADC);
+}
+
+inline F64vec8 cat_low_halves(void* lo, void* hi)
+{ return (F64vec8) cat_low_halves(*(__m512*)lo, *(__m512*)hi); }
+inline F64vec8 cat_hgh_halves(void* lo, void* hi)
+{ return (F64vec8) cat_hgh_halves(*(__m512*)lo, *(__m512*)hi); }
+//
+inline F64vec8 cat_low_halves(F64vec8 lo, F64vec8 hi)
+{ return (F64vec8) cat_low_halves(*(__m512*)(&lo), *(__m512*)(&hi)); }
+inline F64vec8 cat_hgh_halves(F64vec8 lo, F64vec8 hi)
+{ return (F64vec8) cat_hgh_halves(*(__m512*)(&lo), *(__m512*)(&hi)); }
+
+// copy low vector of src to low vector of dst
+inline void copy012to012(F64vec8& dst, F64vec8 src)
+{
+  const __mmask8 rmask_11100000 = _mm512_int2mask(0x07); // mask=00000111
+  // masked copy
+  dst = _mm512_mask_mov_pd(dst,rmask_11100000,src);
+}
+// copy hgh vector of src to hgh vector of dst
+inline void copy456to456(F64vec8& dst, F64vec8 src)
+{
+  const __mmask8 rmask_00001110 = _mm512_int2mask(0x70); // mask=01110000
+  dst = _mm512_mask_mov_pd(dst,rmask_00001110,src);
+}
+// copy low vector of src to hgh vector of dst
+inline void copy012to456(F64vec8& dst, F64vec8 src)
+{
+  // mask=0000000000111111 because 32-bit elements
+  const __mmask16 rmask_1111110000000000 = _mm512_int2mask(0x03f);
+  // write the first three elements of src beginning at dst[4]
+  _mm512_mask_packstorelo_epi32(&dst[4],rmask_1111110000000000,*(__m512i*)&src);
+}
+// copy hgh vector of src to low vector of dst
+inline void copy456to012(F64vec8& dst, F64vec8 src)
+{
+  // mask=0011111111111111 because 32-bit elements
+  const __mmask16 rmask_1111111111111100 = _mm512_int2mask(0x3fff);
+  // write all but the highest element to the left of dst[4].
+  _mm512_mask_packstorehi_epi32(&dst[4],rmask_1111111111111100,*(__m512i*)&src);
+}
+
+// copy vectors of src to vectors of dst
+inline void copy012and456(F64vec8& dst, F64vec8 src)
+{
+  const __mmask8 rmask_11101110 = _mm512_int2mask(0x77); //mask=01110111
+  dst = _mm512_mask_mov_pd(dst,rmask_11101110,src);
+}
+
+// broadcast s0 into mask=0 slots, s1 into mask=1 slots
+inline F64vec8 broadcast_mask_blend(double s0, double s1, __mmask8 mask)
+{
+  return _mm512_mask_blend_pd(mask, F64vec8(s0), F64vec8(s1));
+  // broadcast s0 into vector
+  //const F64vec8 t1 = _mm512_extload_pd(&s0, _MM_UPCONV_PD_NONE, _MM_BROADCAST_1X8, _MM_HINT_NONE);
+  // broadcast s1 into same vector with mask
+  //return (F64vec8) _mm512_mask_extload_pd(t1, mask, &s1, _MM_UPCONV_PD_NONE, _MM_BROADCAST_1X8, _MM_HINT_NONE);
+}
+
+inline F64vec8 cross_product(F64vec8 u, F64vec8 v)
+{
+  F64vec8 us = u.dacb();
+  F64vec8 vs = v.dacb();
+  return us*vs.dacb() - us.dacb()*vs;
+}
+
+inline F64vec8 reciprocal_F64vec8(F64vec8 arg)
+{
+  // is there a faster way?
+  return F64vec8(1.)/arg;
+  // convert to single precision for faster reciprocal
+  //
+  //F32vec16 arg32 = _mm512_cvtpd_pslo(arg); 
+  //F32vec16 arg32inv = F32vec16(1.)/arg32;
+  //F64vec8 ret64 = _mm512_cvtpslo_pd(arg32inv);
+  //return ret64;
+}
+
+// construct weights for two particles based on their canonical positions
+// 
+// each particle has 8 weights, one for each corner of its cell
+//
+void construct_weights_for_2pcls(F64vec8 weights[2], F64vec8 X0)
+{
+  const F64vec8 X1 = F64vec8(1.) - X0;
+  
+  // construct weights for particles
+  //
+  F64vec8 wx[2], wy[2], wz[2];
+  // need versions with broadcasted component,
+  // but doing via swizzle works only for the x component
+  //wsx[0] = ws[0].aaaa();
+  //wsx[1] = ws[1].aaaa();
+  const __mmask8 rmask_01010101 = _mm512_int2mask(0xaa); // mask=10101010
+  const __mmask8 rmask_00110011 = _mm512_int2mask(0xcc); // mask=11001100
+  const __mmask8 rmask_00001111 = _mm512_int2mask(0xf0); // mask=11110000
+  // construct weights for first particle
+  //
+  // weights[0][0] = X0[0]*X0[1]*X0[2]; // weight000
+  // weights[0][1] = X0[0]*X0[1]*X1[2]; // weight001
+  // weights[0][2] = X0[0]*X1[1]*X0[2]; // weight010
+  // weights[0][3] = X0[0]*X1[1]*X1[2]; // weight011
+  // weights[0][4] = X1[0]*X0[1]*X0[2]; // weight100
+  // weights[0][5] = X1[0]*X0[1]*X1[2]; // weight101
+  // weights[0][6] = X1[0]*X1[1]*X0[2]; // weight110
+  // weights[0][7] = X1[0]*X1[1]*X1[2]; // weight111
+  //
+  {
+    // weights for first particle use low vectors of X0 and X1
+    //wx[0] = cat_low_halves(wsx[0],wsx[1]);
+    wx[0] = broadcast_mask_blend(X0[0],X1[0],rmask_00001111);
+    wy[0] = broadcast_mask_blend(X0[1],X1[1],rmask_00110011);
+    wz[0] = broadcast_mask_blend(X0[2],X1[2],rmask_01010101);
+    weights[0] = wx[0]*wy[0]*wz[0];
+  }
+  // construct weights for second particle
+  //
+  // weights[1][0] = X0[4]*X0[5]*X0[6]; // weight000
+  // weights[1][1] = X0[4]*X0[5]*X1[6]; // weight001
+  // weights[1][2] = X0[4]*X1[5]*X0[6]; // weight010
+  // weights[1][3] = X0[4]*X1[5]*X1[6]; // weight011
+  // weights[1][4] = X1[4]*X0[5]*X0[6]; // weight100
+  // weights[1][5] = X1[4]*X0[5]*X1[6]; // weight101
+  // weights[1][6] = X1[4]*X1[5]*X0[6]; // weight110
+  // weights[1][7] = X1[4]*X1[5]*X1[6]; // weight111
+  //
+  {
+    // weights for second particle use high vectors of X0 and X1
+    //wx[1] = cat_hgh_halves(wsx[0],wsx[1]);
+    wx[1] = broadcast_mask_blend(X0[4],X1[4],rmask_00001111);
+    wy[1] = broadcast_mask_blend(X0[5],X1[5],rmask_00110011);
+    wz[1] = broadcast_mask_blend(X0[6],X1[6],rmask_01010101);
+    weights[1] = wx[1]*wy[1]*wz[1];
+  }
+}
+
+inline F64vec8 sample_field(
+  F64vec8 weights,
+  F64vec8 field_components[8])
+{
+  F64vec8 fields = F64vec8(0.);
+  #pragma unroll
+  for(int c=0; c<8; c++)
+    fields += F64vec8(weights[c])*field_components[c];
+  return fields;
+}
+
+inline F64vec8 compute_uvg_for_2pcls(F64vec8 uorig, F64vec8 B, F64vec8 E, F64vec8 qdto2mc)
+{
+  /* F64vec8::aaaa() etc is (defectively) not declared const */
+  /*const*/ F64vec8 Om = qdto2mc*B;
+  const F64vec8 Omx = Om.aaaa();
+  const F64vec8 Omy = Om.bbbb();
+  const F64vec8 Omz = Om.cccc();
+  // if pushing more than 2 particles at a time, could make
+  // use of reduction intrinsics (_mm512_mask_reduce_add_pd)
+  // and could calculate the reciprocal more efficiently.
+  const F64vec8 omsq_p1 = F64vec8(1.) + Omx*Omx + Omy*Omy + Omz*Omz;
+  // is there a faster way to implement the reciprocal?
+  const F64vec8 denom = reciprocal_F64vec8(omsq_p1);
+  // solve the position equation
+  /*const*/ F64vec8 ut = uorig + qdto2mc*E;
+  const F64vec8 udotOm =
+      ut.aaaa()*Omx
+    + ut.bbbb()*Omy
+    + ut.cccc()*Omz;
+
+  // solve the velocity equation 
+  //
+  return (ut + cross_product(ut,Om)+udotOm*Om)*denom;
+}
+
 // test pushing all particles in a mesh cell
 void test_push_pcls_in_cell_AoS_localized_vectorization()
 {
   dfloat dto2 = usample();
-  dfloat qdto2mc = usample();
-  dfloat cellstart[D];
-  dfloat dx_inv[D];
+  F64vec8 qdto2mc = F64vec8(usample());
+
+  F64vec8* field_components = (F64vec8*) ::field_components;
+
+  F64vec8 cellstart;
+  F64vec8 dx_inv;
   for(int i=0;i<3;i++)
   {
-    cellstart[i]=usample();
-    dx_inv[i]=usample();
+    cellstart[i]=sample_openu();
+    dx_inv[i]=sample_openu();
+  }
+  for(int i=0;i<3;i++)
+  {
+    cellstart[i+4]=cellstart[i];
+    dx_inv[i+4]=dx_inv[i];
   }
   #pragma omp parallel num_threads(2)
   {
-
-  // iterate over all particles in this mesh cell
-  //
-  const Time start = get_time();
-  #pragma omp for
-  for(int pi=0;pi<NUMPCLS;pi+=NPB)
-  {
-    SpeciesPcl* pcl = &pcls[pi];
-    // because SpeciesPcl fits in cache line:
-    ASSUME_ALIGNED(pcl);
-    dfloat xorig[NPB][D]ALLOC_ALIGNED;
-    dfloat xavg[NPB][D]ALLOC_ALIGNED;
-    dfloat uorig[NPB][D]ALLOC_ALIGNED;
-
-    // gather position and velocity data from particle block
+    // iterate over all particles in this mesh cell
     //
-    for(int p=0; p<NPB; p++)
-    for(int i=0;i<D;i++)
+    const Time start = get_time();
+    #pragma omp for
+    for(int pi=0;pi<NUMPCLS;pi+=2)
     {
-      xorig[p][i] = pcl[p].get_x(i);
-      uorig[p][i] = pcl[p].get_u(i);
-    }
-    //#pragma simd collapse(2) // this generates 56 instructions
-    for(int p=0; p<NPB; p++)
-    for(int i=0;i<D;i++)
-    {
-      xavg[p][i] = xorig[p][i];
-    }
+      SpeciesPcl* pcl = &pcls[pi];
+      // because SpeciesPcl fits in cache line:
+      ASSUME_ALIGNED(pcl);
 
-    // sample field for this block of particles
-    //
-    dfloat B[NPB][D]ALLOC_ALIGNED;
-    dfloat E[NPB][D]ALLOC_ALIGNED;
-    dfloat ws[2][NPB][D]ALLOC_ALIGNED;
-    bool vectorized_w = false;
-    if(vectorized_w)
-    {
-      for(int p=0; p<NPB; p++)
-      for(int i=0;i<D;i++)
-      {
-        ws[1][p][i] = dx_inv[i]*(xavg[p][i]-cellstart[i]);
-        ws[0][p][i] = 1.-ws[1][p][i];
-      }
-      dfloat fields[NPB][2*D]ALLOC_ALIGNED;
-      for(int p=0; p<NPB; p++)
-      {
-        dfloat weights[8]ALLOC_ALIGNED;
-        {
-          // This can be done in two vectorized
-          // multiplications with one swizzle
-          // and two shuffles, but can the compiler see that?
-          weights[0] = ws[0][p][0]*ws[0][p][1]*ws[0][p][2]; // weight000
-          weights[1] = ws[0][p][0]*ws[0][p][1]*ws[1][p][2]; // weight001
-          weights[2] = ws[0][p][0]*ws[1][p][1]*ws[0][p][2]; // weight010
-          weights[3] = ws[0][p][0]*ws[1][p][1]*ws[1][p][2]; // weight011
-          weights[4] = ws[1][p][0]*ws[0][p][1]*ws[0][p][2]; // weight100
-          weights[5] = ws[1][p][0]*ws[0][p][1]*ws[1][p][2]; // weight101
-          weights[6] = ws[1][p][0]*ws[1][p][1]*ws[0][p][2]; // weight110
-          weights[7] = ws[1][p][0]*ws[1][p][1]*ws[1][p][2]; // weight111
-        }
-        sample_field(fields[p],weights,field_components);
-        #pragma simd
-        // scatter field data for vectorized push
-        for(int i=0;i<D;i++)
-        {
-          B[p][i] = fields[p][i];
-          E[p][i] = fields[p][D+i];
-        }
-      }
-    }
-    else
-    {
-      for(int p=0; p<NPB; p++)
-      {
-        dfloat fields[2*D]ALLOC_ALIGNED;
-        dfloat weights[8]ALLOC_ALIGNED;
-        {
-          dfloat w[2][D]ALLOC_ALIGNED;
-          for(int i=0;i<D;i++)
-          {
-            w[1][i] = dx_inv[i]*(xavg[p][i]-cellstart[i]);
-          }
-          for(int i=0;i<D;i++)
-          {
-            w[0][i] = 1.-w[1][i];
-          }
-          // This can be done in two vectorized
-          // multiplications with one swizzle
-          // and two shuffles, but can the compiler see that?
-          weights[0] = w[0][0]*w[0][1]*w[0][2]; // weight000
-          weights[1] = w[0][0]*w[0][1]*w[1][2]; // weight001
-          weights[2] = w[0][0]*w[1][1]*w[0][2]; // weight010
-          weights[3] = w[0][0]*w[1][1]*w[1][2]; // weight011
-          weights[4] = w[1][0]*w[0][1]*w[0][2]; // weight100
-          weights[5] = w[1][0]*w[0][1]*w[1][2]; // weight101
-          weights[6] = w[1][0]*w[1][1]*w[0][2]; // weight110
-          weights[7] = w[1][0]*w[1][1]*w[1][2]; // weight111
-        }
-        sample_field(fields,weights,field_components);
-        // scatter field data for vectorized push
-        for(int i=0;i<D;i++)
-        {
-          B[p][i] = fields[i];
-          E[p][i] = fields[D+i];
-        }
-      }
-    }
-
-    // use sampled field to push particle block
-    //
-    dfloat uavg[NPB][D]ALLOC_ALIGNED;
-    {
-      dfloat Om[NPB][D]ALLOC_ALIGNED;
-      dfloat denom[NPB]ALLOC_ALIGNED;
-      for(int p=0;p<NPB;p++)
-      for(int i=0;i<D;i++)
-      {
-        Om[p][i] = qdto2mc*B[p][i];
-      }
-      for(int p=0;p<NPB;p++)
-      {
-        dfloat omsq_p1 = 1.
-                     + Om[p][0] * Om[p][0]
-                     + Om[p][1] * Om[p][1]
-                     + Om[p][2] * Om[p][2];
-        // This generates 29 instructions
-        //denom[p] = 1.0f/float(omsq_p1);
-        // This generates 42 instructions
-        //denom[p] = 1.0f/omsq_p1;
-        // This generates 42 instructions
-        denom[p] = 1.0/omsq_p1;
-      }
-      dfloat ut[NPB][D]ALLOC_ALIGNED;
-      dfloat udotOm[NPB]ALLOC_ALIGNED;
-      // solve the position equation
-      for(int p=0;p<NPB;p++)
-      for(int i=0;i<D;i++)
-      {
-        ut[p][i] = uorig[p][i] + qdto2mc*E[p][i];
-      }
-      for(int p=0;p<NPB;p++)
-      {
-        udotOm[p] = ut[p][0]*Om[p][0] + ut[p][1]*Om[p][1] + ut[p][2]*Om[p][2];
-      }
-      // solve the velocity equation 
+      // gather position and velocity data from particles
       //
-      //#pragma simd // how do I tell it to recognize the swizzle?
-      for(int p=0;p<NPB;p++)
-      {
-        uavg[p][0] = (ut[p][0] + (ut[p][1] * Om[p][2] - ut[p][2] * Om[p][1] + udotOm[p] * Om[p][0])) * denom[p];
-        uavg[p][1] = (ut[p][1] + (ut[p][2] * Om[p][0] - ut[p][0] * Om[p][2] + udotOm[p] * Om[p][1])) * denom[p];
-        uavg[p][2] = (ut[p][2] + (ut[p][0] * Om[p][1] - ut[p][1] * Om[p][0] + udotOm[p] * Om[p][2])) * denom[p];
-      }
-      // update average position
-      for(int p=0;p<NPB;p++)
-      for(int i=0;i<D;i++)
-      {
-        xavg[p][i] = xorig[p][i] + uavg[p][i] * dto2;
-      }
-    }
+      F64vec8 pcl0 = *(F64vec8*)&pcl[0];
+      F64vec8 pcl1 = *(F64vec8*)&pcl[1];
+      const F64vec8 xorig = cat_low_halves(pcl0,pcl1);
+      F64vec8 xavg = xorig;
+      const F64vec8 uorig = cat_hgh_halves(pcl0,pcl1);
 
-    // update position of particle (assuming this is last iteration)
-    {
-      for(int p=0;p<NPB;p++)
-      #pragma simd
-      for(int i=0;i<D;i++)
+      // sample field for both particles
+      //
+      // compute canonical position.
+      //
+      // for each coordinate direction,
+      // Xleft gives fraction of cell to the left of position and
+      // Xrght gives fraction of cell to the right of position.
+      const F64vec8 X = dx_inv*(xavg-cellstart);
+      //
+      // use canonical coordinates to interpolate field
+      //
+      F64vec8 weights[2];
+      construct_weights_for_2pcls(weights, X);
+      F64vec8 fields[2];
+      // sample fields for first particle
+      fields[0] = sample_field(weights[0],field_components);
+      // sample fields for second particle
+      fields[1] = sample_field(weights[1],field_components);
+      const F64vec8 B = cat_low_halves(fields[0],fields[1]);
+      const F64vec8 E = cat_hgh_halves(fields[0],fields[1]);
+
+      // use sampled field to push particle block
+      //
+      const F64vec8 uavg = compute_uvg_for_2pcls(uorig, B, E, qdto2mc);
+      // update average position
+      xavg = xorig + uavg*dto2;
+
+      // update state of particle (assuming this is last iteration)
       {
-        pcl[p].set_x(i, 2*xavg[p][i] - xorig[p][i]);
-        pcl[p].set_u(i, 2*uavg[p][i] - uorig[p][i]);
+        const F64vec8 xnew = xavg+xavg - xorig;
+        const F64vec8 unew = uavg+uavg - uorig;
+        //
+        // copy xnew and unew into particles
+        //
+        //copy012to012(pcl0,xnew);
+        //copy456to012(pcl1,xnew);
+        //copy012to456(pcl0,unew);
+        //copy456to456(pcl1,unew);
+        //
+        const F64vec8 pcl0new = cat_low_halves(xnew, unew);
+        const F64vec8 pcl1new = cat_hgh_halves(xnew, unew);
+        copy012and456(pcl0,pcl0new);
+        copy012and456(pcl1,pcl1new);
+        //
+        // could save using no-read stores( _mm512_storenr_pd),
+        // but we just read this, so presumably it is still in cache.
+        _mm512_storenr_pd(&pcl[0], pcl0);
+        _mm512_storenr_pd(&pcl[1], pcl1);
       }
     }
-  }
-  report_time(start);
+    report_time(start);
   }
 }
 
@@ -2274,23 +2362,27 @@ int main()
   printf("# this rewrite of move_bucket_old uses three-element arrays\n");
   printf("# instead of three separate variables, which if the compiler were\n");
   printf("# intelligent would make no difference; for some reason\n");
-  printf("# this is a bit slower.\n");
+  printf("# this is a bit slower but in single precision is faster.\n");
   printf("# \n");
   test_push_pcls_in_cell_SoA_vectorized();
   test_push_pcls_in_cell_SoA_vectorized();
   printf("#\n");
   printf("# the only real difference between the following and SoA\n");
   printf("# vectorization is that data must be gathered at the beginning\n");
-  printf("# of the loop and scattered at the end, but unfortunately those each\n");
-  printf("# seem to take as long as the push itself.\n");
+  printf("# of the loop and scattered at the end, but unfortunately those\n");
+  printf("# each seem to take as long as the push itself.\n");
   printf("#\n");
   test_push_pcls_in_cell_AoS_scatter_gather_vectorization();
   test_push_pcls_in_cell_AoS_scatter_gather_vectorization();
   printf("#\n");
-  printf("# Why is this 8 times slower than SoA vectorization?  I write\n");
-  printf("# loops from 0 to 7 so that the compiler would generate vector\n");
-  printf("# instructions.  Is there an issue with not pipelining vector\n");
-  printf("# unit data or instructions fast enough?\n");
+  printf("# This is over 2 times slower than SoA            \n");
+  printf("# vectorization, partly because only 75%          \n");
+  printf("# vectorization can be expected for physical      \n");
+  printf("# vectors and partly because dot product          \n");
+  printf("# and reciprocal are computed with only 25%       \n");
+  printf("# vectorization; I estimate that pushing 8        \n");
+  printf("# particles at a time would allow this to be 1.75 \n");
+  printf("# times slower than SoA vectorization.            \n");
   printf("#\n");
   test_push_pcls_in_cell_AoS_localized_vectorization();
   test_push_pcls_in_cell_AoS_localized_vectorization();
