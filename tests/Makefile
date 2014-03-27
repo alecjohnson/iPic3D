@@ -10,18 +10,24 @@ OBJECTS = \
 ARRAY_FLAGS = #-DCHAINED_ARRAYS #-DFLAT_ARRAYS #-DCHECK_BOUNDS
 FLAGS = -O3 -DNO_MPI -fno-exceptions $(ARRAY_FLAGS) #-ggdb 
 
-COMPILER = c++ #icpc # g++
+COMPILER = icpc #icpc # g++ # c++
 
-testvtrans.mic: shuftest.cpp
-	icpc -mmic shuftest.cpp -o shuftest
+test.mic: test.cpp
+	icpc -mmic test.cpp -o test.mic
 
-run.testvtrans.mic: shuftest.cpp
-	ssh `hostname`-mic1 tests/shuftest
+run.test.mic: test.mic
+	ssh `hostname`-mic1 tests/test.mic
+
+testvtrans.mic: testvtrans.cpp
+	icpc -mmic testvtrans.cpp -o testvtrans.mic
+
+run.testvtrans.mic: testvtrans.mic
+	ssh `hostname`-mic1 tests/testvtrans.mic
 
 testvrinke.mic: testvrinke.cpp
 	KMP_AFFINITY=balanced,granularity=thread icpc -mmic $(FLAGS) -fopenmp testvrinke.cpp $(INCLUDE) -o testvrinke.mic
 
-run.testvrinke.mic:
+run.testvrinke.mic: testvrinke.mic
 	OMP_NUM_THREADS=50 mpirun -n 1 -host `hostname`-mic1 -env OMP_NUM_THREADS=50 ./testvrinke.mic
 
 testv2: testv2.cpp Makefile
@@ -35,10 +41,10 @@ testv2.mic: testv2.cpp Makefile
 testv2.xeon: testv2.cpp Makefile
 	KMP_AFFINITY=compact icpc $(FLAGS) -fopenmp testv2.cpp $(INCLUDE) -o testv2.xeon
 
-run.testv2.mic:
+run.testv2.mic: testv2.mic
 	mpirun -n 1 -host `hostname`-mic1 -env OMP_NUM_THREADS=2 ./testv2.mic
 
-run.testv2.xeon:
+run.testv2.xeon: testv2.xeon
 	mpirun -n 1 -env OMP_NUM_THREADS=2 ./testv2.xeon
 
 testv.mic: testv.cpp Makefile
