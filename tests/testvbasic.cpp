@@ -15,6 +15,10 @@
 //    http://software.intel.com/en-us/node/485381
 // * masked swizzle parameters:
 //    http://goo.gl/IXNDdP
+// * SIMD MIC classes, e.g. F64vec8, M512 (__m512):
+//    http://goo.gl/vMKWo5
+// * SIMD Xeon classes (seem to be better documented):
+//    http://vhdplus.sourceforge.net/doc/class_f64vec4.html
 
 #define MICVEC_DEFINE_OUTPUT_OPERATORS
 #include <iostream>
@@ -25,6 +29,13 @@
 
 #define printexpr(var) cout << "line " << __LINE__ << ": " \
   << #var << " = " << var << endl;
+
+#define print_double_arr(var) \
+  { \
+  printf("line %d: %s = (", __LINE__, #var); \
+  for(int i=0; i<7; i++) printf("%g, ", var[i]); \
+  printf("%g)\n", var[7]); \
+  }
 
 #define ASSUME_ALIGNED(X) __assume_aligned(X, 64)
 
@@ -40,7 +51,7 @@ void testI8()
   for(int i=0;i<8;i++) printf("idata[%d]=%d\n",i,idata[i]);
 
   std::cout << "input = " << inputData << endl;
-  print_I64vec8(inputData);
+  printexpr(inputData);
 
   // swizzle input data and print
   //std::cout << "swizzle data for pattern 'cdab' \n" << inputData.cdab() << endl;
@@ -261,9 +272,114 @@ void test_transpose_8x8_double()
   print_data(data,__LINE__);
 }
 
+// copy applying mask
+inline void masked_copy(__m512d& dst, __m512d src, __mmask8 mask)
+{
+    dst = _mm512_mask_mov_pd(dst,mask,src);
+}
+// copy low vector of src to low vector of dst
+inline void copy012to012(F64vec8& dst, F64vec8 src)
+{
+  const __mmask8 rmask_11100000 = _mm512_int2mask(0x07); // mask=00000111
+  // masked copy
+  dst = _mm512_mask_mov_pd(dst,rmask_11100000,src);
+}
+// copy hgh vector of src to hgh vector of dst
+inline void copy456to456(F64vec8& dst, F64vec8 src)
+{
+  const __mmask8 rmask_00001110 = _mm512_int2mask(0x70); // mask=01110000
+  dst = _mm512_mask_mov_pd(dst,rmask_00001110,src);
+}
+// copy low vector of src to hgh vector of dst
+inline void copy012to456(F64vec8& dst, F64vec8 src)
+{
+  // mask=0000000000111111 because 32-bit elements
+  const __mmask16 rmask_1111110000000000 = _mm512_int2mask(0x03f);
+  // write the first three elements of src beginning at dst[4]
+  _mm512_mask_packstorelo_epi32(&dst[4],rmask_1111110000000000,*(__m512i*)&src);
+}
+// copy hgh vector of src to low vector of dst
+inline void copy456to012(F64vec8& dst, F64vec8 src)
+{
+  // mask=0011111111111111 because 32-bit elements
+  const __mmask16 rmask_1111111111111100 = _mm512_int2mask(0x3fff);
+  // write all but the highest element to the left of dst[4].
+  _mm512_mask_packstorehi_epi32(&dst[4],rmask_1111111111111100,*(__m512i*)&src);
+}
+
+int test_copy_methods()
+{
+  // const causes compiler error
+  /*const*/ F64vec8 u(8,7,6,5,4,3,2,1);
+  F32vec16 v = _mm512_cvtpd_pslo(u); 
+  F32vec16 vinv = F32vec16(1.)/v;
+  printexpr(vinv);
+  F64vec8 vinvd = _mm512_cvtpslo_pd(vinv);
+  printexpr(vinvd);
+  printexpr(F64vec8(1.)/u);
+  // store the part of the stream before the first 64-bit
+  // byte-aligned address preceding 
+  F64vec8 arr = F64vec8(0.);
+  //double arr[8]ALLOC_ALIGNED;
+  //for(int i=0;i<8;i++) arr[i] = 0.;
+  print_double_arr(u);
+  print_double_arr(arr);
+  copy012to012(arr, u);
+  print_double_arr(arr);
+  copy456to456(arr, u);
+  print_double_arr(arr);
+  copy456to012(arr, u);
+  print_double_arr(arr);
+  copy012to456(arr, u);
+  print_double_arr(arr);
+  //_mm512_packstorehi_epi32(&arr[4],*(__m512i*)&u);
+  //print_double_arr(arr);
+  // _mm512_packstorelo_epi32(&arr[5],*(__m512i*)&u);
+
+  const F64vec8 u1(8.1,7.1,6.1,5.1,4.1,3.1,2.1,1.1);
+  const F64vec8 u2(8.2,7.2,6.2,5.2,4.2,3.2,2.2,1.2);
+  const __mmask8 rmask_11101110 = _mm512_int2mask(0x77); //mask=01110111
+  const F64vec8 out = _mm512_mask_mov_pd(u1,rmask_11101110,u2);
+  print_double_arr(out);
+}
+
+// calculate the cross product of the corresponding
+// physical vectors in the two halves of the arguments:
+//
+// for(int i=0;i<8;i+=4)
+// {
+//   w[i+0] = u[i+1]*v[i+2] - u[i+2]*v[i+1];
+//   w[i+1] = u[i+2]*v[i+0] - u[i+0]*v[i+2];
+//   w[i+2] = u[i+0]*v[i+1] - u[i+1]*v[i+0];
+// }
+inline F64vec8 cross_product(F64vec8 u, F64vec8 v)
+{
+  F64vec8 us = u.dacb();
+  F64vec8 vs = v.dacb();
+  return us*vs.dacb() - us.dacb()*vs;
+}
+
+void test_cross_product()
+{
+  // calculate u cross v
+  F64vec8 u(1.8,1.7,1.6,1.5,1.4,1.3,1.2,1.1);
+  F64vec8 v(2.8,2.7,2.6,2.5,2.4,2.3,2.2,2.1);
+  F64vec8 w = cross_product(u,v);
+  printexpr(w);
+  for(int i=0;i<8;i+=4)
+  {
+    w[i+0] = u[i+1]*v[i+2] - u[i+2]*v[i+1];
+    w[i+1] = u[i+2]*v[i+0] - u[i+0]*v[i+2];
+    w[i+2] = u[i+0]*v[i+1] - u[i+1]*v[i+0];
+  }
+  printexpr(w);
+}
+
 int main()
 {
-  //testI8();
-  //testF8();
+  testI8();
+  testF8();
   test_transpose_8x8_double();
+  test_copy_methods();
+  test_cross_product();
 }

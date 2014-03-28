@@ -12,17 +12,11 @@ FLAGS = -O3 -DNO_MPI -fno-exceptions $(ARRAY_FLAGS) #-ggdb
 
 COMPILER = icpc #icpc # g++ # c++
 
-test.mic: test.cpp
-	icpc -mmic test.cpp -o test.mic
+testvbasic.mic: testvbasic.cpp
+	icpc -mmic testvbasic.cpp -o testvbasic.mic
 
-run.test.mic: test.mic
-	ssh `hostname`-mic1 tests/test.mic
-
-testvtrans.mic: testvtrans.cpp
-	icpc -mmic testvtrans.cpp -o testvtrans.mic
-
-run.testvtrans.mic: testvtrans.mic
-	ssh `hostname`-mic1 tests/testvtrans.mic
+run.testvbasic.mic: testvbasic.mic
+	ssh `hostname`-mic1 tests/testvbasic.mic
 
 testvrinke.mic: testvrinke.cpp
 	KMP_AFFINITY=balanced,granularity=thread icpc -mmic $(FLAGS) -fopenmp testvrinke.cpp $(INCLUDE) -o testvrinke.mic
@@ -71,8 +65,11 @@ test_arrays.o:
 debug.o:
 	$(COMPILER) $(FLAGS) -c ../utility/debug.cpp $(INCLUDE) -o debug.o
 
-clean: clean_old_test_arrays clean_test_arrays
+clean: clean_old_test_arrays clean_test_arrays clean_executables
 	rm -f test_arrays $(OBJECTS)
+
+clean_executables:
+	rm -f *.mic *.xeon
 
 clean_test_arrays:
 	rm -f test_arrays test_arrays.o
