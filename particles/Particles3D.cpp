@@ -590,7 +590,6 @@ void Particles3D::mover_PC_AoS_vec_intr(Grid * grid, VirtualTopology3D * vct, Fi
   eprintf("not implemented");
  #else
   convertParticlesToAoS();
-  dprint("gothere");
   // Here and below x stands for all 3 physical position coordinates
   // and u stands for all 3 velocity coordinates.
   const F64vec8 dx_inv = make_F64vec8(get_invdx(), get_invdy(), get_invdz());
@@ -618,6 +617,7 @@ void Particles3D::mover_PC_AoS_vec_intr(Grid * grid, VirtualTopology3D * vct, Fi
   const_arr4_pfloat fieldForPcls = EMf->get_fieldForPcls();
 
   SpeciesParticle * pcls = fetch_pcls();
+  ALIGNED(pcls);
   #pragma omp master
   { timeTasks_begin_task(TimeTasks::MOVER_PCL_MOVING); }
   const double dto2_d = .5 * dt;
@@ -628,13 +628,15 @@ void Particles3D::mover_PC_AoS_vec_intr(Grid * grid, VirtualTopology3D * vct, Fi
   for (int pidx = 0; pidx < nop; pidx+=2)
   {
     // copy the particle
-    SpeciesParticle* pcl = &pcls[pidx];
-    ALIGNED(pcl);
+    SpeciesParticle* pcl = &(pcls[pidx]);
+    //ALIGNED(pcl);
 
     // gather position and velocity data from particles
     //
-    F64vec8 pcl0 = *(F64vec8*)&pcl[0];
-    F64vec8 pcl1 = *(F64vec8*)&pcl[1];
+    F64vec8 pcl0 = *(F64vec8*)&(pcl[0]);
+    F64vec8 pcl1 = *(F64vec8*)&(pcl[1]);
+    //F64vec8 pcl0 = *(F64vec8*)&(pcls[pidx]);
+    //F64vec8 pcl1 = *(F64vec8*)&(pcls[pidx+1]);
     const F64vec8 xorig = cat_hgh_halves(pcl0,pcl1);
     F64vec8 xavg = xorig;
     const F64vec8 uorig = cat_low_halves(pcl0,pcl1);
@@ -700,7 +702,6 @@ void Particles3D::mover_PC_AoS_vec_intr(Grid * grid, VirtualTopology3D * vct, Fi
   #pragma omp master
   { timeTasks_end_task(TimeTasks::MOVER_PCL_MOVING); }
  #endif
-  dprint("gothere");
 }
 
 void Particles3D::mover_PC_AoS_vec(Grid * grid, VirtualTopology3D * vct, Field * EMf)

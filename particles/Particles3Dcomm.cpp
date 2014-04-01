@@ -67,7 +67,7 @@ Particles3Dcomm::~Particles3Dcomm() {
   delete[]q;
   delete[]ParticleID;
   // AoS representation
-  delete[]_pcls;
+  AlignedFree(_pcls);
   // average position used in particle advance
   delete[]_xavg;
   delete[]_yavg;
@@ -81,7 +81,7 @@ Particles3Dcomm::~Particles3Dcomm() {
   delete[]_wtmp;
   delete[]_qtmp;
   delete[]_ParticleIDtmp;
-  delete[] _pclstmp;
+  AlignedFree(_pclstmp);
   // extra xavg for sort
   delete[]_xavgtmp;
   delete[]_yavgtmp;
@@ -253,12 +253,12 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
   if(Parameters::get_USING_AOS())
   {
     assert_eq(sizeof(SpeciesParticle),64);
-    //_pcls = AlignedAlloc(SpeciesParticle,npmax);
-    _pcls = new SpeciesParticle[npmax];
+    _pcls = AlignedAlloc(SpeciesParticle,npmax);
+    //_pcls = new SpeciesParticle[npmax];
     if(Parameters::get_SORTING_PARTICLES())
     {
-      //_pclstmp = AlignedAlloc(SpeciesParticle,npmax);
-      _pclstmp = new SpeciesParticle[npmax];
+      _pclstmp = AlignedAlloc(SpeciesParticle,npmax);
+      //_pclstmp = new SpeciesParticle[npmax];
     }
     #ifdef __INTEL_COMPILER
       assert_eq(sizeof(SpeciesParticle),64);
