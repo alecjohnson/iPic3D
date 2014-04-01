@@ -20,10 +20,10 @@ namespace ParticleType
 // particle for a specific species
 class SpeciesParticle
 {
-  double x[3];
-  double t;
   double u[3];
   double q;
+  double x[3];
+  double t;
  public:
   // accessors
   double get_x(int i)const{ return x[i]; }
@@ -33,6 +33,7 @@ class SpeciesParticle
   void set_t(double in){ t=in; }
   void set_u(int i, double in) { u[i] = in; }
   void set_q(double in) { q = in; }
+  // tracking particles would actually use q for the ID
   long long get_ID()const{ return (long long) t; }
   void set_ID(long long in){ t = (long long) in; }
   // alternative accessors
@@ -49,11 +50,12 @@ class SpeciesParticle
   void set_v(double in){ u[1]=in; }
   void set_w(double in){ u[2]=in; }
   void set(
-    double _x, double _y, double _z, double _t,
-    double _u, double _v, double _w, double _q)
+    double _u, double _v, double _w, double _q,
+    double _x, double _y, double _z, double _t
+    )
   {
-    x[0] = _x; x[1] = _y; x[2] = _z; t = _t;
     u[0] = _u; u[1] = _v; u[2] = _w; q = _q;
+    x[0] = _x; x[1] = _y; x[2] = _z; t = _t;
   }
 };
 

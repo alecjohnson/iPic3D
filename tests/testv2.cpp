@@ -206,11 +206,10 @@ dfloat dz;
 // 512 bits (cache-line-sized)
 struct SpeciesPcl
 {
-  dfloat x[3];
-  dfloat q;
   dfloat u[3];
+  dfloat q;
+  dfloat x[3];
   dfloat t;
-  //long long ID;
  public:
   dfloat get_x(int i)const{return x[i];}
   dfloat get_u(int i)const{return u[i];}
@@ -1978,9 +1977,9 @@ void test_push_pcls_in_cell_AoS_localized_vectorization()
       //
       F64vec8 pcl0 = *(F64vec8*)&pcl[0];
       F64vec8 pcl1 = *(F64vec8*)&pcl[1];
-      const F64vec8 xorig = cat_low_halves(pcl0,pcl1);
+      const F64vec8 xorig = cat_hgh_halves(pcl0,pcl1);
       F64vec8 xavg = xorig;
-      const F64vec8 uorig = cat_hgh_halves(pcl0,pcl1);
+      const F64vec8 uorig = cat_low_halves(pcl0,pcl1);
 
       // sample field for both particles
       //
@@ -2021,8 +2020,8 @@ void test_push_pcls_in_cell_AoS_localized_vectorization()
         //copy012to456(pcl0,unew);
         //copy456to456(pcl1,unew);
         //
-        const F64vec8 pcl0new = cat_low_halves(xnew, unew);
-        const F64vec8 pcl1new = cat_hgh_halves(xnew, unew);
+        const F64vec8 pcl0new = cat_low_halves(unew, xnew);
+        const F64vec8 pcl1new = cat_hgh_halves(unew, xnew);
         copy012and456(pcl0,pcl0new);
         copy012and456(pcl1,pcl1new);
         //
