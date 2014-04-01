@@ -65,11 +65,15 @@
 */
 #define ALIGNMENT (64)
 #ifdef __INTEL_COMPILER
+    #define ALLOC_ALIGNED __attribute__((aligned(ALIGNMENT)));
+    #define ASSUME_ALIGNED(X) __assume_aligned(X, ALIGNMENT)
     #define ALIGNED(X) __assume_aligned(X, ALIGNMENT)
     #define AlignedAlloc(T, NUM) \
         (T *const __restrict__)(_mm_malloc(sizeof(T)*NUM, ALIGNMENT))
     #define AlignedFree(S) (_mm_free(S))
 #else
+    #define ALLOC_ALIGNED
+    #define ASSUME_ALIGNED(X)
     #define ALIGNED(X)
     #define AlignedFree(S) (delete[] S)
     #define AlignedAlloc(T, NUM) (new T[NUM]) 
@@ -213,8 +217,8 @@ namespace iPic3D
       size_t size;
     protected:
       type* const __restrict__ arr;
-      type* get_arr()const{return arr;}
     public:
+      type* get_arr()const{return arr;}
       base_arr(size_t s) : size(s), arr(AlignedAlloc(type, s)) {}
       base_arr(type* in, size_t s) : size(s), arr(in) {}
       ~base_arr(){}
@@ -459,27 +463,28 @@ namespace iPic3D
   };
   
   template <class type>
-  class const_array_ref3 // : public base_arr<type>
+  class const_array_ref3 : public base_arr<type>
   {
-      //using base_arr<type>::get_arr;
-      //using base_arr<type>::arr;
+    public:
+      using base_arr<type>::arr;
+      using base_arr<type>::get_arr;
     protected: // data
       size_t size;
       const size_t S3,S2,S1;
-      type* const __restrict__ arr;
+      //type* const __restrict__ arr;
       type*const*const*const arr3;
     public:
       ~const_array_ref3(){}
       const_array_ref3(size_t s3, size_t s2, size_t s1) :
-        size(s3*s2*s1), arr(AlignedAlloc(type, size)),
-        //base_arr<type>(s3*s2*s1),
+        size(s3*s2*s1), //arr(AlignedAlloc(type, size)),
+        base_arr<type>(s3*s2*s1),
         S3(s3), S2(s2), S1(s1),
         arr3(newArray3<type>(arr,s3,s2,s1))
       { }
       const_array_ref3(type*const*const* in,
         size_t s3, size_t s2, size_t s1) :
-        size(s3*s2*s1), arr(**in),
-        //base_arr<type>(**in, s3*s2*s1),
+        size(s3*s2*s1), //arr(**in),
+        base_arr<type>(**in, s3*s2*s1),
         S3(s3), S2(s2), S1(s1),
         arr3(in)
       { }
@@ -510,12 +515,12 @@ namespace iPic3D
         { check_idx_bounds(n3,n2,n1); arr3[n3][n2][n1] = value; }
     #else
       const type& get(size_t n3,size_t n2,size_t n1) const
-        { ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
+        { ALIGNED((type*)arr); return arr[getidx(n3,n2,n1)]; }
     protected: // hack: not in const_array_ref3 due to icpc compile error
       type& fetch(size_t n3,size_t n2,size_t n1) const
-        { ALIGNED(arr); return arr[getidx(n3,n2,n1)]; }
+        { ALIGNED((type*)arr); return arr[getidx(n3,n2,n1)]; }
       void set(size_t n3,size_t n2,size_t n1, type value)
-        { ALIGNED(arr); arr[getidx(n3,n2,n1)] = value; }
+        { ALIGNED((type*)arr); arr[getidx(n3,n2,n1)] = value; }
     #endif
   };
   
@@ -523,7 +528,6 @@ namespace iPic3D
   class array_ref3 : public const_array_ref3<type>
   {
       //using base_arr<type>::arr;
-      //using base_arr<type>::get_arr;
       using const_array_ref3<type>::size;
       using const_array_ref3<type>::arr;
       using const_array_ref3<type>::S3;
@@ -531,6 +535,8 @@ namespace iPic3D
       using const_array_ref3<type>::S1;
       using const_array_ref3<type>::arr3;
       using const_array_ref3<type>::getidx;
+    public:
+      using base_arr<type>::get_arr;
     public:
       ~array_ref3(){}
       array_ref3(size_t s3, size_t s2, size_t s1) :
@@ -563,26 +569,27 @@ namespace iPic3D
   
   // inheriting from base_arr<type> causes problems in g++ 4.0 (2005).
   template <class type>
-  class const_array_ref4 //: public base_arr<type>
+  class const_array_ref4 : public base_arr<type>
   {
-      //using base_arr<type>::get_arr;
+    public:
+      using base_arr<type>::arr;
+      using base_arr<type>::get_arr;
     protected: // data
       size_t size;
       const size_t S4,S3,S2,S1;
-      type* const __restrict__ arr;
       type*const*const*const*const arr4;
     public:
       ~const_array_ref4(){}
       const_array_ref4(size_t s4, size_t s3, size_t s2, size_t s1) :
-        size(s4*s3*s2*s1), arr(AlignedAlloc(type, size)),
-        //base_arr<type>(s4*s3*s2*s1),
+        size(s4*s3*s2*s1), //arr(AlignedAlloc(type, size)),
+        base_arr<type>(s4*s3*s2*s1),
         S4(s4), S3(s3), S2(s2), S1(s1),
-        arr4(newArray4<type>(arr,s4,s3,s2,s1))
+        arr4(newArray4<type>(get_arr(),s4,s3,s2,s1))
       { }
       const_array_ref4(type*const*const*const* in,
         size_t s4, size_t s3, size_t s2, size_t s1) :
-        size(s4*s3*s2*s1), arr(***in),
-        //base_arr<type>(***in, s4*s3*s2*s1),
+        size(s4*s3*s2*s1), //arr(***in),
+        base_arr<type>(***in, s4*s3*s2*s1),
         S4(s4), S3(s3), S2(s2), S1(s1),
         arr4(in)
       { }
@@ -607,20 +614,20 @@ namespace iPic3D
         { check_idx_bounds(n4,n3,n2,n1); return ((n4*S3+n3)*S2+n2)*S1+n1; }
     #ifdef CHAINED_ARRAYS
       const type& get(size_t n4,size_t n3,size_t n2,size_t n1) const
-        { ALIGNED(arr); return arr[getidx(n4,n3,n2,n1)]; }
-    protected: // hack: not in const_array_ref4 due to icpc compile error
-      type& fetch(size_t n4,size_t n3,size_t n2,size_t n1) const
-        { ALIGNED(arr); return arr[getidx(n4,n3,n2,n1)]; }
-      void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)
-        { ALIGNED(arr); arr[getidx(n4,n3,n2,n1)] = value; }
-    #else
-      const type& get(size_t n4,size_t n3,size_t n2,size_t n1) const
         { check_idx_bounds(n4,n3,n2,n1); return arr4[n4][n3][n2][n1]; }
     protected: // hack: not in const_array_ref4 due to icpc compile error
       type& fetch(size_t n4,size_t n3,size_t n2,size_t n1) const
         { check_idx_bounds(n4,n3,n2,n1); return arr4[n4][n3][n2][n1]; }
       void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)
         { check_idx_bounds(n4,n3,n2,n1); arr4[n4][n3][n2][n1] = value; }
+    #else
+      const type& get(size_t n4,size_t n3,size_t n2,size_t n1) const
+        { ALIGNED((type*)arr); return arr[getidx(n4,n3,n2,n1)]; }
+    protected: // hack: not in const_array_ref4 due to icpc compile error
+      type& fetch(size_t n4,size_t n3,size_t n2,size_t n1) const
+        { ALIGNED((type*)arr); return arr[getidx(n4,n3,n2,n1)]; }
+      void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)
+        { ALIGNED((type*)arr); arr[getidx(n4,n3,n2,n1)] = value; }
     #endif
     protected:
       void setall(type val)
@@ -633,7 +640,6 @@ namespace iPic3D
   template <class type>
   class array_ref4 : public const_array_ref4<type>
   {
-      //using base_arr<type>::get_arr;
       using const_array_ref4<type>::arr;
       using const_array_ref4<type>::S4;
       using const_array_ref4<type>::S3;
@@ -643,6 +649,7 @@ namespace iPic3D
       using const_array_ref4<type>::getidx;
     public: // this did not work unless I made the using statment public.
       using const_array_ref4<type>::get_size;
+      using base_arr<type>::get_arr;
     public:
       ~array_ref4(){}
       array_ref4(size_t s4, size_t s3, size_t s2, size_t s1) :
