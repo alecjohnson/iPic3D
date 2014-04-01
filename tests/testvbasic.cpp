@@ -27,14 +27,21 @@
 #include <stdio.h>
 #include <stdint.h> // for int64_t
 
-#define printexpr(var) cout << "line " << __LINE__ << ": " \
-  << #var << " = " << var << endl;
+#define printexpr(var) std::cout << "line " << __LINE__ << ": " \
+  << #var << " = " << var << std::endl;
 
 #define print_double_arr(var) \
   { \
   printf("line %d: %s = (", __LINE__, #var); \
   for(int i=0; i<7; i++) printf("%g, ", var[i]); \
   printf("%g)\n", var[7]); \
+  }
+
+#define print_int_arr(var) \
+  { \
+  printf("line %d: %s = (", __LINE__, #var); \
+  for(int i=0; i<15; i++) printf("%d, ", var[i]); \
+  printf("%d)\n", var[15]); \
   }
 
 #define ASSUME_ALIGNED(X) __assume_aligned(X, 64)
@@ -375,11 +382,70 @@ void test_cross_product()
   printexpr(w);
 }
 
+void test_integer_double_conversions()
+{
+  const F64vec8 u(8.8,7.7,-6.6,-5.5,-4.4,3.3,2.2,1.1);
+  printexpr(u);
+  // Rounding control values; these can be one of the following:
+  // * _MM_ROUND_MODE_NEAREST - round to nearest (even)
+  // * _MM_ROUND_MODE_DOWN - round toward negative infinity
+  // * _MM_ROUND_MODE_UP - round toward positive infinity
+  // * _MM_ROUND_MODE_TOWARD_ZERO - round toward zero
+  
+  // theoretically this returns an unsigned int, but it seems
+  // to work for a signed int as well.  The official function
+  // to call is _mm512_cvt_roundpd_epi32lo, as documented at
+  // http://software.intel.com/en-us/node/461034, but it seems
+  // that this function does not actually exist.
+  const MyI32vec16 v = _mm512_cvtfxpnt_roundpd_epi32lo(u, _MM_ROUND_MODE_DOWN);
+  const MyI32vec16 u_nearest = _mm512_cvtfxpnt_roundpd_epi32lo(u, _MM_ROUND_MODE_NEAREST);
+  // why is this guy messed up?
+  F64vec8 uround = _mm512_cvtepu32lo_pd(v);
+  printexpr(uround);
+  uround = floor(u);
+  printexpr(uround);
+  uround = max(F64vec8(0.),uround);
+  printexpr(uround);
+  int* varr = (int*)&v;
+  print_int_arr(varr);
+  int* u_nearest_arr = (int*)&u_nearest;
+  print_int_arr(u_nearest_arr);
+}
+
+inline MyI32vec16 init_I32vec16(int x, int y, int z, int t)
+{ return MyI32vec16(0,0,0,0,0,0,0,0,t,z,y,x,t,z,y,x); }
+inline MyI32vec16 init_I32vec16(int x, int y, int z)
+{ return MyI32vec16(0,0,0,0,0,0,0,0,0,z,y,x,0,z,y,x); }
+
+void test_init()
+{
+  I32vec16 a4 = init_I32vec16(1,2,3,4);
+  I32vec16 a3 = init_I32vec16(1,2,3);
+  a4 = a4 + I32vec16(1);
+  int* a4_arr = (int*)&a4;
+  int* a3_arr = (int*)&a3;
+  print_int_arr(a4_arr);
+  print_int_arr(a3_arr);
+  //I32vec16 a(1,2);
+  //int* a_arr = (int*)&a;
+  //print_int_arr(a_arr);
+}
+
+void test_maxmin()
+{
+  F64vec8 u(-8,7,-6,-5,4,3,2,1);
+  F64vec8 v(9,-8,-6,3,4,3,2,1);
+  print_double_arr(_mm512_max_pd(u,v));
+  print_double_arr(_mm512_gmax_pd(u,v));
+}
+
 int main()
 {
-  testI8();
-  testF8();
-  test_transpose_8x8_double();
-  test_copy_methods();
-  test_cross_product();
+  //testI8();
+  //testF8();
+  //test_transpose_8x8_double();
+  //test_copy_methods();
+  //test_cross_product();
+  //test_integer_double_conversions();
+  test_init();
 }
