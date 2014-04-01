@@ -62,6 +62,8 @@ class Particles3D:public Particles3Dcomm {
     void mover_PC_AoS(Grid * grid, VirtualTopology3D * vct, Field * EMf);
     /* vectorized version of previous */
     void mover_PC_AoS_vec(Grid * grid, VirtualTopology3D * vct, Field * EMf);
+    /* mic particle mover */
+    void mover_PC_AoS_vec_intr(Grid * grid, VirtualTopology3D * vct, Field * EMf);
     /* this computes garbage */
     void mover_PC_AoS_vec_onesort(Grid * grid, VirtualTopology3D * vct, Field * EMf);
     /** vectorized version of mover_PC **/

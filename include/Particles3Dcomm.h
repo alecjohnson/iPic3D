@@ -98,6 +98,15 @@ public:
 
   // inline get accessors
   //
+  double get_dx(){return dx;}
+  double get_dy(){return dy;}
+  double get_dz(){return dz;}
+  double get_invdx(){return inv_dx;}
+  double get_invdy(){return inv_dy;}
+  double get_invdz(){return inv_dz;}
+  double get_xstart(){return xstart;}
+  double get_ystart(){return ystart;}
+  double get_zstart(){return zstart;}
   ParticleType::Type get_particleType()const { return particleType; }
   const SpeciesParticle& get_pcl(int pidx)const{ return _pcls[pidx]; }
   double *getXall()  const { return (x); }

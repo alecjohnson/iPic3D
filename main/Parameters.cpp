@@ -7,7 +7,7 @@ using namespace Parameters;
 bool Parameters::get_VECTORIZE_MOMENTS() { return false; }
 // supported options: SoA AoS
 Parameters::Enum Parameters::get_MOMENTS_TYPE() { return SoA; }
-// supported options: SoA AoS AoSvec AoS_vec_onesort SoA_vec_resort
+// supported options: SoA AoS AoSvec AoSintr AoS_vec_onesort SoA_vec_resort
 Parameters::Enum Parameters::get_MOVER_TYPE() { return SoA; }
 //********** derived parameters *********
 
@@ -32,6 +32,7 @@ void Parameters::init_parameters()
   USING_AOS =
        get_MOMENTS_TYPE()==AoS
     || get_MOVER_TYPE()==AoS
+    || get_MOVER_TYPE()==AoSintr
     || get_MOVER_TYPE()==AoS_vec_onesort
     || get_MOVER_TYPE()==AoS_vec_resort;
 }

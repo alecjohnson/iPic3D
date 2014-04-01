@@ -26,6 +26,7 @@ developers: Stefano Markidis, Giovanni Lapenta
 
 #include "Particles3D.h"
 
+#include "mic_particles.h"
 #include "debug.h"
 #include "hdf5.h"
 #include <complex>
@@ -580,6 +581,126 @@ void Particles3D::mover_PC_AoS(Grid * grid, VirtualTopology3D * vct, Field * EMf
   }                             // END OF ALL THE PARTICLES
   #pragma omp master
   { timeTasks_end_task(TimeTasks::MOVER_PCL_MOVING); }
+}
+
+// move the particle using MIC vector intrinsics
+void Particles3D::mover_PC_AoS_vec_intr(Grid * grid, VirtualTopology3D * vct, Field * EMf)
+{
+ #ifndef __MIC__
+  eprintf("not implemented");
+ #else
+  convertParticlesToAoS();
+  dprint("gothere");
+  // Here and below x stands for all 3 physical position coordinates
+  // and u stands for all 3 velocity coordinates.
+  const F64vec8 dx_inv = make_F64vec8(get_invdx(), get_invdy(), get_invdz());
+  // starting physical position of proper subdomain ("pdom", without ghosts)
+  const F64vec8 pdom_xlow = make_F64vec8(get_xstart(),get_ystart(), get_zstart());
+  //
+  // compute canonical coordinates of subdomain (including ghosts)
+  // relative to global coordinates.
+  // x = physical position, X = canonical coordinates.
+  //
+  // starting position of cell in lower corner
+  // of proper subdomain (without ghosts);
+  // probably this is an integer value, but we won't rely on it.
+  const F64vec8 pdom_Xlow = dx_inv*pdom_xlow;
+  // g = including ghosts
+  // starting position of cell in low corner
+  const F64vec8 gdom_Xlow = pdom_Xlow - F64vec8(1.);
+  // starting position of cell in high corner of ghost domain
+  // in canonical coordinates
+  const F64vec8 nXc = make_F64vec8(nxc,nyc,nzc);
+  #pragma omp master
+  if (vct->getCartesian_rank() == 0) {
+    cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
+  }
+  const_arr4_pfloat fieldForPcls = EMf->get_fieldForPcls();
+
+  SpeciesParticle * pcls = fetch_pcls();
+  #pragma omp master
+  { timeTasks_begin_task(TimeTasks::MOVER_PCL_MOVING); }
+  const double dto2_d = .5 * dt;
+  const double qdto2mc_d = qom * dto2_d / c;
+  const F64vec8 dto2 = F64vec8(dto2_d);
+  const F64vec8 qdto2mc = F64vec8(qdto2mc_d);
+  #pragma omp for schedule(static)
+  for (int pidx = 0; pidx < nop; pidx+=2)
+  {
+    // copy the particle
+    SpeciesParticle* pcl = &pcls[pidx];
+    ALIGNED(pcl);
+
+    // gather position and velocity data from particles
+    //
+    F64vec8 pcl0 = *(F64vec8*)&pcl[0];
+    F64vec8 pcl1 = *(F64vec8*)&pcl[1];
+    const F64vec8 xorig = cat_low_halves(pcl0,pcl1);
+    F64vec8 xavg = xorig;
+    const F64vec8 uorig = cat_hgh_halves(pcl0,pcl1);
+
+    // calculate the average velocity iteratively
+    //
+    // (could stop iteration when it is determined that
+    // both particles are converged, e.g. if change in
+    // xavg is sufficiently small)
+    F64vec8 uavg;
+    for (int iter = 0; iter < NiterMover; iter++)
+    {
+      // convert to canonical coordinates relative to subdomain with ghosts
+      const F64vec8 X = dx_inv*xavg - gdom_Xlow;
+      F64vec8 cellXstart = floor(X);
+      // map to cell within the process subdomain (including ghosts);
+      // this is triggered if xavg is outside the ghost subdomain
+      // and results in extrapolation from the nearest ghost cell
+      // rather than interpolation as in the usual case.
+      cellXstart = maximum(cellXstart,F64vec8(0.));
+      cellXstart = minimum(cellXstart,nXc);
+      // get cell coordinates.
+      const I32vec16 cell = round_to_nearest(cellXstart);
+      // get field_components for each particle
+      F64vec8 field_components0[8]; // first pcl
+      F64vec8 field_components1[8]; // second pcl
+      ::get_field_components_for_cell(
+        field_components0,field_components1,fieldForPcls,cell);
+
+      // get weights for field_components based on particle position
+      //
+      F64vec8 weights[2];
+      construct_weights_for_2pcls(weights, X);
+
+      // interpolate field to get fields
+      F64vec8 fields[2];
+      // sample fields for first particle
+      fields[0] = sample_field_mic(weights[0],field_components0);
+      // sample fields for second particle
+      fields[1] = sample_field_mic(weights[1],field_components1);
+      const F64vec8 B = cat_low_halves(fields[0],fields[1]);
+      const F64vec8 E = cat_hgh_halves(fields[0],fields[1]);
+
+      // use sampled field to push particle block
+      //
+      uavg = compute_uvg_for_2pcls(uorig, B, E, qdto2mc);
+      // update average position
+      xavg = xorig + uavg*dto2;
+    } // end of iterative particle advance
+    // update the final position and velocity
+    const F64vec8 xnew = xavg+(xavg - xorig);
+    const F64vec8 unew = uavg+(uavg - uorig);
+    const F64vec8 pcl0new = cat_low_halves(xnew, unew);
+    const F64vec8 pcl1new = cat_hgh_halves(xnew, unew);
+    copy012and456(pcl0,pcl0new);
+    copy012and456(pcl1,pcl1new);
+
+    // could save using no-read stores( _mm512_storenr_pd),
+    // but we just read this, so presumably it is still in cache.
+    _mm512_store_pd(&pcl[0], pcl0);
+    _mm512_store_pd(&pcl[1], pcl1);
+  } // END OF ALL THE PARTICLES
+  #pragma omp master
+  { timeTasks_end_task(TimeTasks::MOVER_PCL_MOVING); }
+ #endif
+  dprint("gothere");
 }
 
 void Particles3D::mover_PC_AoS_vec(Grid * grid, VirtualTopology3D * vct, Field * EMf)

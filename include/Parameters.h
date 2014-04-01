@@ -12,6 +12,7 @@ namespace Parameters
     // for moments type
     AoSvec,
     SoAvec,
+    AoSintr,
     // for mover type
     SoA_vec_onesort,
     AoS_vec_onesort,

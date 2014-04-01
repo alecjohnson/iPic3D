@@ -291,6 +291,8 @@ bool c_Solver::ParticlesMover() {
         case Parameters::AoS:
           part[i].mover_PC_AoS(grid, vct, EMf);
           break;
+        case Parameters::AoSintr:
+          part[i].mover_PC_AoS_vec_intr(grid, vct, EMf);
         case Parameters::AoSvec:
           part[i].mover_PC_AoS_vec(grid, vct, EMf);
           break;
