@@ -488,6 +488,10 @@ namespace iPic3D
         S3(s3), S2(s2), S1(s1),
         arr3(in)
       { }
+      int get_size() const { return size; }
+      size_t dim1() const { return S3; }
+      size_t dim2() const { return S2; }
+      size_t dim3() const { return S1; }
     #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
       const const_array_get2<type> operator[](size_t n3)const{
         check_bounds(n3, S3);
@@ -594,6 +598,11 @@ namespace iPic3D
         arr4(in)
       { }
       int get_size() const { return size; }
+      //const size_t* dims()const{ return _dims; }
+      size_t dim1() const { return S4; }
+      size_t dim2() const { return S3; }
+      size_t dim3() const { return S2; }
+      size_t dim4() const { return S1; }
     #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
       const const_array_get3<type> operator[](size_t n4)const{
         check_bounds(n4, S4);
