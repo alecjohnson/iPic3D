@@ -76,17 +76,13 @@
 
   inline F64vec8 maximum(F64vec8 u, F64vec8 v)
   {
-    // which one?
-    eprintf("implement me");
     return _mm512_max_pd(u,v);
-    return _mm512_gmax_pd(u,v);
+    //return _mm512_gmax_pd(u,v);
   }
   inline F64vec8 minimum(F64vec8 u, F64vec8 v)
   {
-    eprintf("implement me");
-    // which one?
     return _mm512_min_pd(u,v);
-    return _mm512_gmin_pd(u,v);
+    //return _mm512_gmin_pd(u,v);
   }
 
   inline F64vec8 cross_product(F64vec8 u, F64vec8 v)
