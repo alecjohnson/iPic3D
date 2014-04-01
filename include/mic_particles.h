@@ -124,8 +124,6 @@
   {
     // interface to the right of cell
     const I32vec16 ix_ = cx_ + I32vec16(1);
-    printexpr(ix_);
-    printexpr(cx_);
   
     int* cx = (int*)&cx_;
     int* ix = (int*)&ix_;
@@ -149,18 +147,6 @@
       const I32vec16 cX1 = I32vec16(cx[0+4]);
       const I32vec16 cY1 = I32vec16(cx[1+4]);
       const I32vec16 cZ1 = I32vec16(cx[2+4]);
-      printexpr(iX0);
-      printexpr(iY0);
-      printexpr(iZ0);
-      printexpr(cX0);
-      printexpr(cY0);
-      printexpr(cZ0);
-      printexpr(iX1);
-      printexpr(iY1);
-      printexpr(iZ1);
-      printexpr(cX1);
-      printexpr(cY1);
-      printexpr(cZ1);
       // for each particle we want:
       //
       //   field_components[0] = fieldForPcls[iX][iY][iZ]; // field000
@@ -180,12 +166,6 @@
       const I32vec16 cX = _mm512_mask_blend_epi32(rmask_00ff,cX0,cX1);
       const I32vec16 cY = _mm512_mask_blend_epi32(rmask_00ff,cY0,cY1);
       const I32vec16 cZ = _mm512_mask_blend_epi32(rmask_00ff,cZ0,cZ1);
-      printexpr(iX);
-      printexpr(iY);
-      printexpr(iZ);
-      printexpr(cX);
-      printexpr(cY);
-      printexpr(cZ);
       // now use masks to form all possible combinations of coordinates
       const __mmask16 rmask_00001111x2 = _mm512_int2mask(0xf0f0); // mask=11110000x2
       const __mmask16 rmask_00110011x2 = _mm512_int2mask(0xcccc); // mask=11001100x2
@@ -194,36 +174,23 @@
       const I32vec16 sX = _mm512_mask_blend_epi32(rmask_00001111x2,iX,cX);
       const I32vec16 sY = _mm512_mask_blend_epi32(rmask_00110011x2,iY,cY);
       const I32vec16 sZ = _mm512_mask_blend_epi32(rmask_01010101x2,iZ,cZ);
-      printexpr(sX);
-      printexpr(sY);
-      printexpr(sZ);
       // compute the starting 1-dimensional index for the 8 corners
       const int nxn = fieldForPcls.dim1();
       const int nyn = fieldForPcls.dim2();
       const int nzn = fieldForPcls.dim3();
       const int nnn = fieldForPcls.dim4();
-      dprint(nxn);
-      dprint(nyn);
-      dprint(nzn);
-      dprint(nnn);
       const I32vec16 nXn(nxn);
       const I32vec16 nYn(nyn);
       const I32vec16 nZn(nzn);
-      printexpr(nXn);
-      printexpr(nYn);
-      printexpr(nZn);
       // compiler could see whether this would fail, so should cost nothing
       assert(nnn==8); // needed for field_components to be aligned
       const I32vec16 nNn(nnn);
-      printexpr(nNn);
       // unfortunately I32vec16 does not support this syntax,
       //const MyI32vec16 subs = ((sX*nYn+sY)*nZn+sZ)*nNn;
       const I32vec16 s1 = fused_multiply_add(sX,nYn,sY);
       const I32vec16 s2 = fused_multiply_add(s1,nZn,sZ);
       const I32vec16 subs = multiply(s2,nNn);
-      printexpr(s1);
-      printexpr(s2);
-      printexpr(subs);
+      //printexpr(subs);
       int const*const subs_arr = (int*)&subs;
       // access underlying 1D array of fieldForPcls
       double* fieldForPcls1d = fieldForPcls.get_arr();
