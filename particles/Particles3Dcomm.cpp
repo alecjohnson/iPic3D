@@ -1561,14 +1561,14 @@ void Particles3Dcomm::copyParticlesToSoA()
   for(int pidx=0; pidx<nop; pidx++)
   {
     const SpeciesParticle& pcl = pcls[pidx];
-    if(ParticleID) ParticleID[pidx] = pcl.get_ID();
     x[pidx] = pcl.get_x(0);
     y[pidx] = pcl.get_x(1);
     z[pidx] = pcl.get_x(2);
+    q[pidx] = pcl.get_q();
     u[pidx] = pcl.get_u(0);
     v[pidx] = pcl.get_u(1);
     w[pidx] = pcl.get_u(2);
-    q[pidx] = pcl.get_q();
+    if(ParticleID) ParticleID[pidx] = pcl.get_ID();
   }
 }
 
@@ -1584,10 +1584,9 @@ void Particles3Dcomm::copyParticlesToAoS()
     #pragma omp for
     for(int pidx=0; pidx<nop; pidx++)
     {
-      pcls[pidx].set( ParticleID[pidx],
-        x[pidx],y[pidx],z[pidx],
-        u[pidx],v[pidx],w[pidx],
-        q[pidx]);
+      pcls[pidx].set(
+        x[pidx],y[pidx],z[pidx], (double)ParticleID[pidx],
+        u[pidx],v[pidx],w[pidx], q[pidx]);
     }
   }
   else
@@ -1595,10 +1594,9 @@ void Particles3Dcomm::copyParticlesToAoS()
     #pragma omp for
     for(int pidx=0; pidx<nop; pidx++)
     {
-      pcls[pidx].set( 0,
-        x[pidx],y[pidx],z[pidx],
-        u[pidx],v[pidx],w[pidx],
-        q[pidx]);
+      pcls[pidx].set( 
+        x[pidx],y[pidx],z[pidx], (double)0,
+        u[pidx],v[pidx],w[pidx], q[pidx]);
     }
   }
 }
