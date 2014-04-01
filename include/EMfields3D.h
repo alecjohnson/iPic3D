@@ -30,6 +30,9 @@ using std::endl;
 
 /*! Electromagnetic fields and sources defined for each local grid, and for an implicit maxwell's solver @date May 2008 @par Copyright: (C) 2008 KUL @author Stefano Markidis, Giovanni Lapenta. @version 3.0 */
 
+// dimension of vectors used in fieldForPcls
+const int DFIELD_3or4=4; // 4 pads with garbage but is needed for alignment
+
 class Particles3Dcomm;
 class Moments10;
 class EMfields3D                // :public Field

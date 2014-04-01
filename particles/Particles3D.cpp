@@ -453,9 +453,9 @@ void Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
         Bxl += weights[c] * field_components[c][0];
         Byl += weights[c] * field_components[c][1];
         Bzl += weights[c] * field_components[c][2];
-        Exl += weights[c] * field_components[c][3];
-        Eyl += weights[c] * field_components[c][4];
-        Ezl += weights[c] * field_components[c][5];
+        Exl += weights[c] * field_components[c][0+DFIELD_3or4];
+        Eyl += weights[c] * field_components[c][1+DFIELD_3or4];
+        Ezl += weights[c] * field_components[c][2+DFIELD_3or4];
       }
       const double Omx = qdto2mc*Bxl;
       const double Omy = qdto2mc*Byl;
@@ -544,9 +544,9 @@ void Particles3D::mover_PC_AoS(Grid * grid, VirtualTopology3D * vct, Field * EMf
         Bxl += weights[c] * field_components[c][0];
         Byl += weights[c] * field_components[c][1];
         Bzl += weights[c] * field_components[c][2];
-        Exl += weights[c] * field_components[c][3];
-        Eyl += weights[c] * field_components[c][4];
-        Ezl += weights[c] * field_components[c][5];
+        Exl += weights[c] * field_components[c][0+DFIELD_3or4];
+        Eyl += weights[c] * field_components[c][1+DFIELD_3or4];
+        Ezl += weights[c] * field_components[c][2+DFIELD_3or4];
       }
       const double Omx = qdto2mc*Bxl;
       const double Omy = qdto2mc*Byl;
@@ -657,7 +657,7 @@ void Particles3D::mover_PC_AoS_vec(Grid * grid, VirtualTopology3D * vct, Field *
       for(int c=0; c<8; c++)
       {
         B[i][j] += weights[i][c] * field_components[i][c][j];
-        E[i][j] += weights[i][c] * field_components[i][c][j+3];
+        E[i][j] += weights[i][c] * field_components[i][c][j+DFIELD_3or4];
       }
       double Om[NUM_PCLS_MOVED_AT_A_TIME][3] __attribute__((aligned(64)));
       for(int i=0; i<NUM_PCLS_MOVED_AT_A_TIME;i++)
@@ -821,9 +821,9 @@ void Particles3D::mover_PC_AoS_vec_onesort(
           Bxl += weights[c] * field_components[c][0];
           Byl += weights[c] * field_components[c][1];
           Bzl += weights[c] * field_components[c][2];
-          Exl += weights[c] * field_components[c][3];
-          Eyl += weights[c] * field_components[c][4];
-          Ezl += weights[c] * field_components[c][5];
+          Exl += weights[c] * field_components[c][0+DFIELD_3or4];
+          Eyl += weights[c] * field_components[c][1+DFIELD_3or4];
+          Ezl += weights[c] * field_components[c][2+DFIELD_3or4];
         }
         const double Omx = qdto2mc*Bxl;
         const double Omy = qdto2mc*Byl;
@@ -1036,9 +1036,9 @@ void Particles3D::mover_PC_vectorized(
           Bxl += weights[c] * field_components[c][0];
           Byl += weights[c] * field_components[c][1];
           Bzl += weights[c] * field_components[c][2];
-          Exl += weights[c] * field_components[c][3];
-          Eyl += weights[c] * field_components[c][4];
-          Ezl += weights[c] * field_components[c][5];
+          Exl += weights[c] * field_components[c][0+DFIELD_3or4];
+          Eyl += weights[c] * field_components[c][1+DFIELD_3or4];
+          Ezl += weights[c] * field_components[c][2+DFIELD_3or4];
         }
         const double Omx = qdto2mc*Bxl;
         const double Omy = qdto2mc*Byl;

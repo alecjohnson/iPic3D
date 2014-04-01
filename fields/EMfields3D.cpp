@@ -53,7 +53,7 @@ EMfields3D::EMfields3D(Collective * col, Grid * grid) :
   //
   // array allocation: nodes
   //
-  fieldForPcls  (nxn, nyn, nzn, 6),
+  fieldForPcls  (nxn, nyn, nzn, 2*DFIELD_3or4),
   Ex   (nxn, nyn, nzn),
   Ey   (nxn, nyn, nzn),
   Ez   (nxn, nyn, nzn),
@@ -2109,9 +2109,9 @@ void EMfields3D::set_fieldForPcls()
     fieldForPcls[i][j][k][0] = (pfloat) Bxn[i][j][k];
     fieldForPcls[i][j][k][1] = (pfloat) Byn[i][j][k];
     fieldForPcls[i][j][k][2] = (pfloat) Bzn[i][j][k];
-    fieldForPcls[i][j][k][3] = (pfloat) Ex[i][j][k];
-    fieldForPcls[i][j][k][4] = (pfloat) Ey[i][j][k];
-    fieldForPcls[i][j][k][5] = (pfloat) Ez[i][j][k];
+    fieldForPcls[i][j][k][0+DFIELD_3or4] = (pfloat) Ex[i][j][k];
+    fieldForPcls[i][j][k][1+DFIELD_3or4] = (pfloat) Ey[i][j][k];
+    fieldForPcls[i][j][k][2+DFIELD_3or4] = (pfloat) Ez[i][j][k];
   }
 }
 
