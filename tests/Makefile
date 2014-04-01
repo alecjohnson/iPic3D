@@ -24,6 +24,13 @@ testvrinke.mic: testvrinke.cpp
 run.testvrinke.mic: testvrinke.mic
 	OMP_NUM_THREADS=50 mpirun -n 1 -host `hostname`-mic1 -env OMP_NUM_THREADS=50 ./testvrinke.mic
 
+test_mic_particles.mic: test_mic_particles.cpp Makefile
+	KMP_AFFINITY=compact icpc -mmic $(FLAGS) -fopenmp test_mic_particles.cpp \
+           $(INCLUDE) -o test_mic_particles.mic
+
+run.test_mic_particles.mic: test_mic_particles.mic
+	mpirun -n 1 -host `hostname`-mic1 -env OMP_NUM_THREADS=2 ./test_mic_particles.mic
+
 testv2: testv2.cpp Makefile
 	$(COMPILER) $(FLAGS) -fopenmp testv2.cpp $(INCLUDE) -o testv2
 
