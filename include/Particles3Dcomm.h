@@ -7,11 +7,17 @@ developers: Stefano Markidis, Giovanni Lapenta
 #ifndef Part3DCOMM_H
 #define Part3DCOMM_H
 
-#include "CollectiveIO.h"
-#include "VirtualTopology3D.h"
-#include "Grid.h"
-#include "Field.h"
-#include "Particle.h"
+//#include "CollectiveIO.h"
+// taken from #include "ipicfwd.h" on merge2amaya
+class Collective;
+typedef Collective CollectiveIO;
+#include "Alloc.h"
+#include "Particle.h" // for ParticleType
+class Grid3DCU;
+typedef Grid3DCU Grid;
+class EMfields3D;
+typedef EMfields3D Field;
+class VirtualTopology3D;
 /**
  * 
  * class for particles of the same species with communications methods
