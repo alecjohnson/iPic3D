@@ -7,16 +7,13 @@
 #ifndef GRID3DCU_H
 #define GRID3DCU_H
 
-#include "Grid.h"
-#include "CollectiveIO.h"
-#include "ComInterpNodes3D.h"
-#include "ComNodes3D.h"
-#include "VirtualTopology3D.h"
-#include "Alloc.h"
+#include "arraysfwd.h"
+// taken from #include "ipicfwd.h" on merge2amaya
+class Collective;
+typedef Collective CollectiveIO;
+#include "math.h" // for floor
 
-using std::cout;
-using std::endl;
-
+class VirtualTopology3D;
 /**
  * Uniform cartesian local grid 3D
  *
@@ -31,6 +28,10 @@ class Grid3DCU                  // :public Grid
 public:
   /** constructor */
   Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct);
+  Grid3DCU(
+    int nxc_, int nyc_, int nzc_,
+    double dx_, double dy_, double dz_,
+    double xStart_, double yStart_, double zStart_);
   /** destructor */
   ~Grid3DCU();
   /** allocate grid arrays for this domain */
@@ -110,6 +111,9 @@ public:
   void interpN2C(arr3_double vecFieldC, const_arr3_double vecFieldN);
   /** interpolate on central points from nodes */
   void interpN2C(arr4_double vecFieldC, int ns, const_arr4_double vecFieldN);
+
+private:
+  void init_derived_parameters();
 
   // /////////// PRIVATE VARIABLES //////////////
 private:

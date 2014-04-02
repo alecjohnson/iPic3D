@@ -2,6 +2,10 @@
 #include <mpi.h>
 #include "Grid3DCU.h"
 #include "MPIdata.h"
+#include "Alloc.h"
+#include "CollectiveIO.h"
+#include "ComNodes3D.h" // for communicateCenterBC
+#include "VirtualTopology3D.h"
 
 /*! constructor */
 Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct) {
@@ -25,25 +29,18 @@ Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct) {
   nxc = (col->getNxc()) / (vct->getXLEN()) + 2;
   nyc = (col->getNyc()) / (vct->getYLEN()) + 2;
   nzc = (col->getNzc()) / (vct->getZLEN()) + 2;
-  nxn = nxc + 1;
-  nyn = nyc + 1;
-  nzn = nzc + 1;
-  cxlast = nxc-1;
-  cylast = nyc-1;
-  czlast = nzc-1;
   dx = col->getLx() / col->getNxc();
   dy = col->getLy() / col->getNyc();
   dz = col->getLz() / col->getNzc();
-  invVOL = 1.0 / (dx * dy * dz);
-  invdx = 1.0 / dx;
-  invdy = 1.0 / dy;
-  invdz = 1.0 / dz;
 
   // local grid dimensions and boundaries of active nodes
   //
   const double xWidth = (col->getLx() / (double) vct->getXLEN());
   const double yWidth = (col->getLy() / (double) vct->getYLEN());
   const double zWidth = (col->getLz() / (double) vct->getZLEN());
+  assert_almost_eq(dx*(nxc-2),xWidth,dx*1e-8);
+  assert_almost_eq(dy*(nyc-2),yWidth,dy*1e-8);
+  assert_almost_eq(dz*(nzc-2),zWidth,dz*1e-8);
   //
   xStart = vct->getCoordinates(0) * xWidth;
   yStart = vct->getCoordinates(1) * yWidth;
@@ -52,6 +49,45 @@ Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct) {
   xEnd = xStart + xWidth;
   yEnd = yStart + yWidth;
   zEnd = zStart + zWidth;
+
+  init_derived_parameters();
+}
+
+Grid3DCU::Grid3DCU(
+  int nxc_, int nyc_, int nzc_,
+  double dx_, double dy_, double dz_,
+  double xStart_, double yStart_, double zStart_)
+: nxc(nxc_), nyc(nyc_), nzc(nzc_),
+  dx(dx_), dy(dy_), dz(dz_),
+  xStart(xStart_), yStart(yStart_), zStart(zStart_)
+{
+  const double xWidth = dx*(nxc-2);
+  const double yWidth = dy*(nyc-2);
+  const double zWidth = dz*(nzc-2);
+
+  xEnd = xStart + xWidth;
+  yEnd = yStart + yWidth;
+  zEnd = zStart + zWidth;
+
+  init_derived_parameters();
+}
+
+// set derived convenience
+void Grid3DCU::init_derived_parameters()
+{
+  // calculation conveniences
+  //
+  invVOL = 1.0 / (dx * dy * dz);
+  invdx = 1.0 / dx;
+  invdy = 1.0 / dy;
+  invdz = 1.0 / dz;
+  //
+  nxn = nxc + 1;
+  nyn = nyc + 1;
+  nzn = nzc + 1;
+  cxlast = nxc-1;
+  cylast = nyc-1;
+  czlast = nzc-1;
 
   // arrays allocation: nodes ---> the first node has index 1, the last has index nxn-2!
   pfloat_node_xcoord = new pfloat[nxn];
