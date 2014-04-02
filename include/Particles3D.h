@@ -88,13 +88,6 @@ class Particles3D:public Particles3Dcomm {
     void MaxwellianFromFluidCell(Grid* grid, Collective *col, int is, int i, int j, int k, int &ip, double *x, double *y, double *z, double *q, double *vx, double *vy, double *vz, unsigned long* ParticleID);
 #endif
 
-  private:
-
-    inline void get_field_components_for_cell(
-      arr1_double_get field_components[8],
-      const_arr4_double fieldForPcls,
-      int cx,int cy,int cz);
 };
-
 
 #endif

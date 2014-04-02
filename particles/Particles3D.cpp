@@ -305,48 +305,6 @@ void Particles3D::AddPerturbationJ(double deltaBoB, double kx, double ky, double
   }
 }
 
-inline void Particles3D::get_field_components_for_cell(
-  arr1_double_get field_components[8],
-  const_arr4_double fieldForPcls,
-  int cx,int cy,int cz)
-{
-  // interface to the right of cell
-  const int ix = cx+1;
-  const int iy = cy+1;
-  const int iz = cz+1;
-
-  // is this faster?
-  //
-  //field_components[0] = fieldForPcls[ix][iy][iz]; // field000
-  //field_components[1] = fieldForPcls[ix][iy][cz]; // field001
-  //field_components[2] = fieldForPcls[ix][cy][iz]; // field010
-  //field_components[3] = fieldForPcls[ix][cy][cz]; // field011
-  //field_components[4] = fieldForPcls[cx][iy][iz]; // field100
-  //field_components[5] = fieldForPcls[cx][iy][cz]; // field101
-  //field_components[6] = fieldForPcls[cx][cy][iz]; // field110
-  //field_components[7] = fieldForPcls[cx][cy][cz]; // field111
-  //
-  // or is this?
-  //
-  // creating these aliases seems to accelerate this method (by about 30%?)
-  // on the Xeon host processor, suggesting deficiency in the optimizer.
-  //
-  arr3_double_fetch field0 = fieldForPcls[ix];
-  arr3_double_fetch field1 = fieldForPcls[cx];
-  arr2_double_fetch field00 = field0[iy];
-  arr2_double_fetch field01 = field0[cy];
-  arr2_double_fetch field10 = field1[iy];
-  arr2_double_fetch field11 = field1[cy];
-  field_components[0] = field00[iz]; // field000 
-  field_components[1] = field00[cz]; // field001 
-  field_components[2] = field01[iz]; // field010 
-  field_components[3] = field01[cz]; // field011 
-  field_components[4] = field10[iz]; // field100 
-  field_components[5] = field10[cz]; // field101 
-  field_components[6] = field11[iz]; // field110 
-  field_components[7] = field11[cz]; // field111 
-}
-
 /** explicit mover */
 void Particles3D::mover_explicit(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
   // to be implemented
@@ -629,14 +587,11 @@ void Particles3D::mover_PC_AoS_vec_intr(Grid * grid, VirtualTopology3D * vct, Fi
   {
     // copy the particle
     SpeciesParticle* pcl = &(pcls[pidx]);
-    //ALIGNED(pcl);
 
     // gather position and velocity data from particles
     //
     F64vec8 pcl0 = *(F64vec8*)&(pcl[0]);
     F64vec8 pcl1 = *(F64vec8*)&(pcl[1]);
-    //F64vec8 pcl0 = *(F64vec8*)&(pcls[pidx]);
-    //F64vec8 pcl1 = *(F64vec8*)&(pcls[pidx+1]);
     const F64vec8 xorig = cat_hgh_halves(pcl0,pcl1);
     F64vec8 xavg = xorig;
     const F64vec8 uorig = cat_low_halves(pcl0,pcl1);
@@ -699,7 +654,7 @@ void Particles3D::mover_PC_AoS_vec_intr(Grid * grid, VirtualTopology3D * vct, Fi
     // but we just read this, so presumably it is still in cache.
     _mm512_store_pd(&pcl[0], pcl0);
     _mm512_store_pd(&pcl[1], pcl1);
-  } // END OF ALL THE PARTICLES
+  }
   #pragma omp master
   { timeTasks_end_task(TimeTasks::MOVER_PCL_MOVING); }
  #endif
