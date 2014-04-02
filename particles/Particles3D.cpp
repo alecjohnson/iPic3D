@@ -650,8 +650,8 @@ void Particles3D::mover_PC_AoS_vec_intr(Grid * grid, VirtualTopology3D * vct, Fi
     for (int iter = 0; iter < NiterMover; iter++)
     {
       // convert to canonical coordinates relative to subdomain with ghosts
-      const F64vec8 X = dx_inv*xavg - gdom_Xlow;
-      F64vec8 cellXstart = floor(X);
+      const F64vec8 gX = dx_inv*xavg - gdom_Xlow;
+      F64vec8 cellXstart = floor(gX);
       // map to cell within the process subdomain (including ghosts);
       // this is triggered if xavg is outside the ghost subdomain
       // and results in extrapolation from the nearest ghost cell
@@ -669,6 +669,7 @@ void Particles3D::mover_PC_AoS_vec_intr(Grid * grid, VirtualTopology3D * vct, Fi
       // get weights for field_components based on particle position
       //
       F64vec8 weights[2];
+      const F64vec8 X = gX - cellXstart;
       construct_weights_for_2pcls(weights, X);
 
       // interpolate field to get fields
