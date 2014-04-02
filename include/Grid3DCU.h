@@ -8,9 +8,7 @@
 #define GRID3DCU_H
 
 #include "arraysfwd.h"
-// taken from #include "ipicfwd.h" on merge2amaya
-class Collective;
-typedef Collective CollectiveIO;
+#include "ipicfwd.h"
 #include "math.h" // for floor
 
 class VirtualTopology3D;

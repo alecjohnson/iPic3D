@@ -1,9 +1,10 @@
 #ifndef NO_MPI
   #include <mpi.h>
 #endif
-#include <stdio.h>
+//#include <stdio.h>
 #include <assert.h>
 #include "MPIdata.h"
+#include "ompdefs.h" // for omp_get_max_threads
 
 // code to check that init() is called before instance()
 //
@@ -48,6 +49,11 @@ void MPIdata::init(int *argc, char ***argv) {
   MPIdata_is_initialized = true;
 }
 
+void MPIdata::exit(int code) {
+  finalize_mpi();
+  ::exit(code);
+}
+
 void MPIdata::finalize_mpi() {
  #ifndef NO_MPI
   MPI_Finalize();
@@ -55,8 +61,13 @@ void MPIdata::finalize_mpi() {
 }
 
 void MPIdata::Print(void) {
-  printf("\nNumber of processes = %d\n"
-         "-------------------------\n\n", get_nprocs());
+  printf("\n"
+    "Number of processes = %d\n"
+    "-------------------------\n"
+    "Number of threads = %d\n"
+    "-------------------------\n",
+     get_nprocs(),
+     omp_get_max_threads());
 }
 
 // extern MPIdata *mpi; // instantiated in iPIC3D.cpp
