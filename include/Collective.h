@@ -21,7 +21,6 @@
 #include <stdlib.h>
 #include "ConfigFile.h"
 #include "input_array.h"
-#include "hdf5.h"
 //#include "CollectiveIO.h"
 using namespace std;
 

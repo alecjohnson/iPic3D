@@ -4,6 +4,7 @@
 #include "debug.h"
 #include "limits.h" // for INT_MAX
 #include "asserts.h" // for assert_ge
+#include "hdf5.h"
 
 /*! Read the input file from text file and put the data in a collective wrapper: if it's a restart read from input file basic sim data and load particles and EM field from restart file */
 void Collective::ReadInput(string inputfile) {
