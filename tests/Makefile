@@ -10,10 +10,10 @@ OBJECTS = \
 ARRAY_FLAGS = #-DCHAINED_ARRAYS #-DFLAT_ARRAYS #-DCHECK_BOUNDS
 FLAGS = -O3 -DNO_MPI -fno-exceptions $(ARRAY_FLAGS) #-ggdb 
 
-COMPILER = icpc #icpc # g++ # c++
+COMPILER = icpc # g++ # c++
 
 testvbasic.mic: testvbasic.cpp
-	icpc -mmic testvbasic.cpp -o testvbasic.mic
+	icpc -mmic testvbasic.cpp $(INCLUDE) -o testvbasic.mic
 
 run.testvbasic.mic: testvbasic.mic
 	ssh `hostname`-mic1 tests/testvbasic.mic

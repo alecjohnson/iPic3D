@@ -18,6 +18,7 @@
 #include "../utility/debug.cpp"
 #include "../utility/asserts.cpp"
 #include "../utility/errors.cpp"
+#include "../utility/MPIdata.cpp"
 
 //  std::ostream& operator<<(std::ostream& os, const I32vec16 obj)
 //  {
@@ -237,124 +238,6 @@ struct SpeciesPcl
     //ID=i;
   }
 };
-
-// transpose each 2x2 block in the two rows of a 2x8 matrix
-// used to transpose the 2x2 blocks of the 8x8 matrix
-inline void trans2x2(double in1[8], double in2[8])
-{
-  F64vec8& data1 = (F64vec8&)in1[0];
-  F64vec8& data2 = (F64vec8&)in2[0];
-  // copy the data that we will first overwrite
-  const F64vec8 buff1 = data1;
-
-  // data1: copy odds from evens of data2,
-  //   i.e.,
-  // for(int i=1; i<8; i+=2) data1[i] = data2[i-1];
-  //
-  const __mmask16 rmask_01010101 = _mm512_int2mask(0xaa); // mask=10101010
-  // replace unmasked data1 with swizzled data2
-  // (hopefully compiler will see that this can be done in
-  // a single vector instruction)
-  data1 = F64vec8(_mm512_mask_swizzle_pd(__m512d(data1),
-    rmask_01010101, __m512d(data2),_MM_SWIZ_REG_CDAB));
-  //cout << "swizzle for pattern 'cdab' with rmask=01010101\n"
-  //  << data1 << endl;
-
-  // data2: copy evens from odds of buff1,
-  //   i.e.,
-  // for(int i=0; i<7; i+=2) data2[i] = buff1[i+1];
-  //
-  const __mmask16 rmask_10101010 = _mm512_int2mask(0x55); // mask=01010101
-  // replace unmasked data2 with swizzled buff1
-  data2 = F64vec8(_mm512_mask_swizzle_pd(__m512d(data2),
-    rmask_10101010, __m512d(buff1),_MM_SWIZ_REG_CDAB));
-  //cout << "swizzle for pattern 'cdab' with rmask=10101010\n"
-  //  << data2 << endl;
-}
-
-// transpose 1x2 elements of each 2x4 block in the two rows of a 2x8 matrix
-// used to transpose the 2x2 elements of the 4x4 blocks of the 8x8 matrix
-inline void trans4x4(double in1[8], double in2[8])
-{
-  F64vec8& data1 = (F64vec8&)in1[0];
-  F64vec8& data2 = (F64vec8&)in2[0];
-  // copy the data that we will first overwrite
-  const F64vec8 buff1 = data1;
-
-  // data1: copy odd 1x2 elements from even 1x2 elements of data2,
-  //   i.e.,
-  // for(int i=2; i<8; i++) if((i/2)%2) data1[i] = data2[i-2];
-  //
-  // replace unmasked data1 with swizzled data2
-  const __mmask16 rmask_00110011 = _mm512_int2mask(0xcc); // mask = 11001100
-  data1 = F64vec8(_mm512_mask_swizzle_pd(__m512d(data1),
-    rmask_00110011, __m512d(data2),_MM_SWIZ_REG_BADC));
-  //cout << "swizzle for pattern 'badc' with rmask=00110011\n"
-  //  << outp1 << endl;
-
-  // data2: copy even 1x2 elements from odd 1x2 from odds of buff1,
-  //   i.e.,
-  // for(int i=0; i<6; i++) if(!((i/2)%2)) data2[i] = buff1[i+2];
-  //
-  const __mmask16 rmask_11001100 = _mm512_int2mask(0x33); // mask=00110011
-  data2 = F64vec8(_mm512_mask_swizzle_pd(__m512d(data2),
-    rmask_11001100, __m512d(buff1),_MM_SWIZ_REG_BADC));
-  //cout << "swizzle for pattern 'badc' with rmask=11001100\n"
-  //  << outp2 << endl;
-}
-
-// transpose 1x4 elements of each 2x4 block in the two rows of a 2x8 matrix
-// used to transpose the 4x4 elements of the 8x8 matrix
-void trans8x8(double in1[8], double in2[8])
-{
-  __m512& data1 = (__m512&)in1[0];
-  __m512& data2 = (__m512&)in2[0];
-  // copy the data that we will first overwrite
-  const __m512 buff1 = data1;
-
-  // for swizzle intel supports 256-bit lanes with 64-bit elements
-  // (as well as 128-bit lanes with 32-bit elements),
-  // but for shuffle intel only supports 128-bit lanes with 32-bit
-  // elements, so we must cast to 32-bit data types, do the
-  // shuffle, and cast back.
-
-  // data1: copy low (odd) 1x4 element from even (high) 1x4 element of data2,
-  //   i.e.,
-  // for(int i=0; i<4; i++) data1[i+4] = data2[i];
-  //
-  // replace unmasked data1 with shuffled data2
-  const __mmask16 rmask_00001111 = _mm512_int2mask(0xff00); //mask=11110000
-  data1 = _mm512_mask_permute4f128_ps(data1, rmask_00001111, data2,_MM_PERM_BADC);
-
-  // data2: copy high (even) 1x4 element from odd (low) 1x4 element of buff1,
-  //   i.e.,
-  // for(int i=0; i<4; i++) data2[i] = buff1[i+4];
-  //
-  // replace unmasked data2 with shuffled data1
-  const __mmask16 rmask_11110000 = _mm512_int2mask(0x00ff); //mask=00001111
-  data2 = _mm512_mask_permute4f128_ps(data2, rmask_11110000, buff1,_MM_PERM_BADC);
-}
-
-// transpose with blocked algorithm in
-// 24=8*3 = 8*log_2(8) vector instructions
-// (ignoring 12=4*3 copies made to
-// buffers to reduce number of registers needed)
-//
-inline void transpose_8x8_double(double data[8][8])
-{
-  ASSUME_ALIGNED(data);
-  // 1. transpose each 2x2 block.
-  for(int i=0; i<8; i+=2)
-    trans2x2(data[i], data[i+1]);
-  // 2. transpose each 4x4 block of 2x2 elements
-  trans4x4(data[0], data[2]);
-  trans4x4(data[1], data[3]);
-  trans4x4(data[4], data[6]);
-  trans4x4(data[5], data[7]);
-  // 3. swap lower left and upper right 4x4 elements
-  for(int i=0; i<4; i+=1)
-    trans8x8(data[i], data[i+4]);
-}
 
 // 8 particles
 class PclBlock
