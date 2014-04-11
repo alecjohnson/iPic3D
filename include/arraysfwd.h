@@ -25,6 +25,18 @@ namespace iPic3D
   class array3;
   template <class T>
   class array4;
+  template <class T>
+  class array_fetch1;
+  template <class T>
+  class const_array_get1;
+  template <class T>
+  class const_array_get2;
+  template <class T>
+  class const_array_get3;
+  template <class T>
+  class array_fetch2;
+  template <class T>
+  class array_fetch3;
 }
 
 // These aliases are defined for the following flexibilization purposes:
@@ -62,14 +74,19 @@ typedef iPic3D::array4<pfloat> array4_pfloat;
 typedef iPic3D::array_fetch1<double> arr1_double_fetch;
 typedef iPic3D::const_array_get1<double> arr1_double_get;
 typedef iPic3D::const_array_get1<pfloat> arr1_pfloat_get;
+typedef iPic3D::const_array_get2<double> arr2_double_get;
+typedef iPic3D::const_array_get3<double> arr3_double_get;
 typedef iPic3D::array_fetch2<double> arr2_double_fetch;
 typedef iPic3D::array_fetch3<double> arr3_double_fetch;
 #else
 typedef double* arr1_double_fetch;
-typedef double* arr1_double_get;
-typedef pfloat* arr1_pfloat_get;
 typedef double** arr2_double_fetch;
 typedef double*** arr3_double_fetch;
+
+typedef double const*const arr1_double_get;
+typedef pfloat const*const arr1_pfloat_get;
+typedef double const*const*const arr2_double_get;
+typedef double const*const*const*const arr3_double_get;
 #endif
 
 #endif

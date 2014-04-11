@@ -65,7 +65,7 @@
 */
 #define ALIGNMENT (64)
 #ifdef __INTEL_COMPILER
-    #define ALLOC_ALIGNED __attribute__((aligned(ALIGNMENT)));
+    #define ALLOC_ALIGNED __attribute__((aligned(ALIGNMENT)))
     #define ASSUME_ALIGNED(X) __assume_aligned(X, ALIGNMENT)
     #define ALIGNED(X) __assume_aligned(X, ALIGNMENT)
     #define AlignedAlloc(T, NUM) \
@@ -172,12 +172,10 @@ inline type *** newArray3(type * in, size_t sz1, size_t sz2, size_t sz3)
 template <class type>
 inline type ** newArray2(type * in, size_t sz1, size_t sz2)
 {
-  type**arr = newArray2<type*>(sz1);
-  type**arr2 = arr;
+  type**arr = newArray1<type*>(sz1);
   type *ptr = in;
-  size_t szarr2 = sz1;
-  for(size_t i=0;i<szarr2;i++) {
-    arr2[i] = ptr;
+  for(size_t i=0;i<sz1;i++) {
+    arr[i] = ptr;
     ptr += sz2;
   }
   return arr;
@@ -245,21 +243,30 @@ namespace iPic3D
   // constructors reduces to computing a one-dimensional subscript
   // used to access a one-dimensional array.
   //
+#if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
   template <class type>
   class array_fetch1
   {
-    type* const __restrict__ arr;
-    const size_t S1;
-    const size_t shift;
+    type* __restrict__ arr;
+    size_t S1;
+    size_t shift;
    public:
+    inline array_fetch1() : arr(0), shift(0), S1(0) {}
     inline array_fetch1(type*const arr_, size_t k, size_t s1) :
       arr(arr_), shift(k), S1(s1)
     {}
+    inline array_fetch1& operator=(const array_fetch1& in)
+    {
+      arr = in.arr;
+      S1 = in.S1;
+      shift = in.shift;
+    }
     inline type& operator[](size_t n1){
       check_bounds(n1, S1);
       ALIGNED(arr);
       return arr[shift+n1];
     }
+    operator type*(){ return &arr[shift]; }
   };
   
   template <class type>
@@ -299,11 +306,11 @@ namespace iPic3D
   template <class type>
   class const_array_get1
   {
-    type* const __restrict__ arr;
+    type const* const __restrict__ arr;
     const size_t S1;
     const size_t shift;
    public:
-    inline const_array_get1(type*const arr_, size_t k, size_t s1) :
+    inline const_array_get1(type const*const arr_, size_t k, size_t s1) :
       arr(arr_), shift(k), S1(s1)
     {}
     inline const type& operator[](size_t n1)const{
@@ -311,16 +318,17 @@ namespace iPic3D
       ALIGNED(arr);
       return arr[shift+n1];
     }
+    operator type const*()const{return arr;}
   };
   
   template <class type>
   class const_array_get2
   {
-    type* const __restrict__ arr;
+    type const*const __restrict__ arr;
     const size_t shift;
     const size_t S2, S1;
    public:
-    inline const_array_get2(type*const arr_, size_t k, size_t s2, size_t s1) :
+    inline const_array_get2(type const*const arr_, size_t k, size_t s2, size_t s1) :
       arr(arr_), shift(k), S2(s2), S1(s1)
     {}
     inline const const_array_get1<type> operator[](size_t n2)const{
@@ -332,11 +340,11 @@ namespace iPic3D
   template <class type>
   class const_array_get3
   {
-    type* const __restrict__ arr;
+    type const*const __restrict__ arr;
     const size_t shift;
     const size_t S3, S2, S1;
    public:
-    const_array_get3(type*const arr_, size_t k, size_t s3, size_t s2, size_t s1) :
+    const_array_get3(type const*const arr_, size_t k, size_t s3, size_t s2, size_t s1) :
       arr(arr_), shift(k), S3(s3), S2(s2), S1(s1)
     {}
     inline const const_array_get2<type> operator[](size_t n3)const{
@@ -345,6 +353,96 @@ namespace iPic3D
     }
   };
   
+#else // FLAT_ARRAYS
+
+  //template<typename T>
+  //struct array_fetch1 {
+  //  typedef T* type
+  //}
+
+  template <class type>
+  class array_fetch1
+  {
+    type* __restrict__ arr;
+   public:
+    inline array_fetch1(): arr(0) {}
+    inline array_fetch1(type*const arr_): arr(arr_) {}
+    inline type& operator[](size_t n1){
+      ALIGNED(arr);
+      return arr[n1];
+    }
+    operator type*(){ return arr; }
+  };
+  
+  template <class type>
+  class array_fetch2
+  {
+    type** arr2;
+   public:
+    inline array_fetch2(type** const arr2_) : arr2(arr2_)
+    {}
+    inline array_fetch1<type> operator[](size_t n2){
+      return array_fetch1<type>(arr2[n2]);
+    }
+    operator type**(){ return arr2; }
+  };
+
+  template <class type>
+  class array_fetch3
+  {
+    type*** arr3;
+   public:
+    inline array_fetch3(type***const arr3_) : arr3(arr3_)
+    {}
+    inline array_fetch2<type> operator[](size_t n3){
+      return array_fetch2<type>(arr3[n3]);
+    }
+    operator type***(){ return arr3; }
+  };
+  
+  // const versions
+  
+  template <class type>
+  class const_array_get1
+  {
+    type const* __restrict__ arr;
+   public:
+    inline const_array_get1(type const*const arr_): arr(arr_)
+    {}
+    inline const type& operator[](size_t n1)const{
+      ALIGNED(arr);
+      return arr[n1];
+    }
+    operator type const*()const{ return arr; }
+  };
+  
+  template <class type>
+  class const_array_get2
+  {
+    type const*const*const __restrict__ arr2;
+   public:
+    inline const_array_get2(type const*const*const arr2_) : arr2(arr2_)
+    {}
+    inline const const_array_get1<type> operator[](size_t n2)const{
+      return const_array_get1<type>(arr2[n2]);
+    }
+  };
+  
+  template <class type>
+  class const_array_get3
+  {
+    type const*const*const* const __restrict__ arr3;
+   public:
+    const_array_get3(type const*const*const*const arr3_): arr3(arr3_)
+    {}
+    inline const const_array_get2<type> operator[](size_t n3)const{
+      return const_array_get2<type>(arr3[n3]);
+    }
+    operator type const*const*const*(){return arr3;}
+  };
+  
+#endif // FLAT_ARRAYS
+
   // ArrN corresponds to multi_array_ref in the boost library.
   //
   // ArrN can adopt an array allocated by newArrN
@@ -423,44 +521,122 @@ namespace iPic3D
   };
   
   template <class type>
-  class array_ref2
+  class const_array_ref2 : public base_arr<type>
   {
-    private: // data
+    public:
+      using base_arr<type>::arr;
+      using base_arr<type>::get_arr;
+    protected: // data
+      size_t size;
       const size_t S2,S1;
-      type* const __restrict__ arr;
+      type*const*const arr2;
+    public:
+      ~const_array_ref2(){}
+      const_array_ref2(size_t s2, size_t s1) :
+        size(s2*s1),
+        base_arr<type>(s2*s1),
+        S2(s2), S1(s1),
+        arr2(newArray2<type>(arr,s2,s1))
+      { }
+      const_array_ref2(type*const* in,
+        size_t s2, size_t s1) :
+        size(s2*s1), //arr(**in),
+        base_arr<type>(*in, s2*s1),
+        S2(s2), S1(s1),
+        arr2(in)
+      { }
+      int get_size() const { return size; }
+      size_t dim1() const { return S2; }
+      size_t dim2() const { return S1; }
+    #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+      const const_array_get1<type> operator[](size_t n2)const{
+        check_bounds(n2, S2);
+        return const_array_get1<type>(arr, n2*S1, S1);
+      }
+    #else
+      // make operator[] dereference via chained pointer
+      inline const const_array_get1<type> operator[](size_t n2)const{
+        return const_array_get1<type>(arr2[n2]);
+      }
+      //inline const type* operator[](size_t n2)const{
+      //  return arr2[n2];
+      //}
+    #endif
+      operator type**(){ return (type**) arr2; }
+      void check_idx_bounds(size_t n2, size_t n1) const
+      {
+        check_bounds(n2, S2);
+        check_bounds(n1, S1);
+      }
+      inline size_t getidx(size_t n2, size_t n1) const
+        { check_idx_bounds(n2,n1); return n2*S1+n1; }
+    #ifdef CHAINED_ARRAYS
+      const type& get(size_t n2,size_t n1) const
+        { check_idx_bounds(n2,n1); return arr2[n2][n1]; }
+    protected: // hack: not in const_array_ref3 due to icpc compile error
+      type& fetch(size_t n2,size_t n1) const
+        { check_idx_bounds(n2,n1); return arr2[n2][n1]; }
+      void set(size_t n2,size_t n1, type value)
+        { check_idx_bounds(n2,n1); arr2[n2][n1] = value; }
+    #else
+      const type& get(size_t n2,size_t n1) const
+        { ALIGNED((type*)arr); return arr[getidx(n2,n1)]; }
+    protected: // hack: not in const_array_ref3 due to icpc compile error
+      type& fetch(size_t n2,size_t n1) const
+        { ALIGNED((type*)arr); return arr[getidx(n2,n1)]; }
+      void set(size_t n2,size_t n1, type value)
+        { ALIGNED((type*)arr); arr[getidx(n2,n1)] = value; }
+    #endif
+  };
+
+  template <class type>
+  class array_ref2 : public const_array_ref2<type>
+  {
+      //using base_arr<type>::arr;
+      using const_array_ref2<type>::size;
+      using const_array_ref2<type>::arr;
+      using const_array_ref2<type>::S2;
+      using const_array_ref2<type>::S1;
+      using const_array_ref2<type>::arr2;
+      using const_array_ref2<type>::getidx;
+    public:
+      using base_arr<type>::get_arr;
     public:
       ~array_ref2(){}
-      void free() { AlignedFree(arr); }
       array_ref2(size_t s2, size_t s1) :
-        S2(s2), S1(s1),
-        arr(AlignedAlloc(type, s2*s1))
-      {
-      }
+        const_array_ref2<type>(s2,s1)
+      { }
       array_ref2(type*const* in,
         size_t s2, size_t s1) :
-        S2(s2), S1(s1),
-        arr(*in)
+        const_array_ref2<type>(in,s2,s1)
       { }
-      // dereference via calculated index
+      void free(){ delArray2<type>((type***)arr2); }
+    #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
       inline array_fetch1<type> operator[](size_t n2){
         check_bounds(n2, S2);
         return array_fetch1<type>(arr, n2*S1, S1);
       }
-      inline size_t getidx(size_t n2, size_t n1) const
-      {
-        check_bounds(n2, S2);
-        check_bounds(n1, S1);
-        return n2*S1+n1;
+    #else
+      // make operator[] dereference via chained pointer
+      inline array_fetch1<type> operator[](size_t n2){
+        return array_fetch1<type>(arr2[n2]);
       }
-      type& fetch(size_t n2, size_t n1) const
-        { ALIGNED(arr); return arr[n1+S1*n2]; }
-      // better to use accessors that distinguish read from write:
-      const type& get(size_t n2,size_t n1) const
-        { ALIGNED(arr); return arr[getidx(n2,n1)]; }
+      //inline type* operator[](size_t n2){
+      //  return arr2[n2];
+      //}
+    #endif
+      operator type**(){ return (type**) arr2; }
+      type& fetch(size_t n2,size_t n1) const
+        { return const_array_ref2<type>::fetch(n2,n1); }
       void set(size_t n2,size_t n1, type value)
-        { ALIGNED(arr); arr[getidx(n2,n1)] = value; }
-      //inline array_ref1<type>fetch_Arr1(){ return array_ref1<type>(arr, S1*S2); }
+        { const_array_ref2<type>::set(n2,n1, value); }
+      void setall(type val){
+        // #pragma omp for
+        for(size_t i=0;i<size;i++) arr[i]=val;
+      }
+      type** fetch_arr2(){ return (type**) arr2; }
   };
+  
   
   template <class type>
   class const_array_ref3 : public base_arr<type>
@@ -498,9 +674,15 @@ namespace iPic3D
         return const_array_get2<type>(arr, n3*S2, S2, S1);
       }
     #else
-      // this causes operator[] to dereference via chained pointer
-      operator type***(){ return (type***) arr3; }
+      // make operator[] dereference via chained pointer
+      inline const const_array_get2<type> operator[](size_t n3)const{
+        return const_array_get2<type>(arr3[n3]);
+      }
+      //inline type*const* operator[](size_t n3)const{
+      //  return arr3[n3];
+      //}
     #endif
+      operator type***(){ return (type***) arr3; }
       void check_idx_bounds(size_t n3, size_t n2, size_t n1) const
       {
         check_bounds(n3, S3);
@@ -557,9 +739,15 @@ namespace iPic3D
         return array_fetch2<type>(arr, n3*S2, S2, S1);
       }
     #else
-      // this causes operator[] to dereference via chained pointer
-      operator type***(){ return (type***) arr3; }
+      // make operator[] dereference via chained pointer
+      inline array_fetch2<type> operator[](size_t n3){
+        return array_fetch2<type>((type**)arr3[n3]);
+      }
+      //inline type** operator[](size_t n3){
+      //  return (type**)arr3[n3];
+      //}
     #endif
+      operator type***(){ return (type***) arr3; }
       type& fetch(size_t n3,size_t n2,size_t n1) const
         { return const_array_ref3<type>::fetch(n3,n2,n1); }
       void set(size_t n3,size_t n2,size_t n1, type value)
@@ -609,9 +797,15 @@ namespace iPic3D
         return const_array_get3<type>(arr, n4*S3, S3, S2, S1);
       }
     #else
-      // this causes operator[] to dereference via chained pointer
-      operator type****(){ return (type****) arr4; }
+      // make operator[] dereference via chained pointer
+      inline const_array_get3<type> operator[](size_t n3){
+        return const_array_get3<type>(arr4[n3]);
+      }
+      //inline type*const*const* operator[](size_t n3)const{
+      //  return arr4[n3];
+      //}
     #endif
+      operator type****(){ return (type****) arr4; }
       void check_idx_bounds(size_t n4, size_t n3, size_t n2, size_t n1) const
       {
         check_bounds(n4, S4);
@@ -674,8 +868,11 @@ namespace iPic3D
         return array_fetch3<type>(arr, n4*S3, S3, S2, S1);
       }
     #else
-      operator type****(){ return (type****) arr4; }
+      inline array_fetch3<type> operator[](size_t n4){
+        return array_fetch3<type>((type***)arr4[n4]);
+      }
     #endif
+      operator type****(){ return (type****) arr4; }
       type& fetch(size_t n4,size_t n3,size_t n2,size_t n1) const
         { return const_array_ref4<type>::fetch(n4,n3,n2,n1); }
       void set(size_t n4,size_t n3,size_t n2,size_t n1, type value)

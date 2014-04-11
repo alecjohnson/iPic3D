@@ -598,7 +598,7 @@ inline void EMfields3D::addPzz(double weight[][2][2], int X, int Y, int Z, int i
 }
 
 inline void get_field_components_for_cell(
-  arr1_double_get field_components[8],
+  const double* field_components[8],
   const_arr4_double fieldForPcls,
   int cx,int cy,int cz)
 {
@@ -623,12 +623,12 @@ inline void get_field_components_for_cell(
   // creating these aliases seems to accelerate this method (by about 30%?)
   // on the Xeon host processor, suggesting deficiency in the optimizer.
   //
-  arr3_double_fetch field0 = fieldForPcls[ix];
-  arr3_double_fetch field1 = fieldForPcls[cx];
-  arr2_double_fetch field00 = field0[iy];
-  arr2_double_fetch field01 = field0[cy];
-  arr2_double_fetch field10 = field1[iy];
-  arr2_double_fetch field11 = field1[cy];
+  arr3_double_get field0 = fieldForPcls[ix];
+  arr3_double_get field1 = fieldForPcls[cx];
+  arr2_double_get field00 = field0[iy];
+  arr2_double_get field01 = field0[cy];
+  arr2_double_get field10 = field1[iy];
+  arr2_double_get field11 = field1[cy];
   field_components[0] = field00[iz]; // field000 
   field_components[1] = field00[cz]; // field001 
   field_components[2] = field01[iz]; // field010 

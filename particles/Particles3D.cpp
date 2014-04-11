@@ -404,7 +404,7 @@ void Particles3D::mover_PC(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
       // creating these aliases seems to accelerate this method by about 30%
       // on the Xeon host, processor, suggesting deficiency in the optimizer.
       //
-      arr1_double_get field_components[8];
+      const double* field_components[8];
       get_field_components_for_cell(field_components,fieldForPcls,cx,cy,cz);
 
       for(int c=0; c<8; c++)
@@ -485,11 +485,11 @@ void Particles3D::mover_PC_AoS(Grid * grid, VirtualTopology3D * vct, Field * EMf
 
       // compute weights for field components
       //
-      double weights[8];
+      double weights[8] ALLOC_ALIGNED;
       int cx,cy,cz;
       grid->get_safe_cell_and_weights(xavg,yavg,zavg,cx,cy,cz,weights);
 
-      arr1_double_get field_components[8];
+      const double* field_components[8] ALLOC_ALIGNED;
       get_field_components_for_cell(field_components,fieldForPcls,cx,cy,cz);
 
       double Exl = 0.0;
@@ -713,7 +713,7 @@ void Particles3D::mover_PC_AoS_vec(Grid * grid, VirtualTopology3D * vct, Field *
         grid->get_safe_cell_and_weights(xavg[i],cx[i],weights[i]);
       }
 
-      arr1_double_get field_components[NUM_PCLS_MOVED_AT_A_TIME][8] __attribute__((aligned(64)));
+      const double* field_components[NUM_PCLS_MOVED_AT_A_TIME][8] __attribute__((aligned(64)));
       for(int i=0;i<NUM_PCLS_MOVED_AT_A_TIME;i++)
       {
         get_field_components_for_cell(field_components[i],fieldForPcls,
@@ -827,7 +827,7 @@ void Particles3D::mover_PC_AoS_vec_onesort(
     // Idea of this function is that we only need
     // to do this once for each group of particles.
     //
-    arr1_double_get field_components[8];
+    const double* field_components[8];
     get_field_components_for_cell(field_components,fieldForPcls,cx,cy,cz);
 
     // push all particles in mesh cell
@@ -1006,7 +1006,7 @@ void Particles3D::mover_PC_vectorized(
       const int iy = cy+1;
       const int iz = cz+1;
 
-      arr1_double_get field_components[8];
+      const double* field_components[8];
       field_components[0] = fieldForPcls[ix][iy][iz]; // field000
       field_components[1] = fieldForPcls[ix][iy][cz]; // field001
       field_components[2] = fieldForPcls[ix][cy][iz]; // field010
