@@ -630,7 +630,7 @@ void EMfields3D::sumMoments_AoS(
     for(int i=0; i<moments1dsize; i++) moments1d[i]=0;
     //
     #pragma omp barrier
-    #pragma omp for nowait
+    #pragma omp for
     for (int pidx = 0; pidx < nop; pidx++)
     {
       const SpeciesParticle& pcl = pcls.get_pcl(pidx);
