@@ -33,7 +33,7 @@ class Collective
       NUMBER_OF_ENUMS, // this must be last
       INVALID_ENUM
     };
-    int read_enum_parameter(const char* option_name, char* default_value,
+    int read_enum_parameter(const char* option_name, const char* default_value,
       const ConfigFile& config);
   public:
     static const char* get_name_of_enum(int in);

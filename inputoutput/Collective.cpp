@@ -29,7 +29,7 @@ static const char *enumNames[] =
   "INVALID_ENUM"
 };
 
-int Collective::read_enum_parameter(const char* option_name, char* default_value,
+int Collective::read_enum_parameter(const char* option_name, const char* default_value,
   const ConfigFile& config)
 {
   string enum_name = config.read < string >(option_name,default_value);
