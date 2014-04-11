@@ -49,6 +49,10 @@ class SpeciesParticle
   void set_u(double in){ u[0]=in; }
   void set_v(double in){ u[1]=in; }
   void set_w(double in){ u[2]=in; }
+  void set_to_zero()
+  {
+    for(int i=0;i<8;i++) u[i]=0;
+  }
   void set(
     double _u, double _v, double _w, double _q,
     double _x, double _y, double _z, double _t

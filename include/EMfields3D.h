@@ -129,6 +129,7 @@ class EMfields3D                // :public Field
     /*! sum moments (interp_P2G) versions */
     void sumMoments(const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct);
     void sumMoments_AoS(const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct);
+    void sumMoments_AoS_intr(const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct);
     void sumMoments_vectorized(const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct);
     void sumMoments_vectorized_AoS(const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct);
     void sumMomentsOld(const Particles3Dcomm& pcls, Grid * grid, VirtualTopology3D * vct);

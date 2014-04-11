@@ -8,6 +8,11 @@
 #include "ompdefs.h"
 #include "debug.h"
 #include "string.h" // for memset
+#include "mic_particles.h"
+#include "ipicmath.h" // for roundup_to_multiple
+#include "Alloc.h"
+
+using namespace iPic3D;
 
 /*! constructor */
 //
@@ -752,6 +757,441 @@ void EMfields3D::sumMoments_AoS(
   {
     communicateGhostP2G(i, 0, 0, 0, 0, vct);
   }
+}
+
+#ifdef __MIC__
+// add moment weights to all ten moments for the cell of the particle
+// (assumes that particle data is aligned with cache boundary and
+// begins with the velocity components)
+inline void addto_cell_moments(
+  F64vec8* cell_moments,
+  F64vec8 weights,
+  F64vec8 vel)
+{
+  // broadcast particle velocities
+  const F64vec8 u = F64vec8(vel[0]);
+  const F64vec8 v = F64vec8(vel[1]);
+  const F64vec8 w = F64vec8(vel[2]);
+  // construct kronecker product of moments and weights
+  const F64vec8 u_weights = u*weights;
+  const F64vec8 v_weights = v*weights;
+  const F64vec8 w_weights = w*weights;
+  const F64vec8 uu_weights = u*u_weights;
+  const F64vec8 uv_weights = u*v_weights;
+  const F64vec8 uw_weights = u*w_weights;
+  const F64vec8 vv_weights = v*v_weights;
+  const F64vec8 vw_weights = v*w_weights;
+  const F64vec8 ww_weights = w*w_weights;
+  // add moment weights to accumulated moment weights in mesh mesh
+  cell_moments[0] += weights;
+  cell_moments[1] += u_weights;
+  cell_moments[2] += v_weights;
+  cell_moments[3] += w_weights;
+  cell_moments[4] += uu_weights;
+  cell_moments[5] += uv_weights;
+  cell_moments[6] += uw_weights;
+  cell_moments[7] += vv_weights;
+  cell_moments[8] += vw_weights;
+  cell_moments[9] += ww_weights;
+}
+#endif // __MIC__
+
+// sum moments of AoS using MIC intrinsics
+// 
+// We could rewrite this without intrinsics also.  The core idea
+// of this algorithm is that instead of scattering the data of
+// each particle to its nodes, in each cell we accumulate the
+// data that would be scattered and then scatter it at the end.
+// By waiting to scatter, with each particle we work with an
+// aligned 10x8 matrix rather than a 8x10 matrix, which means
+// that for each particle we make 10 vector stores rather than
+// 8*2=16 or 8*3=24 vector stores (for unaligned data).  This
+// also avoids the expense of computing node indices for each
+// particle.
+//
+// 1. compute vector of 8 weights using position
+// 2. form kronecker product of weights with moments
+//    by scaling the weights by each velocity moment;
+//    add each to accumulated weights for this cell
+// 3. after sum is complete, transpose weight-moment
+//    product in each cell and distribute to its 8 nodes.
+//    An optimized way:
+//    A. transpose the first 8 weighted moments with fast 8x8
+//       matrix transpose.
+//    B. transpose 2x8 matrix of the last two weighted moments
+//       and then use 8 masked vector adds to accumulate
+//       to weights at nodes.
+//    But the optimized way might be overkill since distributing
+//    the sums from the cells to the nodes should not dominate
+//    if the number of particles per mesh cell is large;
+//    if the number of particles per mesh cell is small,
+//    then a fully vectorized moment sum is hard to justify anyway.
+//
+void EMfields3D::sumMoments_AoS_intr(
+  const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct)
+{
+#ifndef __MIC__
+  eprintf("not implemented");
+#else
+
+  // define global parameters
+  //
+  const double inv_dx = 1.0 / dx;
+  const double inv_dy = 1.0 / dy;
+  const double inv_dz = 1.0 / dz;
+  const int nxn = grid->getNXN();
+  const int nyn = grid->getNYN();
+  const int nzn = grid->getNZN();
+  const double xstart = grid->getXstart();
+  const double ystart = grid->getYstart();
+  const double zstart = grid->getZstart();
+  // Here and below x stands for all 3 physical position coordinates
+  const F64vec8 dx_inv = make_F64vec8(inv_dx, inv_dy, inv_dz);
+  // starting physical position of proper subdomain ("pdom", without ghosts)
+  const F64vec8 pdom_xlow = make_F64vec8(xstart,ystart, zstart);
+  //
+  // X = canonical coordinates.
+  //
+  // starting position of cell in lower corner
+  // of proper subdomain (without ghosts);
+  // probably this is an integer value, but we won't rely on it.
+  const F64vec8 pdom_Xlow = dx_inv*pdom_xlow;
+  // g = including ghosts
+  // starting position of cell in low corner
+  const F64vec8 gdom_Xlow = pdom_Xlow - F64vec8(1.);
+  // starting position of cell in high corner of physical domain
+  // in canonical coordinates of ghost domain
+  const F64vec8 nXcm1 = make_F64vec8(nxc-1,nyc-1,nzc-1);
+
+  // allocate memory per mesh cell for accumulating moments
+  //
+  const int num_threads = omp_get_max_threads();
+  array4<F64vec8>* cell_moments_per_thr
+    = (array4<F64vec8>*) malloc(num_threads*sizeof(array4<F64vec8>));
+  for(int thread_num=0;thread_num<num_threads;thread_num++)
+  {
+    // use placement new to allocate array to accumulate moments for thread
+    new(&cell_moments_per_thr[thread_num]) array4<F64vec8>(nxc,nyc,nzc,10);
+  }
+  //
+  // allocate memory per mesh node for accumulating moments
+  //
+  array3<F64vec8>* node_moments_first8_per_thr
+    = (array3<F64vec8>*) malloc(num_threads*sizeof(array3<F64vec8>));
+  array4<double>* node_moments_last2_per_thr
+    = (array4<double>*) malloc(num_threads*sizeof(array4<double>));
+  for(int thread_num=0;thread_num<num_threads;thread_num++)
+  {
+    // use placement new to allocate array to accumulate moments for thread
+    new(&node_moments_first8_per_thr[thread_num]) array3<F64vec8>(nxn,nyn,nzn);
+    new(&node_moments_last2_per_thr[thread_num]) array4<double>(nxn,nyn,nzn,2);
+  }
+
+  // The moments of a particle must be distributed to the 8 nodes of the cell
+  // in proportion to the weight of each node.
+  //
+  // Refer to the kronecker product of weights and moments as
+  // "weighted moments" or "moment weights".
+  //
+  // Each thread accumulates moment weights in cells.
+  //
+  // Because particles are not assumed to be sorted by mesh cell,
+  // we have to wait until all particles have been processed
+  // before we transpose moment weights to weighted moments;
+  // the memory that we must allocate to sum moments is thus
+  // num_thread*8 times as much as if particles were pre-sorted
+  // by mesh cell (and num_threads times as much as if particles
+  // were sorted by thread subdomain).
+  //
+  #pragma omp parallel
+  {
+    // array4<F64vec8> cell_moments(nxc,nyc,nzc,10);
+    const int this_thread = omp_get_thread_num();
+    assert_lt(this_thread,num_threads);
+    array4<F64vec8>& cell_moments = cell_moments_per_thr[this_thread];
+
+    for (int species_idx = 0; species_idx < ns; species_idx++)
+    {
+      const Particles3Dcomm& pcls = part[species_idx];
+      assert_eq(pcls.get_particleType(), ParticleType::AoS);
+      const int is = pcls.get_ns();
+      assert_eq(species_idx,is);
+
+      // moments.setmode(ompmode::mine);
+      // moments.setall(0.);
+      // 
+      F64vec8 *cell_moments1d = &cell_moments[0][0][0][0];
+      int moments1dsize = cell_moments.get_size();
+      for(int i=0; i<moments1dsize; i++) cell_moments1d[i]=F64vec8(0.);
+      //
+      // number or particles processed at a time
+      const int num_pcls_per_loop = 2;
+      const int nop = pcls.getNOP();
+      // if the number of particles is odd, then make
+      // sure that the data after the last particle
+      // will not contribute to the moments.
+      #pragma omp single // the implied omp barrier is needed
+      {
+        // make sure that we will not overrun the array
+        assert_divides(num_pcls_per_loop,pcls.get_npmax());
+        // round up number of particles
+        int nop_rounded_up = roundup_to_multiple(nop,num_pcls_per_loop);
+        for(int pidx=nop; pidx<nop_rounded_up; pidx++)
+        {
+          // (This is a benign violation of particle
+          // encapsulation and requires a cast).
+          SpeciesParticle& pcl = (SpeciesParticle&) pcls.get_pcl(pidx);
+          pcl.set_to_zero();
+        }
+      }
+      #pragma omp for
+      for (int pidx = 0; pidx < nop; pidx+=2)
+      {
+        // cast particles as vectors
+        // (assumes each particle exactly fits a cache line)
+        const F64vec8& pcl0 = (const F64vec8&)pcls.get_pcl(pidx);
+        const F64vec8& pcl1 = (const F64vec8&)pcls.get_pcl(pidx+1);
+        // gather position data from particles
+        // (assumes position vectors are in upper half)
+        const F64vec8 xpos = cat_hgh_halves(pcl0,pcl1);
+
+        // convert to canonical coordinates relative to subdomain with ghosts
+        const F64vec8 gX = dx_inv*xpos - gdom_Xlow;
+        F64vec8 cellXstart = floor(gX);
+        // all particles at this point should be inside the
+        // proper subdomain of this process, but maybe we
+        // will need to enforce this because of inconsistency
+        // of floating point arithmetic?
+        //cellXstart = maximum(cellXstart,F64vec8(1.));
+        //cellXstart = minimum(cellXstart,nXcm1);
+        assert(!test_lt(cellXstart,F64vec8(1.)));
+        assert(!test_gt(cellXstart,nXcm1));
+
+        // get weights for field_components based on particle position
+        //
+        F64vec8 weights[2];
+        const F64vec8 X = gX - cellXstart;
+        construct_weights_for_2pcls(weights, X);
+
+        // add scaled weights to all ten moments for the cell of each particle
+        //
+        // the cell that we will write to
+        const I32vec16 cell = round_to_nearest(cellXstart);
+        const int* c=(int*)&cell;
+        F64vec8* cell_moments0 = &cell_moments[c[0]][c[1]][c[2]][0];
+        F64vec8* cell_moments1 = &cell_moments[c[4]][c[5]][c[6]][0];
+        addto_cell_moments(cell_moments0, weights[0], pcl0);
+        addto_cell_moments(cell_moments1, weights[1], pcl1);
+      }
+      if(!this_thread) timeTasks_end_task(TimeTasks::MOMENT_ACCUMULATION);
+
+      // reduction
+      if(!this_thread) timeTasks_begin_task(TimeTasks::MOMENT_REDUCTION);
+
+      // reduce moments in parallel
+      //
+      {
+        // For each thread, distribute moments from cells to nodes
+        // and then sum moments at each node over all threads.
+        //
+        // (Alternatively we could sum over all threads and then
+        // distribute to nodes; this alternative would be preferable
+        // for vectorization efficiency but more difficult to parallelize
+        // across threads).
+
+        // initialize moment accumulators
+        //
+        memset(&node_moments_first8_per_thr[this_thread][0][0][0],
+          0, sizeof(F64vec8)*node_moments_first8_per_thr[0].get_size());
+        memset(&node_moments_last2_per_thr[this_thread][0][0][0][0],
+          0, sizeof(double)*node_moments_last2_per_thr[0].get_size());
+
+        // distribute moments from cells to nodes
+        //
+        #pragma omp for collapse(2)
+        for(int cx=1;cx<nxc;cx++)
+        for(int cy=1;cy<nyc;cy++)
+        for(int cz=1;cz<nzc;cz++)
+        {
+          const int ix=cx+1;
+          const int iy=cy+1;
+          const int iz=cz+1;
+          F64vec8* cell_mom = &cell_moments[cx][cy][cz][0];
+
+          // scatter the cell's first 8 moments to its nodes
+          // for each thread
+          {
+            F64vec8* cell_mom_first8 = cell_mom;
+            // regard cell_mom_first8 as a pointer to 8x8 data and transpose
+            transpose_8x8_double((double(*)[8]) cell_mom_first8);
+            // scatter the moment vectors to the nodes
+            array3<F64vec8>& node_moments_first8 = node_moments_first8_per_thr[this_thread];
+            array_fetch2<F64vec8> node_moments0 = node_moments_first8[ix];
+            array_fetch2<F64vec8> node_moments1 = node_moments_first8[cx];
+            array_fetch1<F64vec8> node_moments00 = node_moments0[iy];
+            array_fetch1<F64vec8> node_moments01 = node_moments0[cy];
+            array_fetch1<F64vec8> node_moments10 = node_moments1[iy];
+            array_fetch1<F64vec8> node_moments11 = node_moments1[cy];
+            node_moments00[iz] += cell_mom_first8[0]; // node_moments_first8[ix][iy][iz]
+            node_moments00[cz] += cell_mom_first8[1]; // node_moments_first8[ix][iy][cz]
+            node_moments01[iz] += cell_mom_first8[2]; // node_moments_first8[ix][cy][iz]
+            node_moments01[cz] += cell_mom_first8[3]; // node_moments_first8[ix][cy][cz]
+            node_moments10[iz] += cell_mom_first8[4]; // node_moments_first8[cx][iy][iz]
+            node_moments10[cz] += cell_mom_first8[5]; // node_moments_first8[cx][iy][cz]
+            node_moments11[iz] += cell_mom_first8[6]; // node_moments_first8[cx][cy][iz]
+            node_moments11[cz] += cell_mom_first8[7]; // node_moments_first8[cx][cy][cz]
+          }
+
+          // scatter the cell's last 2 moments to its nodes
+          {
+            array4<double>& node_moments_last2 = node_moments_last2_per_thr[this_thread];
+            arr3_double_fetch node_moments0 = node_moments_last2[ix];
+            arr3_double_fetch node_moments1 = node_moments_last2[cx];
+            arr2_double_fetch node_moments00 = node_moments0[iy];
+            arr2_double_fetch node_moments01 = node_moments0[cy];
+            arr2_double_fetch node_moments10 = node_moments1[iy];
+            arr2_double_fetch node_moments11 = node_moments1[cy];
+            double* node_moments000 = node_moments00[iz];
+            double* node_moments001 = node_moments00[cz];
+            double* node_moments010 = node_moments01[iz];
+            double* node_moments011 = node_moments01[cz];
+            double* node_moments100 = node_moments10[iz];
+            double* node_moments101 = node_moments10[cz];
+            double* node_moments110 = node_moments11[iz];
+            double* node_moments111 = node_moments11[cz];
+
+            const F64vec8 mom8 = cell_mom[8];
+            const F64vec8 mom9 = cell_mom[9];
+
+            bool naive_last2 = true;
+            if(naive_last2)
+            {
+              node_moments000[0] += mom8[0]; node_moments000[1] += mom9[0];
+              node_moments001[0] += mom8[1]; node_moments001[1] += mom9[1];
+              node_moments010[0] += mom8[2]; node_moments010[1] += mom9[2];
+              node_moments011[0] += mom8[3]; node_moments011[1] += mom9[3];
+              node_moments100[0] += mom8[4]; node_moments100[1] += mom9[4];
+              node_moments101[0] += mom8[5]; node_moments101[1] += mom9[5];
+              node_moments110[0] += mom8[6]; node_moments110[1] += mom9[6];
+              node_moments111[0] += mom8[7]; node_moments111[1] += mom9[7];
+            }
+            else
+            {
+              // Let a=moment#8 and b=moment#9.
+              // Number the nodes 0 through 7.
+              //
+              // This transpose changes data from the form
+              //   [a0 a1 a2 a3 a4 a5 a6 a7]=mom8
+              //   [b0 b1 b2 b3 b4 b5 b6 b7]=mom9
+              // into the form
+              //   [a0 b0 a2 b2 a4 b4 a6 b6]=out8
+              //   [a1 b1 a3 b3 a5 b5 a7 b7]=out9
+              F64vec8 out8, out9;
+              trans2x2(out8, out9, mom8, mom9);
+
+              // probably the compiler is not smart enough to recognize that
+              // each line can be done with a single vector instruction:
+              node_moments000[0] += out8[0]; node_moments000[1] += out8[1];
+              node_moments001[0] += out9[0]; node_moments001[1] += out9[1];
+              node_moments010[0] += out8[2]; node_moments010[1] += out8[3];
+              node_moments011[0] += out9[2]; node_moments011[1] += out9[3];
+              node_moments100[0] += out8[4]; node_moments100[1] += out8[5];
+              node_moments101[0] += out9[4]; node_moments101[1] += out9[5];
+              node_moments110[0] += out8[6]; node_moments110[1] += out8[7];
+              node_moments111[0] += out9[6]; node_moments111[1] += out9[7];
+            }
+          }
+        }
+
+        // at each node add moments to moments of first thread
+        //
+        #pragma omp for collapse(2)
+        for(int nx=1;nx<nxn;nx++)
+        for(int ny=1;ny<nyn;ny++)
+        {
+          array_fetch1<F64vec8> node_moments8_for_master
+            = node_moments_first8_per_thr[0][nx][ny];
+          array_fetch2<double> node_moments2_for_master
+            = node_moments_last2_per_thr[0][nx][ny];
+          for(int thread_num=1;thread_num<num_threads;thread_num++)
+          {
+            array_fetch1<F64vec8> node_moments8_for_thr
+              = node_moments_first8_per_thr[thread_num][nx][ny];
+            array_fetch2<double> node_moments2_for_thr
+              = node_moments_last2_per_thr[thread_num][nx][ny];
+            for(int nz=1;nz<nzn;nz++)
+            {
+              node_moments8_for_master[nz] += node_moments8_for_thr[nz];
+              node_moments2_for_master[nz][0] += node_moments2_for_thr[nz][0];
+              node_moments2_for_master[nz][1] += node_moments2_for_thr[nz][1];
+            }
+          }
+        }
+
+        // transpose moments for field solver
+        //
+        #pragma omp for collapse(2)
+        for(int nx=1;nx<nxn;nx++)
+        for(int ny=1;ny<nyn;ny++)
+        {
+          array_fetch1<F64vec8> node_moments8_for_master
+            = node_moments_first8_per_thr[0][nx][ny];
+          array_fetch2<double> node_moments2_for_master
+            = node_moments_last2_per_thr[0][nx][ny];
+          array_fetch1<double> rho_sxy = rhons[is][nx][ny];
+          array_fetch1<double> Jx__sxy = Jxs  [is][nx][ny];
+          array_fetch1<double> Jy__sxy = Jys  [is][nx][ny];
+          array_fetch1<double> Jz__sxy = Jzs  [is][nx][ny];
+          array_fetch1<double> pXX_sxy = pXXsn[is][nx][ny];
+          array_fetch1<double> pXY_sxy = pXYsn[is][nx][ny];
+          array_fetch1<double> pXZ_sxy = pXZsn[is][nx][ny];
+          array_fetch1<double> pYY_sxy = pYYsn[is][nx][ny];
+          array_fetch1<double> pYZ_sxy = pYZsn[is][nx][ny];
+          array_fetch1<double> pZZ_sxy = pZZsn[is][nx][ny];
+          for(int nz=0;nz<nzn;nz++)
+          {
+            rho_sxy[nz] = invVOL*node_moments8_for_master[nz][0];
+            Jx__sxy[nz] = invVOL*node_moments8_for_master[nz][1];
+            Jy__sxy[nz] = invVOL*node_moments8_for_master[nz][2];
+            Jz__sxy[nz] = invVOL*node_moments8_for_master[nz][3];
+            pXX_sxy[nz] = invVOL*node_moments8_for_master[nz][4];
+            pXY_sxy[nz] = invVOL*node_moments8_for_master[nz][5];
+            pXZ_sxy[nz] = invVOL*node_moments8_for_master[nz][6];
+            pYY_sxy[nz] = invVOL*node_moments8_for_master[nz][7];
+            pYZ_sxy[nz] = invVOL*node_moments2_for_master[nz][0];
+            pZZ_sxy[nz] = invVOL*node_moments2_for_master[nz][1];
+          }
+        }
+      }
+      if(!this_thread) timeTasks_end_task(TimeTasks::MOMENT_REDUCTION);
+    }
+  }
+
+  // deallocate memory per mesh node for accumulating moments
+  //
+  for(int thread_num=0;thread_num<num_threads;thread_num++)
+  {
+    // call destructor to deallocate arrays
+    node_moments_first8_per_thr[thread_num].~array3<F64vec8>();
+    node_moments_last2_per_thr[thread_num].~array4<double>();
+  }
+  free(node_moments_first8_per_thr);
+  free(node_moments_last2_per_thr);
+
+  // deallocate memory for accumulating moments
+  //
+  for(int thread_num=0;thread_num<num_threads;thread_num++)
+  {
+    // deallocate array to accumulate moments for thread
+    cell_moments_per_thr[thread_num].~array4<F64vec8>();
+  }
+  free(cell_moments_per_thr);
+
+  for (int i = 0; i < ns; i++)
+  {
+    communicateGhostP2G(i, 0, 0, 0, 0, vct);
+  }
+#endif // __MIC__
 }
 
 inline void compute_moments(double velmoments[10], double weights[8],

@@ -134,6 +134,7 @@ public:
     { return (ParticleID[indexPart]); }
   double getQ(int indexPart)  const { return (q[indexPart]); }
   int getNOP()  const { return (nop); }
+  int get_npmax() const {return npmax;}
 
   // computed get access
   //

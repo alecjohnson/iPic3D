@@ -187,8 +187,10 @@ void c_Solver::CalculateMoments() {
 
   timeTasks_set_main_task(TimeTasks::MOMENTS);
 
+  // why is this being done here?
   EMf->updateInfoFields(grid,vct,col);
 
+  // vectorized assumes that particles are sorted by mesh cell
   if(Parameters::get_VECTORIZE_MOMENTS())
   {
     switch(Parameters::get_MOMENTS_TYPE())
@@ -221,8 +223,14 @@ void c_Solver::CalculateMoments() {
         EMf->sumMoments(part, grid, vct);
         break;
       case Parameters::AoS:
+        EMf->setZeroPrimaryMoments();
         convertParticlesToAoS();
         EMf->sumMoments_AoS(part, grid, vct);
+        break;
+      case Parameters::AoSintr:
+        EMf->setZeroPrimaryMoments();
+        convertParticlesToAoS();
+        EMf->sumMoments_AoS_intr(part, grid, vct);
         break;
       default:
         unsupported_value_error(Parameters::get_MOMENTS_TYPE());
