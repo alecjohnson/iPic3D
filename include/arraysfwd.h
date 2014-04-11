@@ -3,6 +3,40 @@
 #define arraysfwd_h
 #include "ipicdefs.h" // for pfloat
 
+// Unfortunately C++ does not allow typedefs for templates:
+//
+// template <class type> typedef type* array_fetch1;
+// template <class type> typedef type** array_fetch2;
+// template <class type> typedef type*** array_fetch2;
+//
+// So to make operator[] return an animal that I can assign to
+// in a way that will work independent of whether the underlying
+// array access is by means of a chained pointer or a calculated
+// 1-dimensional index, I resort to declaration macros.
+// 
+#if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+
+  //#define const_arr_ref3(type) iPic3D::const_array_ref3<type>
+  //#define const_arr_ref2(type) iPic3D::const_array_ref2<type>
+  //#define const_arr_ref1(type) iPic3D::const_array_ref1<type>
+  #define const_arr_get3(type) iPic3D::const_array_get3<type>
+  #define const_arr_get2(type) iPic3D::const_array_get2<type>
+  #define const_arr_get1(type) iPic3D::const_array_get1<type>
+  #define arr_fetch3(type) iPic3D::array_fetch3<type>
+  #define arr_fetch2(type) iPic3D::array_fetch2<type>
+  #define arr_fetch1(type) iPic3D::array_fetch1<type>
+  
+#else // FLAT_ARRAYS
+
+  #define const_arr_get3(type) type const*const*const*
+  #define const_arr_get2(type) type const*const*
+  #define const_arr_get1(type) type const*
+  #define arr_fetch3(type) type***
+  #define arr_fetch2(type) type**
+  #define arr_fetch1(type) type*
+
+#endif
+
 namespace iPic3D
 {
   template <class T>
@@ -70,23 +104,22 @@ typedef iPic3D::array3<double> array3_double;
 typedef iPic3D::array4<double> array4_double;
 typedef iPic3D::array4<pfloat> array4_pfloat;
 // This directive should be consistent with the directives in Alloc.h
-#if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
-typedef iPic3D::array_fetch1<double> arr1_double_fetch;
-typedef iPic3D::const_array_get1<double> arr1_double_get;
-typedef iPic3D::const_array_get1<pfloat> arr1_pfloat_get;
-typedef iPic3D::const_array_get2<double> arr2_double_get;
-typedef iPic3D::const_array_get3<double> arr3_double_get;
-typedef iPic3D::array_fetch2<double> arr2_double_fetch;
-typedef iPic3D::array_fetch3<double> arr3_double_fetch;
-#else
-typedef double* arr1_double_fetch;
-typedef double** arr2_double_fetch;
-typedef double*** arr3_double_fetch;
+//#if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+//typedef iPic3D::array_fetch1<double> arr1_double_fetch;
+//typedef iPic3D::array_fetch2<double> arr2_double_fetch;
+//typedef iPic3D::array_fetch3<double> arr3_double_fetch;
+//#else
+//typedef double*    arr1_double_fetch;
+//typedef double**   arr2_double_fetch;
+//typedef double***  arr3_double_fetch;
+//#endif
+typedef arr_fetch1(double) arr1_double_fetch;
+typedef arr_fetch2(double) arr2_double_fetch;
+typedef arr_fetch3(double) arr3_double_fetch;
 
-typedef double const*const arr1_double_get;
-typedef pfloat const*const arr1_pfloat_get;
-typedef double const*const*const arr2_double_get;
-typedef double const*const*const*const arr3_double_get;
-#endif
+typedef const_arr_get1(double) arr1_double_get;
+typedef const_arr_get2(double) arr2_double_get;
+typedef const_arr_get3(double) arr3_double_get;
+typedef const_arr_get1(pfloat) arr1_pfloat_get;
 
 #endif

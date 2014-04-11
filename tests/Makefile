@@ -3,14 +3,16 @@ INCLUDE = -I../include
 
 OBJECTS = \
   test_arrays.o \
-  ../utility/asserts.o \
+  asserts.o \
+  errors.o \
+  MPIdata.o \
   debug.o
 
 # need -lrt to handle clock_gettime()
 ARRAY_FLAGS = #-DCHAINED_ARRAYS #-DFLAT_ARRAYS #-DCHECK_BOUNDS
 FLAGS = -O3 -DNO_MPI -fno-exceptions $(ARRAY_FLAGS) #-ggdb 
 
-COMPILER = icpc # g++ # c++
+COMPILER = g++ # icpc # c++
 
 testvbasic.mic: testvbasic.cpp
 	icpc -mmic testvbasic.cpp $(INCLUDE) -o testvbasic.mic
@@ -66,11 +68,17 @@ test_arrays.o:
 	$(COMPILER) $(FLAGS) -c test_arrays.cpp $(INCLUDE) -o test_arrays.o
 
 
-../utility/asserts.o:
-	$(COMPILER) $(FLAGS) -c ../utility/asserts.cpp $(INCLUDE) -o ../utility/asserts.o
+asserts.o:
+	$(COMPILER) $(FLAGS) -c ../utility/asserts.cpp $(INCLUDE) -o asserts.o
 
 debug.o:
 	$(COMPILER) $(FLAGS) -c ../utility/debug.cpp $(INCLUDE) -o debug.o
+
+errors.o:
+	$(COMPILER) $(FLAGS) -c ../utility/errors.cpp $(INCLUDE) -o errors.o
+
+MPIdata.o:
+	$(COMPILER) $(FLAGS) -c ../utility/MPIdata.cpp $(INCLUDE) -o MPIdata.o
 
 clean: clean_old_test_arrays clean_test_arrays clean_executables
 	rm -f test_arrays $(OBJECTS)
