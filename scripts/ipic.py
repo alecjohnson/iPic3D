@@ -68,7 +68,6 @@ def construct_run_command(args,mpirun):
     output = 'data'
     inputfile = 'src/inputfiles/GEM.inp'
     hostname = ''
-    mpirun = 'mpirun'
     # these parameters should be read out of a configuration file
     # that is populated when you run "ipic [-s system] cmake <src>"
     global system
