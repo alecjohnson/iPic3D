@@ -144,11 +144,6 @@ void getColumn(double *vect, double **Matrix, int column, int n);
 /** method to get rid of the ghost cells */
 inline void getRidGhost(double **out, double **in, int nx, int ny);
 
-/** RIFAI QUESTA PARTE questo e' la tomba delle performance*/
-inline void MODULO(double *x, double L) {
-  *x = *x - floor(*x / L) * L;
-
-}
 /** method to calculate the epsilon machine */
 inline double eps() {
   double eps;

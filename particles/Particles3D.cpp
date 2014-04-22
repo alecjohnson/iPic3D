@@ -50,6 +50,14 @@ using std::endl;
  *
  */
 
+// Construct an instance and put it in my memory
+//
+// The proper way to do this is with placement-new
+void Particles3D::placement_new(int species, CollectiveIO * col, VirtualTopology3D * vct, Grid * grid)
+{
+  Particles3D newinstance(species, col, vct, grid);
+  memcpy(this, newinstance, sizeof(Particles3D));
+}
 /** constructor */
 Particles3D::Particles3D() {
   // see allocate(int species, CollectiveIO* col, VirtualTopology3D* vct, Grid* grid)
@@ -1162,7 +1170,7 @@ void Particles3D::mover_PC_vectorized(
 int Particles3D::communicate_particles(VirtualTopology3D * vct)
 {
   timeTasks_set_communicating(); // communicating until end of scope
-  convertParticlesToSoA(); // hack
+  convertParticlesToAoS();
   const int avail = communicate(vct);
   if (avail < 0)
     return (-1);

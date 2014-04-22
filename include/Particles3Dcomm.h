@@ -85,22 +85,11 @@ public:
 
   // get accessors for optional arrays
   //
-  SpeciesParticle *fetch_pcls(){ return _pcls; }
-  SpeciesParticle *fetch_pclstmp(){ return _pclstmp; }
+  Larray<SpeciesParticle>& fetch_pcls(){ return *_pcls; }
+  Larray<SpeciesParticle>& fetch_pclstmp(){ return *_pclstmp; }
   double * fetch_xavg() { return _xavg; }
   double * fetch_yavg() { return _yavg; }
   double * fetch_zavg() { return _zavg; }
-  double * fetch_xtmp() { return _xtmp; }
-  double * fetch_ytmp() { return _ytmp; }
-  double * fetch_ztmp() { return _ztmp; }
-  double * fetch_utmp() { return _utmp; }
-  double * fetch_vtmp() { return _vtmp; }
-  double * fetch_wtmp() { return _wtmp; }
-  double * fetch_qtmp() { return _qtmp; }
-  double * fetch_xavgtmp() { return _xavgtmp; }
-  double * fetch_yavgtmp() { return _yavgtmp; }
-  double * fetch_zavgtmp() { return _zavgtmp; }
-  long long *fetch_ParticleIDtmp(){ return _ParticleIDtmp; }
 
   // inline get accessors
   //
@@ -114,7 +103,7 @@ public:
   double get_ystart(){return ystart;}
   double get_zstart(){return zstart;}
   ParticleType::Type get_particleType()const { return particleType; }
-  const SpeciesParticle& get_pcl(int pidx)const{ return _pcls[pidx]; }
+  const SpeciesParticle& get_pcl(int pidx)const{ return fetch_pcls()[pidx]; }
   double *getXall()  const { return (x); }
   double *getYall()  const { return (y); }
   double *getZall()  const { return (z); }
@@ -131,7 +120,7 @@ public:
   double getV(int indexPart)  const { return (v[indexPart]); }
   double getW(int indexPart)  const { return (w[indexPart]); }
   long long getParticleID(int indexPart)  const
-    { return (ParticleID[indexPart]); }
+    { return (long long)(t[indexPart]); }
   double getQ(int indexPart)  const { return (q[indexPart]); }
   int getNOP()  const { return (nop); }
   int get_npmax() const {return npmax;}
@@ -212,37 +201,26 @@ protected:
   double *w;
   /** Charge array */
   double *q;
+  /** ParticleID or time */
+  double *t; // long long *ParticleID;
   /** TrackParticleID */
   bool TrackParticleID;
-  /** ParticleID */
-  long long *ParticleID;
   //
   // AoS representation
   //
-  SpeciesParticle *_pcls;
+  Larray<SpeciesParticle>& _pcls;
 
   // structures for sorting particles
   //
   /** Average position data (used during particle push) **/
   //
-  double *_xavg;
-  double *_yavg;
-  double *_zavg;
+  Larray<double>& _xavg;
+  Larray<double>& _yavg;
+  Larray<double>& _zavg;
   //
   // alternate temporary storage for sorting particles
   //
-  long long *_ParticleIDtmp;
-  double *_xtmp;
-  double *_ytmp;
-  double *_ztmp;
-  double *_utmp;
-  double *_vtmp;
-  double *_wtmp;
-  double *_qtmp;
-  SpeciesParticle *_pclstmp;
-  double *_xavgtmp;
-  double *_yavgtmp;
-  double *_zavgtmp;
+  Larray<SpeciesParticle>& _pclstmp;
   //
   // references for buckets
   //
@@ -293,51 +271,40 @@ protected:
   // Communication variables
   //
   /** buffers for communication */
-  /** size of sending buffers for exiting particles, DEFINED IN METHOD "COMMUNICATE" */
-  int buffer_size;
-  /** smaller buffer size */
-  int buffer_size_small;
-  /** buffer with particles going to the right processor - Direction X */
-  double *b_X_RIGHT;
-  /** pointer to the buffer for resizing */
-  double *b_X_RIGHT_ptr;
-  /** buffer with particles going to the left processor - Direction X */
-  double *b_X_LEFT;
-  /** pointer to the buffer for resizing */
-  double *b_X_LEFT_ptr;
-  /** buffer with particles going to the right processor - Direction Y */
-  double *b_Y_RIGHT;
-  /** pointer to the buffer for resizing */
-  double *b_Y_RIGHT_ptr;
-  /** buffer with particles going to the left processor - Direction Y */
-  double *b_Y_LEFT;
-  /** pointer to the buffer for resizing */
-  double *b_Y_LEFT_ptr;
-  /** buffer with particles going to the right processor - Direction Z */
-  double *b_Z_RIGHT;
-  /** pointer to the buffer for resizing */
-  double *b_Z_RIGHT_ptr;
-  /** buffer with particles going to the left processor - Direction Z */
-  double *b_Z_LEFT;
-  /** pointer to the buffer for resizing */
-  double *b_Z_LEFT_ptr;
+  Larray<SpeciesParticle>& bXrght;
+  ///** size of sending buffers for exiting particles, DEFINED IN METHOD "COMMUNICATE" */
+  //int buffer_size;
+  ///** smaller buffer size */
+  //int buffer_size_small;
+  ///** buffer with particles going to the right processor - Direction X */
+  //double *b_X_RIGHT;
+  ///** buffer with particles going to the left processor - Direction X */
+  //double *b_X_LEFT;
+  ///** buffer with particles going to the right processor - Direction Y */
+  //double *b_Y_RIGHT;
+  ///** buffer with particles going to the left processor - Direction Y */
+  //double *b_Y_LEFT;
+  ///** buffer with particles going to the right processor - Direction Z */
+  //double *b_Z_RIGHT;
+  ///** buffer with particles going to the left processor - Direction Z */
+  //double *b_Z_LEFT;
 
-  /** number of particles exiting per cycle*/
-  int npExitXright;
-  /** number of particles exiting to X-LEFT per cycle*/
-  int npExitXleft;
-  /** number of particles exiting to Y-RIGHT per cycle*/
-  int npExitYright;
-  /** number of particles exiting to Y-LEFT per cycle*/
-  int npExitYleft;
-  /** number of particles exiting to Z-RIGHT per cycle*/
-  int npExitZright;
-  /** number of particles exiting to Z-LEFT per cycle*/
-  int npExitZleft;
-  /** total number of particles exiting per cycle */
-  int npExit;
-  /** number of particles not in the right domain   */
-  int rightDomain;
+  ///** number of particles exiting per cycle*/
+  //int npExitXright;
+  ///** number of particles exiting to X-LEFT per cycle*/
+  //int npExitXleft;
+  ///** number of particles exiting to Y-RIGHT per cycle*/
+  //int npExitYright;
+  ///** number of particles exiting to Y-LEFT per cycle*/
+  //int npExitYleft;
+  ///** number of particles exiting to Z-RIGHT per cycle*/
+  //int npExitZright;
+  ///** number of particles exiting to Z-LEFT per cycle*/
+  //int npExitZleft;
+  ///** total number of particles exiting per cycle */
+  //int npExit;
+  ///** number of particles not in the right domain   */
+  //int rightDomain;
 
 
   /** bool for communication verbose */
@@ -350,18 +317,18 @@ protected:
           <li>3 = periodic condition </li>
           </ul>
           */
-  /** Boundary Condition Particles: FaceXright */
-  int bcPfaceXright;
-  /** Boundary Condition Particles: FaceXleft */
-  int bcPfaceXleft;
-  /** Boundary Condition Particles: FaceYright */
-  int bcPfaceYright;
-  /** Boundary Condition Particles: FaceYleft */
-  int bcPfaceYleft;
-  /** Boundary Condition Particles: FaceYright */
-  int bcPfaceZright;
-  /** Boundary Condition Particles: FaceYleft */
-  int bcPfaceZleft;
+  ///** Boundary Condition Particles: FaceXright */
+  //int bcPfaceXright;
+  ///** Boundary Condition Particles: FaceXleft */
+  //int bcPfaceXleft;
+  ///** Boundary Condition Particles: FaceYright */
+  //int bcPfaceYright;
+  ///** Boundary Condition Particles: FaceYleft */
+  //int bcPfaceYleft;
+  ///** Boundary Condition Particles: FaceYright */
+  //int bcPfaceZright;
+  ///** Boundary Condition Particles: FaceYleft */
+  //int bcPfaceZleft;
   //
   // Other variables
   //

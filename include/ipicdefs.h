@@ -18,6 +18,22 @@
     MPI_Allreduce(## args); \
   }
 
+// determine the width of the vector unit
+//
+#if defined(__MIC__)
+  const int VECBITS = 512;
+#elif defined(__AVX__)
+  const int VECBITS = 256;
+#elif defined(__SSE_)
+  const int VECBITS = 128;
+#else
+  const int VECBITS = 64;
+#endif
+const int VECBYTES = VECBITS/8;
+
+// the number of doubles that fill a vector
+const int DVECWIDTH = VECBYTES/sizeof(double)
+const int SVECWIDTH = VECBYTES/sizeof(float);
 //#define SINGLE_PRECISION_PCLS
 //
 // single precision does not seem to help on the MIC

@@ -15,6 +15,8 @@ namespace ParticleType
   };
 }
 
+template <class T>
+class Larray;
 // intended to occupy 64 bytes
 //
 // particle for a specific species
@@ -26,13 +28,14 @@ class SpeciesParticle
   double t;
  public:
   // accessors
-  double get_x(int i)const{ return x[i]; }
-  double get_q()const{ return q; }
+  // double component(int i){ return u[i]; } // a hack
   double get_u(int i)const{ return u[i]; }
-  void set_x(int i, double in) { x[i] = in; }
-  void set_t(double in){ t=in; }
+  double get_q()const{ return q; }
+  double get_x(int i)const{ return x[i]; }
   void set_u(int i, double in) { u[i] = in; }
   void set_q(double in) { q = in; }
+  void set_x(int i, double in) { x[i] = in; }
+  void set_t(double in){ t=in; }
   // tracking particles would actually use q for the ID
   long long get_ID()const{ return (long long) t; }
   void set_ID(long long in){ t = (long long) in; }
@@ -63,7 +66,26 @@ class SpeciesParticle
   }
 };
 
+// to support SoA notation
 //
+// this class will simply be defined differently
+// when underlying representation is SoA
+//
+class FetchPclComponent
+{
+  int offset;
+  Larray<SpeciesParticle>& list;
+ public:
+  FetchPclComponent( Larray<SpeciesParticle>& _list, int _offset)
+  : list(_list), offset(_offset)
+  { }
+  double operator[](int i)
+  {
+    return list[i].component(offset);
+    // return component(offset)[i];
+  }
+};
+
 // intended to occupy 64 bytes
 //
 // dust particle for second-order-accuracy implicit advance

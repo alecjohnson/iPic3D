@@ -14,7 +14,7 @@ developers           : Stefano Markidis, Giovanni Lapenta
 #ifndef VCtopology3D_H
 #define VCtopology3D_H
 
-#include "VirtualTopology3D.h"
+#include "mpi.h"
 
 /**
  *  
@@ -29,7 +29,8 @@ developers           : Stefano Markidis, Giovanni Lapenta
 
 class Collective;
 
-class VCtopology3D:public VirtualTopology3D {
+class VCtopology3D //:public VirtualTopology3D
+{
 public:
   /** constructor: Define topology parameters: dimension, domain decomposition,... */
   VCtopology3D(const Collective& col);
@@ -62,6 +63,7 @@ public:
   int getYright_neighbor_P() { return (yright_neighbor_P); }
   int getZleft_neighbor_P() { return (zleft_neighbor_P); }
   int getZright_neighbor_P() { return (zright_neighbor_P); }
+
   bool getcVERBOSE() { return (cVERBOSE); }
   int getCoordinates(int dir) { return (coordinates[dir]); }
   int *getCoordinates() { return (coordinates); }
@@ -147,5 +149,7 @@ private:
   /** if cVERBOSE == true, print to the screen all the comunication */
   bool cVERBOSE;
 };
+
+typedef VCtopology3D VirtualTopology3D;
 
 #endif

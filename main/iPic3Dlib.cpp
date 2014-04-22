@@ -95,9 +95,14 @@ int c_Solver::Init(int argc, char **argv) {
   EMf->updateInfoFields(grid,vct,col);
 
   // Allocation of particles
-  part = new Particles3D[ns];
+  // part = new Particles3D[ns];
+  part = (Particles3D) malloc(sizeof(Particles3D)*ns);
   for (int i = 0; i < ns; i++)
-    part[i].allocate(i, col, vct, grid);
+  {
+    part[i].placement_new(i,col,vct,grid);
+    //part[i] = new Particles3D(i, col, vct, grid);
+    //part[i].allocate(i, col, vct, grid);
+  }
 
   // Initial Condition for PARTICLES if you are not starting from RESTART
   if (restart == 0) {

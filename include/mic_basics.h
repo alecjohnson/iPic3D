@@ -273,7 +273,7 @@
     // out1: copy odds from evens of data2, i.e.:
     //
     //   static const bool odd[] = {0,1,0,1,0,1,0,1};
-    //   for(int i=0; i<8; i++) out1[i] = odd[i] ? in2[i-1] : in2[i];
+    //   for(int i=0; i<8; i++) out1[i] = odd[i] ? in2[i-1] : in1[i];
     //
     const __mmask16 rmask_01010101 = _mm512_int2mask(0xaa); // mask=10101010
     // replace unmasked in1 with swizzled in2
@@ -348,6 +348,25 @@
   //   [a0 a1 b0 b1 a4 a5 b4 b5]
   //   [a2 a3 b2 b3 a6 a7 b6 b7]
   //
+  inline void trans2x8(F64vec8& out1, F64vec8& out2, F64vec8 in1, F64vec8 in2)
+  {
+    // data1: copy odd 1x2 elements from even 1x2 elements of in2, i.e.,
+    //   static const bool odd[] = {0,0,1,1,0,0,1,1};
+    //   for(int i=0; i<8; i++) out1[i] = odd[i] ? in2[i-2] : in1[i];
+    //
+    // replace unmasked in1 with swizzled in2
+    const __mmask16 rmask_00110011 = _mm512_int2mask(0xcc); // mask = 11001100
+    out1 = F64vec8(_mm512_mask_swizzle_pd(__m512d(in1),
+      rmask_00110011, __m512d(in2),_MM_SWIZ_REG_BADC));
+  
+    // out2: copy even 1x2 elements from odd 1x2 elements of in1, i.e.,
+    //   static const bool even[] = {1,1,0,0,1,1,0,0};
+    //   for(int i=0; i<8; i++) out2[i] = even[i] ? in1[i+2] : in2[i];
+    //
+    const __mmask16 rmask_11001100 = _mm512_int2mask(0x33); // mask=00110011
+    out2 = F64vec8(_mm512_mask_swizzle_pd(__m512d(in2),
+      rmask_11001100, __m512d(in1),_MM_SWIZ_REG_BADC));
+  }
   inline void trans2x4(F64vec8& data1, F64vec8& data2)
   {
     // copy the data that we will first overwrite
@@ -373,6 +392,12 @@
       rmask_11001100, __m512d(buff1),_MM_SWIZ_REG_BADC));
     //cout << "swizzle for pattern 'badc' with rmask=11001100\n"
     //  << outp2 << endl;
+  }
+  inline void trans2x4_new(F64vec8& data1, F64vec8& data2)
+  {
+    // copy the data that would be used after being rewritten:
+    const F64vec8 buff1 = data1;
+    trans2x8(data1, data2, buff1, data2);
   }
   inline void trans2x4(double in1[8], double in2[8])
   {
@@ -492,6 +517,40 @@
     // 3. swap lower left and upper right 4x4 elements
     for(int i=0; i<4; i+=1)
       trans2x8(data[i], data[i+4]);
+  }
+
+  // transpose 8x8 data from in to out, leaving in unmodified
+  inline void transpose_8x8_double((F64vec8*) out[8], const F64vec8 in[8])
+  {
+    F64vec8 buff[8];
+    // 1. transpose each 2x2 block.
+    for(int i=0; i<8; i+=2)
+      trans2x2(buff[i], buff[i+1], in[i], in[i+1]);
+    // 2. transpose each 4x4 block of 2x2 elements
+    trans2x4(buff[0], buff[2]);
+    trans2x4(buff[1], buff[3]);
+    trans2x4(buff[4], buff[6]);
+    trans2x4(buff[5], buff[7]);
+    // 3. swap lower left and upper right 4x4 elements
+    for(int i=0; i<4; i+=1)
+      trans2x8(*(out[i]), *(out[i+4]), buff[i], buff[i+4]);
+  }
+
+  // transpose 8x8 data from in to out, leaving in unmodified
+  inline void transpose_8x8_double(F64vec8 out[8], (F64vec8*) in[8])
+  {
+    F64vec8 buff[8];
+    // 1. transpose each 2x2 block.
+    for(int i=0; i<8; i+=2)
+      trans2x2(buff[i], buff[i+1], *(in[i]), *(in[i+1]));
+    // 2. transpose each 4x4 block of 2x2 elements
+    trans2x4(buff[0], buff[2]);
+    trans2x4(buff[1], buff[3]);
+    trans2x4(buff[4], buff[6]);
+    trans2x4(buff[5], buff[7]);
+    // 3. swap lower left and upper right 4x4 elements
+    for(int i=0; i<4; i+=1)
+      trans2x8(out[i], out[i+4], buff[i], buff[i+4]);
   }
 
   /*** end methods for fast transpose ***/
