@@ -75,11 +75,14 @@ inline double sample_open_u_double()
 // sample from unit interval [0,1]
 inline double sample_u_double()
 {
+  // old way
+  return rand()/double(RAND_MAX);
+  // faster way
   const double max_inv = 1./(double(RAND_MAX));
   return double(rand())*max_inv;
 }
 
-inline double sample_standard_maxwellian(double& u)
+inline void sample_standard_maxwellian(double& u)
 {
   // we sample a single component by pretending that it
   // is part of a two-dimensional joint distribution.
@@ -88,7 +91,7 @@ inline double sample_standard_maxwellian(double& u)
   u = prob * cos(theta);
 }
 
-inline double sample_standard_maxwellian(double& u, double& v)
+inline void sample_standard_maxwellian(double& u, double& v)
 {
   // the distribution of the magnitude of (u,v)
   // can be integrated analytically
@@ -98,19 +101,19 @@ inline double sample_standard_maxwellian(double& u, double& v)
   v = prob * sin(theta);
 }
 
-inline double sample_standard_maxwellian(double& u, double& v, double& w)
+inline void sample_standard_maxwellian(double& u, double& v, double& w)
 {
   sample_standard_maxwellian(u,v);
   sample_standard_maxwellian(w);
 }
 
-inline double sample_maxwellian(double& u, double ut)
+inline void sample_maxwellian(double& u, double ut)
 {
   sample_standard_maxwellian(u);
   u *= ut;
 }
 
-inline double sample_maxwellian(double& u, double& v, double& w,
+inline void sample_maxwellian(double& u, double& v, double& w,
   double ut, double vt, double wt)
 {
   sample_standard_maxwellian(u,v,w);
