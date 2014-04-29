@@ -64,6 +64,22 @@ public:
   int getZleft_neighbor_P() { return (zleft_neighbor_P); }
   int getZright_neighbor_P() { return (zright_neighbor_P); }
 
+  bool isPeriodicXlower() { return _isPeriodicXlower; }
+  bool isPeriodicXupper() { return _isPeriodicXupper; }
+  bool isPeriodicYlower() { return _isPeriodicYlower; }
+  bool isPeriodicYupper() { return _isPeriodicYupper; }
+  bool isPeriodicZlower() { return _isPeriodicZlower; }
+  bool isPeriodicZupper() { return _isPeriodicZupper; }
+
+  bool noXlowerNeighbor() { return _noXlowerNeighbor; }
+  bool noXupperNeighbor() { return _noXupperNeighbor; }
+  bool noYlowerNeighbor() { return _noYlowerNeighbor; }
+  bool noYupperNeighbor() { return _noYupperNeighbor; }
+  bool noZlowerNeighbor() { return _noZlowerNeighbor; }
+  bool noZupperNeighbor() { return _noZupperNeighbor; }
+
+  bool isBoundaryProcess() { return _isBoundaryProcess; }
+
   bool getcVERBOSE() { return (cVERBOSE); }
   int getCoordinates(int dir) { return (coordinates[dir]); }
   int *getCoordinates() { return (coordinates); }
@@ -113,7 +129,7 @@ private:
   /** rank may be reordered     */
   int reorder;
   /** arrays for Create_Cart_create  */
-  int divisions[3];
+  int dims[3];
   /** periodicity */
   int periods[3];
   int periods_P[3];
@@ -145,6 +161,24 @@ private:
   int zleft_neighbor_P;
   /** cartesian rank of ZLEFT neighbor */
   int zright_neighbor_P;
+  
+  /** indicators of whether this is a periodic boundary */
+  bool _isPeriodicXlower;
+  bool _isPeriodicXupper;
+  bool _isPeriodicYlower;
+  bool _isPeriodicYupper;
+  bool _isPeriodicZlower;
+  bool _isPeriodicZupper;
+
+  /** indicators of whether this lacks a neighbor */
+  bool _noXupperNeighbor;
+  bool _noXlowerNeighbor;
+  bool _noYupperNeighbor;
+  bool _noYlowerNeighbor;
+  bool _noZupperNeighbor;
+  bool _noZlowerNeighbor;
+
+  int _isBoundaryProcess;
 
   /** if cVERBOSE == true, print to the screen all the comunication */
   bool cVERBOSE;

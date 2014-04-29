@@ -449,79 +449,14 @@ void Particles3Dcomm::interpP2G(Field * EMf, Grid * grid, VirtualTopology3D * vc
   EMf->communicateGhostP2G(ns, 0, 0, 0, 0, vct);
 }
 
-// apply boundary conditions for particle
-//
-inline void apply_BCs_for_pcl(
-  double& x,
-  double& y,
-  double& z,
-  double& u,
-  double& v,
-  double& w,
-  bool periodicX,
-  bool periodicY,
-  bool periodicZ,
-  int bcPfaceXleft, int bcPfaceXrght,
-  int bcPfaceYleft, int bcPfaceYrght,
-  int bcPfaceZleft, int bcPfaceZrght,
-  double Lx,
-  double Ly,
-  double Lz,
-  double uth,
-  double vth,
-  double wth)
-{
-  if (x < 0)
-  {
-    if(periodicX)
-      x += Lx;
-    else
-      BCpclLeft(x,u,v,w,Lx,uth,vth,wth,bcPfaceXleft);
-  }
-  else if (x > Lx)
-  {
-    if(periodicX)
-      x -= Lx;
-    else
-      BCpclRght(x,u,v,w,Lx,uth,vth,wth,bcPfaceXrght);
-  }
-  if (y < 0)
-  {
-    if(periodicY)
-      y += Ly;
-    else
-      BCpclLeft(y,u,v,w,Ly,uth,vth,wth,bcPfaceYleft);
-  }
-  else if (y > Ly)
-  {
-    if(periodicY)
-      y -= Ly;
-    else
-      BCpclRght(y,u,v,w,Ly,uth,vth,wth,bcPfaceYrght);
-  }
-  if (z < 0)
-  {
-    if(periodicZ)
-      z += Lz;
-    else
-      BCpclLeft(z,u,v,w,Lz,uth,vth,wth,bcPfaceZleft);
-  }
-  else if (z > Lz)
-  {
-    if(periodicZ)
-      z -= Lz;
-    else
-      BCpclRght(z,u,v,w,Lz,uth,vth,wth,bcPfaceZrght);
-  }
-}
-
 /** communicate buffers */
 int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
 {
   //int new_buffer_size;
   //int npExitingMax;
 
-  // post receive buffers
+  // post receive buffers based on previously sufficient size
+  MPI_Irecv(recvBufXlower...);
 
   // clear sending buffers
   //
@@ -529,12 +464,13 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
   bYleft.clear(); bYrght.clear();
   bZleft.clear(); bZrght.clear();
 
-  const bool has_Xleft_neighbor = (ptVCT->getXleft_neighbor_P() != MPI_PROC_NULL);
-  const bool has_Xrght_neighbor = (ptVCT->getXright_neighbor_P() != MPI_PROC_NULL);
-  const bool has_Yleft_neighbor = (ptVCT->getYleft_neighbor_P() != MPI_PROC_NULL);
-  const bool has_Yrght_neighbor = (ptVCT->getYright_neighbor_P() != MPI_PROC_NULL);
-  const bool has_Zleft_neighbor = (ptVCT->getZleft_neighbor_P() != MPI_PROC_NULL);
-  const bool has_Zrght_neighbor = (ptVCT->getZright_neighbor_P() != MPI_PROC_NULL);
+  const bool noXlower = ptVCT->noXlowerNeighbor();
+  const bool noXupper = ptVCT->noXupperNeighbor();
+  const bool noYlower = ptVCT->noYlowerNeighbor();
+  const bool noYupper = ptVCT->noYupperNeighbor();
+  const bool noZlower = ptVCT->noZlowerNeighbor();
+  const bool noZupper = ptVCT->noZupperNeighbor();
+  const bool isBoundaryProcess = ptVCT->isBoundaryProcess();
 
   // should change to enforce boundary conditions at conclusion of push,
   // when particles are still in SoA format.
@@ -543,49 +479,35 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
   while(np_current < _pcls.size())
   {
     SpeciesParticle& pcl = _pcls.[np_current];
-    double& x = &pcl.fetch_x();
-    double& y = &pcl.fetch_y();
-    double& z = &pcl.fetch_z();
-    double& u = &pcl.fetch_u();
-    double& v = &pcl.fetch_v();
-    double& w = &pcl.fetch_w();
 
     // boundary conditions that must be applied to each dimension
+    // (it would be better to make this call in the mover where
+    // particles are still arranged in SoA format).
     //
-    //const bool periodicX = ptVCT->getPERIODICX();
-    //const bool periodicY = ptVCT->getPERIODICY();
-    //const bool periodicZ = ptVCT->getPERIODICZ();
-    //
-    //void apply_BCs_for_pcl(x,y,z,u,v,w
-    //  periodicX, periodicY, periodicZ,
-    //  bcPfaceXleft, bcPfaceXrght,
-    //  bcPfaceYleft, bcPfaceYrght,
-    //  bcPfaceZleft, bcPfaceZrght,
-    //  Lx, Ly, Lz,
-    //  uth, vth, wth);
+    if(isBoundaryProcess)
+    {
+      double& x = &pcl.fetch_x();
+      double& y = &pcl.fetch_y();
+      double& z = &pcl.fetch_z();
+      double& u = &pcl.fetch_u();
+      double& v = &pcl.fetch_v();
+      double& w = &pcl.fetch_w();
+      if (noXlower && pcl.get_x() < 0)
+        BCpclLeft(x,u,v,w,Lx,uth,vth,wth,bcPfaceXleft);
+      else if (noXupper && pcl.get_x() > Lx)
+        BCpclRght(x,u,v,w,Lx,uth,vth,wth,bcPfaceXright);
+      if (noYlower && pcl.get_y() < 0)
+        BCpclLeft(y,u,v,w,Ly,uth,vth,wth,bcPfaceYleft);
+      else if (noYupper && pcl.get_y() > Ly)
+        BCpclRght(y,u,v,w,Ly,uth,vth,wth,bcPfaceYright);
+      if (noZlower && pcl.get_z() < 0)
+        BCpclLeft(z,u,v,w,Lz,uth,vth,wth,bcPfaceZleft);
+      else if (noZupper && pcl.get_z() > Lz)
+        BCpclRght(z,u,v,w,Lz,uth,vth,wth,bcPfaceZright);
+    }
 
-    const bool no_Xleft_neighbor = !has_Xleft_neighbor;
-    const bool no_Xrght_neighbor = !has_Xrght_neighbor;
-    const bool no_Yleft_neighbor = !has_Yleft_neighbor;
-    const bool no_Yrght_neighbor = !has_Yrght_neighbor;
-    const bool no_Zleft_neighbor = !has_Zleft_neighbor;
-    const bool no_Zrght_neighbor = !has_Zrght_neighbor;
-    
-    if (no_Xleft_neighbor && pcl.get_x() < 0)
-      BCpclLeft(x,u,v,w,Lx,uth,vth,wth,bcPfaceXleft);
-    else if (no_Xrght_neighbor && pcl.get_x() > Lx)
-      BCpclRght(x,u,v,w,Lx,uth,vth,wth,bcPfaceXright);
-    if (no_Yleft_neighbor && pcl.get_y() < 0)
-      BCpclLeft(y,u,v,w,Ly,uth,vth,wth,bcPfaceYleft);
-    else if (no_Yrght_neighbor && pcl.get_y() > Ly)
-      BCpclRght(y,u,v,w,Ly,uth,vth,wth,bcPfaceYright);
-    if (no_Zleft_neighbor && pcl.get_z() < 0)
-      BCpclLeft(z,u,v,w,Lz,uth,vth,wth,bcPfaceZleft);
-    else if (no_Zrght_neighbor && pcl.get_z() > Lz)
-      BCpclRght(z,u,v,w,Lz,uth,vth,wth,bcPfaceZright);
-
-    // should change to put particles in communication buffers immediately
-    // after pushing them
+    // should change to put particles in communication buffers
+    // immediately after pushing them
 
     // put particle in appropriate communication buffer if exiting
     //
@@ -593,8 +515,8 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
     {
       if(has_Xleft_neighbor)
       {
-        // handle periodic boundary conditions
-        if (pcl.get_x() < 0) pcl.fetch_x() += Lx;
+        // handle periodic boundary conditions only when wrapping particles
+        if(ptVCT->isPeriodicXlower() && pcl.get_x() < 0) pcl.fetch_x() += Lx;
         // put it in the communication buffer
         bXleft.push_back(pcl);
       }
@@ -605,8 +527,8 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
     {
       if(has_Xrght_neighbor)
       {
-        // handle periodic boundary conditions
-        if (pcl.get_x() > Lx) pcl.fetch_x() -= Lx;
+        // handle periodic boundary conditions only when wrapping particles
+        if(ptVCT->isPeriodicXupper() && pcl.get_x() > Lx) pcl.fetch_x() -= Lx;
         // put it in the communication buffer
         bXleft.push_back(pcl);
       }
@@ -617,8 +539,8 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
     {
       if (has_Yleft_neighbor)
       {
-        // handle periodic boundary conditions
-        if (pcl.get_y() < 0) pcl.fetch_y += Ly;
+        // handle periodic boundary conditions only when wrapping particles
+        if(ptVCT->isPeriodicYlower() && pcl.get_y() < 0) pcl.fetch_y() += Ly;
         // put it in the communication buffer
         bYleft.push_back(pcl);
       }
@@ -629,8 +551,8 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
     {
       if (has_Yrght_neighbor)
       {
-        // handle periodic boundary conditions
-        if (pcl.get_y() > Ly) pcl.fetch_y() -= Ly;
+        // handle periodic boundary conditions only when wrapping particles
+        if(ptVCT->isPeriodicYupper() && pcl.get_y() > Ly) pcl.fetch_y() -= Ly;
       }
       _pcls.delete_element(np_current);
       npExitYleft++;
@@ -639,8 +561,8 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
     {
       if (has_Zleft_neighbor)
       {
-        // handle periodic boundary conditions
-        if (pcl.get_z() < 0) pcl.fetch_z() += Lz;
+        // handle periodic boundary conditions only when wrapping particles
+        if(ptVCT->isPeriodicZlower() && pcl.get_z() < 0) pcl.fetch_z() += Lz;
         // put it in the communication buffer
         bZLeft.push_back(pcl);
       } 
@@ -651,8 +573,8 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
     {
       if (has_Zrght_neighbor)
       {
-        // handle periodic boundary conditions
-        if (pcl.get_z() > Lz) pcl.fetch_z() -= Lz;
+        // handle periodic boundary conditions only when wrapping particles
+        if(ptVCT->isPeriodicZupper() && pcl.get_z() > Lz) pcl.fetch_z() -= Lz;
         // put it in the communication buffer
         bZRght.push_back(pcl);
       } 

@@ -7,6 +7,8 @@
 #include "string.h" // for memcpy
 
 // linear array (e.g. of particles)
+// 
+// this is pretty much the same thing as stl::vector
 //
 template<class type>
 class Larray

@@ -36,9 +36,9 @@ VCtopology3D::VCtopology3D(const Collective& col) {
 
   reorder = 1;
 
-  divisions[0] = XLEN;
-  divisions[1] = YLEN;
-  divisions[2] = ZLEN;
+  dims[0] = XLEN;
+  dims[1] = YLEN;
+  dims[2] = ZLEN;
 
   periods[0] = PERIODICX;
   periods[1] = PERIODICY;
@@ -61,14 +61,14 @@ VCtopology3D::VCtopology3D(const Collective& col) {
   and their neighbors  */
 void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
   // create a matrix with ranks, and neighbours for fields
-  MPI_Cart_create(old_comm, 3, divisions, periods, reorder, &CART_COMM);
+  MPI_Cart_create(old_comm, 3, dims, periods, reorder, &CART_COMM);
   // create a matrix with ranks, and neighbours for Particles
-  MPI_Cart_create(old_comm, 3, divisions, periods_P, reorder, &CART_COMM_P);
+  MPI_Cart_create(old_comm, 3, dims, periods_P, reorder, &CART_COMM_P);
   // Why not the following line instead of the previous?  Was
   // this written in anticipation that a different number of MPI
   // processes would be used for fields versus for particles?
   // But the code has not been consistently written this way...
-  //MPI_Cart_create(CART_COMM, 3, divisions, periods_P, 0, &CART_COMM_P);
+  //MPI_Cart_create(CART_COMM, 3, dims, periods_P, 0, &CART_COMM_P);
   // field Communicator
   if (CART_COMM != MPI_COMM_NULL) {
     MPI_Comm_rank(CART_COMM, &cartesian_rank);
@@ -107,6 +107,27 @@ void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
     eprintf("A process is thrown away from the new topology for Particles.");
   }
 
+  _isPeriodicXlower = PERIODICX && coordinates[0]==0;
+  _isPeriodicXupper = PERIODICX && coordinates[0]==dims[0];
+  _isPeriodicYlower = PERIODICY && coordinates[1]==0;
+  _isPeriodicYupper = PERIODICY && coordinates[1]==dims[1];
+  _isPeriodicZlower = PERIODICZ && coordinates[2]==0;
+  _isPeriodicZupper = PERIODICZ && coordinates[2]==dims[2];
+
+  _noXlowerNeighbor = (ptVCT->getXleft_neighbor_P() == MPI_PROC_NULL);
+  _noXupperNeighbor = (ptVCT->getXright_neighbor_P() == MPI_PROC_NULL);
+  _noYlowerNeighbor = (ptVCT->getYleft_neighbor_P() == MPI_PROC_NULL);
+  _noYupperNeighbor = (ptVCT->getYright_neighbor_P() == MPI_PROC_NULL);
+  _noZlowerNeighbor = (ptVCT->getZleft_neighbor_P() == MPI_PROC_NULL);
+  _noZupperNeighbor = (ptVCT->getZright_neighbor_P() == MPI_PROC_NULL);
+
+  _isBoundaryProcess = 
+    _isPeriodicXlower ||
+    _isPeriodicXupper ||
+    _isPeriodicYlower ||
+    _isPeriodicYupper ||
+    _isPeriodicZlower ||
+    _isPeriodicZupper;
 }
 /** destructor */
 VCtopology3D::~VCtopology3D() {
