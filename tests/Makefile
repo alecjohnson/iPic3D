@@ -13,6 +13,15 @@ ARRAY_FLAGS = #-DCHAINED_ARRAYS #-DFLAT_ARRAYS #-DCHECK_BOUNDS
 FLAGS = -O3 -DNO_MPI -fno-exceptions $(ARRAY_FLAGS) #-ggdb 
 
 COMPILER = g++ # icpc # c++
+MPI_LIBS =  /opt/local/lib/libmpi_cxx.dylib /opt/local/lib/libmpi.dylib
+
+	#$(COMPILER) $(INCLUDE) testcomm.cpp /opt/local/lib/libz.dylib /usr/lib/libdl.dylib /usr/lib/libm.dylib /opt/local/lib/libmpi_cxx.dylib /opt/local/lib/libmpi.dylib -o testcomm
+	#$(COMPILER) $(INCLUDE) testcomm.cpp /opt/local/lib/libmpi_cxx.dylib /opt/local/lib/libmpi.dylib -o testcomm
+testcomm: testcomm.cpp Makefile
+	$(COMPILER) $(INCLUDE) testcomm.cpp $(MPI_LIBS) -o testcomm
+
+run.testcomm: testcomm
+	mpiexec -n 2 testcomm
 
 testvbasic.mic: testvbasic.cpp
 	icpc -mmic testvbasic.cpp $(INCLUDE) -o testvbasic.mic
@@ -32,6 +41,9 @@ test_mic_particles.mic: test_mic_particles.cpp Makefile
 
 run.test_mic_particles.mic: test_mic_particles.mic
 	mpirun -n 1 -host `hostname`-mic1 -env OMP_NUM_THREADS=2 ./test_mic_particles.mic
+
+testaa: testaa.cpp Makefile
+	$(COMPILER) $(FLAGS) -fopenmp testaa.cpp $(INCLUDE) -o testaa
 
 testv2: testv2.cpp Makefile
 	$(COMPILER) $(FLAGS) -fopenmp testv2.cpp $(INCLUDE) -o testv2

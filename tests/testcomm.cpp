@@ -1,6 +1,8 @@
 #include "mpi.h"
-#include "stdio.h"
-//#include "iostream.h"
+#include <stdio.h>
+#include <vector>
+#include <list>
+#include <iostream>
 #include "../utility/debug.cpp"
 #include "../utility/asserts.cpp"
 #include "../utility/errors.cpp"
@@ -15,6 +17,15 @@ struct Particle
 {
   double u[8];
 };
+
+std::ostream& operator<<(std::ostream& os, const Particle& pcl)
+{
+  //os << showpos;
+  for(int i=0; i<7; i++)
+    os << showpos << pcl.u[i] << " ";
+  os << pcl.u[8] << "\n";
+  return os;
+}
 
 namespace Comm
 {
@@ -42,15 +53,15 @@ namespace Comm
 class Connection
 {
  private:
-  MPI_Comm _group;
+  MPI_Comm _comm;
   int _rank; // rank within group of neighbor we're connecting to
  public:
-  Connection(group_,rank_):
-    _group(group_),
+  Connection(const MPI_Comm& comm_,int rank_):
+    _comm(comm_),
     _rank(rank_)
   {}
-  MPI_Comm& group(){return _group;}
-  int rank(){return _rank;}
+  MPI_Comm comm()const{return _comm;}
+  int rank()const{return _rank;}
 };
 
 // block of elements
@@ -63,66 +74,73 @@ struct Block
   int capacity;
   MPI_Request request;
   int flag;
+  int id;
  private: // initialized at compile time
+  // assumes using MPI_DOUBLE
   static const int NUMBERS_PER_ELEMENT = sizeof(type)/sizeof(double);
-  // could change this to MPI_CHAR if all machines
-  // have identical architecture
-  static const MPI_Datatype mpi_datatype = MPI_DOUBLE;
  public:
-  Block(int capacity_):
+  Block(int capacity_, int id_):
     capacity(capacity_),
+    id(id_),
     request(MPI_REQUEST_NULL),
     flag(0)
   {
     block.reserve(capacity);
   }
+  MPI_Request& fetch_request(){return request;}
   //int size()
   //{
   //  return block.size();
   //}
   vector<type>& fetch_block(){return block;}
+  const vector<type>& get_block()const{return block;}
+  int get_block_id(){ return id; }
   bool isfull()
   {
     return (block.size()>=capacity);
   }
-  void push_back(type& in)
+  void push_back(const type& in)
   {
     block.push_back(in);
   }
-  void send(Communicator dest, int tag)
+  void send(const Connection& dest, int tag)
   {
     assert(block.size() <= capacity);
-    MPI_Isend(&block[0], NUMBERS_PER_ELEMENT*block.size(), mpi_datatype,
+    MPI_Isend(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
       dest.rank(), tag, dest.comm(), &request);
   }
-  void recv(Communicator source)
+  void recv(const Connection& source)
   {
     // make sure that space exists to receive
     block.resize(capacity);
     int tag=0; // what on earth is this used for?
-    MPI_Irecv(&block[0], NUMBERS_PER_ELEMENT*block.size(), mpi_datatype,
+    MPI_Irecv(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
       source.rank(), tag, source.comm(), &request);
   }
   // returns true if message has been received.
   bool test_recv(int& count)
   {
     MPI_Status status;
-    bool ret = test(&status);
+    bool ret = test(status);
     if(!ret)
       return false;
-    MPI_Get_count(status, MPI_DOUBLE, &count)
+    MPI_Get_count(&status, MPI_DOUBLE, &count);
     assert(count<=capacity);
     // shrink to eliminate the trailing garbage
     block.resize(count);
     return true;
   }
-  bool test()
+  bool test_recv()
   {
-    MPI_Status status;
-    int retval = MPI_Test(&request, &flag, &status);
-    assert(retval==flag); // based on MPI_Test man page
     int count;
-    MPI_Get_count(status, MPI_DOUBLE, &count)
+    return test_recv(count);
+  }
+  // returns true if communication is complete
+  bool test(MPI_Status& status)
+  {
+    MPI_Test(&request, &flag, &status);
+    int count;
+    MPI_Get_count(&status, MPI_DOUBLE, &count);
     if(flag) // communication complete
     {
       assert(request==MPI_REQUEST_NULL); // based on MPI_Test man page
@@ -131,6 +149,18 @@ struct Block
     return false;
   }
 };
+
+std::ostream& operator<<(std::ostream& os, const Block<Particle>& block_)
+{
+  const vector<Particle>& block = block_.get_block();
+  for(int k=0; k<block.size();k++)
+  {
+    os << "  block[" << k << "] = " << block[k] << "\n";
+  }
+  return os;
+}
+
+list<Block<Particle>*>::iterator blah;
 
 // We use the same class for sending and receiving, because
 // in the case where a dimension is only one process thick,
@@ -144,44 +174,69 @@ template <class type>
 struct BlockCommunicator
 {
  private: // data
-  list<Block<type>*>::iterator curr_block;
-  list<Block<type>*> blockList;
+  list<void*>::iterator curr_block;
+  list<void*> blockList;
+  //list<Block<type>*>::iterator curr_block;
+  //list<Block<type>*> blockList;
   Connection connection;
+  int blocksize;
+  int nextid;
  protected: // methods
   void allocate_more_blocks()
   {
     // allocate more blocks and insert them
     //
-    Block<type>* newBlock = new Block<type>(blocksize);
-    blockList.push_back(newBlock)
+    Block<type>* newBlock = new Block<type>(blocksize, nextid++);
+    blockList.push_back(newBlock);
   }
  public: // interface
-  BlockCommunicator(int blocksize, int numblocks, Connection connection_):
+  BlockCommunicator(int blocksize_, int numblocks, Connection connection_):
+    blocksize(blocksize_),
     connection(connection_)
   {
     assert(numblocks>0);
-    for(int i=0;i<numblocks;i++)
+    for(nextid=0;nextid<numblocks;nextid++)
     {
-      Block<type>* newBlock = new Block<type>(blocksize);
-      blockList.push_back(newBlock)
+      Block<type>* newBlock = new Block<type>(blocksize, nextid);
+      blockList.push_back(newBlock);
     }
     curr_block = blockList.begin();
   }
  //protected: // if destructor is public then it should be virtual
   ~BlockCommunicator()
   {
-    list<Block<type>*>::iterator i;
-    for(i=blockList.begin(); i != blockList.end(); ++i)
-      delete *i;
+    //list<Block<type>*>::iterator i;
+    for(curr_block=blockList.begin(); curr_block != blockList.end(); ++curr_block)
+      delete &fetch_curr_block();
   }
 
   Block<type>& fetch_curr_block()
   {
-    return (**curr_block);
+    assert(curr_block != blockList.end());
+    return *((Block<type>*)*curr_block);
+  }
+  bool atend()
+  {
+    return curr_block == blockList.end();
+  }
+  void advance_to_next_block()
+  {
+    assert(curr_block != blockList.end());
+    curr_block++;
+  }
+  bool test_recv_curr_block()
+  {
+    return fetch_curr_block().test_recv();
   }
   bool test_curr_block()
   {
-    return fetch_curr_block().test()
+    return fetch_curr_block().test();
+  }
+  MPI_Request get_curr_request()
+  {
+    if(atend())
+      return MPI_REQUEST_NULL;
+    return fetch_curr_block().fetch_request();
   }
 
  // sending routines
@@ -226,9 +281,9 @@ struct BlockCommunicator
   bool recv_blocks()
   {
     // post receives on all blocks
-    list<Block<type>*>::iterator i;
-    for(i=blockList.begin(); i != blockList.end(); ++i)
-      (**i).recv(mpi_source);
+    //list<Block<type>*>::iterator i;
+    for(curr_block=blockList.begin(); curr_block != blockList.end(); ++curr_block)
+      fetch_curr_block().recv(connection);
     // reset curr_block to initial block
     curr_block = blockList.begin();
   }
@@ -259,8 +314,8 @@ int main(int argc, char **argv)
   MPI_Comm dn_comm;
   const int reorder = 1;
   const int ndims = 1;
-  const int dims[ndims] = {2};
-  const int periods[ndims] = {1};
+  /*const*/ int dims[ndims] = {2};
+  /*const*/ int periods[ndims] = {1};
   const int XDIR = 0;
   const int UPWARD = 1;
   const int DNWARD = -1;
@@ -272,8 +327,8 @@ int main(int argc, char **argv)
   //MPI_Comm_dup(MPI_COMM_WORLD, &up_comm);
   //MPI_Comm_dup(MPI_COMM_WORLD, &dn_comm);
 
-  // This does not actually do a shift; rather, it returns the ranks
-  // the the neighbors that would be used to do this shift.
+  // This does not actually do a shift; rather, it returns the
+  // ranks of the neighbors that would be used to do this shift.
   // We use this as a mechanism to identify neighbors.
   // Shifting upward means that rank_source will be
   // lower_neighbor and rank_dest will be upper_neighbor.
@@ -294,8 +349,8 @@ int main(int argc, char **argv)
 
   // for each neighbor, create a receive communicator
   //
-  BlockCommunicator<Particle> lowXrecv(lowXrecvConn, blocksize, numblocks);
-  BlockCommunicator<Particle> hghXrecv(hghXrecvConn, blocksize, numblocks);
+  BlockCommunicator<Particle> lowXrecv(blocksize, numblocks, lowXrecvConn);
+  BlockCommunicator<Particle> hghXrecv(blocksize, numblocks, hghXrecvConn);
 
   // post receives 
   {
@@ -305,8 +360,8 @@ int main(int argc, char **argv)
 
   // for each neighbor, create a send communicator
   //
-  BlockCommunicator<Particle> lowXsend(lowXsendConn, blocksize, numblocks);
-  BlockCommunicator<Particle> hghXsend(hghXsendConn, blocksize, numblocks);
+  BlockCommunicator<Particle> lowXsend(blocksize, numblocks, lowXsendConn);
+  BlockCommunicator<Particle> hghXsend(blocksize, numblocks, hghXsendConn);
 
   // create, send, and receive particles
   for(int i=0; i<blocksize*numblocks;i++)
@@ -323,27 +378,108 @@ int main(int argc, char **argv)
     lowPcl.u[1] = MPIdata::get_rank();
     bool lowXblockSent = lowXsend.send(lowPcl);
     bool hghXblockSent = hghXsend.send(hghPcl);
-    if(lowXblockSent)
+    if(lowXblockSent || hghXblockSent)
     {
       // check if particles have arrived,
       // and if so deal with them
-      if(lowXrecv.test_current_block())
+      if(lowXrecv.test_recv_curr_block())
       {
-        Block<Particle>& curr_block = lowXrecv.fetch_current_block();
-        vector<Particle>& block = curr_block.fetch_block();
-        for(int i=0; i<block.size();i++)
-        {
-          stringstream ss;
-          ss << "block[" << i << "] = " << block[i] << "\n";
-        }
+        Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
+        cout << "(" << MPIdata::get_rank() << ") line "
+          << __LINE__ << ": while sending block " << i
+          << " received particle block" << curr_block.get_block_id() << "\n"
+          << curr_block << endl;
+        lowXrecv.advance_to_next_block();
+      }
+      if(hghXrecv.test_recv_curr_block())
+      {
+        Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
+        cout << "(" << MPIdata::get_rank() << ") line "
+          << __LINE__ << ": while sending block " << i
+          << " received particle block" << curr_block.get_block_id() << "\n"
+          << curr_block << endl;
       }
     }
   }
+  const int incount=2;
+  MPI_Request recv_requests[incount] = 
+  {
+    lowXrecv.get_curr_request(),
+    hghXrecv.get_curr_request()
+  };
   // wait on and deal with remaining incoming blocks
+  while(!lowXrecv.atend() || !hghXrecv.atend())
+  {
+    // wait for some blocks to be received
+    //
+    //int recv_indices[incount]; // which requests completed
+    //MPI_Status recv_statuses[incount]; // status of completed requests
+    //int outcount; // number of requests that returned true
+    //MPI_Waitsome(incount, recv_requests, &outcount, recv_indices, recv_statuses);
+
+    int recv_index;
+    MPI_Status recv_status;
+    MPI_Waitany(incount, recv_requests, &recv_index, &recv_status);
+    switch(recv_index)
+    {
+      default:
+        invalid_value_error(recv_index)
+      case MPI_UNDEFINED:
+        eprintf("recv_requests contains no active handles");
+        break;
+      case 0: // lowXrecv
+       {
+        Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
+        bool test = curr_block.test_recv(); // resize the list
+        assert(test);
+        cout << "(" << MPIdata::get_rank() << ") line "
+          << __LINE__ << ": received lowXrecv."
+          << curr_block.get_block_id() << "\n"
+          << curr_block << endl;
+        lowXrecv.advance_to_next_block();
+        recv_requests[0] = lowXrecv.get_curr_request();
+       }
+        break;
+      case 1: // hghXrecv
+       {
+        Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
+        bool test = curr_block.test_recv(); // resize the list
+        assert(test);
+        cout << "(" << MPIdata::get_rank() << ") line "
+          << __LINE__ << ": received hghXrecv."
+          << curr_block.get_block_id() << "\n"
+          << curr_block << endl;
+        hghXrecv.advance_to_next_block();
+        recv_requests[1] = hghXrecv.get_curr_request();
+       }
+        break;
+    }
+
+    #if 0
+    if(!lowXrecv.atend() && lowXrecv.test_curr_block())
+    {
+      Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
+      cout << "(" << MPIdata::get_rank() << ") line "
+        << __LINE__ << ": received lowXrecv."
+        << block.get_block_id() << "\n"
+        << block << endl;
+      lowXrecv.advance_to_next_block();
+    }
+    if(!hghXrecv.atend() && hghXrecv.test_curr_block())
+    {
+      Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
+      cout << "(" << MPIdata::get_rank() << ") line "
+        << __LINE__ << ": received hghXrecv."
+        << block.get_block_id() << "\n"
+        << block << endl;
+      hghXrecv.advance_to_next_block();
+    }
+    #endif
+  }
 
   // probably MPI_Finalize takes care of this anyway...
-  MPI_Comm_free(upp_comm);
-  MPI_Comm_free(low_comm);
+  MPI_Comm_free(&up_comm);
+  MPI_Comm_free(&dn_comm);
   MPIdata::finalize_mpi();
   //MPI_Finalize();
 }
