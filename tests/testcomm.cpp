@@ -12,6 +12,38 @@ using namespace std;
 //int MPIrank;
 //int MPInumprocs;
 
+#define debugout cout << "(" << MPIdata::get_rank() << ")" \
+  << "DEBUG " << __func__ << ", " << __FILE__ << ":" << __LINE__ << ": "
+
+// hacked mechanisms to print output one process at a time
+//
+void output_barrier()
+{
+  fflush(stdout);
+  cout << flush;
+  MPI_Barrier(MPI_COMM_WORLD);
+}
+int barrier_ret_nprocs()
+{
+  output_barrier();
+  return MPIdata::get_nprocs();
+}
+int barrier_ret_1()
+{
+  output_barrier();
+  return 1;
+}
+#define criticalout \
+  for(int rank=0;rank<barrier_ret_nprocs();rank++) \
+      if(rank==MPIdata::get_rank()) 
+#define masterout \
+  for(int i=0;i<barrier_ret_1();i++) \
+    if(!MPIdata::get_rank())
+// Creating MPI barriers to atomize output is
+// a poor solution; a better solution is to
+// write output to separate files.
+#define dout criticalout debugout
+
 // particle ("element")
 struct Particle
 {
@@ -21,9 +53,10 @@ struct Particle
 std::ostream& operator<<(std::ostream& os, const Particle& pcl)
 {
   //os << showpos;
+  os << "[";
   for(int i=0; i<7; i++)
-    os << showpos << pcl.u[i] << " ";
-  os << pcl.u[8] << "\n";
+    os << pcl.u[i] << " ";
+  os << pcl.u[7] << "]"; // << "\n";
   return os;
 }
 
@@ -88,24 +121,21 @@ struct Block
     block.reserve(capacity);
   }
   MPI_Request& fetch_request(){return request;}
-  //int size()
-  //{
-  //  return block.size();
-  //}
   vector<type>& fetch_block(){return block;}
   const vector<type>& get_block()const{return block;}
   int get_block_id(){ return id; }
   bool isfull()
   {
-    return (block.size()>=capacity);
+    bool retval = (block.size()>=capacity);
+    return retval;
   }
   void push_back(const type& in)
   {
     block.push_back(in);
   }
-  void send(const Connection& dest, int tag)
+  void send(const Connection& dest, int tag=0)
   {
-    assert(block.size() <= capacity);
+    assert_le(block.size(), capacity);
     MPI_Isend(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
       dest.rank(), tag, dest.comm(), &request);
   }
@@ -113,7 +143,7 @@ struct Block
   {
     // make sure that space exists to receive
     block.resize(capacity);
-    int tag=0; // what on earth is this used for?
+    int tag=0; // would be used to signal something back to sender?
     MPI_Irecv(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
       source.rank(), tag, source.comm(), &request);
   }
@@ -125,7 +155,7 @@ struct Block
     if(!ret)
       return false;
     MPI_Get_count(&status, MPI_DOUBLE, &count);
-    assert(count<=capacity);
+    assert_le(count,capacity);
     // shrink to eliminate the trailing garbage
     block.resize(count);
     return true;
@@ -155,7 +185,7 @@ std::ostream& operator<<(std::ostream& os, const Block<Particle>& block_)
   const vector<Particle>& block = block_.get_block();
   for(int k=0; k<block.size();k++)
   {
-    os << "  block[" << k << "] = " << block[k] << "\n";
+    os << "\n  block[" << k << "] = " << block[k];
   }
   return os;
 }
@@ -238,6 +268,12 @@ struct BlockCommunicator
       return MPI_REQUEST_NULL;
     return fetch_curr_block().fetch_request();
   }
+  int get_current_block_id()
+  {
+    if(atend())
+      return -1;
+    return fetch_curr_block().get_block_id();
+  }
 
  // sending routines
  //
@@ -266,7 +302,9 @@ struct BlockCommunicator
     fetch_curr_block().push_back(in);
 
     // if the block is full, send it
-    if(fetch_curr_block().isfull());
+    bool isfull = fetch_curr_block().isfull();
+    //dprint(isfull)
+    if(isfull)
     {
       int block_tag = Comm::UNFINISHED;
       send_block(block_tag);
@@ -322,8 +360,23 @@ int main(int argc, char **argv)
   // create a communicator for upward communication
   MPI_Cart_create(MPI_COMM_WORLD, ndims, dims, periods, reorder, &up_comm);
   // create a communicator for downward communication
-  //MPI_Cart_create(MPI_COMM_WORLD, ndims, dims, periods, 0, &dn_comm);
-  MPI_Comm_dup(up_comm, &dn_comm);
+  MPI_Cart_create(MPI_COMM_WORLD, ndims, dims, periods, 0, &dn_comm);
+
+  int up_cart_rank;
+  int dn_cart_rank;
+  MPI_Comm_rank(up_comm, &up_cart_rank);
+  MPI_Comm_rank(dn_comm, &dn_cart_rank);
+  criticalout dprint(up_cart_rank);
+  criticalout dprint(dn_cart_rank);
+
+  int up_coords[ndims];
+  int dn_coords[ndims];
+  MPI_Cart_coords(up_comm, up_cart_rank, ndims, up_coords);
+  MPI_Cart_coords(dn_comm, dn_cart_rank, ndims, dn_coords);
+  criticalout dprint(up_coords[0]);
+  criticalout dprint(dn_coords[0]);
+
+  //MPI_Comm_dup(up_comm, &dn_comm);
   //MPI_Comm_dup(MPI_COMM_WORLD, &up_comm);
   //MPI_Comm_dup(MPI_COMM_WORLD, &dn_comm);
 
@@ -339,142 +392,271 @@ int main(int argc, char **argv)
   MPI_Cart_shift(up_comm, XDIR, UPWARD, &up_src, &up_dst);
   //MPI_Cart_shift(dn_comm, XDIR, DNWARD, &lower_neighbor, &upper_neighbor);
   MPI_Cart_shift(dn_comm, XDIR, DNWARD, &dn_src, &dn_dst);
+  criticalout dprint(up_src); // from lower
+  criticalout dprint(up_dst); // to upper
+  criticalout dprint(dn_src); // from upper
+  criticalout dprint(dn_dst); // to lower
   Connection lowXrecvConn(up_comm,up_src);
   Connection hghXrecvConn(dn_comm,dn_src);
   Connection lowXsendConn(dn_comm,dn_dst);
   Connection hghXsendConn(up_comm,up_dst);
 
-  const int blocksize = 8;
-  const int numblocks = 2;
-
-  // for each neighbor, create a receive communicator
-  //
-  BlockCommunicator<Particle> lowXrecv(blocksize, numblocks, lowXrecvConn);
-  BlockCommunicator<Particle> hghXrecv(blocksize, numblocks, hghXrecvConn);
-
-  // post receives 
+  // showing that we can propagate a message upward
   {
-    lowXrecv.recv_blocks();
-    hghXrecv.recv_blocks();
-  }
-
-  // for each neighbor, create a send communicator
-  //
-  BlockCommunicator<Particle> lowXsend(blocksize, numblocks, lowXsendConn);
-  BlockCommunicator<Particle> hghXsend(blocksize, numblocks, hghXsendConn);
-
-  // create, send, and receive particles
-  for(int i=0; i<blocksize*numblocks;i++)
-  {
-    Particle lowPcl, hghPcl;
-    for(int j=0;j<8;j++)
-    {
-      lowPcl.u[j] = i+.1*(j+1);
-      hghPcl.u[j] = -lowPcl.u[j];
-    }
-    hghPcl.u[0] = MPIdata::get_rank();
-    lowPcl.u[0] = MPIdata::get_rank();
-    hghPcl.u[1] = MPIdata::get_rank();
-    lowPcl.u[1] = MPIdata::get_rank();
-    bool lowXblockSent = lowXsend.send(lowPcl);
-    bool hghXblockSent = hghXsend.send(hghPcl);
-    if(lowXblockSent || hghXblockSent)
-    {
-      // check if particles have arrived,
-      // and if so deal with them
-      if(lowXrecv.test_recv_curr_block())
-      {
-        Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
-        cout << "(" << MPIdata::get_rank() << ") line "
-          << __LINE__ << ": while sending block " << i
-          << " received particle block" << curr_block.get_block_id() << "\n"
-          << curr_block << endl;
-        lowXrecv.advance_to_next_block();
-      }
-      if(hghXrecv.test_recv_curr_block())
-      {
-        Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
-        cout << "(" << MPIdata::get_rank() << ") line "
-          << __LINE__ << ": while sending block " << i
-          << " received particle block" << curr_block.get_block_id() << "\n"
-          << curr_block << endl;
-      }
-    }
-  }
-  const int incount=2;
-  MPI_Request recv_requests[incount] = 
-  {
-    lowXrecv.get_curr_request(),
-    hghXrecv.get_curr_request()
-  };
-  // wait on and deal with remaining incoming blocks
-  while(!lowXrecv.atend() || !hghXrecv.atend())
-  {
-    // wait for some blocks to be received
-    //
-    //int recv_indices[incount]; // which requests completed
-    //MPI_Status recv_statuses[incount]; // status of completed requests
-    //int outcount; // number of requests that returned true
-    //MPI_Waitsome(incount, recv_requests, &outcount, recv_indices, recv_statuses);
-
-    int recv_index;
+    const int count=16;
+    char recvbuff[count];
+    char sendbuff[count];
+    const int sendcount = 1+ // because of terminating '\0'
+      snprintf(sendbuff,count,"hello from %d", MPIdata::get_rank());
+    criticalout dprint(sendbuff);
+    // receive message from lower
+    MPI_Request recv_request;
+    MPI_Irecv(recvbuff, count, MPI_CHAR, up_src, 0, up_comm, &recv_request);
+    // send a message to upper
+    MPI_Request send_request;
+    MPI_Isend(sendbuff, sendcount, MPI_CHAR, up_dst, 0, up_comm, &send_request);
+    // wait for message to arrive
     MPI_Status recv_status;
-    MPI_Waitany(incount, recv_requests, &recv_index, &recv_status);
-    switch(recv_index)
+    MPI_Wait(&recv_request, &recv_status);
+    // print the message
+    criticalout dprint(recvbuff);
+  }
+
+  // showing that upward and downward messages are kept straight
+  {
+    const int count=16;
+    char up_recvbuff[count];
+    char up_sendbuff[count];
+    char dn_recvbuff[count];
+    char dn_sendbuff[count];
+    const int up_sendcount = 1+ // because of terminating '\0'
+      snprintf(up_sendbuff,count,"up_hello from %d", MPIdata::get_rank());
+    const int dn_sendcount = 1+ // because of terminating '\0'
+      snprintf(dn_sendbuff,count,"dn_hello from %d", MPIdata::get_rank());
+    criticalout dprint(up_sendbuff);
+    criticalout dprint(dn_sendbuff);
+    // receive message from lower
+    MPI_Request up_recv_request;
+    MPI_Request dn_recv_request;
+    MPI_Irecv(up_recvbuff, count, MPI_CHAR, up_src, 0, up_comm, &up_recv_request);
+    MPI_Irecv(dn_recvbuff, count, MPI_CHAR, dn_src, 0, dn_comm, &dn_recv_request);
+    // send a message to upper
+    MPI_Request up_send_request;
+    MPI_Request dn_send_request;
+    MPI_Isend(up_sendbuff, up_sendcount, MPI_CHAR, up_dst, 0, up_comm, &up_send_request);
+    MPI_Isend(dn_sendbuff, dn_sendcount, MPI_CHAR, dn_dst, 0, dn_comm, &dn_send_request);
+    // wait for message to arrive
+    MPI_Status up_recv_status;
+    MPI_Status dn_recv_status;
+    MPI_Wait(&up_recv_request, &up_recv_status);
+    MPI_Wait(&dn_recv_request, &dn_recv_status);
+    // print the message
+    criticalout dprint(up_recvbuff);
+    criticalout dprint(dn_recvbuff);
+  }
+
+  // showing that we can propagate a particle upward
+  {
+    const int count=8;
+    Particle send_pcl;
+    for(int i=0;i<count;i++)
+      send_pcl.u[i]=i+.1*MPIdata::get_rank()+.09;
+    criticalout debugout << "send_pcl = " << send_pcl << endl;
+    // receive message from lower
+    Particle recv_pcl;
+    MPI_Request recv_request;
+    MPI_Irecv(recv_pcl.u, count, MPI_DOUBLE, up_src, 0, up_comm, &recv_request);
+    // send a message to upper
+    MPI_Request send_request;
+    MPI_Isend(send_pcl.u, count, MPI_DOUBLE, up_dst, 0, up_comm, &send_request);
+    // wait for message to arrive
+    MPI_Status recv_status;
+    MPI_Wait(&recv_request, &recv_status);
+    // print the message
+    criticalout debugout << "recv_pcl = " << recv_pcl << endl;
+  }
+
+  // showing that we can propagate a block of particles upward
+  {
+    masterout debugout << "=== propagating particles upward ===" << endl;
+
+    const int blocksize=8; //
+    const int count=8*blocksize;
+    //
+    // receive message from lower
+    //
+    Block<Particle> recv_pcls(blocksize, MPIdata::get_rank());
+    //vector<Particle>& recv_block = recv_pcls.fetch_block();
+    //recv_block.resize(blocksize);
+    //MPI_Request recv_request;
+    //MPI_Irecv(recv_block[0].u, count, MPI_DOUBLE, up_src, 0, up_comm, &recv_request);
+    recv_pcls.recv(lowXrecvConn);
+    //
+    // send particles
+    //
+    Block<Particle> send_pcls(blocksize, MPIdata::get_rank());
+    vector<Particle>& send_block = send_pcls.fetch_block();
+    // initialize particles
+    for(int p=0;p<blocksize;p++)
     {
-      default:
-        invalid_value_error(recv_index)
-      case MPI_UNDEFINED:
-        eprintf("recv_requests contains no active handles");
-        break;
-      case 0: // lowXrecv
-       {
+      Particle pcl;
+      for(int i=0;i<8;i++)
+        pcl.u[i]=p + .1*i+.01*MPIdata::get_rank()+.009;
+      send_block.push_back(pcl);
+    }
+    criticalout debugout << "send_pcls = " << send_pcls << endl;
+    // send a message to upper
+    //MPI_Request send_request;
+    //MPI_Isend(send_block[0].u, count, MPI_DOUBLE, up_dst, 0, up_comm, &send_request);
+    send_pcls.send(hghXsendConn);
+    // wait for message to arrive
+    MPI_Status recv_status;
+    //MPI_Wait(&recv_request, &recv_status);
+    MPI_Wait(&recv_pcls.fetch_request(),&recv_status);
+    // print the message one process at a time
+    criticalout debugout << "recv_pcls = " << recv_pcls << endl;
+  }
+
+  // communicating particles in blocks
+  if(0)
+  {
+    const int blocksize = 8;
+    const int numblocks = 2;
+
+    // for each neighbor, create a receive communicator
+    //
+    BlockCommunicator<Particle> lowXrecv(blocksize, numblocks, lowXrecvConn);
+    BlockCommunicator<Particle> hghXrecv(blocksize, numblocks, hghXrecvConn);
+
+    // post receives 
+    {
+      lowXrecv.recv_blocks();
+      hghXrecv.recv_blocks();
+    }
+
+    // for each neighbor, create a send communicator
+    //
+    BlockCommunicator<Particle> lowXsend(blocksize, numblocks, lowXsendConn);
+    BlockCommunicator<Particle> hghXsend(blocksize, numblocks, hghXsendConn);
+
+    // create, send, and receive particles
+    for(int i=0; i<blocksize*numblocks;i++)
+    {
+      Particle lowPcl, hghPcl;
+      for(int j=0;j<8;j++)
+      {
+        lowPcl.u[j] = i+.1*j+.09;
+        hghPcl.u[j] = -lowPcl.u[j];
+      }
+      hghPcl.u[0] = MPIdata::get_rank();
+      lowPcl.u[0] = MPIdata::get_rank();
+      //dprint(i)
+      bool lowXblockSent = lowXsend.send(lowPcl);
+      // dprint(lowXsend.get_current_block_id())
+      bool hghXblockSent = hghXsend.send(hghPcl);
+      //if(lowXblockSent) dprint(lowXsend.get_current_block_id());
+      //if(hghXblockSent) dprint(hghXsend.get_current_block_id());
+      if(lowXblockSent || hghXblockSent)
+      {
+        // dprintf("gothere");
+        // check if particles have arrived,
+        // and if so deal with them
+        if(lowXrecv.test_recv_curr_block())
+        {
+          Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
+          cout << "(" << MPIdata::get_rank() << ") line "
+            << __LINE__ << ": while sending block " << i
+            << " received particle block" << curr_block.get_block_id() << "\n"
+            << curr_block << endl;
+          lowXrecv.advance_to_next_block();
+        }
+        if(hghXrecv.test_recv_curr_block())
+        {
+          Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
+          cout << "(" << MPIdata::get_rank() << ") line "
+            << __LINE__ << ": while sending block " << i
+            << " received particle block" << curr_block.get_block_id() << "\n"
+            << curr_block << endl;
+        }
+      }
+    }
+    const int incount=2;
+    MPI_Request recv_requests[incount] = 
+    {
+      lowXrecv.get_curr_request(),
+      hghXrecv.get_curr_request()
+    };
+    // wait on and deal with remaining incoming blocks
+    // while(!lowXrecv.atend() || !hghXrecv.atend())
+    {
+      // wait for some blocks to be received
+      //
+      //int recv_indices[incount]; // which requests completed
+      //MPI_Status recv_statuses[incount]; // status of completed requests
+      //int outcount; // number of requests that returned true
+      //MPI_Waitsome(incount, recv_requests, &outcount, recv_indices, recv_statuses);
+
+      //#if 0
+      int recv_index;
+      MPI_Status recv_status;
+      dprintf("gothere");
+      MPI_Waitany(incount, recv_requests, &recv_index, &recv_status);
+      dprintf("gothere");
+      switch(recv_index)
+      {
+        default:
+          invalid_value_error(recv_index)
+        case MPI_UNDEFINED:
+          eprintf("recv_requests contains no active handles");
+          break;
+        case 0: // lowXrecv
+         {
+          Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
+          bool test = curr_block.test_recv(); // resize the list
+          assert(test);
+          cout << "(" << MPIdata::get_rank() << ") line "
+            << __LINE__ << ": received lowXrecv."
+            << curr_block.get_block_id() << "\n"
+            << curr_block << endl;
+          lowXrecv.advance_to_next_block();
+          recv_requests[0] = lowXrecv.get_curr_request();
+         }
+          break;
+        case 1: // hghXrecv
+         {
+          Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
+          bool test = curr_block.test_recv(); // resize the list
+          assert(test);
+          cout << "(" << MPIdata::get_rank() << ") line "
+            << __LINE__ << ": received hghXrecv."
+            << curr_block.get_block_id() << "\n"
+            << curr_block << endl;
+          hghXrecv.advance_to_next_block();
+          recv_requests[1] = hghXrecv.get_curr_request();
+         }
+          break;
+      }
+      //#endif
+
+      if(!lowXrecv.atend() && lowXrecv.test_recv_curr_block())
+      {
         Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
-        bool test = curr_block.test_recv(); // resize the list
-        assert(test);
         cout << "(" << MPIdata::get_rank() << ") line "
           << __LINE__ << ": received lowXrecv."
           << curr_block.get_block_id() << "\n"
           << curr_block << endl;
         lowXrecv.advance_to_next_block();
-        recv_requests[0] = lowXrecv.get_curr_request();
-       }
-        break;
-      case 1: // hghXrecv
-       {
+      }
+      if(!hghXrecv.atend() && hghXrecv.test_recv_curr_block())
+      {
         Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
-        bool test = curr_block.test_recv(); // resize the list
-        assert(test);
         cout << "(" << MPIdata::get_rank() << ") line "
           << __LINE__ << ": received hghXrecv."
           << curr_block.get_block_id() << "\n"
           << curr_block << endl;
         hghXrecv.advance_to_next_block();
-        recv_requests[1] = hghXrecv.get_curr_request();
-       }
-        break;
+      }
     }
-
-    #if 0
-    if(!lowXrecv.atend() && lowXrecv.test_curr_block())
-    {
-      Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
-      cout << "(" << MPIdata::get_rank() << ") line "
-        << __LINE__ << ": received lowXrecv."
-        << block.get_block_id() << "\n"
-        << block << endl;
-      lowXrecv.advance_to_next_block();
-    }
-    if(!hghXrecv.atend() && hghXrecv.test_curr_block())
-    {
-      Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
-      cout << "(" << MPIdata::get_rank() << ") line "
-        << __LINE__ << ": received hghXrecv."
-        << block.get_block_id() << "\n"
-        << block << endl;
-      hghXrecv.advance_to_next_block();
-    }
-    #endif
   }
 
   // probably MPI_Finalize takes care of this anyway...
