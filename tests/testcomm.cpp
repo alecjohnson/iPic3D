@@ -39,10 +39,11 @@ int barrier_ret_1()
 #define masterout \
   for(int i=0;i<barrier_ret_1();i++) \
     if(!MPIdata::get_rank())
-// Creating MPI barriers to atomize output is
-// a poor solution; a better solution is to
-// write output to separate files.
+// Creating MPI barriers to atomize output is a poor solution;
 #define dout criticalout debugout
+// a better solution is to write output to separate files:
+//ofstream outfile;
+//#define dout outfile;
 
 // particle ("element")
 struct Particle
@@ -154,9 +155,7 @@ struct Block
     int count;
     MPI_Get_count(&status, MPI_DOUBLE, &count);
     const int num_elements_received = count / NUMBERS_PER_ELEMENT;
-    //assert_le(num_elements_received,capacity);
-    // for debug assume that complete block was sent
-    assert_eq(num_elements_received,capacity);
+    assert_le(num_elements_received,capacity);
     // shrink block to fit actual number of elements sent
     block.resize(num_elements_received);
     return num_elements_received;
@@ -169,9 +168,10 @@ struct Block
     if(!ret)
       return false;
     MPI_Get_count(&status, MPI_DOUBLE, &count);
-    assert_le(count,capacity);
+    const int num_elements_received = count / NUMBERS_PER_ELEMENT;
+    assert_le(num_elements_received,capacity);
     // shrink to eliminate the trailing garbage
-    block.resize(count);
+    block.resize(num_elements_received);
     return true;
   }
   bool test_recv()
@@ -304,10 +304,11 @@ struct BlockCommunicator
 
     // alternatively, we could recycle blocks
     // for which MPI_Test(receive) returns true.
-    if(curr_block == blockList.end())
-    {
-      allocate_more_blocks();
-    }
+    // debugedit: took this out for debug
+    //if(curr_block == blockList.end())
+    //{
+    //  allocate_more_blocks();
+    //}
   }
  public: // interface
   // returns true iff block was sent
@@ -322,7 +323,7 @@ struct BlockCommunicator
     //dprint(isfull)
     if(isfull)
     {
-      int block_tag = Comm::UNFINISHED;
+      int block_tag = 0; //Comm::UNFINISHED;
       send_block(block_tag);
       return true;
     }
@@ -371,6 +372,9 @@ int main(int argc, char **argv)
 {
   MPIdata::init(&argc, &argv);
 
+  //char outfilename[30];
+  //snprintf(outfilename,"testcomm.%d",MPIdata::get_rank());
+  //outfile.open(outfilename);
 
   //MPI_Init(&argc, &argv);
   //MPI_Comm_rank(MPI_COMM_WORLD, &MPIrank);
@@ -549,7 +553,7 @@ int main(int argc, char **argv)
   }
 
   // showing that we can propagate a list of blocks of particles upward
-  if(0) // still hanging on wait
+  if(1)
   {
     masterout debugout << "=== propagating particles upward ===" << endl;
 
@@ -579,35 +583,28 @@ int main(int argc, char **argv)
     for(send_pcls.rewind();!send_pcls.at_end();send_pcls.advance_to_next_block())
     {
       Block<Particle>& curr_block = send_pcls.fetch_curr_block();
-      debugout << curr_block << endl;;
+      debugout << curr_block << endl;
     }
 
     // read and print blocks as they arrive
     {
-        dprintf("gothere");
       recv_pcls.rewind();
-        dprintf("gothere");
       while(!recv_pcls.at_end())
       {
         MPI_Status status;
-        dprintf("gothere");
         MPI_Wait(&recv_pcls.fetch_curr_block().fetch_request(),&status);
         //recv_pcls.waitfor_recv_curr_block(status);
-        dprintf("gothere");
         Block<Particle>& curr_block = recv_pcls.fetch_curr_block();
-        dprintf("gothere");
         debugout << curr_block << endl;
-        dprintf("gothere");
         recv_pcls.advance_to_next_block();
-        dprintf("gothere");
       }
-        dprintf("gothere");
     }
   }
 
   // communicating particles in blocks
-  if(0) // hanging on wait
+  if(1)
   {
+    masterout debugout << "=== propagating particles both ways ===" << endl;
     const int blocksize = 8;
     const int numblocks = 2;
 
@@ -633,8 +630,9 @@ int main(int argc, char **argv)
       Particle lowPcl, hghPcl;
       for(int j=0;j<8;j++)
       {
-        lowPcl.u[j] = i+.1*j+.09;
-        hghPcl.u[j] = -lowPcl.u[j];
+        const double num = 100+i+.1*j;
+        lowPcl.u[j] = num+.09;
+        hghPcl.u[j] = num+.01;
       }
       hghPcl.u[0] = MPIdata::get_rank();
       lowPcl.u[0] = MPIdata::get_rank();
@@ -646,24 +644,21 @@ int main(int argc, char **argv)
       //if(hghXblockSent) dprint(hghXsend.get_current_block_id());
       if(lowXblockSent || hghXblockSent)
       {
-        // dprintf("gothere");
         // check if particles have arrived,
         // and if so deal with them
         if(lowXrecv.test_recv_curr_block())
         {
           Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
-          cout << "(" << MPIdata::get_rank() << ") line "
-            << __LINE__ << ": while sending block " << i
-            << " received particle block" << curr_block.get_block_id() << "\n"
+          dout << ": upon sending particle " << i
+            << " received low particle block " << curr_block.get_block_id() << ":"
             << curr_block << endl;
           lowXrecv.advance_to_next_block();
         }
         if(hghXrecv.test_recv_curr_block())
         {
           Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
-          cout << "(" << MPIdata::get_rank() << ") line "
-            << __LINE__ << ": while sending block " << i
-            << " received particle block" << curr_block.get_block_id() << "\n"
+          dout << ": upon sending particle " << i
+            << " received hgh particle block " << curr_block.get_block_id() << ":"
             << curr_block << endl;
         }
       }
@@ -687,9 +682,7 @@ int main(int argc, char **argv)
       //#if 0
       int recv_index;
       MPI_Status recv_status;
-      dprintf("gothere");
       MPI_Waitany(incount, recv_requests, &recv_index, &recv_status);
-      dprintf("gothere");
       switch(recv_index)
       {
         default:
@@ -702,9 +695,8 @@ int main(int argc, char **argv)
           Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
           bool test = curr_block.test_recv(); // resize the list
           assert(test);
-          cout << "(" << MPIdata::get_rank() << ") line "
-            << __LINE__ << ": received lowXrecv."
-            << curr_block.get_block_id() << "\n"
+          dout << ": received lowXrecv."
+            << curr_block.get_block_id()
             << curr_block << endl;
           lowXrecv.advance_to_next_block();
           recv_requests[0] = lowXrecv.get_curr_request();
@@ -715,9 +707,8 @@ int main(int argc, char **argv)
           Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
           bool test = curr_block.test_recv(); // resize the list
           assert(test);
-          cout << "(" << MPIdata::get_rank() << ") line "
-            << __LINE__ << ": received hghXrecv."
-            << curr_block.get_block_id() << "\n"
+          dout << ": received hghXrecv."
+            << curr_block.get_block_id()
             << curr_block << endl;
           hghXrecv.advance_to_next_block();
           recv_requests[1] = hghXrecv.get_curr_request();
@@ -726,24 +717,24 @@ int main(int argc, char **argv)
       }
       //#endif
 
-      if(!lowXrecv.at_end() && lowXrecv.test_recv_curr_block())
-      {
-        Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
-        cout << "(" << MPIdata::get_rank() << ") line "
-          << __LINE__ << ": received lowXrecv."
-          << curr_block.get_block_id() << "\n"
-          << curr_block << endl;
-        lowXrecv.advance_to_next_block();
-      }
-      if(!hghXrecv.at_end() && hghXrecv.test_recv_curr_block())
-      {
-        Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
-        cout << "(" << MPIdata::get_rank() << ") line "
-          << __LINE__ << ": received hghXrecv."
-          << curr_block.get_block_id() << "\n"
-          << curr_block << endl;
-        hghXrecv.advance_to_next_block();
-      }
+      //if(!lowXrecv.at_end() && lowXrecv.test_recv_curr_block())
+      //{
+      //  Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
+      //  cout << "(" << MPIdata::get_rank() << ") line "
+      //    << __LINE__ << ": received lowXrecv."
+      //    << curr_block.get_block_id() << "\n"
+      //    << curr_block << endl;
+      //  lowXrecv.advance_to_next_block();
+      //}
+      //if(!hghXrecv.at_end() && hghXrecv.test_recv_curr_block())
+      //{
+      //  Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
+      //  cout << "(" << MPIdata::get_rank() << ") line "
+      //    << __LINE__ << ": received hghXrecv."
+      //    << curr_block.get_block_id() << "\n"
+      //    << curr_block << endl;
+      //  hghXrecv.advance_to_next_block();
+      //}
     }
   }
 
