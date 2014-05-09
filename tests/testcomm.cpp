@@ -9,6 +9,17 @@
 #include "../utility/MPIdata.cpp"
 using namespace std;
 
+#if 0
+  Changes to make:
+  * use tags to distinguish up-communication from down-communication?
+    does ordering of messages still work then?
+  * use an allocator to ensure that particles are aligned
+  * use persistent communication to reduce MPI overhead?
+  * use buffered mode?  Consider arguments at:
+    https://blogs.cisco.com/performance/top-10-reasons-why-buffered-sends-are-evil/
+    https://www.cac.cornell.edu/VW/mpip2p/buffsend.aspx
+#endif
+
 //int MPIrank;
 //int MPInumprocs;
 
@@ -64,16 +75,7 @@ std::ostream& operator<<(std::ostream& os, const Particle& pcl)
   return os;
 }
 
-namespace Comm
-{
-  enum Enum
-  {
-    FINISHED = 0,
-    UNFINISHED = 1
-  };
-};
-
-// The combination of group and neighbor
+// The combination of group (comm), tag, and neighbor
 // should be unique for each connection
 //
 // In a Cartesian topology, the challenges to this uniqueness
@@ -85,20 +87,26 @@ namespace Comm
 // we need to make a distinction between upward and downward
 // channels of communication.  Distinguishing upward and
 // downward directions is sufficient for any topology based
-// on convex MPI subdomains.
+// on convex MPI subdomains, since in this case two subdomains
+// can share at most two faces.
 //
+// In MPI a message envelope includes this information
+// plus the rank of the process
 class Connection
 {
  private:
-  MPI_Comm _comm;
-  int _rank; // rank within group of neighbor we're connecting to
+  int _rank; // rank within group of neighbors we're connecting to
+  int _tag; // tag to attach to messages
+  MPI_Comm _comm; // communicator group
  public:
-  Connection(const MPI_Comm& comm_,int rank_):
-    _comm(comm_),
-    _rank(rank_)
+  Connection(int rank_, int tag_, const MPI_Comm& comm_):
+    _rank(rank_),
+    _tag(tag_),
+    _comm(comm_)
   {}
-  MPI_Comm comm()const{return _comm;}
   int rank()const{return _rank;}
+  int tag()const{return _tag;}
+  MPI_Comm comm()const{return _comm;}
 };
 
 // block of elements
@@ -151,7 +159,7 @@ struct Block
   {
     assert_le(block.size(), capacity);
     MPI_Isend(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
-      dest.rank(), 0, dest.comm(), &request);
+      dest.rank(), dest.tag(), dest.comm(), &request);
   }
   void waitfor_send()
   {
@@ -168,10 +176,9 @@ struct Block
   {
     // make sure that space exists to receive
     block.resize(capacity);
-    int tag=0;
     assert(request==MPI_REQUEST_NULL);
     MPI_Irecv(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
-      source.rank(), tag, source.comm(), &request);
+      source.rank(), source.tag(), source.comm(), &request);
   }
   // processing received data
   //
@@ -342,10 +349,11 @@ class BlockCommunicator
   // handle received block and advance curr_block
   //
   // assumes that curr_block was just received with argument status
-  void handle_received_block(MPI_Status& status)
+  Block<type>& handle_received_block(MPI_Status& status)
   {
     // MPI_REQUEST_NULL signifies that communication is complete
     fetch_curr_block().fetch_request() = MPI_REQUEST_NULL;
+    list<void*>::iterator handled_block = curr_block;
     bool islast = fetch_curr_block().shrink_received_block(status);
     if(islast)
     {
@@ -368,6 +376,7 @@ class BlockCommunicator
       //
       advance_to_next_recv_block();
     }
+    return fetch_block(handled_block);
   }
   void advance_to_next_recv_block()
   {
@@ -467,27 +476,7 @@ class BlockCommunicator
     rewind();
   }
  public:
-  //int first_unfinished_block()
-  //{
-  //  list<void*>::iterator b = blockList.begin();
-  //  for(;b!=blockList.end();b++)
-  //  {
-  //    if(fetch_block(b).fetch_request()!=MPI_REQUEST_NULL)
-  //      return fetch_block(b).get_block_id();
-  //  }
-  //  return -1;
-  //}
 };
-
-//std::ostream& operator<<(std::ostream& os, const BlockCommunicator<Particle>& bc)
-//{
-//  for(bc.rewind();!bc.at_end();bc.advance_to_next_block())
-//  {
-//    Block<Particle>& curr_block = bc.fetch_curr_block();
-//    os << curr_block;
-//  }
-//  return os;
-//}
 
 void test_particle_communication(
     BlockCommunicator<Particle>& lowXrecv,
@@ -528,19 +517,17 @@ void test_particle_communication(
         MPI_Status status;
         if(lowXrecv.test_recv_curr_block(status))
         {
-          Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
-          lowXrecv.handle_received_block(status);
+          Block<Particle>& recv_block = lowXrecv.handle_received_block(status);
           dout << ": upon sending particle " << i
-            << " received low particle block " << curr_block.get_block_id() << ":"
-            << curr_block << endl;
+            << " received low particle block " << recv_block.get_block_id() << ":"
+            << recv_block << endl;
         }
         if(hghXrecv.test_recv_curr_block(status))
         {
-          Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
-          hghXrecv.handle_received_block(status);
+          Block<Particle>& recv_block = hghXrecv.handle_received_block(status);
           dout << ": upon sending particle " << i
-            << " received hgh particle block " << curr_block.get_block_id() << ":"
-            << curr_block << endl;
+            << " received hgh particle block " << recv_block.get_block_id() << ":"
+            << recv_block << endl;
         }
       }
     }
@@ -579,21 +566,19 @@ void test_particle_communication(
           break;
         case 0: // lowXrecv
          {
-          Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
-          lowXrecv.handle_received_block(recv_status);
+          Block<Particle>& recv_block = lowXrecv.handle_received_block(recv_status);
           dout << ": received lowXrecv."
-            << curr_block.get_block_id()
-            << curr_block << endl;
+            << recv_block.get_block_id()
+            << recv_block << endl;
           recv_requests[0] = lowXrecv.get_curr_request();
          }
           break;
         case 1: // hghXrecv
          {
-          Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
-          hghXrecv.handle_received_block(recv_status);
+          Block<Particle>& recv_block = hghXrecv.handle_received_block(recv_status);
           dout << ": received hghXrecv."
-            << curr_block.get_block_id()
-            << curr_block << endl;
+            << recv_block.get_block_id()
+            << recv_block << endl;
           recv_requests[1] = hghXrecv.get_curr_request();
          }
           break;
@@ -603,21 +588,19 @@ void test_particle_communication(
       //MPI_Status status;
       //if(!lowXrecv.at_end() && lowXrecv.test_recv_curr_block(status))
       //{
-      //  Block<Particle>& curr_block = lowXrecv.fetch_curr_block();
-      //  lowXrecv.handle_received_block(status);
+      //  Block<Particle>& recv_block = lowXrecv.handle_received_block(status);
       //  dout << "(" << MPIdata::get_rank() << ") line "
       //    << __LINE__ << ": received lowXrecv."
-      //    << curr_block.get_block_id() << ":"
-      //    << curr_block << endl;
+      //    << recv_block.get_block_id() << ":"
+      //    << recv_block << endl;
       //}
       //if(!hghXrecv.at_end() && hghXrecv.test_recv_curr_block(status))
       //{
-      //  Block<Particle>& curr_block = hghXrecv.fetch_curr_block();
-      //  hghXrecv.handle_received_block(status);
+      //  Block<Particle>& recv_block = hghXrecv.handle_received_block(status);
       //  dout << "(" << MPIdata::get_rank() << ") line "
       //    << __LINE__ << ": received hghXrecv."
-      //    << curr_block.get_block_id() << ":"
-      //    << curr_block << endl;
+      //    << recv_block.get_block_id() << ":"
+      //    << recv_block << endl;
       //}
     }
 }
@@ -684,10 +667,16 @@ int main(int argc, char **argv)
   criticalout dprint(up_dst); // to upper
   criticalout dprint(dn_src); // from upper
   criticalout dprint(dn_dst); // to lower
-  Connection lowXrecvConn(up_comm,up_src);
-  Connection hghXrecvConn(dn_comm,dn_src);
-  Connection lowXsendConn(dn_comm,dn_dst);
-  Connection hghXsendConn(up_comm,up_dst);
+  //Connection lowXrecvConn(up_src,1,up_comm);
+  //Connection hghXrecvConn(dn_src,0,dn_comm);
+  //Connection lowXsendConn(dn_dst,0,dn_comm);
+  //Connection hghXsendConn(up_dst,1,up_comm);
+  assert(up_src==dn_dst);
+  assert(dn_src==up_dst);
+  Connection lowXrecvConn(up_src,1,MPI_COMM_WORLD);
+  Connection hghXrecvConn(dn_src,0,MPI_COMM_WORLD);
+  Connection lowXsendConn(dn_dst,0,MPI_COMM_WORLD);
+  Connection hghXsendConn(up_dst,1,MPI_COMM_WORLD);
 
   // showing that we can propagate a message upward
   {
@@ -840,8 +829,7 @@ int main(int argc, char **argv)
         MPI_Status status;
         MPI_Wait(&recv_pcls.fetch_curr_block().fetch_request(),&status);
         //recv_pcls.waitfor_recv_curr_block(status);
-        Block<Particle>& curr_block = recv_pcls.fetch_curr_block();
-        recv_pcls.handle_received_block(status);
+        Block<Particle>& curr_block = recv_pcls.handle_received_block(status);
         dout << curr_block << endl;
       }
     }
