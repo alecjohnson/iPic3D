@@ -3,6 +3,7 @@
 #include <vector>
 #include <list>
 #include <iostream>
+#include "aligned_allocator.h"
 #include "../utility/debug.cpp"
 #include "../utility/asserts.cpp"
 #include "../utility/errors.cpp"
@@ -109,13 +110,17 @@ class Connection
   MPI_Comm comm()const{return _comm;}
 };
 
+// unfortunately C++ does not support typedefs for templates,
+// so I use a declaration macro
+#define aligned_vector(type) std::vector<type, aligned_allocator<type, 64> >
+
 // block of elements
 template <class type>
 struct Block
 {
  private: // initialized in constructor
   // change the block to use an aligned allocator
-  vector<type> block;
+  aligned_vector(type) block;
   int capacity;
   int id;
   // used for MPI communication
@@ -135,8 +140,8 @@ struct Block
   }
  public: // accessors
   MPI_Request& fetch_request(){return request;}
-  vector<type>& fetch_block(){return block;}
-  const vector<type>& get_block()const{return block;}
+  aligned_vector(type)& fetch_block(){return block;}
+  const aligned_vector(type)& get_block()const{return block;}
   int get_block_id(){ return id; }
 
  // sending
@@ -228,7 +233,7 @@ struct Block
 
 std::ostream& operator<<(std::ostream& os, const Block<Particle>& block_)
 {
-  const vector<Particle>& block = block_.get_block();
+  const aligned_vector(Particle)& block = block_.get_block();
   for(int k=0; k<block.size();k++)
   {
     os << "\n  block[" << k << "] = " << block[k];
@@ -768,7 +773,7 @@ int main(int argc, char **argv)
     // send particles
     //
     Block<Particle> send_pcls(blocksize, MPIdata::get_rank());
-    vector<Particle>& send_block = send_pcls.fetch_block();
+    aligned_vector(Particle)& send_block = send_pcls.fetch_block();
     // initialize particles
     for(int p=0;p<blocksize;p++)
     {
