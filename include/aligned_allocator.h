@@ -9,6 +9,7 @@
 //#include <stdlib.h> // for posix_memalign or aligned_alloc
 //#include <malloc.h> // for memalign(alignment, size)
 //#include <stdio.h> // for printf
+#include "errors.h" // for eprintf
 
 /**
  * Allocator for aligned data.
@@ -110,8 +111,8 @@ class aligned_allocator
       // be thrown in the case of integer overflow.
       if (n > max_size())
       {
-        throw std::length_error("aligned_allocator<T>::allocate() - Integer overflow.");
-        //printf("aligned_allocator<T>::allocate() - Integer overflow.");
+        //throw std::length_error("aligned_allocator<T>::allocate() - Integer overflow.");
+        eprintf("aligned_allocator<T>::allocate() - Integer overflow.");
         //abort();
       }
  
@@ -131,8 +132,8 @@ class aligned_allocator
       // Allocators should throw std::bad_alloc in the case of memory allocation failure.
       if (pv == NULL)
       {
-        throw std::bad_alloc();
-        //printf("std::bad_alloc()");
+        //throw std::bad_alloc();
+        eprintf("std::bad_alloc()");
         //abort();
       }
  
