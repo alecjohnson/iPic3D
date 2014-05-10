@@ -80,7 +80,6 @@ namespace iPic3D {
     int ns;
     int nprocs;
     int myrank;
-    int mem_avail;
     int nsat;
     int nx0;
     int ny0;

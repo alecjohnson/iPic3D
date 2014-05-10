@@ -8,7 +8,14 @@
 
 // linear array (e.g. of particles)
 // 
-// this is pretty much the same thing as stl::vector
+// This basically extends aligned_vector(type),
+// and the interface should be brought in line with std::vector.
+// Unfortunately, the mechanisms that C++ provides for extending
+// the interface of a class are deficient, particularly in
+// the case of templates, and by avoiding implementation
+// via inheritance from std::vector we also can specify the
+// code at the lowest level, which is important for this
+// performance-critical class.
 //
 template<class type>
 class Larray
@@ -87,6 +94,7 @@ class Larray
 
     // round up size to a multiple of num_elem_in_block
     const int num_elem_in_block = 8;
+    //newmaxsize = roundup_to_multiple(newmaxsize,num_elem_in_block);
     newmaxsize = ((newmaxsize-1)/num_elem_in_block+1)*num_elem_in_block;
     if(newmaxsize != _maxsize)
     {

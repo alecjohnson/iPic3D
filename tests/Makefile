@@ -8,27 +8,35 @@ OBJECTS = \
   MPIdata.o \
   debug.o
 
+# if compiling on Xeon
+#
+#PERFORMANCE_FLAGS = -O3 -fno-exceptions -xHost -vec-report
+#MPI_LIBS =  -I/opt/intel/impi/4.1.2.040/intel64/include
+#MPI_LINK = \
+#  /opt/intel/impi/4.1.2.040/intel64/lib/libmpigc4.so \
+#  /opt/intel/impi/4.1.2.040/intel64/lib/libmpigf.so \
+#  /opt/intel/impi/4.1.2.040/intel64/lib/libmpi.so \
+#  /opt/intel/impi/4.1.2.040/intel64/lib/libmpigi.a
+
+# if compiling on my macbook
+#
+PERFORMANCE_FLAGS = -O3 -fno-exceptions
+MPI_LIBS =  -I/opt/local/include/openmpi
+MPI_LINK = \
+  /opt/local/lib/libmpi_cxx.dylib \
+  /opt/local/lib/libmpi.dylib
+
 # need -lrt to handle clock_gettime()
 ARRAY_FLAGS = #-DCHAINED_ARRAYS #-DFLAT_ARRAYS #-DCHECK_BOUNDS
-PERFORMANCE_FLAGS = -O3 -fno-exceptions -xHost -vec-report
 FLAGS = $(PERFORMANCE_FLAGS) -DNO_MPI $(ARRAY_FLAGS) #-ggdb 
-MPI_LINK = \
-  /opt/intel/impi/4.1.2.040/intel64/lib/libmpigc4.so \
-  /opt/intel/impi/4.1.2.040/intel64/lib/libmpigf.so \
-  /opt/intel/impi/4.1.2.040/intel64/lib/libmpi.so \
-  /opt/intel/impi/4.1.2.040/intel64/lib/libmpigi.a
 
 COMPILER = g++ # icpc # c++
-MPI_LIBS =  -I/opt/intel/impi/4.1.2.040/intel64/include
-#MPI_LIBS =  /opt/local/lib/libmpi_cxx.dylib /opt/local/lib/libmpi.dylib
 
-	#$(COMPILER) $(INCLUDE) testcomm.cpp $(MPI_LIBS) -o testcomm
 testcomm: testcomm.cpp Makefile
-	icpc testcomm.cpp $(PERFORMANCE_FLAGS) $(INCLUDE) $(MPI_LIBS) $(MPI_LINK) -o testcomm
+	$(COMPILER) testcomm.cpp $(INCLUDE) $(PERFORMANCE_FLAGS) $(MPI_LIBS) $(MPI_LINK) -o testcomm
 
-	#mpiexec -n 2 testcomm
 run.testcomm: testcomm
-	mpirun -n 2 ./testcomm
+	mpiexec -n 2 testcomm
 
 testvbasic.mic: testvbasic.cpp
 	icpc -mmic testvbasic.cpp $(INCLUDE) -o testvbasic.mic

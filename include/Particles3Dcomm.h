@@ -110,8 +110,8 @@ public:
   double *getUall()  const { return (u); }
   double *getVall()  const { return (v); }
   double *getWall()  const { return (w); }
-  long long *getParticleIDall()  const { return (ParticleID); }
   double *getQall()  const { return (q); }
+  long long *getParticleIDall()  const { return (long long *) q; }
   // accessors for particle with index indexPart
   double getX(int indexPart)  const { return (x[indexPart]); }
   double getY(int indexPart)  const { return (y[indexPart]); }
@@ -119,9 +119,9 @@ public:
   double getU(int indexPart)  const { return (u[indexPart]); }
   double getV(int indexPart)  const { return (v[indexPart]); }
   double getW(int indexPart)  const { return (w[indexPart]); }
-  long long getParticleID(int indexPart)  const
-    { return (long long)(t[indexPart]); }
   double getQ(int indexPart)  const { return (q[indexPart]); }
+  //long long& fetch_ParticleID(int indexPart)  const
+  //  { return (long long)(q[indexPart]); }
   int getNOP()  const { return (nop); }
   int get_npmax() const {return npmax;}
 
@@ -201,9 +201,9 @@ protected:
   double *w;
   /** Charge array */
   double *q;
-  /** ParticleID or time */
-  double *t; // long long *ParticleID;
-  /** TrackParticleID */
+  /** subcycle time */
+  double *t;
+  // is this class for tracking particles?
   bool TrackParticleID;
   //
   // AoS representation
@@ -271,6 +271,25 @@ protected:
   // Communication variables
   //
   /** buffers for communication */
+  //
+  // send buffers
+  //
+  BlockCommunicator<SpeciesParticle>& sendXleft;
+  BlockCommunicator<SpeciesParticle>& sendXrght;
+  BlockCommunicator<SpeciesParticle>& sendYleft;
+  BlockCommunicator<SpeciesParticle>& sendYrght;
+  BlockCommunicator<SpeciesParticle>& sendZleft;
+  BlockCommunicator<SpeciesParticle>& sendZrght;
+  //
+  // recv buffers
+  //
+  BlockCommunicator<SpeciesParticle>& recvXleft;
+  BlockCommunicator<SpeciesParticle>& recvXrght;
+  BlockCommunicator<SpeciesParticle>& recvYleft;
+  BlockCommunicator<SpeciesParticle>& recvYrght;
+  BlockCommunicator<SpeciesParticle>& recvZleft;
+  BlockCommunicator<SpeciesParticle>& recvZrght;
+  //
   Larray<SpeciesParticle>& bXrght;
   ///** size of sending buffers for exiting particles, DEFINED IN METHOD "COMMUNICATE" */
   //int buffer_size;

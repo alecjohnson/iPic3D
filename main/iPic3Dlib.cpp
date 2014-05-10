@@ -320,17 +320,8 @@ bool c_Solver::ParticlesMover() {
     }
     for (int i = 0; i < ns; i++)  // communicate each species
     {
-      mem_avail = part[i].communicate_particles(vct);
+      part[i].communicate_particles(vct);
     }
-  }
-
-  if (mem_avail < 0) {          // not enough memory space allocated for particles: stop the simulation
-    if (myrank == 0) {
-      cout << "*************************************************************" << endl;
-      cout << "Simulation stopped. Not enough memory allocated for particles" << endl;
-      cout << "*************************************************************" << endl;
-    }
-    return (true);              // exit from the time loop
   }
 
   /* -------------------------------------- */
@@ -339,16 +330,7 @@ bool c_Solver::ParticlesMover() {
 
   for (int i=0; i < ns; i++) {
     if (col->getRHOinject(i)>0.0)
-      mem_avail = part[i].particle_repopulator(grid,vct,EMf);
-  }
-
-  if (mem_avail < 0) {          // not enough memory space allocated for particles: stop the simulation
-    if (myrank == 0) {
-      cout << "*************************************************************" << endl;
-      cout << "Simulation stopped. Not enough memory allocated for particles" << endl;
-      cout << "*************************************************************" << endl;
-    }
-    return (true);              // exit from the time loop
+      part[i].particle_repopulator(grid,vct,EMf);
   }
 
   /* --------------------------------------- */
@@ -455,8 +437,7 @@ void c_Solver::WriteOutput(int cycle) {
 }
 
 void c_Solver::Finalize() {
-  if (mem_avail == 0 // write the restart only if the simulation finished successfully
-   && col->getCallFinalize())
+  if (col->getCallFinalize())
   {
     writeRESTART(RestartDirName, myrank, (col->getNcycles() + first_cycle) - 1, ns, mpi, vct, col, grid, EMf, part, 0);
   }

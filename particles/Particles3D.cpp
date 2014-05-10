@@ -90,8 +90,6 @@ void Particles3D::uniform_background(Grid * grid, Field * EMf) {
               v[counter] = 0.0;
               w[counter] = 0.0;
               q[counter] = (qom / fabs(qom)) * (EMf->getRHOcs(i, j, k, ns) / npcel) * (1.0 / grid->getInvVOL());
-              if (TrackParticleID)
-                ParticleID[counter] = counter * (long long) pow(10.0, BirthRank[1]) + BirthRank[0];
               counter++;
             }
 
@@ -187,8 +185,6 @@ void Particles3D::MaxwellianFromFluidCell(Grid* grid, Collective *col, int is, i
         harvest =   rand()/(double)RAND_MAX;
         theta = 2.0*M_PI*harvest;
         w[ip] = col->getFluidUz(i,j,k,is) + col->getFluidUthz(i,j,k,is)*prob*cos(theta);
-        if (TrackParticleID)
-          ParticleID[ip]= ip*(long long)pow(10.0,BirthRank[1])+BirthRank[0];
         ip++ ;
       }
 }
@@ -228,8 +224,6 @@ void Particles3D::maxwellian(Grid * grid, Field * EMf, VirtualTopology3D * vct) 
               harvest = rand() / (double) RAND_MAX;
               theta = 2.0 * M_PI * harvest;
               w[counter] = w0 + wth * prob * cos(theta);
-              if (TrackParticleID)
-                ParticleID[counter] = counter * (long long) pow(10.0, BirthRank[1]) + BirthRank[0];
 
 
               counter++;
@@ -289,8 +283,6 @@ void Particles3D::force_free(Grid * grid, Field * EMf, VirtualTopology3D * vct) 
                 theta = 2.0 * M_PI * harvest;
                 w[counter] = flvz + wth * prob * cos(theta);
               }
-              if (TrackParticleID)
-                ParticleID[counter] = counter * (long long) pow(10.0, BirthRank[1]) + BirthRank[0];
 
               counter++;
             }
@@ -1239,9 +1231,6 @@ int Particles3D::particle_repopulator(Grid* grid,VirtualTopology3D* vct, Field* 
                   w[particles_index],
                   uth, vth, wth,
                   u0, v0, w0);
-                if (TrackParticleID)
-                  ParticleID[particles_index]= particles_index*(long long)pow(10.0,BirthRank[1])+BirthRank[0];
-
 
                 particles_index++ ;
               }
@@ -1286,8 +1275,6 @@ int Particles3D::particle_repopulator(Grid* grid,VirtualTopology3D* vct, Field* 
                   w[particles_index],
                   uth, vth, wth,
                   u0, v0, w0);
-                if (TrackParticleID)
-                  ParticleID[particles_index]= particles_index*(long long)pow(10.0,BirthRank[1])+BirthRank[0];
 
                 particles_index++ ;
               }
@@ -1332,8 +1319,6 @@ int Particles3D::particle_repopulator(Grid* grid,VirtualTopology3D* vct, Field* 
                   w[particles_index],
                   uth, vth, wth,
                   u0, v0, w0);
-                if (TrackParticleID)
-                  ParticleID[particles_index]= particles_index*(long long)pow(10.0,BirthRank[1])+BirthRank[0];
 
                 particles_index++ ;
               }
@@ -1377,8 +1362,6 @@ int Particles3D::particle_repopulator(Grid* grid,VirtualTopology3D* vct, Field* 
                   w[particles_index],
                   uth, vth, wth,
                   u0, v0, w0);
-                if (TrackParticleID)
-                  ParticleID[particles_index]= particles_index*(long long)pow(10.0,BirthRank[1])+BirthRank[0];
 
                 particles_index++ ;
               }
@@ -1423,8 +1406,6 @@ int Particles3D::particle_repopulator(Grid* grid,VirtualTopology3D* vct, Field* 
                   w[particles_index],
                   uth, vth, wth,
                   u0, v0, w0);
-                if (TrackParticleID)
-                  ParticleID[particles_index]= particles_index*(long long)pow(10.0,BirthRank[1])+BirthRank[0];
 
                 particles_index++ ;
               }
@@ -1467,8 +1448,6 @@ int Particles3D::particle_repopulator(Grid* grid,VirtualTopology3D* vct, Field* 
                   w[particles_index],
                   uth, vth, wth,
                   u0, v0, w0);
-                if (TrackParticleID)
-                  ParticleID[particles_index]= particles_index*(long long)pow(10.0,BirthRank[1])+BirthRank[0];
 
                 particles_index++ ;
               }
@@ -1479,22 +1458,26 @@ int Particles3D::particle_repopulator(Grid* grid,VirtualTopology3D* vct, Field* 
     cout << "*** number of particles " << nop << " ***" << endl;
   }
 
-  //********************//
-  // COMMUNICATION
-  // *******************//
-  avail = communicate(vct);
-  if (avail < 0) return(-1);
-
-  former_MPI_Barrier(MPI_COMM_WORLD);
-
-  // communicate again if particles are not in the correct domain
-  while(isMessagingDone(vct) >0){
-    // COMMUNICATION
-    avail = communicate(vct);
-    if (avail < 0)
-      return(-1);
-    former_MPI_Barrier(MPI_COMM_WORLD);
-  }
+  // Why was this here?  Particles have already been communicated,
+  // and the particles that were just generated should be in this
+  // subdomain.
+  //
+  //  //********************//
+  //  // COMMUNICATION
+  //  // *******************//
+  //  avail = communicate(vct);
+  //  if (avail < 0) return(-1);
+  //
+  //  former_MPI_Barrier(MPI_COMM_WORLD);
+  //
+  //  // communicate again if particles are not in the correct domain
+  //  while(isMessagingDone(vct) >0){
+  //    // COMMUNICATION
+  //    avail = communicate(vct);
+  //    if (avail < 0)
+  //      return(-1);
+  //    former_MPI_Barrier(MPI_COMM_WORLD);
+  //  }
 
   return(0); // exit succcesfully (hopefully)
 }
@@ -1581,8 +1564,6 @@ void Particles3D::linear_perturbation(double deltaBoB, double kx, double ky, dou
               rejected = false;
 
           }
-          if (TrackParticleID)
-            ParticleID[counter] = counter * (long long) pow(10.0, BirthRank[1]) + BirthRank[0];
           counter++;
         }
   nop = counter + 1;

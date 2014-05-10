@@ -214,28 +214,11 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
     assert_eq(sizeof(SpeciesParticle),64);
   }
 
-  ParticleID = new Larray<long long>;
-  // ID
-  if (TrackParticleID) {
-    ParticleID.realloc(npmax);
-    BirthRank[0] = vct->getCartesian_rank();
-    if (vct->getNprocs() > 1)
-      BirthRank[1] = (int) ceil(log10((double) (vct->getNprocs())));  // Number of digits needed for # of process in ID
-    else
-      BirthRank[1] = 1;
-    if (BirthRank[1] + (int) ceil(log10((double) (npmax))) > 10 && BirthRank[0] == 0) {
-      cerr << "Error: can't Track particles in Particles3Dcomm::allocate" << endl;
-      cerr << "long long 'ParticleID' cannot store all the particles" << endl;
-      return;
-    }
-  }
+  //ParticleID = new Larray<long long>;
   // BUFFERS
   // the buffer size should be decided depending on number of particles
   // the buffer size should be decided depending on number of particles
-  if (TrackParticleID)
-    nVar = 8;
-  else
-    nVar = 7;
+  nVar = 8;
   buffer_size = (int) (.05 * nop * nVar + 1); // max: 5% of the particles in the processors is going out
   buffer_size_small = (int) (.01 * nop * nVar + 1); // max 1% not resizable 
 
@@ -326,26 +309,26 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
     status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, q);
     status = H5Dclose(dataset_id);
     // ID 
-    if (TrackParticleID) {
-      // herr_t (*old_func)(void*); // HDF 1.6
-      H5E_auto2_t old_func;      // HDF 1.8.8
-      void *old_client_data;
-      H5Eget_auto2(H5E_DEFAULT, &old_func, &old_client_data);  // HDF 1.8.8
-      /* Turn off error handling */
-      // H5Eset_auto(NULL, NULL); // HDF 1.6
-      H5Eset_auto2(H5E_DEFAULT, 0, 0); // HDF 1.8
-      name_dataset = "/particles/species_" + species_name.str() + "/ID/cycle_0";
-      dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-
-      // H5Eset_auto(old_func, old_client_data); // HDF 1.6
-      H5Eset_auto2(H5E_DEFAULT, old_func, old_client_data);
-      if (dataset_id > 0)
-        status = H5Dread(dataset_id, H5T_NATIVE_ULONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, ParticleID);
-      else {
-        for (int counter = 0; counter < nop; counter++)
-          ParticleID[counter] = counter * (long long) pow(10.0, BirthRank[1]) + BirthRank[0];
-      }
-    }
+    //if (TrackParticleID) {
+    //  // herr_t (*old_func)(void*); // HDF 1.6
+    //  H5E_auto2_t old_func;      // HDF 1.8.8
+    //  void *old_client_data;
+    //  H5Eget_auto2(H5E_DEFAULT, &old_func, &old_client_data);  // HDF 1.8.8
+    //  /* Turn off error handling */
+    //  // H5Eset_auto(NULL, NULL); // HDF 1.6
+    //  H5Eset_auto2(H5E_DEFAULT, 0, 0); // HDF 1.8
+    //  name_dataset = "/particles/species_" + species_name.str() + "/ID/cycle_0";
+    //  dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
+    //
+    //  // H5Eset_auto(old_func, old_client_data); // HDF 1.6
+    //  H5Eset_auto2(H5E_DEFAULT, old_func, old_client_data);
+    //  if (dataset_id > 0)
+    //    status = H5Dread(dataset_id, H5T_NATIVE_ULONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, ParticleID);
+    //  //else {
+    //  //  for (int counter = 0; counter < nop; counter++)
+    //  //    fetch_ParticleID(counter) = particleIDgenerator.get_ID();
+    //  //}
+    //}
     // close the hdf file
     status = H5Fclose(file_id);
   }
@@ -449,20 +432,24 @@ void Particles3Dcomm::interpP2G(Field * EMf, Grid * grid, VirtualTopology3D * vc
   EMf->communicateGhostP2G(ns, 0, 0, 0, 0, vct);
 }
 
-/** communicate buffers */
+// exchange particles with neighboring processors
+//
+// sent particles are deleted from _pcls.
+// holes are filled with particles from end.
+// then received particles are appended to end.
+// returns number of unsent particles, i.e.,
+// returns index of first received particle
+//
 int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
 {
   //int new_buffer_size;
   //int npExitingMax;
 
-  // post receive buffers based on previously sufficient size
-  MPI_Irecv(recvBufXlower...);
-
-  // clear sending buffers
+  // post receive buffers
   //
-  bXleft.clear(); bXrght.clear();
-  bYleft.clear(); bYrght.clear();
-  bZleft.clear(); bZrght.clear();
+  recvXleft.recv_blocks(); recvXrght.recv_blocks();
+  recvYleft.recv_blocks(); recvYrght.recv_blocks();
+  recvZleft.recv_blocks(); recvZrght.recv_blocks();
 
   const bool noXlower = ptVCT->noXlowerNeighbor();
   const bool noXupper = ptVCT->noXupperNeighbor();
@@ -518,7 +505,7 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
         // handle periodic boundary conditions only when wrapping particles
         if(ptVCT->isPeriodicXlower() && pcl.get_x() < 0) pcl.fetch_x() += Lx;
         // put it in the communication buffer
-        bXleft.push_back(pcl);
+        sendXleft.send(pcl);
       }
       _pcls.delete_element(np_current);
       npExitXleft++;
@@ -530,7 +517,7 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
         // handle periodic boundary conditions only when wrapping particles
         if(ptVCT->isPeriodicXupper() && pcl.get_x() > Lx) pcl.fetch_x() -= Lx;
         // put it in the communication buffer
-        bXleft.push_back(pcl);
+        sendXleft.send(pcl);
       }
       _pcls.delete_element(np_current);
       npExitXleft++;
@@ -542,7 +529,7 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
         // handle periodic boundary conditions only when wrapping particles
         if(ptVCT->isPeriodicYlower() && pcl.get_y() < 0) pcl.fetch_y() += Ly;
         // put it in the communication buffer
-        bYleft.push_back(pcl);
+        sendYleft.send(pcl);
       }
       _pcls.delete_element(np_current);
       npExitYleft++;
@@ -553,6 +540,7 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
       {
         // handle periodic boundary conditions only when wrapping particles
         if(ptVCT->isPeriodicYupper() && pcl.get_y() > Ly) pcl.fetch_y() -= Ly;
+        sendYrght.send(pcl);
       }
       _pcls.delete_element(np_current);
       npExitYleft++;
@@ -564,7 +552,7 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
         // handle periodic boundary conditions only when wrapping particles
         if(ptVCT->isPeriodicZlower() && pcl.get_z() < 0) pcl.fetch_z() += Lz;
         // put it in the communication buffer
-        bZLeft.push_back(pcl);
+        sendZLeft.send(pcl);
       } 
       _pcls.delete_element(np_current);
       npExitZleft++;
@@ -576,7 +564,7 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
         // handle periodic boundary conditions only when wrapping particles
         if(ptVCT->isPeriodicZupper() && pcl.get_z() > Lz) pcl.fetch_z() -= Lz;
         // put it in the communication buffer
-        bZRght.push_back(pcl);
+        sendZRght.send(pcl);
       } 
       _pcls.delete_element(np_current);
       npExitZright++;
@@ -586,18 +574,83 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
       np_current++;
     }
   }
+  const int retval = _pcls.size();
+  assert_eq(retval,np_current);
+
+  // flush sending particles
+  //
+  sendXleft.send_complete();
+  sendXrght.send_complete();
+  sendYleft.send_complete();
+  sendYrght.send_complete();
+  sendZleft.send_complete();
+  sendZrght.send_complete();
+
+  // Clear the send buffers so that we can reuse them to send the
+  // received particles that need to be sent again.
+  // These calls wait for sending to complete.
+  //
+  // if we change BlockCommunicator::send_block() to wrap rather
+  // than allocate more blocks, then there will be no need
+  // to make these calls.
+  //
+  sendXleft.clear_start();
+  sendXrght.clear_start();
+  sendYleft.clear_start();
+  sendYrght.clear_start();
+  sendZleft.clear_start();
+  sendZrght.clear_start();
 
   //nop = nplast + 1;
   nop = _pcls.size();
 
-  // communication algorithm:
-  //
-  // communicate buffer sizes that should be allocated
-  // receive particles
-  // send particles
-  // process incoming particles
-  EDITPOINT
+  // handle incoming particles
+  const int num_recv_buffers = 6;
+  MPI_Request recv_requests[num_recv_buffers] = 
+  {
+    recvXleft.get_curr_request(), recvXrght.get_curr_request(),
+    recvYleft.get_curr_request(), recvYrght.get_curr_request(),
+    recvZleft.get_curr_request(), recvZrght.get_curr_request()
+  };
+  BlockCommunicator<SpeciesParticle>* recvBuffArr[num_recv_buffers] =
+  {
+    &recvXleft, &recvXrght,
+    &recvYleft, &recvYrght,
+    &recvZleft, &recvZrght
+  };
+  // while there are still incoming particles
+  while(!(
+    recvXleft.at_end() && recvXrght.at_end() &&
+    recvYleft.at_end() && recvYrght.at_end() &&
+    recvZleft.at_end() && recvZrght.at_end()))
+  {
+    int recv_index;
+    MPI_Status recv_status;
+    MPI_Waitany(incount, recv_requests, &recv_index, &recv_status);
+    if(recv_index==MPI_UNDEFINED)
+      eprintf("recv_requests contains no active handles");
+    assert_ge(recv_index,0);
+    assert_lt(recv_index,num_recv_buffers);
+    // code specific to the receive buffer could be handled with a
+    // switch(recv_index) code block.
+    BlockCommunicator<SpeciesParticle>* recvBuff = recvBuffArr[recv_index];
+    Block<Particle>& recv_block = recvBuff->handle_received_block(recv_status);
 
+    // process each particle in the received block.
+    //
+    for(int i=0;i<recv_block.size();i++)
+    {
+      SpeciesParticle& pcl = recv_block[i];
+      // if the particle belongs here, append it appropriately
+      _pcls.push_back(pcl);
+      ...
+      // else if the particle is exiting, put it in the appropriate send bin
+      ...
+    }
+    recv_requests[recv_index] = recvBuffArr[recv_index].get_curr_request();
+  }
+
+  #if 0
   npExitingMax = 0;
   // calculate the maximum number of particles exiting from this domain
   // use this value to check if communication is needed
@@ -631,13 +684,8 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
     // if one of these numbers is negative than there is not enough space for particles
     avail = avail1 + avail2 + avail3 + avail4 + avail5 + avail6;
     availALL = reduceNumberParticles(avail);
-    if (availALL < 0)
-      return (-1);              // too many particles coming, save data nad stop simulation
   }
-
-  return (0);                   // everything was fine
-
-
+  #endif
 }
 
 /** This unbuffer the last communication */
@@ -652,8 +700,9 @@ int Particles3Dcomm::unbuffer(double *b_) {
     v[nop] = b_[nVar * np_current + 4];
     w[nop] = b_[nVar * np_current + 5];
     q[nop] = b_[nVar * np_current + 6];
-    if (TrackParticleID)
-      ParticleID[nop] = (long long) b_[nVar * np_current + 7];
+    t[nop] = b_[nVar * np_current + 7];
+    //if (TrackParticleID)
+    //  ParticleID[nop] = (long long) b_[nVar * np_current + 7];
     np_current++;
     // these particles need further communication
     if (x[nop] < xstart || x[nop] > xend || y[nop] < ystart || y[nop] > yend || z[nop] < zstart || z[nop] > zend)
@@ -900,14 +949,14 @@ void Particles3Dcomm::sort_particles_serial_SoA(
   double * wtmp = fetch_wtmp();
   double * qtmp = fetch_qtmp();
 
-  long long* ParticleIDtmp = 0;
-  if (TrackParticleID)
-  {
-    assert(ParticleID);
-    ParticleIDtmp = fetch_ParticleIDtmp();
-    assert(fetch_ParticleIDtmp());
-    assert(ParticleIDtmp);
-  }
+  //long long* ParticleIDtmp = 0;
+  //if (TrackParticleID)
+  //{
+  //  assert(ParticleID);
+  //  ParticleIDtmp = fetch_ParticleIDtmp();
+  //  assert(fetch_ParticleIDtmp());
+  //  assert(ParticleIDtmp);
+  //}
 
   // sort the particles
   {
@@ -974,10 +1023,10 @@ void Particles3Dcomm::sort_particles_serial_SoA(
       vtmp[outpidx] = v[pidx];
       wtmp[outpidx] = w[pidx];
       qtmp[outpidx] = q[pidx];
-      if (TrackParticleID)
-      {
-        ParticleIDtmp[outpidx] = ParticleID[pidx];
-      }
+      //if (TrackParticleID)
+      //{
+      //  ParticleIDtmp[outpidx] = ParticleID[pidx];
+      //}
     }
     // swap the tmp particle memory with the official particle memory
     {
@@ -988,7 +1037,7 @@ void Particles3Dcomm::sort_particles_serial_SoA(
       swap(_vtmp,v);
       swap(_wtmp,w);
       swap(_qtmp,q);
-      swap(_ParticleIDtmp,ParticleID);
+      //swap(_ParticleIDtmp,ParticleID);
     }
 
     // check that the number of bins was correct
@@ -1060,8 +1109,8 @@ void Particles3Dcomm::sort_particles_serial_SoA_by_xavg(
   double * yavgtmp = AlignedAlloc(double,npmax);
   double * zavgtmp = AlignedAlloc(double,npmax);
 
-  long long* ParticleIDtmp = 0;
-  if (TrackParticleID) ParticleIDtmp = fetch_ParticleIDtmp();
+  //long long* ParticleIDtmp = 0;
+  //if (TrackParticleID) ParticleIDtmp = fetch_ParticleIDtmp();
 
   // sort the particles
   {
@@ -1131,10 +1180,10 @@ void Particles3Dcomm::sort_particles_serial_SoA_by_xavg(
       xavgtmp[outpidx] = xavg[pidx];
       yavgtmp[outpidx] = yavg[pidx];
       zavgtmp[outpidx] = zavg[pidx];
-      if (TrackParticleID)
-      {
-        ParticleIDtmp[outpidx] = ParticleID[pidx];
-      }
+      //if (TrackParticleID)
+      //{
+      //  ParticleIDtmp[outpidx] = ParticleID[pidx];
+      //}
     }
     // swap the tmp particle memory with the official particle memory
     {
@@ -1145,7 +1194,7 @@ void Particles3Dcomm::sort_particles_serial_SoA_by_xavg(
       swap(_vtmp,v);
       swap(_wtmp,w);
       swap(_qtmp,q);
-      swap(_ParticleIDtmp,ParticleID);
+      //swap(_ParticleIDtmp,ParticleID);
       swap(_xavgtmp,_xavg);
       swap(_yavgtmp,_yavg);
       swap(_zavgtmp,_zavg);
