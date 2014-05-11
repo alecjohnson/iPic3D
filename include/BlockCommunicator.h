@@ -57,7 +57,7 @@ class Connection
 
 bool signal_hack()
 {
-  return false;
+  return true;
 }
 
 // block of elements
@@ -92,7 +92,7 @@ struct Block
   MPI_Request& fetch_request(){return request;}
   aligned_vector(type)& fetch_block(){return block;}
   const aligned_vector(type)& get_block()const{return block;}
-  int get_block_id(){ return id; }
+  int get_id(){ return id; }
   void set_finished_flag() { signal |= 2; }
   bool finished_flag_is_set() { return signal & 2; }
   void set_insert_flag() { signal |= 1; }
@@ -100,6 +100,7 @@ struct Block
   int size(){return block.size();}
 
  public: // operations
+  // returns true if communication is complete; else returns false
   bool test_comm(MPI_Status& status)
   {
     MPI_Test(&request, &flag, &status);
@@ -123,7 +124,7 @@ struct Block
   {
     return request!=MPI_REQUEST_NULL;
   }
-  bool is_finished()
+  bool is_inactive()
   {
     return request==MPI_REQUEST_NULL;
   }
@@ -139,6 +140,7 @@ struct Block
   void send(const Connection& dest)
   {
     assert_le(block.size(), capacity);
+    bool last_block = (block.size() < capacity);
     // hack: put signal in an extra "particle"
     if(signal_hack())
     {
@@ -148,9 +150,13 @@ struct Block
       push_back(signal_element);
     }
 
-    dprintf("sending block number %d", id);
+    if(last_block)
+      dprintf("sending last block, number %d", id);
+    else
+      dprintf("sending block number %d", id);
     MPI_Isend(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
       dest.rank(), dest.tag(), dest.comm(), &request);
+    //dprintf("finished sending block number %d", id);
   }
   void waitfor_send()
   {
@@ -170,10 +176,11 @@ struct Block
   // post a receive
   void recv(const Connection& source)
   {
+    // verify that there is no receive already posted
+    assert(request==MPI_REQUEST_NULL);
     // make sure that space exists to receive
     int newsize = signal_hack() ? capacity+1 : capacity;
     block.resize(newsize);
-    assert(request==MPI_REQUEST_NULL);
     MPI_Irecv(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
       source.rank(), source.tag(), source.comm(), &request);
   }
@@ -295,14 +302,26 @@ class BlockCommunicator
     for(i=blockList.begin(); i != blockList.end(); ++i)
       delete &fetch_block(i);
   }
- // access
- private:
+ // information access
+ //
+ private: // access
+  // mimic behavior of a ring
+  void increment_block(std::list<void*>::iterator& block_iter)
+  {
+    block_iter++;
+    if(block_iter == blockList.end())
+      block_iter = blockList.begin();
+  }
   Block<type>& fetch_block(std::list<void*>::iterator block)
   {
     return *((Block<type>*)*block);
   }
- public: // information
-  // access current block
+  Block<type>& fetch_next_block(std::list<void*>::iterator block_iter)
+  {
+    increment_block(block_iter);
+    return fetch_block(block_iter);
+  }
+ public: // access
   Block<type>& fetch_curr_block()
   {
     assert(curr_block != blockList.end());
@@ -316,22 +335,21 @@ class BlockCommunicator
  // operations
  //
  private:
-  // mimic behavior of a ring
-  void increment_block(list<void*>iterator& block_iter)
-  {
-    block_iter++;
-    if(block_iter == blockList.end())
-    block_iter = blockList.begin();
-  }
   void increment_curr_block()
   {
-    increment_block(curr_block)
+    increment_block(curr_block);
   }
   //void rewind()
   //{
   //  curr_block = blockList.begin();
   //}
  public: // receiving operations
+
+  void revc_start()
+  {
+    // make sure that all blocks
+    // have a recv posted on it.
+  }
 
   // insert blocks prior to the current block
   // and call recv on them.
@@ -375,7 +393,7 @@ class BlockCommunicator
   //
   Block<type>& fetch_received_block(MPI_Status& status)
   {
-    bool shrunk = fetch_curr_block().shrink_received_block(status);
+    fetch_curr_block().shrink_received_block(status);
     fetch_curr_block().set_request(MPI_REQUEST_NULL);
     if(signal_hack())
     {
@@ -400,6 +418,7 @@ class BlockCommunicator
     // post receive again and proceed to next block
     fetch_curr_block().recv(connection);
     increment_curr_block();
+    assert(fetch_curr_block().is_active());
   }
 
   // cancel and free any open receive requests
@@ -419,15 +438,28 @@ class BlockCommunicator
 
   MPI_Request get_curr_request()
   {
-    return fetch_curr_block().fetch_request();
+    if(fetch_curr_block().is_active())
+      return fetch_curr_block().fetch_request();
+    return MPI_REQUEST_NULL;
   }
  public:
-  bool recv_blocks()
+  void recv_is_started()
+  {
+    std::list<void*>::iterator b;
+    for(b=blockList.begin(); b != blockList.end(); ++b)
+    {
+      assert(fetch_block(b).is_active());
+    }
+  }
+  void recv_start()
   {
     // post receives on all blocks
     std::list<void*>::iterator b;
     for(b=blockList.begin(); b != blockList.end(); ++b)
+    {
+      assert(fetch_block(b).is_inactive());
       fetch_block(b).recv(connection);
+    }
     // reset curr_block to initial block
     curr_block = blockList.begin();
   }
@@ -442,50 +474,12 @@ class BlockCommunicator
   // assumes that there is a block to send
   void send_block()
   {
-    dprint(fetch_curr_block().size());
-    std::list<void*>::iterator block_to_send = curr_block;
-
-    std::list<void*>::iterator next_block = curr_block;
-    increment_block(next_block);
-
-    // proceed to the next block
-    if(!signal_hack())
-    {
-      // if next block is still sending, wait for it to finish
-      // sending so that we can reuse it.
-      if(fetch_curr_block().is_active())
-      {
-        dprintf("waiting for send of block %d to complete.", fetch_curr_block().get_id());
-        fetch_curr_block().waitfor_send();
-        dprintf("done waiting for send to complete.");
-        assert(!fetch_curr_block().is_active());
-        assert(fetch_curr_block().test_comm());
-      }
-    }
-
-    // if next block is still sending, insert another block for
-    // sending, use it instead, and tell the receiver to insert
-    // another block for receiving.
-    //
-    if(signal_hack() && (!fetch_curr_block().test_comm()))
-    {
-      Block<type>* newBlock = new Block<type>(blocksize, nextid);
-      blockList.insert(curr_block,newBlock);
-      curr_block = block_to_send;
-      increment_curr_block();
-      // the new block is not "still sending"
-      assert(fetch_curr_block().test_comm());
-
-      // hack: set flag in block to tell receiver
-      // to insert another block for receiving
-      fetch_block(block_to_send).set_insert_flag();
-    }
-
     // send the block
-    dprint(fetch_block(block_to_send).size());
-    fetch_block(block_to_send).send(connection);
-    // clear the new block
-    fetch_curr_block().clear();
+    fetch_curr_block().send(connection);
+    // proceed to next block
+    increment_curr_block();
+    // start communication on next block
+    send_start();
   }
  public: // interface
   // send a single particle.
@@ -496,8 +490,6 @@ class BlockCommunicator
   {
     // append the particle to the block.
     fetch_curr_block().push_back(in);
-    dprint(fetch_curr_block().size());
-    dprint(fetch_curr_block().isfull());
 
     // if the block is full, send it
     if(fetch_curr_block().isfull())
@@ -507,6 +499,46 @@ class BlockCommunicator
     }
     return false;
   }
+  // make sure that the current block does not have
+  // a still-active send request on it
+  void send_start()
+  {
+    // if current block is still communicating,
+    // either wait for it or insert another block 
+    // and use it instead.
+    //
+    if(!fetch_curr_block().test_comm())
+    {
+      if(signal_hack())
+      {
+        // if next block is still sending, insert another block to
+        // use instead as next_block
+        //
+        Block<type>* newBlock = new Block<type>(blocksize, nextid);
+        blockList.insert(curr_block,newBlock);
+        curr_block--;
+        assert(*curr_block == newBlock);
+
+        // hack: set flag in currblock to tell receiver
+        // to insert another block for receiving
+        fetch_curr_block().set_insert_flag();
+      }
+      else
+      {
+        // wait for communication to finish sending
+        // so that we can reuse this block
+        //
+        dprintf("waiting for send of block %d to complete.",
+          fetch_curr_block().get_id());
+        fetch_curr_block().waitfor_send();
+        dprintf("done waiting for send to complete.");
+      }
+    }
+    fetch_curr_block().clear();
+    assert(!fetch_curr_block().is_active());
+    assert(fetch_curr_block().test_comm());
+    commState=INITIAL;
+  }
   // send the remaining particles, sending an empty message if
   // necessary to signal that no more particles will be sent.
   //
@@ -515,7 +547,9 @@ class BlockCommunicator
   {
     assert(!fetch_curr_block().isfull());
     fetch_curr_block().set_finished_flag();
+    dprintf("sending last block");
     send_block();
+    dprintf("finished sending last block");
     commState=FINISHED;
   }
   //void clear_send()
@@ -534,7 +568,6 @@ class BlockCommunicator
   //  // reset curr_block
   //  rewind();
   //}
- public:
 };
 
 //#include <iosfwd> // for ostream
