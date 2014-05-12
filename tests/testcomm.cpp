@@ -90,9 +90,11 @@ void test_particle_communication(
     BlockCommunicator<Particle>& lowXsend,
     BlockCommunicator<Particle>& hghXsend)
 {
-    // check that all receive blocks have a receive posted on them
-    lowXrecv.recv_is_started();
-    hghXrecv.recv_is_started();
+    // activate receiving
+    //
+    lowXrecv.recv_start();
+    hghXrecv.recv_start();
+
     // make sure that the current block in each sender is ready
     lowXsend.send_start();
     hghXsend.send_start();
@@ -111,7 +113,7 @@ void test_particle_communication(
       lowPcl.u[0] = MPIdata::get_rank();
       bool lowXblockSent = lowXsend.send(lowPcl);
       bool hghXblockSent = hghXsend.send(hghPcl);
-      if(lowXblockSent || hghXblockSent)
+      if(0) // if(lowXblockSent || hghXblockSent)
       {
         // check if particles have arrived,
         // and if so deal with them
@@ -142,6 +144,8 @@ void test_particle_communication(
     lowXsend.send_complete();
     hghXsend.send_complete();
 
+    dprintf("--- finished sending ---");
+
     const int incount=2;
     MPI_Request recv_requests[incount] = 
     {
@@ -149,7 +153,7 @@ void test_particle_communication(
       hghXrecv.get_curr_request()
     };
     // wait on and deal with remaining incoming blocks
-    while(!lowXrecv.comm_finished() || !hghXrecv.comm_finished())
+    while(!(lowXrecv.comm_finished() && hghXrecv.comm_finished()))
     {
       // wait for some blocks to be received
       //
@@ -175,10 +179,8 @@ void test_particle_communication(
         case 0: // lowXrecv
          {
           Block<Particle>& recv_block = lowXrecv.fetch_received_block(recv_status);
-          dout << ": received lowXrecv."
-            << recv_block.get_id()
-            //<< recv_block
-            << endl;
+          dprintf("received lowXrecv.%d",recv_block.get_id());
+          // dout << ": received lowXrecv." << recv_block.get_id() << recv_block << endl;
           lowXrecv.release_received_block();
           recv_requests[0] = lowXrecv.get_curr_request();
          }
@@ -186,10 +188,8 @@ void test_particle_communication(
         case 1: // hghXrecv
          {
           Block<Particle>& recv_block = hghXrecv.fetch_received_block(recv_status);
-          debugout << ": received hghXrecv."
-            << recv_block.get_id()
-            //<< recv_block
-            << endl;
+          dprintf("received hghXrecv.%d",recv_block.get_id());
+          // dout << ": received hghXrecv." << recv_block.get_id() << recv_block << endl;
           hghXrecv.release_received_block();
           recv_requests[1] = hghXrecv.get_curr_request();
          }
@@ -466,8 +466,8 @@ int main(int argc, char **argv)
     BlockCommunicator<Particle> lowXsend(blocksize, 1, lowXsendConn);
     BlockCommunicator<Particle> hghXsend(blocksize, 1, hghXsendConn);
 
-    lowXrecv.recv_start();
-    hghXrecv.recv_start();
+    lowXrecv.post_recvs();
+    hghXrecv.post_recvs();
 
     test_particle_communication(lowXrecv,hghXrecv,lowXsend,hghXsend);
 

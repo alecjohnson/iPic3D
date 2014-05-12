@@ -445,11 +445,16 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
   //int new_buffer_size;
   //int npExitingMax;
 
-  // post receive buffers
+  // confirm that receives have been posted
   //
-  recvXleft.recv_blocks(); recvXrght.recv_blocks();
-  recvYleft.recv_blocks(); recvYrght.recv_blocks();
-  recvZleft.recv_blocks(); recvZrght.recv_blocks();
+  recvXleft.send_start(); recvXrght.send_start();
+  recvYleft.send_start(); recvYrght.send_start();
+  recvZleft.send_start(); recvZrght.send_start();
+
+  // make sure that current block in each sender is ready for sending
+  sendXleft.send_start(); sendXrght.send_start();
+  sendYleft.send_start(); sendYrght.send_start();
+  sendZleft.send_start(); sendZrght.send_start();
 
   const bool noXlower = ptVCT->noXlowerNeighbor();
   const bool noXupper = ptVCT->noXupperNeighbor();
@@ -493,10 +498,11 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
         BCpclRght(z,u,v,w,Lz,uth,vth,wth,bcPfaceZright);
     }
 
-    // should change to put particles in communication buffers
-    // immediately after pushing them
-
     // put particle in appropriate communication buffer if exiting
+    //
+    // (should change to do this immediately after pushing it so that
+    // only once pass through particle is necessary and so that
+    // communication can overlap computation)
     //
     if (pcl.get_x() < xstart)
     {
@@ -586,21 +592,6 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
   sendZleft.send_complete();
   sendZrght.send_complete();
 
-  // Clear the send buffers so that we can reuse them to send the
-  // received particles that need to be sent again.
-  // These calls wait for sending to complete.
-  //
-  // if we change BlockCommunicator::send_block() to wrap rather
-  // than allocate more blocks, then there will be no need
-  // to make these calls.
-  //
-  sendXleft.clear_start();
-  sendXrght.clear_start();
-  sendYleft.clear_start();
-  sendYrght.clear_start();
-  sendZleft.clear_start();
-  sendZrght.clear_start();
-
   //nop = nplast + 1;
   nop = _pcls.size();
 
@@ -620,9 +611,9 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
   };
   // while there are still incoming particles
   while(!(
-    recvXleft.at_end() && recvXrght.at_end() &&
-    recvYleft.at_end() && recvYrght.at_end() &&
-    recvZleft.at_end() && recvZrght.at_end()))
+    recvXleft.comm_finished() && recvXrght.comm_finished() &&
+    recvYleft.comm_finished() && recvYrght.comm_finished() &&
+    recvZleft.comm_finished() && recvZrght.comm_finished()))
   {
     int recv_index;
     MPI_Status recv_status;

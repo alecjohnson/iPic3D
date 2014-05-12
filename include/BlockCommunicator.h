@@ -180,6 +180,7 @@ struct Block
   {
     block.clear();
     request = MPI_REQUEST_NULL;
+    signal = 0;
   }
  public: // receiving
   // post a receive
@@ -456,17 +457,8 @@ class BlockCommunicator
     return fetch_curr_block().fetch_request();
   }
  public:
-  void recv_is_started()
+  void post_recvs()
   {
-    std::list<void*>::iterator b;
-    for(b=blockList.begin(); b != blockList.end(); ++b)
-    {
-      assert(fetch_block(b).is_active());
-    }
-  }
-  void recv_start()
-  {
-    // post receives on all blocks
     std::list<void*>::iterator b;
     for(b=blockList.begin(); b != blockList.end(); ++b)
     {
@@ -476,10 +468,20 @@ class BlockCommunicator
     // reset curr_block to initial block
     curr_block = blockList.begin();
   }
-  //void waitfor_recv_curr_block(MPI_Status& status)
-  //{
-  //  fetch_curr_block().waitfor_recv(status);
-  //}
+
+ public:
+  void recv_start()
+  {
+    // make sure that receives are posted on all block
+    std::list<void*>::iterator b;
+    for(b=blockList.begin(); b != blockList.end(); ++b)
+    {
+      assert(fetch_block(b).is_active());
+    }
+
+    // reset initial state
+    commState=INITIAL;
+  }
 
  // sending routines
  //
