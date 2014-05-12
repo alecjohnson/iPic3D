@@ -76,7 +76,6 @@ struct Block
   int id;
   // used for MPI communication
   MPI_Request request;
-  int flag;
   // hack to piggy-back information onto message
   int signal; // char
  private: // initialized at compile time
@@ -87,7 +86,6 @@ struct Block
     capacity(capacity_),
     id(id_),
     request(MPI_REQUEST_NULL),
-    flag(0),
     signal(0)
   {
     block.reserve(capacity);
@@ -107,6 +105,7 @@ struct Block
   const aligned_vector(type)& get_block()const{return block;}
   int get_id(){ return id; }
   void set_finished_flag() { signal |= 2; }
+  void unset_finished_flag() { signal &= ~2; }
   bool finished_flag_is_set() { return signal & 2; }
   void set_insert_flag() { signal |= 1; }
   bool insert_flag_is_set() { return signal & 1; }
@@ -116,6 +115,7 @@ struct Block
   // returns true if communication is complete; else returns false
   bool test_comm(MPI_Status& status)
   {
+    int flag=0;
     MPI_Test(&request, &flag, &status);
     if(!flag)
       return false;
@@ -192,6 +192,7 @@ struct Block
   {
     // verify that there is no receive already posted
     assert(request==MPI_REQUEST_NULL);
+    signal=0;
     // make sure that space exists to receive
     int newsize = signal_hack() ? capacity+1 : capacity;
     block.resize(newsize);
@@ -219,7 +220,12 @@ struct Block
     {
       if(num_elements_received < capacity)
       {
+        dprintf("setting finished flag");
         set_finished_flag();
+      }
+      else
+      {
+        //unset_finished_flag();
       }
     }
     bool retval = (num_elements_received < capacity);
@@ -497,7 +503,7 @@ class BlockCommunicator
     fetch_curr_block().send(connection);
     // proceed to next block
     increment_curr_block();
-    // start communication on next block
+    // start communication
     send_start();
   }
  public: // interface
