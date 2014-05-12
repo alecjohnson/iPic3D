@@ -10,33 +10,35 @@ OBJECTS = \
 
 # if compiling on Xeon
 #
-#PERFORMANCE_FLAGS = -O3 -fno-exceptions -xHost -vec-report
-#MPI_LIBS =  -I/opt/intel/impi/4.1.2.040/intel64/include
-#MPI_LINK = \
-#  /opt/intel/impi/4.1.2.040/intel64/lib/libmpigc4.so \
-#  /opt/intel/impi/4.1.2.040/intel64/lib/libmpigf.so \
-#  /opt/intel/impi/4.1.2.040/intel64/lib/libmpi.so \
-#  /opt/intel/impi/4.1.2.040/intel64/lib/libmpigi.a
+PERFORMANCE_FLAGS = -O3 -fno-exceptions -xHost -vec-report
+MPI_LIBS =  -I/opt/intel/impi/4.1.2.040/intel64/include
+MPI_LINK = \
+  /opt/intel/impi/4.1.2.040/intel64/lib/libmpigc4.so \
+  /opt/intel/impi/4.1.2.040/intel64/lib/libmpigf.so \
+  /opt/intel/impi/4.1.2.040/intel64/lib/libmpi.so \
+  /opt/intel/impi/4.1.2.040/intel64/lib/libmpigi.a
+MPIRUN = mpirun
 
 # if compiling on my macbook
 #
-PERFORMANCE_FLAGS = -O3 -fno-exceptions
-MPI_LIBS =  -I/opt/local/include/openmpi
-MPI_LINK = \
-  /opt/local/lib/libmpi_cxx.dylib \
-  /opt/local/lib/libmpi.dylib
+#PERFORMANCE_FLAGS = -O3 -fno-exceptions
+#MPI_LIBS =  -I/opt/local/include/openmpi
+#MPI_LINK = \
+#  /opt/local/lib/libmpi_cxx.dylib \
+#  /opt/local/lib/libmpi.dylib
+#MPIRUN = mpiexec
 
 # need -lrt to handle clock_gettime()
 ARRAY_FLAGS = #-DCHAINED_ARRAYS #-DFLAT_ARRAYS #-DCHECK_BOUNDS
 FLAGS = $(PERFORMANCE_FLAGS) -DNO_MPI $(ARRAY_FLAGS) #-ggdb 
 
-COMPILER = g++ # icpc # c++
+COMPILER = icpc # g++ # c++
 
-testcomm: testcomm.cpp Makefile
+testcomm: testcomm.cpp
 	$(COMPILER) testcomm.cpp $(INCLUDE) $(PERFORMANCE_FLAGS) $(MPI_LIBS) $(MPI_LINK) -o testcomm
 
 run.testcomm: testcomm
-	mpiexec -n 2 testcomm
+	$(MPIRUN) -n 2 ./testcomm
 
 testvbasic.mic: testvbasic.cpp
 	icpc -mmic testvbasic.cpp $(INCLUDE) -o testvbasic.mic

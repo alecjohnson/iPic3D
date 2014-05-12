@@ -340,6 +340,10 @@ class BlockCommunicator
   {
     return commState==FINISHED;
   }
+  bool comm_active()
+  {
+    return get_curr_request() != MPI_REQUEST_NULL;
+  }
 
  // operations
  //
@@ -410,7 +414,7 @@ class BlockCommunicator
       {
         // insert another block to receive particles
         // prior to the block that we just received
-        dprintf("as requested, I am inserting a block.");
+        dprintf("****** as requested, I am inserting a block ******");
         insert_more_recv_blocks();
       }
     }
@@ -450,10 +454,6 @@ class BlockCommunicator
     if(comm_finished())
       return MPI_REQUEST_NULL;
     return fetch_curr_block().fetch_request();
-  }
-  bool is_active()
-  {
-    return get_curr_request() != MPI_REQUEST_NULL;
   }
  public:
   void recv_is_started()
