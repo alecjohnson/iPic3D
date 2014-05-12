@@ -57,7 +57,7 @@ class Connection
 
 bool signal_hack()
 {
-  return false;
+  return true;
 }
 
 // block of elements
@@ -87,6 +87,15 @@ struct Block
     signal(0)
   {
     block.reserve(capacity);
+  }
+  // cancel any pending communication 
+  ~Block()
+  {
+    if(request!=MPI_REQUEST_NULL)
+    {
+      MPI_Cancel(&request);
+      MPI_Request_free(&request);
+    }
   }
  public: // accessors
   MPI_Request& fetch_request(){return request;}
@@ -441,6 +450,10 @@ class BlockCommunicator
     if(comm_finished())
       return MPI_REQUEST_NULL;
     return fetch_curr_block().fetch_request();
+  }
+  bool is_active()
+  {
+    return get_curr_request() != MPI_REQUEST_NULL;
   }
  public:
   void recv_is_started()

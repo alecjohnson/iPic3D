@@ -155,6 +155,14 @@ void test_particle_communication(
       //MPI_Status recv_statuses[incount]; // status of completed requests
       //int outcount; // number of requests that returned true
       //MPI_Waitsome(incount, recv_requests, &outcount, recv_indices, recv_statuses);
+      dprintf("recv.is_active() = [%d, %d]",
+        lowXrecv.is_active(),
+        hghXrecv.is_active());
+      dprintf("recv.comm_finished() = [%d, %d]",
+        lowXrecv.comm_finished(),
+        hghXrecv.comm_finished());
+      //recv_requests[0] = lowXrecv.get_curr_request();
+      //recv_requests[1] = hghXrecv.get_curr_request();
 
       //#if 0
       int recv_index;
@@ -183,8 +191,8 @@ void test_particle_communication(
           debugout << ": received hghXrecv."
             << recv_block.get_id()
             << recv_block << endl;
-          recv_requests[1] = hghXrecv.get_curr_request();
           hghXrecv.release_received_block();
+          recv_requests[1] = hghXrecv.get_curr_request();
          }
           break;
       }
@@ -270,16 +278,16 @@ int main(int argc, char **argv)
   criticalout dprint(up_dst); // to upper
   criticalout dprint(dn_src); // from upper
   criticalout dprint(dn_dst); // to lower
-  Connection lowXrecvConn(up_src,2,up_comm);
-  Connection hghXrecvConn(dn_src,1,dn_comm);
-  Connection lowXsendConn(dn_dst,1,dn_comm);
-  Connection hghXsendConn(up_dst,2,up_comm);
+  //Connection lowXrecvConn(up_src,2,up_comm);
+  //Connection hghXrecvConn(dn_src,1,dn_comm);
+  //Connection lowXsendConn(dn_dst,1,dn_comm);
+  //Connection hghXsendConn(up_dst,2,up_comm);
   assert(up_src==dn_dst);
   assert(dn_src==up_dst);
-  //Connection lowXrecvConn(up_src,Connection::PARTICLE_UP,MPI_COMM_WORLD);
-  //Connection hghXrecvConn(dn_src,Connection::PARTICLE_DN,MPI_COMM_WORLD);
-  //Connection lowXsendConn(dn_dst,Connection::PARTICLE_DN,MPI_COMM_WORLD);
-  //Connection hghXsendConn(up_dst,Connection::PARTICLE_UP,MPI_COMM_WORLD);
+  Connection lowXrecvConn(up_src,Connection::PARTICLE_UP,MPI_COMM_WORLD);
+  Connection hghXrecvConn(dn_src,Connection::PARTICLE_DN,MPI_COMM_WORLD);
+  Connection lowXsendConn(dn_dst,Connection::PARTICLE_DN,MPI_COMM_WORLD);
+  Connection hghXsendConn(up_dst,Connection::PARTICLE_UP,MPI_COMM_WORLD);
 
   // showing that we can propagate a message upward
   if(0)
@@ -456,8 +464,8 @@ int main(int argc, char **argv)
 
     // for each neighbor, create a send communicator
     //
-    BlockCommunicator<Particle> lowXsend(blocksize, 5, lowXsendConn);
-    BlockCommunicator<Particle> hghXsend(blocksize, 2, hghXsendConn);
+    BlockCommunicator<Particle> lowXsend(blocksize, 1, lowXsendConn);
+    BlockCommunicator<Particle> hghXsend(blocksize, 1, hghXsendConn);
 
     lowXrecv.recv_start();
     hghXrecv.recv_start();
@@ -466,12 +474,12 @@ int main(int argc, char **argv)
 
     dprintf("=== hey, that was great, let's try it again! ===");
 
-    //test_particle_communication(lowXrecv,hghXrecv,lowXsend,hghXsend);
+    test_particle_communication(lowXrecv,hghXrecv,lowXsend,hghXsend);
   }
 
   // probably MPI_Finalize takes care of this anyway...
-  //MPI_Comm_free(&up_comm);
-  //MPI_Comm_free(&dn_comm);
+  MPI_Comm_free(&up_comm);
+  MPI_Comm_free(&dn_comm);
   MPIdata::finalize_mpi();
   //MPI_Finalize();
 }
