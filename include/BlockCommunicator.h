@@ -57,7 +57,7 @@ class Connection
 
 bool signal_hack()
 {
-  return true;
+  return false;
 }
 
 // block of elements
@@ -438,9 +438,9 @@ class BlockCommunicator
 
   MPI_Request get_curr_request()
   {
-    if(fetch_curr_block().is_active())
-      return fetch_curr_block().fetch_request();
-    return MPI_REQUEST_NULL;
+    if(comm_finished())
+      return MPI_REQUEST_NULL;
+    return fetch_curr_block().fetch_request();
   }
  public:
   void recv_is_started()
