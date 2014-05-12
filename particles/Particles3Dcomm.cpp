@@ -432,6 +432,121 @@ void Particles3Dcomm::interpP2G(Field * EMf, Grid * grid, VirtualTopology3D * vc
   EMf->communicateGhostP2G(ns, 0, 0, 0, 0, vct);
 }
 
+inline void Particles3Dcomm::move_pcl_to_appropriate_send_buffer(
+  Larray<SpeciesParticle>& _pcls, int& np_current,
+  bool isBoundaryProcess,
+  bool noXlowerNeighbor, bool noXupperNeighbor,
+  bool noYlowerNeighbor, bool noYupperNeighbor,
+  bool noZlowerNeighbor, bool noZupperNeighbor)
+{
+  SpeciesParticle& pcl = _pcls.[np_current];
+  
+  // boundary conditions that must be applied to each dimension
+  // (it would be better to make this call in the mover where
+  // particles are still arranged in SoA format, though in that
+  // case we would not be able to restrict the application of boundary
+  // conditions to boundary processes unless we also restrict
+  // the distance moved by a particle in each (subcycle) step).
+  //
+  if(isBoundaryProcess)
+  {
+    double& x = &pcl.fetch_x();
+    double& y = &pcl.fetch_y();
+    double& z = &pcl.fetch_z();
+    double& u = &pcl.fetch_u();
+    double& v = &pcl.fetch_v();
+    double& w = &pcl.fetch_w();
+    if (noXlowerNeighbor && pcl.get_x() < 0)
+      BCpclLeft(x,u,v,w,Lx,uth,vth,wth,bcPfaceXleft);
+    else if (noXupperNeighbor && pcl.get_x() > Lx)
+      BCpclRght(x,u,v,w,Lx,uth,vth,wth,bcPfaceXright);
+    if (noYlowerNeighbor && pcl.get_y() < 0)
+      BCpclLeft(y,u,v,w,Ly,uth,vth,wth,bcPfaceYleft);
+    else if (noYupperNeighbor && pcl.get_y() > Ly)
+      BCpclRght(y,u,v,w,Ly,uth,vth,wth,bcPfaceYright);
+    if (noZlowerNeighbor && pcl.get_z() < 0)
+      BCpclLeft(z,u,v,w,Lz,uth,vth,wth,bcPfaceZleft);
+    else if (noZupperNeighbor && pcl.get_z() > Lz)
+      BCpclRght(z,u,v,w,Lz,uth,vth,wth,bcPfaceZright);
+  }
+  
+  // put particle in appropriate communication buffer if exiting
+  //
+  // (should change to do this immediately after pushing it so that
+  // only once pass through particles is necessary and so that
+  // communication can overlap computation)
+  //
+  if (pcl.get_x() < xstart)
+  {
+    if(!noXlowerNeighbor)
+    {
+      // handle periodic boundary conditions only when wrapping particles
+      if(ptVCT->isPeriodicXlower() && pcl.get_x() < 0) pcl.fetch_x() += Lx;
+      // put it in the communication buffer
+      sendXleft.send(pcl);
+    }
+    _pcls.delete_element(np_current);
+  }
+  else if (pcl.get_x() > xend)
+  {
+    if(!noXupperNeighbor)
+    {
+      // handle periodic boundary conditions only when wrapping particles
+      if(ptVCT->isPeriodicXupper() && pcl.get_x() > Lx) pcl.fetch_x() -= Lx;
+      // put it in the communication buffer
+      sendXleft.send(pcl);
+    }
+    _pcls.delete_element(np_current);
+  }
+  else if (pcl.get_y() < ystart)
+  {
+    if (!noYlowerNeighbor)
+    {
+      // handle periodic boundary conditions only when wrapping particles
+      if(ptVCT->isPeriodicYlower() && pcl.get_y() < 0) pcl.fetch_y() += Ly;
+      // put it in the communication buffer
+      sendYleft.send(pcl);
+    }
+    _pcls.delete_element(np_current);
+  }
+  else if (pcl.get_y() > yend)
+  {
+    if (!noYupperNeighbor)
+    {
+      // handle periodic boundary conditions only when wrapping particles
+      if(ptVCT->isPeriodicYupper() && pcl.get_y() > Ly) pcl.fetch_y() -= Ly;
+      sendYrght.send(pcl);
+    }
+    _pcls.delete_element(np_current);
+  }
+  else if (pcl.get_z() < zstart)
+  {
+    if (!noZlowerNeighbor)
+    {
+      // handle periodic boundary conditions only when wrapping particles
+      if(ptVCT->isPeriodicZlower() && pcl.get_z() < 0) pcl.fetch_z() += Lz;
+      // put it in the communication buffer
+      sendZLeft.send(pcl);
+    } 
+    _pcls.delete_element(np_current);
+  }
+  else if (pcl.get_z() > zend)
+  {
+    if (!noZupperNeighbor)
+    {
+      // handle periodic boundary conditions only when wrapping particles
+      if(ptVCT->isPeriodicZupper() && pcl.get_z() > Lz) pcl.fetch_z() -= Lz;
+      // put it in the communication buffer
+      sendZRght.send(pcl);
+    } 
+    _pcls.delete_element(np_current);
+  }
+  else {
+    // particle is still in the domain, procede with the next particle
+    np_current++;
+  }
+}
+
 // exchange particles with neighboring processors
 //
 // sent particles are deleted from _pcls.
@@ -456,12 +571,12 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
   sendYleft.send_start(); sendYrght.send_start();
   sendZleft.send_start(); sendZrght.send_start();
 
-  const bool noXlower = ptVCT->noXlowerNeighbor();
-  const bool noXupper = ptVCT->noXupperNeighbor();
-  const bool noYlower = ptVCT->noYlowerNeighbor();
-  const bool noYupper = ptVCT->noYupperNeighbor();
-  const bool noZlower = ptVCT->noZlowerNeighbor();
-  const bool noZupper = ptVCT->noZupperNeighbor();
+  const bool noXlowerNeighbor = ptVCT->noXlowerNeighbor();
+  const bool noXupperNeighbor = ptVCT->noXupperNeighbor();
+  const bool noYlowerNeighbor = ptVCT->noYlowerNeighbor();
+  const bool noYupperNeighbor = ptVCT->noYupperNeighbor();
+  const bool noZlowerNeighbor = ptVCT->noZlowerNeighbor();
+  const bool noZupperNeighbor = ptVCT->noZupperNeighbor();
   const bool isBoundaryProcess = ptVCT->isBoundaryProcess();
 
   // should change to enforce boundary conditions at conclusion of push,
@@ -470,115 +585,12 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
   int np_current = 0;
   while(np_current < _pcls.size())
   {
-    SpeciesParticle& pcl = _pcls.[np_current];
-
-    // boundary conditions that must be applied to each dimension
-    // (it would be better to make this call in the mover where
-    // particles are still arranged in SoA format).
-    //
-    if(isBoundaryProcess)
-    {
-      double& x = &pcl.fetch_x();
-      double& y = &pcl.fetch_y();
-      double& z = &pcl.fetch_z();
-      double& u = &pcl.fetch_u();
-      double& v = &pcl.fetch_v();
-      double& w = &pcl.fetch_w();
-      if (noXlower && pcl.get_x() < 0)
-        BCpclLeft(x,u,v,w,Lx,uth,vth,wth,bcPfaceXleft);
-      else if (noXupper && pcl.get_x() > Lx)
-        BCpclRght(x,u,v,w,Lx,uth,vth,wth,bcPfaceXright);
-      if (noYlower && pcl.get_y() < 0)
-        BCpclLeft(y,u,v,w,Ly,uth,vth,wth,bcPfaceYleft);
-      else if (noYupper && pcl.get_y() > Ly)
-        BCpclRght(y,u,v,w,Ly,uth,vth,wth,bcPfaceYright);
-      if (noZlower && pcl.get_z() < 0)
-        BCpclLeft(z,u,v,w,Lz,uth,vth,wth,bcPfaceZleft);
-      else if (noZupper && pcl.get_z() > Lz)
-        BCpclRght(z,u,v,w,Lz,uth,vth,wth,bcPfaceZright);
-    }
-
-    // put particle in appropriate communication buffer if exiting
-    //
-    // (should change to do this immediately after pushing it so that
-    // only once pass through particle is necessary and so that
-    // communication can overlap computation)
-    //
-    if (pcl.get_x() < xstart)
-    {
-      if(has_Xleft_neighbor)
-      {
-        // handle periodic boundary conditions only when wrapping particles
-        if(ptVCT->isPeriodicXlower() && pcl.get_x() < 0) pcl.fetch_x() += Lx;
-        // put it in the communication buffer
-        sendXleft.send(pcl);
-      }
-      _pcls.delete_element(np_current);
-      npExitXleft++;
-    }
-    else if (pcl.get_x() > xend)
-    {
-      if(has_Xrght_neighbor)
-      {
-        // handle periodic boundary conditions only when wrapping particles
-        if(ptVCT->isPeriodicXupper() && pcl.get_x() > Lx) pcl.fetch_x() -= Lx;
-        // put it in the communication buffer
-        sendXleft.send(pcl);
-      }
-      _pcls.delete_element(np_current);
-      npExitXleft++;
-    }
-    else if (pcl.get_y() < ystart)
-    {
-      if (has_Yleft_neighbor)
-      {
-        // handle periodic boundary conditions only when wrapping particles
-        if(ptVCT->isPeriodicYlower() && pcl.get_y() < 0) pcl.fetch_y() += Ly;
-        // put it in the communication buffer
-        sendYleft.send(pcl);
-      }
-      _pcls.delete_element(np_current);
-      npExitYleft++;
-    }
-    else if (pcl.get_y() > yend)
-    {
-      if (has_Yrght_neighbor)
-      {
-        // handle periodic boundary conditions only when wrapping particles
-        if(ptVCT->isPeriodicYupper() && pcl.get_y() > Ly) pcl.fetch_y() -= Ly;
-        sendYrght.send(pcl);
-      }
-      _pcls.delete_element(np_current);
-      npExitYleft++;
-    }
-    else if (pcl.get_z() < zstart)
-    {
-      if (has_Zleft_neighbor)
-      {
-        // handle periodic boundary conditions only when wrapping particles
-        if(ptVCT->isPeriodicZlower() && pcl.get_z() < 0) pcl.fetch_z() += Lz;
-        // put it in the communication buffer
-        sendZLeft.send(pcl);
-      } 
-      _pcls.delete_element(np_current);
-      npExitZleft++;
-    }
-    else if (pcl.get_z() > zend)
-    {
-      if (has_Zrght_neighbor)
-      {
-        // handle periodic boundary conditions only when wrapping particles
-        if(ptVCT->isPeriodicZupper() && pcl.get_z() > Lz) pcl.fetch_z() -= Lz;
-        // put it in the communication buffer
-        sendZRght.send(pcl);
-      } 
-      _pcls.delete_element(np_current);
-      npExitZright++;
-    }
-    else {
-      // particle is still in the domain, procede with the next particle
-      np_current++;
-    }
+    move_pcl_to_appropriate_send_buffer(
+      _pcls, np_current,
+      isBoundaryProcess,
+      noXlowerNeighbor, noXupperNeighbor,
+      noYlowerNeighbor, noYupperNeighbor,
+      noZlowerNeighbor, noZupperNeighbor);
   }
   const int retval = _pcls.size();
   assert_eq(retval,np_current);
@@ -624,8 +636,11 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
     assert_lt(recv_index,num_recv_buffers);
     // code specific to the receive buffer could be handled with a
     // switch(recv_index) code block.
+    //
+    // grab the received block and process it
+    //
     BlockCommunicator<SpeciesParticle>* recvBuff = recvBuffArr[recv_index];
-    Block<Particle>& recv_block = recvBuff->handle_received_block(recv_status);
+    Block<Particle>& recv_block = recvBuff->fetch_received_block(recv_status);
 
     // process each particle in the received block.
     //
@@ -638,7 +653,9 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
       // else if the particle is exiting, put it in the appropriate send bin
       ...
     }
-    recv_requests[recv_index] = recvBuffArr[recv_index].get_curr_request();
+    // release the block and update the receive request
+    recvBuff->release_received_block(recv_status);
+    recv_requests[recv_index] = recvBuff->get_curr_request();
   }
 
   #if 0
@@ -737,22 +754,22 @@ int Particles3Dcomm::isMessagingDone(VirtualTopology3D * ptVCT) {
 
 }
 /** calculate the maximum number exiting from this domain */
-int Particles3Dcomm::maxNpExiting() {
-  int maxNp = 0;
-  if (npExitXright > maxNp)
-    maxNp = npExitXright;
-  if (npExitXleft > maxNp)
-    maxNp = npExitXleft;
-  if (npExitYright > maxNp)
-    maxNp = npExitYright;
-  if (npExitYleft > maxNp)
-    maxNp = npExitYleft;
-  if (npExitZright > maxNp)
-    maxNp = npExitZright;
-  if (npExitZleft > maxNp)
-    maxNp = npExitZleft;
-  return (maxNp);
-}
+//int Particles3Dcomm::maxNpExiting() {
+//  int maxNp = 0;
+//  if (npExitXright > maxNp)
+//    maxNp = npExitXright;
+//  if (npExitXleft > maxNp)
+//    maxNp = npExitXleft;
+//  if (npExitYright > maxNp)
+//    maxNp = npExitYright;
+//  if (npExitYleft > maxNp)
+//    maxNp = npExitYleft;
+//  if (npExitZright > maxNp)
+//    maxNp = npExitZright;
+//  if (npExitZleft > maxNp)
+//    maxNp = npExitZleft;
+//  return (maxNp);
+//}
 
 /** return the Kinetic energy */
 double Particles3Dcomm::getKe() {

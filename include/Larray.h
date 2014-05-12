@@ -23,9 +23,9 @@ class Larray
  private: // members
   type* list;
   int _size; // number of particles in list
-  int _maxsize; // maximum number of particles
+  int _capacity; // maximum number of particles
  private:
-  void check_index(int i)
+  void check_index(int i)const
   {
     #ifdef CHECK_BOUNDS
       assert_le(0, i);
@@ -34,7 +34,7 @@ class Larray
   }
  public: // access
   int size()const { return _size; }
-  int maxsize()const { return _maxsize; }
+  int capacity()const { return _capacity; }
   void pop()
   {
     assert(_size>0);
@@ -44,15 +44,35 @@ class Larray
   {
     _size = 0;
   }
+  // standard-conforming would initialize added elements
+  //void resize(int newsize, value_type val = value_type())
+  void resize(int newsize)
+  {
+    if(newsize < _size)
+    {
+      _size = newsize;
+    }
+    else
+    {
+      reserve(newsize);
+      _size = newsize;
+    }
+  }
   void push_back(const type& element)
   {
-    if(_size>=_maxsize)
+    if(_size>=_capacity)
     {
-      int newmaxsize = pow2roundup(_size+1);
-      realloc(newmaxsize);
+      int newcapacity = pow2roundup(_size+1);
+      reserve(newcapacity);
     }
     list[_size] = element;
     _size++;
+  }
+  inline const type& operator[](int i)const
+  {
+    check_index(i);
+    ALIGNED(list);
+    return list[i];
   }
   inline type& operator[](int i)
   {
@@ -79,29 +99,29 @@ class Larray
   Larray():
     list(0),
     _size(0),
-    _maxsize(0)
+    _capacity(0)
   {}
-  Larray(int requested_size)
+  Larray(int requested_size):
     list(0),
     _size(0),
-    _maxsize(0)
-  { if(requested_size > 0) realloc(requested_size); }
-  // reset maximum size without deleting elements
-  void realloc(int newmaxsize)
+    _capacity(0)
+  { if(requested_size > 0) reserve(requested_size); }
+  // request capacity to be at least newcapacity without deleting elements
+  void reserve(int newcapacity)
   {
     // ignore request if requested size is too small
-    if(_size > newmaxsize) return;
+    if(_size > newcapacity) return;
 
     // round up size to a multiple of num_elem_in_block
     const int num_elem_in_block = 8;
-    //newmaxsize = roundup_to_multiple(newmaxsize,num_elem_in_block);
-    newmaxsize = ((newmaxsize-1)/num_elem_in_block+1)*num_elem_in_block;
-    if(newmaxsize != _maxsize)
+    //newcapacity = roundup_to_multiple(newcapacity,num_elem_in_block);
+    newcapacity = ((newcapacity-1)/num_elem_in_block+1)*num_elem_in_block;
+    if(newcapacity != _capacity)
     {
-      _maxsize = newmaxsize;
+      _capacity = newcapacity;
       type* oldList = list;
       // the next two lines assume that type has no indirection
-      list = AlignedAlloc(type,_maxsize);
+      list = AlignedAlloc(type,_capacity);
       memcpy(list,oldList,sizeof(type)*_size);
       // for(int i=0;i<_size;i++) list[i] = oldList[i];
       AlignedFree(oldList);
@@ -110,15 +130,15 @@ class Larray
   void realloc_if_smaller_than(int required_max_size)
   {
     if(_size < required_max_size)
-      realloc(required_max_size);
+      reserve(required_max_size);
   }
   void shrink()
   {
-    // shrink _maxsize by a factor of two if elements will fit.
-    int proposed_size = pow2rounddown(_maxsize/2);
-    if( _size <= proposed_size && proposed_size < _maxsize)
+    // shrink _capacity by a factor of two if elements will fit.
+    int proposed_size = pow2rounddown(_capacity/2);
+    if( _size <= proposed_size && proposed_size < _capacity)
     {
-      realloc(proposed_size);
+      reserve(proposed_size);
     }
   }
 };

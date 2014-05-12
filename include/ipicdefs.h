@@ -32,7 +32,7 @@
 const int VECBYTES = VECBITS/8;
 
 // the number of doubles that fill a vector
-const int DVECWIDTH = VECBYTES/sizeof(double)
+const int DVECWIDTH = VECBYTES/sizeof(double);
 const int SVECWIDTH = VECBYTES/sizeof(float);
 //#define SINGLE_PRECISION_PCLS
 //

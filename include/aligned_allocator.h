@@ -172,6 +172,6 @@ class aligned_allocator
 // unfortunately C++ does not support typedefs for templates,
 // so I use declaration macros.
 // #include <vector> // needed if using aligned_vector
-#define aligned_vector(type) std::vector<type, aligned_allocator<type, 64> >
+//#define aligned_vector(type) std::vector<type, aligned_allocator<type, 64> >
 
 #endif // aligned_allocator_h

@@ -3,9 +3,13 @@
 #include "aligned_allocator.h"
 #include "asserts.h"
 #include "debug.h" // temporary
-#include <vector> // needed for aligned_vector
+#include "Larray.h"
+//#include <vector> // needed for aligned_vector
 #include <list>
 #include <assert.h>
+
+#define aligned_vector(type) Larray<type>
+//#define aligned_vector(type) std::vector<type, aligned_allocator<type, 64> >
 
 // The combination of group (comm), tag, and neighbor
 // should be unique for each connection.
@@ -57,7 +61,7 @@ class Connection
 
 bool signal_hack()
 {
-  return true;
+  return false;
 }
 
 // block of elements
