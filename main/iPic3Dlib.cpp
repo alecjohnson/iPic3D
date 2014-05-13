@@ -11,6 +11,31 @@
 using namespace iPic3D;
 MPIdata* iPic3D::c_Solver::mpi=0;
 
+c_Solver::~c_Solver()
+{
+  delete col; // configuration parameters ("collectiveIO")
+  delete vct; // process topology
+  delete grid; // grid
+  delete EMf; // field
+
+  // delete particles
+  //
+  if(part)
+  {
+    for (int i = 0; i < ns; i++)
+    {
+      // placement delete
+      part[i].~Particles3D();
+    }
+    free(part);
+  }
+
+  delete [] Ke;
+  delete [] momentum;
+  delete [] Qremoved;
+  delete my_clock;
+}
+
 int c_Solver::Init(int argc, char **argv) {
   // get MPI data
   //
@@ -96,10 +121,10 @@ int c_Solver::Init(int argc, char **argv) {
 
   // Allocation of particles
   // part = new Particles3D[ns];
-  part = (Particles3D) malloc(sizeof(Particles3D)*ns);
+  part = (Particles3D*) malloc(sizeof(Particles3D)*ns);
   for (int i = 0; i < ns; i++)
   {
-    part[i].placement_new(i,col,vct,grid);
+    new(&part[i]) Particles3D(i,col,vct,grid);
     //part[i] = new Particles3D(i, col, vct, grid);
     //part[i].allocate(i, col, vct, grid);
   }
@@ -278,8 +303,8 @@ void c_Solver::CalculateB() {
 /*  -------------- */
 /*!  Particle mover */
 /*  -------------- */
-bool c_Solver::ParticlesMover() {
-
+bool c_Solver::ParticlesMover()
+{
   // move all species of particles
   {
     timeTasks_set_main_task(TimeTasks::PARTICLES);
@@ -296,22 +321,22 @@ bool c_Solver::ParticlesMover() {
       switch(Parameters::get_MOVER_TYPE())
       {
         case Parameters::SoA:
-          part[i].mover_PC(grid, vct, EMf);
+          part[i].mover_PC(EMf);
           break;
         case Parameters::SoA_vec_resort:
-          part[i].mover_PC_vectorized(grid, vct, EMf);
+          part[i].mover_PC_vectorized(EMf);
           break;
         case Parameters::AoS:
-          part[i].mover_PC_AoS(grid, vct, EMf);
+          part[i].mover_PC_AoS(EMf);
           break;
         case Parameters::AoSintr:
-          part[i].mover_PC_AoS_vec_intr(grid, vct, EMf);
+          part[i].mover_PC_AoS_vec_intr(EMf);
           break;
         case Parameters::AoSvec:
-          part[i].mover_PC_AoS_vec(grid, vct, EMf);
+          part[i].mover_PC_AoS_vec(EMf);
           break;
         case Parameters::AoS_vec_onesort:
-          part[i].mover_PC_AoS_vec_onesort(grid, vct, EMf);
+          part[i].mover_PC_AoS_vec_onesort(EMf);
           break;
         default:
           unsupported_value_error(Parameters::get_MOVER_TYPE());
@@ -320,7 +345,7 @@ bool c_Solver::ParticlesMover() {
     }
     for (int i = 0; i < ns; i++)  // communicate each species
     {
-      part[i].communicate_particles(vct);
+      part[i].communicate_particles();
     }
   }
 
@@ -445,9 +470,6 @@ void c_Solver::Finalize() {
   // stop profiling
   my_clock->stopTiming();
 
-  // deallocate
-  delete[]Ke;
-  delete[]momentum;
   // close MPI
   mpi->finalize_mpi();
 }

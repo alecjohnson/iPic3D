@@ -30,44 +30,17 @@ class Particles3Dcomm // :public Particles
 {
 public:
   /** constructor */
-  Particles3Dcomm();
+  Particles3Dcomm(int species, CollectiveIO * col,
+    VirtualTopology3D * vct, Grid * grid);
   /** destructor */
   ~Particles3Dcomm();
-  /** allocate particles */
-  void allocate(int species, CollectiveIO * col, VirtualTopology3D * vct, Grid * grid);
 
-  /** calculate the weights given the position of particles */
-  //void calculateWeights(double weight[][2][2], double xp, double yp, double zp, int ix, int iy, int iz, Grid * grid);
   /** interpolation method GRID->PARTICLE order 1: CIC */
-  void interpP2G(Field * EMf, Grid * grid, VirtualTopology3D * vct);
-  /** method for communicating exiting particles to X-RIGHT, X-LEFT, Y-RIGHT, Y-LEFT, Z-RIGHT, Z-LEFT processes */
-  int communicate(VirtualTopology3D * ptVCT);
-  /** put a particle exiting to X-LEFT in the bufferXLEFT for communication and check if you're sending the particle to the right subdomain*/
-  void bufferXleft(double *b_, int np, VirtualTopology3D * vct);
-  /** put a particle exiting to X-RIGHT in the bufferXRIGHT for communication and check if you're sending the particle to the right subdomain*/
-  void bufferXright(double *b_, int np, VirtualTopology3D * vct);
-  /** put a particle exiting to Y-LEFT in the bufferYLEFT for communication and check if you're sending the particle to the right subdomain*/
-  void bufferYleft(double *b_, int np, VirtualTopology3D * vct);
-  /** put a particle exiting to Y-RIGHT in the bufferYRIGHT for communication and check if you're sending the particle to the right subdomain*/
-  void bufferYright(double *b_, int np, VirtualTopology3D * vct);
-  /** put a particle exiting to Z-LEFT in the bufferZLEFT for communication and check if you're sending the particle to the right subdomain*/
-  void bufferZleft(double *b_, int np, VirtualTopology3D * vct);
-  /** put a particle exiting to Z-RIGHT in the bufferZRIGHT for communication and check if you're sending the particle to the right subdomain*/
-  void bufferZright(double *b_, int np, VirtualTopology3D * vct);
-  /** Delete the a particle from a list(array) and pack the list(array) */
-  void del_pack(int np, int *nplast);
+  // This does not belong in this class and is no longer in use.
+  void interpP2G(Field * EMf);
 
-  /** method to debuild the buffer received */
-  int unbuffer(double *b_);
-
-  /** resize the receiving buffer */
-  void resize_buffers(int new_buffer_size);
-  /** a method to compute how many particles are not in the right domain */
-  int isMessagingDone(VirtualTopology3D * ptVCT);
-  /** calculate the maximum number exiting from this domain */
-  int maxNpExiting();
-  /** calculate the weights given the position of particles */
-  // void calculateWeights(double*** weight, double xp, double yp, double zp,int ix, int iy, int iz, Grid* grid);
+  // communicate particles between processes
+  int communicate_particles();
 
  private:
   void copyParticlesToAoS();
@@ -78,18 +51,18 @@ public:
   void convertParticlesToSoA();
 
   /*! sort particles for vectorized push (needs to be parallelized) */
-  void sort_particles_serial_SoA_by_xavg(Grid * grid, VirtualTopology3D * vct);
-  void sort_particles_serial(Grid * grid, VirtualTopology3D * vct);
-  void sort_particles_serial_AoS(Grid * grid, VirtualTopology3D * vct);
-  void sort_particles_serial_SoA(Grid * grid, VirtualTopology3D * vct);
+  //void sort_particles_serial_SoA_by_xavg();
+  void sort_particles_serial();
+  void sort_particles_serial_AoS();
+  //void sort_particles_serial_SoA();
 
   // get accessors for optional arrays
   //
-  Larray<SpeciesParticle>& fetch_pcls(){ return *_pcls; }
-  Larray<SpeciesParticle>& fetch_pclstmp(){ return *_pclstmp; }
-  double * fetch_xavg() { return _xavg; }
-  double * fetch_yavg() { return _yavg; }
-  double * fetch_zavg() { return _zavg; }
+  Larray<SpeciesParticle>& fetch_pcls(){ return _pcls; }
+  Larray<SpeciesParticle>& fetch_pclstmp(){ return _pclstmp; }
+  Larray<double>& fetch_xavg() { return _xavg; }
+  Larray<double>& fetch_yavg() { return _yavg; }
+  Larray<double>& fetch_zavg() { return _zavg; }
 
   // inline get accessors
   //
@@ -104,14 +77,14 @@ public:
   double get_zstart(){return zstart;}
   ParticleType::Type get_particleType()const { return particleType; }
   const SpeciesParticle& get_pcl(int pidx)const{ return fetch_pcls()[pidx]; }
-  double *getXall()  const { return (x); }
-  double *getYall()  const { return (y); }
-  double *getZall()  const { return (z); }
-  double *getUall()  const { return (u); }
-  double *getVall()  const { return (v); }
-  double *getWall()  const { return (w); }
-  double *getQall()  const { return (q); }
-  long long *getParticleIDall()  const { return (long long *) q; }
+  double *getUall()  const { return &u[0]; }
+  double *getVall()  const { return &v[0]; }
+  double *getWall()  const { return &w[0]; }
+  double *getQall()  const { return &q[0]; }
+  double *getXall()  const { return &x[0]; }
+  double *getYall()  const { return &y[0]; }
+  double *getZall()  const { return &z[0]; }
+  //long long *getParticleIDall()  const { return (long long *) q; }
   // accessors for particle with index indexPart
   double getX(int indexPart)  const { return (x[indexPart]); }
   double getY(int indexPart)  const { return (y[indexPart]); }
@@ -187,22 +160,18 @@ protected:
   //
   // SoA representation
   //
-  /** Positions array - X component */
-  double *x;
-  /** Positions array - Y component */
-  double *y;
-  /** Positions array - Z component */
-  double *z;
-  /** Velocities array - X component */
-  double *u;
-  /** Velocities array - Y component */
-  double *v;
-  /** Velocities array - Z component */
-  double *w;
-  /** Charge array */
-  double *q;
-  /** subcycle time */
-  double *t;
+  // velocity components
+  Larray<double>& u;
+  Larray<double>& v;
+  Larray<double>& w;
+  // charge
+  Larray<double>& q;
+  // position
+  Larray<double>& x;
+  Larray<double>& y;
+  Larray<double>& z;
+  // subcycle time
+  Larray<double>& t;
   // is this class for tracking particles?
   bool TrackParticleID;
   //
@@ -222,23 +191,12 @@ protected:
   //
   Larray<SpeciesParticle>& _pclstmp;
   //
-  // references for buckets
+  // references for buckets for serial sort.
   //
   array3_int* numpcls_in_bucket;
   array3_int* numpcls_in_bucket_now; // accumulator used during sorting
   //array3_int* bucket_size; // maximum number of particles in bucket
   array3_int* bucket_offset;
-  // 
-  // bucket totals per thread
-  //
-  //int num_threads;
-  //array3_int* numpcls_in_bucket_thr;
-  //arr3_int fetch_numpcls_in_bucket_thr(int i)
-  //{
-  //  assert_le(0,i);
-  //  assert_lt(i,num_threads);
-  //  return *(numpcls_in_bucket_thr[i]);
-  //};
 
   /** rank of processor in which particle is created (for ID) */
   int BirthRank[2];

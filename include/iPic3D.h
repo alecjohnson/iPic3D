@@ -33,6 +33,18 @@ namespace iPic3D {
   class c_Solver {
 
   public:
+    c_Solver():
+      mpi(0),
+      col(0),
+      vct(0),
+      grid(0),
+      EMf(0),
+      part(0),
+      Ke(0),
+      momentum(0),
+      Qremoved(0),
+      my_clock(0)
+    {}
     int Init(int argc, char **argv);
     void CalculateMoments();
     void CalculateField(); //! calculate Efield

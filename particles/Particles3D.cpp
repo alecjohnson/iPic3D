@@ -50,29 +50,13 @@ using std::endl;
  *
  */
 
-// Construct an instance and put it in my memory
-//
-// The proper way to do this is with placement-new
-void Particles3D::placement_new(int species, CollectiveIO * col, VirtualTopology3D * vct, Grid * grid)
-{
-  Particles3D newinstance(species, col, vct, grid);
-  memcpy(this, newinstance, sizeof(Particles3D));
-}
-/** constructor */
-Particles3D::Particles3D() {
-  // see allocate(int species, CollectiveIO* col, VirtualTopology3D* vct, Grid* grid)
+Particles3D::Particles3D(int species, CollectiveIO * col, VirtualTopology3D * vct, Grid * grid):
+  Particles3Dcomm(species, col, vct, grid)
+{}
 
-}
 /** deallocate particles */
-Particles3D::~Particles3D() {
-  delete[]x;
-  delete[]y;
-  delete[]z;
-  delete[]u;
-  delete[]v;
-  delete[]w;
-  delete[]q;
-}
+Particles3D::~Particles3D()
+{}
 
 /** particles are uniformly distributed with zero velocity   */
 void Particles3D::uniform_background(Grid * grid, Field * EMf) {
@@ -1158,33 +1142,15 @@ void Particles3D::mover_PC_vectorized(
   }
 }
 
-/** communicate particle after moving them */
-int Particles3D::communicate_particles(VirtualTopology3D * vct)
-{
-  timeTasks_set_communicating(); // communicating until end of scope
-  convertParticlesToAoS();
-  const int avail = communicate(vct);
-  if (avail < 0)
-    return (-1);
-  former_MPI_Barrier(MPI_COMM_WORLD);
-  // communicate again if particles are not in the correct domain
-  while (isMessagingDone(vct) > 0) {
-    // COMMUNICATION
-    const int avail = communicate(vct);
-    if (avail < 0)
-      return (-1);
-    former_MPI_Barrier(MPI_COMM_WORLD);
-  }
-  return 0; // exit successfully
-}
-
 /** relativistic mover with a Predictor-Corrector scheme */
-int Particles3D::mover_relativistic(Grid * grid, VirtualTopology3D * vct, Field * EMf) {
+int Particles3D::mover_relativistic(Field * EMf)
+{
+  eprintf("not implemented");
   return (0);
 }
 
-int Particles3D::particle_repopulator(Grid* grid,VirtualTopology3D* vct, Field* EMf){
-
+int Particles3D::particle_repopulator(Field* EMf)
+{
   if (vct->getCartesian_rank()==0){
     cout << "*** Repopulator species " << ns << " ***" << endl;
   }

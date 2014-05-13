@@ -68,8 +68,6 @@ class Particles3D:public Particles3Dcomm {
     void mover_PC_AoS_vec_onesort(Grid * grid, VirtualTopology3D * vct, Field * EMf);
     /** vectorized version of mover_PC **/
     void mover_PC_vectorized(Grid * grid, VirtualTopology3D * vct, Field * EMf);
-    /** communicate particle after moving them */
-    int communicate_particles(VirtualTopology3D * vct);
     /** relativistic mover with a Predictor-Corrector scheme */
     int mover_relativistic(Grid * grid, VirtualTopology3D * vct, Field * EMf);
     /** particle repopulator */

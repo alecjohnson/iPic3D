@@ -9,7 +9,7 @@ developers: Stefano Markidis, Giovanni Lapenta.
 #include <math.h>
 #include <limits.h>
 #include "asserts.h"
-#include <algorithm> // for swap
+#include <algorithm> // for swap, std::max
 #include "VirtualTopology3D.h"
 #include "VCtopology3D.h"
 #include "CollectiveIO.h"
@@ -31,18 +31,14 @@ developers: Stefano Markidis, Giovanni Lapenta.
 #include "Parameters.h"
 
 #include "hdf5.h"
-#include <vector>
-#include <complex>
+//#include <vector>
+//#include <complex>
 #include "debug.h"
 #include "TimeTasks.h"
 
 using std::cout;
-using std::cerr;
 using std::endl;
 
-#define min(a,b) (((a)<(b))?(a):(b));
-#define max(a,b) (((a)>(b))?(a):(b));
-#define MIN_VAL   1E-32
 /**
  * 
  * Class for particles of the same species, in a 2D space and 3component velocity
@@ -52,49 +48,80 @@ using std::endl;
  *
  */
 
-/** constructor */
-Particles3Dcomm::Particles3Dcomm()
-{
-  // see allocate(int species, CollectiveIO* col, VirtualTopology3D* vct, Grid* grid)
-
-}
 /** deallocate particles */
 Particles3Dcomm::~Particles3Dcomm() {
-  delete[]x;
-  delete[]y;
-  delete[]z;
-  delete[]u;
-  delete[]v;
-  delete[]w;
-  delete[]q;
-  delete[]t;
-  // AoS representation
-  delete _pcls;
-  delete _pclstmp;
-  // average position used in particle advance
-  delete _xavg;
-  delete _yavg;
-  delete _zavg;
+  // velocities
+  delete &u;
+  delete &v;
+  delete &w;
+  // charge
+  delete &q;
+  // positions
+  delete &x;
+  delete &y;
+  delete &z;
+  // subcycle time
+  delete &t;
+
+  // average positions, used in iterative particle advance
+  delete &_xavg;
+  delete &_yavg;
+  delete &_zavg;
+  delete &_tavg;
+
+  delete &_pcls;
+  delete &_pclstmp;
+
   // extra xavg for sort
-  // deallocate buffers
-  delete[]b_X_RIGHT;
-  delete[]b_X_LEFT;
-  delete[]b_Y_RIGHT;
-  delete[]b_Y_LEFT;
-  delete[]b_Z_RIGHT;
-  delete[]b_Z_LEFT;
   delete numpcls_in_bucket;
   delete numpcls_in_bucket_now;
   delete bucket_offset;
 }
-Particles3Dcomm(int species, CollectiveIO * col, VirtualTopology3D * vct, Grid * grid)
+/** constructor for a single species*/
+// was Particles3Dcomm::allocate()
+Particles3Dcomm::Particles3Dcomm(
+  int species_,
+  CollectiveIO * col,
+  VirtualTopology3D * vct_,
+  Grid * grid_)
+ :
+  ns(species_),
+  vct(vct_),
+  grid(grid_),
+  //
+  ////////////
+  // arrays //
+  ////////////
+  //
+  // SoA particle representation
+  //
+  // velocities
+  u(*new Larray<double>),
+  v(*new Larray<double>),
+  w(*new Larray<double>),
+  // charge
+  q(*new Larray<double>),
+  // positions
+  x(*new Larray<double>),
+  y(*new Larray<double>),
+  z(*new Larray<double>),
+  // subcycle time
+  t(*new Larray<double>),
+  //
+  particleType(ParticleType::SoA),
+
+  // average positions, used in iterative particle advance
+  _xavg(*new Larray<double>);
+  _yavg(*new Larray<double>);
+  _zavg(*new Larray<double>);
+  _tavg(*new Larray<double>);
+
+  _pcls(*new Larray<SpeciesParticle>);
+  _pclstmp(*new Larray<SpeciesParticle>);
+
 {
-  allocate(int species, CollectiveIO * col, VirtualTopology3D * vct, Grid * grid);
-}
-/** constructors fo a single species*/
-void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3D * vct, Grid * grid) {
   // info from collectiveIO
-  ns = species;
+  //
   npcel = col->getNpcel(species);
   npcelx = col->getNpcelx(species);
   npcely = col->getNpcely(species);
@@ -126,21 +153,32 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
   // velocity of the injection from the wall
   Vinj = col->getVinj();
   Ninj = col->getRHOinject(species);
+  //
+  // boundary condition for particles
+  //
+  bcPfaceXright = col->getBcPfaceXright();
+  bcPfaceXleft = col->getBcPfaceXleft();
+  bcPfaceYright = col->getBcPfaceYright();
+  bcPfaceYleft = col->getBcPfaceYleft();
+  bcPfaceZright = col->getBcPfaceZright();
+  bcPfaceZleft = col->getBcPfaceZleft();
+
   // info from Grid
+  //
   xstart = grid->getXstart();
   xend = grid->getXend();
   ystart = grid->getYstart();
   yend = grid->getYend();
   zstart = grid->getZstart();
   zend = grid->getZend();
-
+  //
   dx = grid->getDX();
   dy = grid->getDY();
   dz = grid->getDZ();
   inv_dx = 1/dx;
   inv_dy = 1/dy;
   inv_dz = 1/dz;
-
+  //
   nxn = grid->getNXN();
   nyn = grid->getNYN();
   nzn = grid->getNZN();
@@ -151,89 +189,47 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
   assert_eq(nyc,nyn-1);
   assert_eq(nzc,nzn-1);
   invVOL = grid->getInvVOL();
+
   // info from VirtualTopology3D
+  //
   cVERBOSE = vct->getcVERBOSE();
 
-  // boundary condition for particles
-  bcPfaceXright = col->getBcPfaceXright();
-  bcPfaceXleft = col->getBcPfaceXleft();
-  bcPfaceYright = col->getBcPfaceYright();
-  bcPfaceYleft = col->getBcPfaceYleft();
-  bcPfaceXright = col->getBcPfaceXright();
-  bcPfaceXleft = col->getBcPfaceXleft();
-  bcPfaceYright = col->getBcPfaceYright();
-  bcPfaceYleft = col->getBcPfaceYleft();
-  bcPfaceZright = col->getBcPfaceZright();
-  bcPfaceZleft = col->getBcPfaceZleft();
+  /////////////////////////////////
+  // preallocate space in arrays //
+  /////////////////////////////////
+  //
+  // SoA particle representation
+  //
+  // velocities
+  u.reserve(npmax);
+  v.reserve(npmax);
+  w.reserve(npmax);
+  // charge
+  q.reserve(npmax);
+  // positions
+  x.reserve(npmax);
+  y.reserve(npmax);
+  z.reserve(npmax);
+  // subcycle time
+  t.reserve(npmax);
+  //
+  // AoS particle representation
+  //
+  _pcls.reserve(npmax);
+
   //
   // allocate arrays for sorting particles
   //
   numpcls_in_bucket = new array3_int(nxc,nyc,nzc);
   numpcls_in_bucket_now = new array3_int(nxc,nyc,nzc);
   bucket_offset = new array3_int(nxc,nyc,nzc);
-  //num_threads = omp_get_max_threads();
-  //numpcls_in_bucket_thr = (arr3_int*)malloc(sizeof(void*)*num_threads);
-  //for(int i=0; i<num_threads; i++)
-  //{
-  //  numpcls_in_bucket_thr[i] = new array3_int(nxc,nyc,nzc);
-  //}
   
-  //
-  // //////////////////////////////////////////////////////////////
-  // ////////////// ALLOCATE ARRAYS /////////////////////////
-  // //////////////////////////////////////////////////////////////
-  //
-  // SoA particle representation
-  //
-  // velocities
-  u = new Larray<double>(npmax);
-  v = new Larray<double>(npmax);
-  w = new Larray<double>(npmax);
-  // charge
-  q = new Larray<double>(npmax);
-  // positions
-  x = new Larray<double>(npmax);
-  y = new Larray<double>(npmax);
-  z = new Larray<double>(npmax);
-  // particle ID
-  t = new Larray<double>(npmax);
-  //
-  particleType = ParticleType::SoA;
-
-  // average positions, used in iterative particle advance
-  _xavg = new Larray<double>;
-  _yavg = new Larray<double>;
-  _zavg = new Larray<double>;
-  _tavg = new Larray<double>;
-
-  _pcls = new Larray<SpeciesParticle>;
-  _pclstmp = new Larray<SpeciesParticle>;
-
   if(Parameters::get_USING_AOS())
   {
     assert_eq(sizeof(SpeciesParticle),64);
   }
 
   //ParticleID = new Larray<long long>;
-  // BUFFERS
-  // the buffer size should be decided depending on number of particles
-  // the buffer size should be decided depending on number of particles
-  nVar = 8;
-  buffer_size = (int) (.05 * nop * nVar + 1); // max: 5% of the particles in the processors is going out
-  buffer_size_small = (int) (.01 * nop * nVar + 1); // max 1% not resizable 
-
-  b_X_RIGHT = new double[buffer_size];
-  b_X_RIGHT_ptr = b_X_RIGHT;    // alias to make the resize
-  b_X_LEFT = new double[buffer_size];
-  b_X_LEFT_ptr = b_X_LEFT;      // alias to make the resize
-  b_Y_RIGHT = new double[buffer_size];
-  b_Y_RIGHT_ptr = b_Y_RIGHT;    // alias to make the resize
-  b_Y_LEFT = new double[buffer_size];
-  b_Y_LEFT_ptr = b_Y_LEFT;      // alias to make the resize
-  b_Z_RIGHT = new double[buffer_size];
-  b_Z_RIGHT_ptr = b_Z_RIGHT;    // alias to make the resize
-  b_Z_LEFT = new double[buffer_size];
-  b_Z_LEFT_ptr = b_Z_LEFT;      // alias to make the resize
 
   // if RESTART is true initialize the particle in allocate method
   restart = col->getRestart_status();
@@ -338,99 +334,100 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
 
 // A much faster version of this is at EMfields3D::sumMoments
 //
-void Particles3Dcomm::interpP2G(Field * EMf, Grid * grid, VirtualTopology3D * vct) {
-  const double inv_dx = 1.0 / dx;
-  const double inv_dy = 1.0 / dy;
-  const double inv_dz = 1.0 / dz;
-  const double nxn = grid->getNXN();
-  const double nyn = grid->getNYN();
-  const double nzn = grid->getNZN();
-  // assert_le(nop,(long long)INT_MAX); // else would need to use long long
-  // to make memory use scale to a large number of threads we
-  // could first apply an efficient parallel sorting algorithm
-  // to the particles and then accumulate moments in smaller
-  // subarrays.
-  {
-    for (int i = 0; i < nop; i++)
-    {
-      const int ix = 2 + int (floor((x[i] - xstart) * inv_dx));
-      const int iy = 2 + int (floor((y[i] - ystart) * inv_dy));
-      const int iz = 2 + int (floor((z[i] - zstart) * inv_dz));
-      double temp[2][2][2];
-      double xi[2], eta[2], zeta[2];
-      xi[0] = x[i] - grid->getXN(ix - 1, iy, iz);
-      eta[0] = y[i] - grid->getYN(ix, iy - 1, iz);
-      zeta[0] = z[i] - grid->getZN(ix, iy, iz - 1);
-      xi[1] = grid->getXN(ix, iy, iz) - x[i];
-      eta[1] = grid->getYN(ix, iy, iz) - y[i];
-      zeta[1] = grid->getZN(ix, iy, iz) - z[i];
-      double weight[2][2][2];
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++) {
-            weight[ii][jj][kk] = q[i] * xi[ii] * eta[jj] * zeta[kk] * invVOL;
-          }
-      // add charge density
-      EMf->addRho(weight, ix, iy, iz, ns);
-      // add current density - X
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = u[i] * weight[ii][jj][kk];
-      EMf->addJx(temp, ix, iy, iz, ns);
-      // add current density - Y
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = v[i] * weight[ii][jj][kk];
-      EMf->addJy(temp, ix, iy, iz, ns);
-      // add current density - Z
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = w[i] * weight[ii][jj][kk];
-      EMf->addJz(temp, ix, iy, iz, ns);
-      // Pxx - add pressure tensor
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = u[i] * u[i] * weight[ii][jj][kk];
-      EMf->addPxx(temp, ix, iy, iz, ns);
-      // Pxy - add pressure tensor
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = u[i] * v[i] * weight[ii][jj][kk];
-      EMf->addPxy(temp, ix, iy, iz, ns);
-      // Pxz - add pressure tensor
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = u[i] * w[i] * weight[ii][jj][kk];
-      EMf->addPxz(temp, ix, iy, iz, ns);
-      // Pyy - add pressure tensor
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = v[i] * v[i] * weight[ii][jj][kk];
-      EMf->addPyy(temp, ix, iy, iz, ns);
-      // Pyz - add pressure tensor
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = v[i] * w[i] * weight[ii][jj][kk];
-      EMf->addPyz(temp, ix, iy, iz, ns);
-      // Pzz - add pressure tensor
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = w[i] * w[i] * weight[ii][jj][kk];
-      EMf->addPzz(temp, ix, iy, iz, ns);
-    }
-  }
-  // communicate contribution from ghost cells 
-  EMf->communicateGhostP2G(ns, 0, 0, 0, 0, vct);
-}
+//void Particles3Dcomm::interpP2G(Field * EMf)
+//{
+//  const double inv_dx = 1.0 / dx;
+//  const double inv_dy = 1.0 / dy;
+//  const double inv_dz = 1.0 / dz;
+//  const double nxn = grid->getNXN();
+//  const double nyn = grid->getNYN();
+//  const double nzn = grid->getNZN();
+//  // assert_le(nop,(long long)INT_MAX); // else would need to use long long
+//  // to make memory use scale to a large number of threads we
+//  // could first apply an efficient parallel sorting algorithm
+//  // to the particles and then accumulate moments in smaller
+//  // subarrays.
+//  {
+//    for (int i = 0; i < nop; i++)
+//    {
+//      const int ix = 2 + int (floor((x[i] - xstart) * inv_dx));
+//      const int iy = 2 + int (floor((y[i] - ystart) * inv_dy));
+//      const int iz = 2 + int (floor((z[i] - zstart) * inv_dz));
+//      double temp[2][2][2];
+//      double xi[2], eta[2], zeta[2];
+//      xi[0] = x[i] - grid->getXN(ix - 1, iy, iz);
+//      eta[0] = y[i] - grid->getYN(ix, iy - 1, iz);
+//      zeta[0] = z[i] - grid->getZN(ix, iy, iz - 1);
+//      xi[1] = grid->getXN(ix, iy, iz) - x[i];
+//      eta[1] = grid->getYN(ix, iy, iz) - y[i];
+//      zeta[1] = grid->getZN(ix, iy, iz) - z[i];
+//      double weight[2][2][2];
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++) {
+//            weight[ii][jj][kk] = q[i] * xi[ii] * eta[jj] * zeta[kk] * invVOL;
+//          }
+//      // add charge density
+//      EMf->addRho(weight, ix, iy, iz, ns);
+//      // add current density - X
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = u[i] * weight[ii][jj][kk];
+//      EMf->addJx(temp, ix, iy, iz, ns);
+//      // add current density - Y
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = v[i] * weight[ii][jj][kk];
+//      EMf->addJy(temp, ix, iy, iz, ns);
+//      // add current density - Z
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = w[i] * weight[ii][jj][kk];
+//      EMf->addJz(temp, ix, iy, iz, ns);
+//      // Pxx - add pressure tensor
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = u[i] * u[i] * weight[ii][jj][kk];
+//      EMf->addPxx(temp, ix, iy, iz, ns);
+//      // Pxy - add pressure tensor
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = u[i] * v[i] * weight[ii][jj][kk];
+//      EMf->addPxy(temp, ix, iy, iz, ns);
+//      // Pxz - add pressure tensor
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = u[i] * w[i] * weight[ii][jj][kk];
+//      EMf->addPxz(temp, ix, iy, iz, ns);
+//      // Pyy - add pressure tensor
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = v[i] * v[i] * weight[ii][jj][kk];
+//      EMf->addPyy(temp, ix, iy, iz, ns);
+//      // Pyz - add pressure tensor
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = v[i] * w[i] * weight[ii][jj][kk];
+//      EMf->addPyz(temp, ix, iy, iz, ns);
+//      // Pzz - add pressure tensor
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = w[i] * w[i] * weight[ii][jj][kk];
+//      EMf->addPzz(temp, ix, iy, iz, ns);
+//    }
+//  }
+//  // communicate contribution from ghost cells 
+//  EMf->communicateGhostP2G(ns, 0, 0, 0, 0, vct);
+//}
 
 // boundary conditions that must be applied to each dimension
 //
@@ -477,7 +474,10 @@ inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
   SpeciesParticle& pcl,
   bool hasXlowerNeighbor, bool hasXupperNeighbor,
   bool hasYlowerNeighbor, bool hasYupperNeighbor,
-  bool hasZlowerNeighbor, bool hasZupperNeighbor)
+  bool hasZlowerNeighbor, bool hasZupperNeighbor,
+  bool isPeriodicXlower, bool isPeriodicXupper,
+  bool isPeriodicYlower, bool isPeriodicYupper,
+  bool isPeriodicZlower, bool isPeriodicZupper)
 {
   bool was_sent = true;
   
@@ -490,41 +490,41 @@ inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
   if(hasXlowerNeighbor && pcl.get_x() < xstart)
   {
     // handle periodic boundary conditions only when wrapping particles
-    if(ptVCT->isPeriodicXlower() && pcl.get_x() < 0) pcl.fetch_x() += Lx;
+    if(isPeriodicXlower && pcl.get_x() < 0) pcl.fetch_x() += Lx;
     // put it in the communication buffer
     sendXleft.send(pcl);
   }
   else if(hasXupperNeighbor && pcl.get_x() > xend)
   {
     // handle periodic boundary conditions only when wrapping particles
-    if(ptVCT->isPeriodicXupper() && pcl.get_x() > Lx) pcl.fetch_x() -= Lx;
+    if(isPeriodicXupper && pcl.get_x() > Lx) pcl.fetch_x() -= Lx;
     // put it in the communication buffer
     sendXleft.send(pcl);
   }
   else if(hasYlowerNeighbor && pcl.get_y() < ystart)
   {
     // handle periodic boundary conditions only when wrapping particles
-    if(ptVCT->isPeriodicYlower() && pcl.get_y() < 0) pcl.fetch_y() += Ly;
+    if(isPeriodicYlower && pcl.get_y() < 0) pcl.fetch_y() += Ly;
     // put it in the communication buffer
     sendYleft.send(pcl);
   }
   else if(hasYupperNeighbor && pcl.get_y() > yend)
   {
     // handle periodic boundary conditions only when wrapping particles
-    if(ptVCT->isPeriodicYupper() && pcl.get_y() > Ly) pcl.fetch_y() -= Ly;
+    if(isPeriodicYupper && pcl.get_y() > Ly) pcl.fetch_y() -= Ly;
     sendYrght.send(pcl);
   }
   else if(hasZlowerNeighbor && pcl.get_z() < zstart)
   {
     // handle periodic boundary conditions only when wrapping particles
-    if(ptVCT->isPeriodicZlower() && pcl.get_z() < 0) pcl.fetch_z() += Lz;
+    if(isPeriodicZlower && pcl.get_z() < 0) pcl.fetch_z() += Lz;
     // put it in the communication buffer
     sendZLeft.send(pcl);
   }
   else if(hasZupperNeighbor && pcl.get_z() > zend)
   {
     // handle periodic boundary conditions only when wrapping particles
-    if(ptVCT->isPeriodicZupper() && pcl.get_z() > Lz) pcl.fetch_z() -= Lz;
+    if(isPeriodicZupper && pcl.get_z() > Lz) pcl.fetch_z() -= Lz;
     // put it in the communication buffer
     sendZRght.send(pcl);
   }
@@ -532,6 +532,126 @@ inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
     // particle is still in the domain, procede with the next particle
     was_sent = false;
   }
+}
+
+// flush sending particles.
+//
+void Particles3Dcomm::flush_send()
+{
+  sendXleft.send_complete();
+  sendXrght.send_complete();
+  sendYleft.send_complete();
+  sendYrght.send_complete();
+  sendZleft.send_complete();
+  sendZrght.send_complete();
+}
+
+// receive, sort, and, as appropriate, resend incoming particles
+//
+// assumes that flush_send() has been called
+//
+int Particles3Dcomm::handle_incoming_particles()
+{
+  int num_pcls_resent = 0;
+  // receive incoming particles, 
+  // immediately resending any exiting particles
+  //
+  const int num_recv_buffers = 6;
+  MPI_Request recv_requests[num_recv_buffers] = 
+  {
+    recvXleft.get_curr_request(), recvXrght.get_curr_request(),
+    recvYleft.get_curr_request(), recvYrght.get_curr_request(),
+    recvZleft.get_curr_request(), recvZrght.get_curr_request()
+  };
+  BlockCommunicator<SpeciesParticle>* recvBuffArr[num_recv_buffers] =
+  {
+    &recvXleft, &recvXrght,
+    &recvYleft, &recvYrght,
+    &recvZleft, &recvZrght
+  };
+
+  const bool noXlowerNeighbor = ptVCT->noXlowerNeighbor();
+  const bool noXupperNeighbor = ptVCT->noXupperNeighbor();
+  const bool noYlowerNeighbor = ptVCT->noYlowerNeighbor();
+  const bool noYupperNeighbor = ptVCT->noYupperNeighbor();
+  const bool noZlowerNeighbor = ptVCT->noZlowerNeighbor();
+  const bool noZupperNeighbor = ptVCT->noZupperNeighbor();
+  const bool isBoundaryProcess = ptVCT->isBoundaryProcess();
+  const bool hasXlowerNeighbor = !ptVCT->noXlowerNeighbor();
+  const bool hasXupperNeighbor = !ptVCT->noXupperNeighbor();
+  const bool hasYlowerNeighbor = !ptVCT->noYlowerNeighbor();
+  const bool hasYupperNeighbor = !ptVCT->noYupperNeighbor();
+  const bool hasZlowerNeighbor = !ptVCT->noZlowerNeighbor();
+  const bool hasZupperNeighbor = !ptVCT->noZupperNeighbor();
+  const bool isPeriodicXlower = ptVCT->isPeriodicXlower();
+  const bool isPeriodicXupper = ptVCT->isPeriodicXupper();
+  const bool isPeriodicYlower = ptVCT->isPeriodicYlower();
+  const bool isPeriodicYupper = ptVCT->isPeriodicYupper();
+  const bool isPeriodicZlower = ptVCT->isPeriodicZlower();
+  const bool isPeriodicZupper = ptVCT->isPeriodicZupper();
+
+  // while there are still incoming particles
+  // put them in the appropriate buffer
+  //
+  while(!(
+    recvXleft.comm_finished() && recvXrght.comm_finished() &&
+    recvYleft.comm_finished() && recvYrght.comm_finished() &&
+    recvZleft.comm_finished() && recvZrght.comm_finished()))
+  {
+    int recv_index;
+    MPI_Status recv_status;
+    MPI_Waitany(incount, recv_requests, &recv_index, &recv_status);
+    if(recv_index==MPI_UNDEFINED)
+      eprintf("recv_requests contains no active handles");
+    assert_ge(recv_index,0);
+    assert_lt(recv_index,num_recv_buffers);
+    //
+    // code specific to the receive buffer could be handled with a
+    // switch(recv_index) code block.
+    //
+    // grab the received block of particles and process it
+    //
+    BlockCommunicator<SpeciesParticle>* recvBuff = recvBuffArr[recv_index];
+    Block<Particle>& recv_block = recvBuff->fetch_received_block(recv_status);
+
+    // process each particle in the received block.
+    //
+    for(int i=0;i<recv_block.size();i++)
+    {
+      SpeciesParticle& pcl = recv_block[i];
+      apply_boundary_conditions(pcl,
+        isBoundaryProcess,
+        noXlowerNeighbor, noXupperNeighbor,
+        noYlowerNeighbor, noYupperNeighbor,
+        noZlowerNeighbor, noZupperNeighbor);
+      bool was_sent = send_pcl_to_appropriate_buffer(pcl,
+        isBoundaryProcess,
+        hasXlowerNeighbor, hasXupperNeighbor,
+        hasYlowerNeighbor, hasYupperNeighbor,
+        hasZlowerNeighbor, hasZupperNeighbor,
+        isPeriodicXlower, isPeriodicXupper,
+        isPeriodicYlower, isPeriodicYupper,
+        isPeriodicZlower, isPeriodicZupper)
+
+      if(was_sent)
+      {
+        num_pcls_resent++;
+      }
+      else
+      {
+        // the particle belongs here, so put it in the
+        // appropriate place. for now all particles are in a
+        // single list, so we append to the list.
+        _pcls.push_back(pcl);
+      }
+    }
+    // release the block and update the receive request
+    recvBuff->release_received_block(recv_status);
+    recv_requests[recv_index] = recvBuff->get_curr_request();
+  }
+
+  // return the number of particles that were resent
+  return num_pcls_resent;
 }
 
 // exchange particles with neighboring processors
@@ -542,10 +662,10 @@ inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
 // returns number of unsent particles, i.e.,
 // returns index of first received particle
 //
-int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
+int Particles3Dcomm::communicate_particles()
 {
-  //int new_buffer_size;
-  //int npExitingMax;
+  timeTasks_set_communicating(); // communicating until end of scope
+  convertParticlesToAoS();
 
   // activate receiving
   //
@@ -572,6 +692,12 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
   const bool hasYupperNeighbor = !ptVCT->noYupperNeighbor();
   const bool hasZlowerNeighbor = !ptVCT->noZlowerNeighbor();
   const bool hasZupperNeighbor = !ptVCT->noZupperNeighbor();
+  const bool isPeriodicXlower = ptVCT->isPeriodicXlower();
+  const bool isPeriodicXupper = ptVCT->isPeriodicXupper();
+  const bool isPeriodicYlower = ptVCT->isPeriodicYlower();
+  const bool isPeriodicYupper = ptVCT->isPeriodicYupper();
+  const bool isPeriodicZlower = ptVCT->isPeriodicZlower();
+  const bool isPeriodicZupper = ptVCT->isPeriodicZupper();
 
   int np_current = 0;
   while(np_current < _pcls.size())
@@ -584,6 +710,10 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
       noXlowerNeighbor, noXupperNeighbor,
       noYlowerNeighbor, noYupperNeighbor,
       noZlowerNeighbor, noZupperNeighbor);
+    // if the particle is exiting, put it in the appropriate send bin;
+    // this could be done at conclusion of push after particles are
+    // converted to AoS format in order to overlap communication
+    // with computation.
     bool was_sent = send_pcl_to_appropriate_buffer(pcl,
       isBoundaryProcess,
       hasXlowerNeighbor, hasXupperNeighbor,
@@ -598,222 +728,33 @@ int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT)
       np_current++;
     }
   }
-
-  const int retval = _pcls.size();
-  assert_eq(retval,np_current);
-
-  // flush sending particles
-  //
-  sendXleft.send_complete();
-  sendXrght.send_complete();
-  sendYleft.send_complete();
-  sendYrght.send_complete();
-  sendZleft.send_complete();
-  sendZrght.send_complete();
+  assert_eq(_pcls.size(),np_current);
 
   // receive and redistribute particles once for
   // each dimension of space without doing an
   // all-reduce to check if any particles are
   // actually being communicated.
+  int num_pcls_resent;
   for(int i=0;i<3;i++)
   {
-    int num_received, num_resent;
-    handle_incoming_particles(&num_received, &num_resent);
+    flush_send();
+    num_pcls_resent = handle_incoming_particles();
   }
 
-int Particles3Dcomm::handle_incoming_particles(VirtualTopology3D * ptVCT)
-{
-  // continue receiving and resending particles
-  // until there are no more particles to be received.
+  // continue receiving and resending incoming particles until
+  // global all-reduce of num_pcls_resent is zero, indicating
+  // that there are no more particles to be received.
   //
-  //**** receive incoming particles ****
-  //
-  // receive incoming particles, 
-  // immediately resending any exiting particles
-  //
-  const int num_recv_buffers = 6;
-  MPI_Request recv_requests[num_recv_buffers] = 
+  int total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
+  while(total_num_pcls_resent)
   {
-    recvXleft.get_curr_request(), recvXrght.get_curr_request(),
-    recvYleft.get_curr_request(), recvYrght.get_curr_request(),
-    recvZleft.get_curr_request(), recvZrght.get_curr_request()
-  };
-  BlockCommunicator<SpeciesParticle>* recvBuffArr[num_recv_buffers] =
-  {
-    &recvXleft, &recvXrght,
-    &recvYleft, &recvYrght,
-    &recvZleft, &recvZrght
-  };
-
-  // while there are still incoming particles
-  // put them in the appropriate buffer
-  //
-  while(!(
-    recvXleft.comm_finished() && recvXrght.comm_finished() &&
-    recvYleft.comm_finished() && recvYrght.comm_finished() &&
-    recvZleft.comm_finished() && recvZrght.comm_finished()))
-  {
-    int recv_index;
-    MPI_Status recv_status;
-    MPI_Waitany(incount, recv_requests, &recv_index, &recv_status);
-    if(recv_index==MPI_UNDEFINED)
-      eprintf("recv_requests contains no active handles");
-    assert_ge(recv_index,0);
-    assert_lt(recv_index,num_recv_buffers);
-    //
-    // code specific to the receive buffer could be handled with a
-    // switch(recv_index) code block.
-    //
-    // grab the received block and process it
-    //
-    BlockCommunicator<SpeciesParticle>* recvBuff = recvBuffArr[recv_index];
-    Block<Particle>& recv_block = recvBuff->fetch_received_block(recv_status);
-
-    // process each particle in the received block.
-    //
-    for(int i=0;i<recv_block.size();i++)
-    {
-      SpeciesParticle& pcl = recv_block[i];
-      // should change to enforce boundary conditions at conclusion of push,
-      // when particles are still in SoA format.
-      apply_boundary_conditions(pcl,
-        isBoundaryProcess,
-        noXlowerNeighbor, noXupperNeighbor,
-        noYlowerNeighbor, noYupperNeighbor,
-        noZlowerNeighbor, noZupperNeighbor);
-      // if the particle is exiting, put it in the appropriate send bin
-      bool was_sent = send_pcl_to_appropriate_buffer(pcl,
-        isBoundaryProcess,
-        hasXlowerNeighbor, hasXupperNeighbor,
-        hasYlowerNeighbor, hasYupperNeighbor,
-        hasZlowerNeighbor, hasZupperNeighbor);
-      // if the particle belongs here, put it in the appropriate place
-      if(!was_sent)
-      {
-        _pcls.push_back(pcl);
-      }
-    }
-    // release the block and update the receive request
-    recvBuff->release_received_block(recv_status);
-    recv_requests[recv_index] = recvBuff->get_curr_request();
+    flush_send();
+    num_pcls_resent = handle_incoming_particles();
+    total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
   }
-}
 
-  //nop = nplast + 1;
   nop = _pcls.size();
-
-  #if 0
-  npExitingMax = 0;
-  // calculate the maximum number of particles exiting from this domain
-  // use this value to check if communication is needed
-  // and to resize the buffer
-  npExitingMax = maxNpExiting();
-  // broadcast the maximum number of particles exiting for sizing the buffer and to check if communication is really needed
-  npExitingMax = reduceMaxNpExiting(npExitingMax);
-
-  /*****************************************************/
-  /* SEND AND RECEIVE MESSAGES */
-  /*****************************************************/
-
-  new_buffer_size = npExitingMax * nVar + 1;
-
-  if (new_buffer_size > buffer_size) {
-    cout << "resizing the receiving buffer" << endl;
-    resize_buffers(new_buffer_size);
-  }
-
-  if (npExitingMax > 0) {
-    communicateParticles(new_buffer_size, b_X_LEFT, b_X_RIGHT, b_Y_LEFT, b_Y_RIGHT, b_Z_LEFT, b_Z_RIGHT, ptVCT);
-
-    // UNBUFFERING
-    // message from XLEFT
-    avail1 = unbuffer(b_X_RIGHT);
-    avail2 = unbuffer(b_X_LEFT);
-    avail3 = unbuffer(b_Y_RIGHT);
-    avail4 = unbuffer(b_Y_LEFT);
-    avail5 = unbuffer(b_Z_RIGHT);
-    avail6 = unbuffer(b_Z_LEFT);
-    // if one of these numbers is negative than there is not enough space for particles
-    avail = avail1 + avail2 + avail3 + avail4 + avail5 + avail6;
-    availALL = reduceNumberParticles(avail);
-  }
-  #endif
 }
-
-/** This unbuffer the last communication */
-int Particles3Dcomm::unbuffer(double *b_) {
-  int np_current = 0;
-  // put the new particles at the end of the array, and update the number of particles
-  while (b_[np_current * nVar] != MIN_VAL) {
-    x[nop] = b_[nVar * np_current];
-    y[nop] = b_[nVar * np_current + 1];
-    z[nop] = b_[nVar * np_current + 2];
-    u[nop] = b_[nVar * np_current + 3];
-    v[nop] = b_[nVar * np_current + 4];
-    w[nop] = b_[nVar * np_current + 5];
-    q[nop] = b_[nVar * np_current + 6];
-    t[nop] = b_[nVar * np_current + 7];
-    //if (TrackParticleID)
-    //  ParticleID[nop] = (long long) b_[nVar * np_current + 7];
-    np_current++;
-    // these particles need further communication
-    if (x[nop] < xstart || x[nop] > xend || y[nop] < ystart || y[nop] > yend || z[nop] < zstart || z[nop] > zend)
-      rightDomain++;            // the particle is not in the domain
-    nop++;
-    if (nop > npmax) {
-      cout << "Number of particles in the domain " << nop << " and maxpart = " << npmax << endl;
-      MPI_Abort(MPI_COMM_WORLD, -1);
-      return (-1);              // end the simulation because you dont have enough space on the array
-    }
-  }
-  return (0);                   // everything was fine
-}
-/** Delete the a particle from the array and pack the the array, update the number of 
- * particles that are exiting
- * For deleting the particle from the array take the last particle and put it
- * in the position of the particle you want to delete
- * @param np = the index of the particle that must be deleted
- * @param nplast = the index of the last particle in the array
- */
-//void Particles3Dcomm::del_pack(int np_current, int *nplast) {
-//  x[np_current] = x[*nplast];
-//  y[np_current] = y[*nplast];
-//  z[np_current] = z[*nplast];
-//  u[np_current] = u[*nplast];
-//  v[np_current] = v[*nplast];
-//  w[np_current] = w[*nplast];
-//  q[np_current] = q[*nplast];
-//  if (TrackParticleID)
-//    ParticleID[np_current] = ParticleID[*nplast];
-//  npExit++;
-//  (*nplast)--;
-//}
-/** method to calculate how many particles are out of right domain */
-int Particles3Dcomm::isMessagingDone(VirtualTopology3D * ptVCT) {
-  int result = 0;
-  result = reduceNumberParticles(rightDomain);
-  if (result > 0 && cVERBOSE && ptVCT->getCartesian_rank() == 0)
-    cout << "Further Comunication: " << result << " particles not in the right domain" << endl;
-  return (result);
-
-}
-/** calculate the maximum number exiting from this domain */
-//int Particles3Dcomm::maxNpExiting() {
-//  int maxNp = 0;
-//  if (npExitXright > maxNp)
-//    maxNp = npExitXright;
-//  if (npExitXleft > maxNp)
-//    maxNp = npExitXleft;
-//  if (npExitYright > maxNp)
-//    maxNp = npExitYright;
-//  if (npExitYleft > maxNp)
-//    maxNp = npExitYleft;
-//  if (npExitZright > maxNp)
-//    maxNp = npExitZright;
-//  if (npExitZleft > maxNp)
-//    maxNp = npExitZleft;
-//  return (maxNp);
-//}
 
 /** return the Kinetic energy */
 double Particles3Dcomm::getKe() {
@@ -824,7 +765,13 @@ double Particles3Dcomm::getKe() {
   MPI_Allreduce(&localKe, &totalKe, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return (totalKe);
 }
+
 /** return the total momentum */
+//
+// This is the sum over all particles of the magnitude of the
+// momentum, which has no physical meaning that I can see.
+// we should be summing each component of the momentum. -eaj
+//
 double Particles3Dcomm::getP() {
   double localP = 0.0;
   double totalP = 0.0;
@@ -839,7 +786,7 @@ double Particles3Dcomm::getMaxVelocity() {
   double localVel = 0.0;
   double maxVel = 0.0;
   for (int i = 0; i < nop; i++)
-    localVel = max(localVel, sqrt(u[i] * u[i] + v[i] * v[i] + w[i] * w[i]));
+    localVel = std::max(localVel, sqrt(u[i] * u[i] + v[i] * v[i] + w[i] * w[i]));
   MPI_Allreduce(&localVel, &maxVel, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
   return (maxVel);
 }
@@ -877,7 +824,8 @@ long long *Particles3Dcomm::getVelocityDistribution(int nBins, double maxVel) {
 
 
 /** print particles info */
-void Particles3Dcomm::Print(VirtualTopology3D * ptVCT) const {
+void Particles3Dcomm::Print(VirtualTopology3D * ptVCT) const
+{
   cout << endl;
   cout << "Number of Particles: " << nop << endl;
   cout << "Subgrid (" << ptVCT->getCoordinates(0) << "," << ptVCT->getCoordinates(1) << "," << ptVCT->getCoordinates(2) << ")" << endl;
@@ -899,15 +847,17 @@ void Particles3Dcomm::PrintNp(VirtualTopology3D * ptVCT)  const {
 
 /***** particle sorting routines *****/
 
-void Particles3Dcomm::sort_particles_serial(Grid * grid, VirtualTopology3D * vct)
+void Particles3Dcomm::sort_particles_serial()
 {
   switch(particleType)
   {
     case ParticleType::AoS:
-      sort_particles_serial_AoS(grid,vct);
+      sort_particles_serial_AoS();
       break;
     case ParticleType::SoA:
-      sort_particles_serial_SoA(grid,vct);
+      convertParticlesToAoS();
+      sort_particles_serial_AoS();
+      convertParticlesToSoA();
       break;
     default:
       unsupported_value_error(particleType);
@@ -915,9 +865,10 @@ void Particles3Dcomm::sort_particles_serial(Grid * grid, VirtualTopology3D * vct
 }
 
 // need to sort and communicate particles after each iteration
-void Particles3Dcomm::sort_particles_serial_AoS(
-  Grid * grid, VirtualTopology3D * vct)
+void Particles3Dcomm::sort_particles_serial_AoS()
 {
+  convertParticlesToAoS();
+
   Larray<SpeciesParticle>& pcls = fetch_pcls();
   Larray<SpeciesParticle>& pclstmp = fetch_pclstmp();
   {
@@ -970,10 +921,13 @@ void Particles3Dcomm::sort_particles_serial_AoS(
     }
     // swap the tmp particle memory with the official particle memory
     {
+      // if using accessors rather than transposition,
+      //
       // here I would need not only to swap the pointers but also
-      // to swap the all the accessors.
-      EDITPOINT
-      swap(_pclstmp,_pcls);
+      // to swap all the accessors.
+      //
+      _pcls.swap(_pclstmp);
+      EDITPOINT;
     }
 
     // check if the particles were sorted incorrectly
@@ -987,337 +941,6 @@ void Particles3Dcomm::sort_particles_serial_AoS(
       }
     }
   }
-}
-
-// need to sort and communicate particles after each iteration
-void Particles3Dcomm::sort_particles_serial_SoA(
-  Grid * grid, VirtualTopology3D * vct)
-{
-  double * xtmp = fetch_xtmp();
-  double * ytmp = fetch_ytmp();
-  double * ztmp = fetch_ztmp();
-  double * utmp = fetch_utmp();
-  double * vtmp = fetch_vtmp();
-  double * wtmp = fetch_wtmp();
-  double * qtmp = fetch_qtmp();
-
-  //long long* ParticleIDtmp = 0;
-  //if (TrackParticleID)
-  //{
-  //  assert(ParticleID);
-  //  ParticleIDtmp = fetch_ParticleIDtmp();
-  //  assert(fetch_ParticleIDtmp());
-  //  assert(ParticleIDtmp);
-  //}
-
-  // sort the particles
-  {
-    numpcls_in_bucket->setall(0);
-    // iterate through particles and count where they will go
-    for (int pidx = 0; pidx < nop; pidx++)
-    {
-      // get the cell indices of the particle
-      //
-      int cx,cy,cz;
-      grid->get_safe_cell_coordinates(cx,cy,cz,x[pidx],y[pidx],z[pidx]);
-      //
-      // is it better just to recompute this?
-      //
-      //xcell[pidx]=cx;
-      //ycell[pidx]=cy;
-      //zcell[pidx]=cz;
-
-      // increment the number of particles in bucket of this particle
-      (*numpcls_in_bucket)[cx][cy][cz]++;
-    }
-
-    // compute prefix sum to determine initial position
-    // of each bucket (could parallelize this)
-    //
-    int accpcls=0;
-    for(int cx=0;cx<nxc;cx++)
-    for(int cy=0;cy<nyc;cy++)
-    for(int cz=0;cz<nzc;cz++)
-    {
-      (*bucket_offset)[cx][cy][cz] = accpcls;
-      accpcls += (*numpcls_in_bucket)[cx][cy][cz];
-    }
-    assert_eq(accpcls,nop);
-
-    numpcls_in_bucket_now->setall(0);
-
-    // put the particles where they are supposed to go
-    for (int pidx = 0; pidx < nop; pidx++)
-    {
-      // get the cell indices of the particle
-      //
-      int cx,cy,cz;
-      grid->get_safe_cell_coordinates(cx,cy,cz,x[pidx],y[pidx],z[pidx]);
-      //
-      //cx = xcell[pidx];
-      //cy = ycell[pidx];
-      //cz = zcell[pidx];
-
-      // compute where the data should go
-      const int numpcls_now = (*numpcls_in_bucket_now)[cx][cy][cz]++;
-      const int outpidx = (*bucket_offset)[cx][cy][cz] + numpcls_now;
-      assert_lt(outpidx, nop);
-      assert_ge(outpidx, 0);
-      assert_lt(pidx, nop);
-      assert_ge(pidx, 0);
-
-      // copy particle data to new location
-      //
-      xtmp[outpidx] = x[pidx];
-      ytmp[outpidx] = y[pidx];
-      ztmp[outpidx] = z[pidx];
-      utmp[outpidx] = u[pidx];
-      vtmp[outpidx] = v[pidx];
-      wtmp[outpidx] = w[pidx];
-      qtmp[outpidx] = q[pidx];
-      //if (TrackParticleID)
-      //{
-      //  ParticleIDtmp[outpidx] = ParticleID[pidx];
-      //}
-    }
-    // swap the tmp particle memory with the official particle memory
-    {
-      swap(_xtmp,x);
-      swap(_ytmp,y);
-      swap(_ztmp,z);
-      swap(_utmp,u);
-      swap(_vtmp,v);
-      swap(_wtmp,w);
-      swap(_qtmp,q);
-      //swap(_ParticleIDtmp,ParticleID);
-    }
-
-    // check that the number of bins was correct
-    //
-    if(true)
-    {
-      for(int cx=0;cx<nxc;cx++)
-      for(int cy=0;cy<nyc;cy++)
-      for(int cz=0;cz<nzc;cz++)
-      {
-        assert_eq((*numpcls_in_bucket_now)[cx][cy][cz], (*numpcls_in_bucket)[cx][cy][cz]);
-      }
-    }
-    // confirm that the particles were sorted correctly
-    if(false)
-    {
-      for(int cx=0;cx<nxc;cx++)
-      for(int cy=0;cy<nyc;cy++)
-      for(int cz=0;cz<nzc;cz++)
-      {
-        const int numpcls_in_cell = get_numpcls_in_bucket(cx,cy,cz);
-        const int bucket_offset = get_bucket_offset(cx,cy,cz);
-        const int bucket_end = bucket_offset+numpcls_in_cell;
-        for(int pidx=bucket_offset; pidx<bucket_end; pidx++)
-        {
-          // confirm that particle is in correct cell
-          {
-            int cx_,cy_,cz_;
-            grid->get_safe_cell_coordinates(cx_,cy_,cz_,x[pidx],y[pidx],z[pidx]);
-            if((cx_!=cx)
-             ||(cy_!=cy)
-             ||(cz_!=cz))
-            {
-              dprintf("\n\t cx =%d, cy =%d, cz =%d"
-                      "\n\t cx_=%d, cy_=%d, cz_=%d"
-                      "\n\t cxf=%f, cyf=%f, czf=%f",
-                      cx,cy,cz,
-                      cx_,cy_,cz_,
-                      1.+(x[pidx]-xstart)*inv_dx,
-                      1.+(y[pidx]-ystart)*inv_dy,
-                      1.+(z[pidx]-zstart)*inv_dz);
-            }
-            assert_eq(cx_,cx);
-            assert_eq(cy_,cy);
-            assert_eq(cz_,cz);
-          }
-        }
-      }
-    }
-  }
-}
-
-// need to sort and communicate particles after each iteration
-void Particles3Dcomm::sort_particles_serial_SoA_by_xavg(
-  Grid * grid, VirtualTopology3D * vct)
-{
-  // convertParticlesToAoS();
-  // sort_particles_serial_AoS();
-
-  double * utmp = AlignedAlloc(double,npmax);
-  double * vtmp = AlignedAlloc(double,npmax);
-  double * wtmp = AlignedAlloc(double,npmax);
-  double * qtmp = AlignedAlloc(double,npmax);
-  double * xtmp = AlignedAlloc(double,npmax);
-  double * ytmp = AlignedAlloc(double,npmax);
-  double * ztmp = AlignedAlloc(double,npmax);
-  double * ttmp = AlignedAlloc(double,npmax);
-  double * xavgtmp = AlignedAlloc(double,npmax);
-  double * yavgtmp = AlignedAlloc(double,npmax);
-  double * zavgtmp = AlignedAlloc(double,npmax);
-
-  //long long* ParticleIDtmp = 0;
-  //if (TrackParticleID) ParticleIDtmp = fetch_ParticleIDtmp();
-
-  // sort the particles
-  {
-    numpcls_in_bucket->setall(0);
-    // iterate through particles and count where they will go
-    for (int pidx = 0; pidx < nop; pidx++)
-    {
-      // get the cell indices of the particle
-      //
-      int cx,cy,cz;
-      grid->get_safe_cell_coordinates(cx,cy,cz,xavg[pidx],yavg[pidx],zavg[pidx]);
-      //
-      // is it better just to recompute this?
-      //
-      //xcell[pidx]=cx;
-      //ycell[pidx]=cy;
-      //zcell[pidx]=cz;
-
-      // increment the number of particles in bucket of this particle
-      (*numpcls_in_bucket)[cx][cy][cz]++;
-    }
-
-    // compute prefix sum to determine initial position
-    // of each bucket (could parallelize this)
-    //
-    int accpcls=0;
-    for(int cx=0;cx<nxc;cx++)
-    for(int cy=0;cy<nyc;cy++)
-    for(int cz=0;cz<nzc;cz++)
-    {
-      (*bucket_offset)[cx][cy][cz] = accpcls;
-      accpcls += (*numpcls_in_bucket)[cx][cy][cz];
-    }
-    assert_eq(accpcls,nop);
-
-    numpcls_in_bucket_now->setall(0);
-
-    // put the particles where they are supposed to go
-    for (int pidx = 0; pidx < nop; pidx++)
-    {
-      // get the cell indices of the particle
-      //
-      int cx,cy,cz;
-      grid->get_safe_cell_coordinates(cx,cy,cz,xavg[pidx],yavg[pidx],zavg[pidx]);
-      //
-      //cx = xcell[pidx];
-      //cy = ycell[pidx];
-      //cz = zcell[pidx];
-
-      // compute where the data should go
-      const int numpcls_now = (*numpcls_in_bucket_now)[cx][cy][cz]++;
-      const int outpidx = (*bucket_offset)[cx][cy][cz] + numpcls_now;
-      assert_lt(outpidx, nop);
-      assert_ge(outpidx, 0);
-      assert_lt(pidx, nop);
-      assert_ge(pidx, 0);
-
-      // copy particle data to new location
-      //
-      xtmp[outpidx] = x[pidx];
-      ytmp[outpidx] = y[pidx];
-      ztmp[outpidx] = z[pidx];
-      utmp[outpidx] = u[pidx];
-      vtmp[outpidx] = v[pidx];
-      wtmp[outpidx] = w[pidx];
-      qtmp[outpidx] = q[pidx];
-      xavgtmp[outpidx] = xavg[pidx];
-      yavgtmp[outpidx] = yavg[pidx];
-      zavgtmp[outpidx] = zavg[pidx];
-      //if (TrackParticleID)
-      //{
-      //  ParticleIDtmp[outpidx] = ParticleID[pidx];
-      //}
-    }
-    // swap the tmp particle memory with the official particle memory
-    {
-      swap(_xtmp,x);
-      swap(_ytmp,y);
-      swap(_ztmp,z);
-      swap(_utmp,u);
-      swap(_vtmp,v);
-      swap(_wtmp,w);
-      swap(_qtmp,q);
-      //swap(_ParticleIDtmp,ParticleID);
-      swap(_xavgtmp,_xavg);
-      swap(_yavgtmp,_yavg);
-      swap(_zavgtmp,_zavg);
-    }
-    xavg = _xavg;
-    yavg = _yavg;
-    zavg = _zavg;
-
-    // check that the number of bins was correct
-    //
-    if(true)
-    {
-      for(int cx=0;cx<nxc;cx++)
-      for(int cy=0;cy<nyc;cy++)
-      for(int cz=0;cz<nzc;cz++)
-      {
-        assert_eq((*numpcls_in_bucket_now)[cx][cy][cz], (*numpcls_in_bucket)[cx][cy][cz]);
-      }
-    }
-    int serial_pidx=0;
-    // confirm that the particles were sorted correctly
-    for(int cx=0;cx<nxc;cx++)
-    for(int cy=0;cy<nyc;cy++)
-    for(int cz=0;cz<nzc;cz++)
-    {
-      const int numpcls_in_cell = get_numpcls_in_bucket(cx,cy,cz);
-      const int bucket_offset = get_bucket_offset(cx,cy,cz);
-      const int bucket_end = bucket_offset+numpcls_in_cell;
-      for(int pidx=bucket_offset; pidx<bucket_end; pidx++)
-      {
-        // serial case: check that pidx is correct
-        assert_eq(pidx,serial_pidx);
-        serial_pidx++;
-        // confirm that particle is in correct cell
-        if(true)
-        {
-          int cx_,cy_,cz_;
-          grid->get_safe_cell_coordinates(cx_,cy_,cz_,xavg[pidx],yavg[pidx],zavg[pidx]);
-          if((cx_!=cx)
-           ||(cy_!=cy)
-           ||(cz_!=cz))
-          {
-            dprint(cx)
-            dprintf("\n\t cx =%d, cy =%d, cz =%d"
-                    "\n\t cx_=%d, cy_=%d, cz_=%d"
-                    "\n\t cxf=%f, cyf=%f, czf=%f",
-                    cx,cy,cz,
-                    cx_,cy_,cz_,
-                    1.+(xavg[pidx]-xstart)*inv_dx,
-                    1.+(yavg[pidx]-ystart)*inv_dy,
-                    1.+(zavg[pidx]-zstart)*inv_dz);
-            dprint(serial_pidx);
-          }
-          assert_eq(cx_,cx);
-          assert_eq(cy_,cy);
-          assert_eq(cz_,cz);
-        }
-      }
-    }
-  }
-  AlignedFree(utmp);
-  AlignedFree(vtmp);
-  AlignedFree(wtmp);
-  AlignedFree(qtmp);
-  AlignedFree(xtmp);
-  AlignedFree(ytmp);
-  AlignedFree(ztmp);
-  AlignedFree(ttmp);
-  AlignedFree(xavgtmp);
-  AlignedFree(yavgtmp);
-  AlignedFree(zavgtmp);
 }
 
 //void Particles3Dcomm::sort_particles_parallel(

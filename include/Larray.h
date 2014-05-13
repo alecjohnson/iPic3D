@@ -106,6 +106,26 @@ class Larray
     _size(0),
     _capacity(0)
   { if(requested_size > 0) reserve(requested_size); }
+  // exchange content of this class with content of x
+  void swap(Larray<type>& x)
+  {
+    // could do this with std::swap if willing to include
+    // <utility> (since C++11) or <algorithm> (until C++11):
+    //
+    //std::swap(list,x.list);
+    //std::swap(_size,x._size);
+    //std::swap(_capacity,x._capacity);
+    //
+    type* tmp_list = list;
+    int tmp_size = _size;
+    int tmp_capacity = _capacity;
+    list = x.list;
+    _size = x._size;
+    _capacity = x._capacity;
+    x.list = tmp_list;
+    x._size = tmp_size;
+    x._capacity = tmp_capacity;
+  }
   // request capacity to be at least newcapacity without deleting elements
   void reserve(int newcapacity)
   {
