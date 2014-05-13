@@ -27,6 +27,22 @@ class SpeciesParticle
   double x[3];
   double t;
  public:
+  SpeciesParticle(){}
+  SpeciesParticle(
+    double u_,
+    double v_,
+    double w_,
+    double q_,
+    double x_,
+    double y_,
+    double z_,
+    double t_)
+   :
+    u(u_,v_,w_),
+    q(q_),
+    x(x_,y_,z_),
+    t(t_)
+  {}
   // accessors
   // double component(int i){ return u[i]; } // a hack
   double get_u(int i)const{ return u[i]; }
@@ -46,6 +62,12 @@ class SpeciesParticle
   double get_u()const{ return u[0]; }
   double get_v()const{ return u[1]; }
   double get_w()const{ return u[2]; }
+  double& fetch_x(){ return x[0]; }
+  double& fetch_y(){ return x[1]; }
+  double& fetch_z(){ return x[2]; }
+  double& fetch_u(){ return u[0]; }
+  double& fetch_v(){ return u[1]; }
+  double& fetch_w(){ return u[2]; }
   void set_x(double in){ x[0]=in; }
   void set_y(double in){ x[1]=in; }
   void set_z(double in){ x[2]=in; }

@@ -355,7 +355,7 @@ bool c_Solver::ParticlesMover()
 
   for (int i=0; i < ns; i++) {
     if (col->getRHOinject(i)>0.0)
-      part[i].particle_repopulator(grid,vct,EMf);
+      part[i].repopulate_particles();
   }
 
   /* --------------------------------------- */
@@ -393,7 +393,14 @@ void c_Solver::WriteConserved(int cycle) {
       my_file << cycle << "\t" << "\t" << (Eenergy + Benergy + TOTenergy) << "\t" << TOTmomentum << "\t" << Eenergy << "\t" << Benergy << "\t" << TOTenergy << endl;
       my_file.close();
     }
-    // Velocity distribution
+  }
+}
+
+void c_Solver::WriteVelocityDistribution(int cycle)
+{
+  // Velocity distribution
+  if(cycle % col->getVelocityDistributionCycle() == 0)
+  {
     for (int is = 0; is < ns; is++) {
       double maxVel = part[is].getMaxVelocity();
       long long *VelocityDist = part[is].getVelocityDistribution(nDistributionBins, maxVel);
@@ -472,6 +479,12 @@ void c_Solver::Finalize() {
 
   // close MPI
   mpi->finalize_mpi();
+}
+
+void c_Solver::copyParticlesToSoA()
+{
+  for (int i = 0; i < ns; i++)
+    part[i].copyParticlesToSoA();
 }
 
 // convert particle to struct of arrays (assumed by I/O)

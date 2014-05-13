@@ -95,7 +95,7 @@ public:
   double getQ(int indexPart)  const { return (q[indexPart]); }
   //long long& fetch_ParticleID(int indexPart)  const
   //  { return (long long)(q[indexPart]); }
-  int getNOP()  const { return (nop); }
+  int getNOP()  const { return _pcls.size(); }
   int get_npmax() const {return npmax;}
 
   // computed get access
@@ -127,7 +127,7 @@ protected:
   /** maximum number of particles of this species on this domain. used for memory allocation */
   int npmax;
   /** number of particles of this species on this domain */
-  int nop;
+  //int nop; // see getNOP();
   /** total number of particles */
   long long np_tot;
   /** number of particles per cell */
@@ -156,6 +156,11 @@ protected:
   double w0;
 
   ParticleType::Type particleType;
+  //
+  // AoS representation
+  //
+  Larray<SpeciesParticle>& _pcls;
+  //
   // particles data
   //
   // SoA representation
@@ -171,21 +176,17 @@ protected:
   Larray<double>& y;
   Larray<double>& z;
   // subcycle time
-  Larray<double>& t;
-  // is this class for tracking particles?
+  //Larray<double>& t;
+  // indicates whether this class is for tracking particles
   bool TrackParticleID;
-  //
-  // AoS representation
-  //
-  Larray<SpeciesParticle>& _pcls;
 
   // structures for sorting particles
   //
   /** Average position data (used during particle push) **/
   //
-  Larray<double>& _xavg;
-  Larray<double>& _yavg;
-  Larray<double>& _zavg;
+  //Larray<double>& _xavg;
+  //Larray<double>& _yavg;
+  //Larray<double>& _zavg;
   //
   // alternate temporary storage for sorting particles
   //
@@ -247,42 +248,6 @@ protected:
   BlockCommunicator<SpeciesParticle>& recvYrght;
   BlockCommunicator<SpeciesParticle>& recvZleft;
   BlockCommunicator<SpeciesParticle>& recvZrght;
-  //
-  Larray<SpeciesParticle>& bXrght;
-  ///** size of sending buffers for exiting particles, DEFINED IN METHOD "COMMUNICATE" */
-  //int buffer_size;
-  ///** smaller buffer size */
-  //int buffer_size_small;
-  ///** buffer with particles going to the right processor - Direction X */
-  //double *b_X_RIGHT;
-  ///** buffer with particles going to the left processor - Direction X */
-  //double *b_X_LEFT;
-  ///** buffer with particles going to the right processor - Direction Y */
-  //double *b_Y_RIGHT;
-  ///** buffer with particles going to the left processor - Direction Y */
-  //double *b_Y_LEFT;
-  ///** buffer with particles going to the right processor - Direction Z */
-  //double *b_Z_RIGHT;
-  ///** buffer with particles going to the left processor - Direction Z */
-  //double *b_Z_LEFT;
-
-  ///** number of particles exiting per cycle*/
-  //int npExitXright;
-  ///** number of particles exiting to X-LEFT per cycle*/
-  //int npExitXleft;
-  ///** number of particles exiting to Y-RIGHT per cycle*/
-  //int npExitYright;
-  ///** number of particles exiting to Y-LEFT per cycle*/
-  //int npExitYleft;
-  ///** number of particles exiting to Z-RIGHT per cycle*/
-  //int npExitZright;
-  ///** number of particles exiting to Z-LEFT per cycle*/
-  //int npExitZleft;
-  ///** total number of particles exiting per cycle */
-  //int npExit;
-  ///** number of particles not in the right domain   */
-  //int rightDomain;
-
 
   /** bool for communication verbose */
   bool cVERBOSE;
@@ -294,18 +259,18 @@ protected:
           <li>3 = periodic condition </li>
           </ul>
           */
-  ///** Boundary Condition Particles: FaceXright */
-  //int bcPfaceXright;
-  ///** Boundary Condition Particles: FaceXleft */
-  //int bcPfaceXleft;
-  ///** Boundary Condition Particles: FaceYright */
-  //int bcPfaceYright;
-  ///** Boundary Condition Particles: FaceYleft */
-  //int bcPfaceYleft;
-  ///** Boundary Condition Particles: FaceYright */
-  //int bcPfaceZright;
-  ///** Boundary Condition Particles: FaceYleft */
-  //int bcPfaceZleft;
+  /** Boundary Condition Particles: FaceXright */
+  int bcPfaceXright;
+  /** Boundary Condition Particles: FaceXleft */
+  int bcPfaceXleft;
+  /** Boundary Condition Particles: FaceYright */
+  int bcPfaceYright;
+  /** Boundary Condition Particles: FaceYleft */
+  int bcPfaceYleft;
+  /** Boundary Condition Particles: FaceYright */
+  int bcPfaceZright;
+  /** Boundary Condition Particles: FaceYleft */
+  int bcPfaceZleft;
   //
   // Other variables
   //

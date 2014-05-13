@@ -70,8 +70,8 @@ class Particles3D:public Particles3Dcomm {
     void mover_PC_vectorized(Grid * grid, VirtualTopology3D * vct, Field * EMf);
     /** relativistic mover with a Predictor-Corrector scheme */
     int mover_relativistic(Grid * grid, VirtualTopology3D * vct, Field * EMf);
-    /** particle repopulator */
-    int particle_repopulator(Grid* grid,VirtualTopology3D* vct, Field* EMf);
+    /** repopulate particles in boundary layer */
+    int repopulate_particlerepopulate_particle();
     /** interpolation Particle->Grid only charge density, current */
     //void interpP2G_notP(Field * EMf, Grid * grid, VirtualTopology3D * vct);
     /** interpolation Particle->Grid only for pressure tensor */

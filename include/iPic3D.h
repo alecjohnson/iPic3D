@@ -59,6 +59,7 @@ namespace iPic3D {
     inline int LastCycle();
     inline int get_myrank();
 
+    void copyParticlesToSoA();
     void convertParticlesToSoA();
     void convertParticlesToAoS();
   private:

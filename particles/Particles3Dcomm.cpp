@@ -654,6 +654,14 @@ int Particles3Dcomm::handle_incoming_particles()
   return num_pcls_resent;
 }
 
+static long long mpi_global_sum(int in)
+{
+  long long total;
+  long long long_in = long long(in);
+  MPI_Allreduce(&long_in, &total, 1, MPI_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
+  RESOLVE: WHAT DOES // THE 1 MEAN?
+}
+
 // exchange particles with neighboring processors
 //
 // sent particles are deleted from _pcls.
@@ -702,7 +710,7 @@ int Particles3Dcomm::communicate_particles()
   int np_current = 0;
   while(np_current < _pcls.size())
   {
-    SpeciesParticle& pcl = _pcls.[np_current];
+    SpeciesParticle& pcl = _pcls[np_current];
     // should change to enforce boundary conditions at conclusion of push,
     // when particles are still in SoA format.
     apply_boundary_conditions(pcl,
@@ -745,7 +753,7 @@ int Particles3Dcomm::communicate_particles()
   // global all-reduce of num_pcls_resent is zero, indicating
   // that there are no more particles to be received.
   //
-  int total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
+  long long total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
   while(total_num_pcls_resent)
   {
     flush_send();
