@@ -108,17 +108,16 @@ Particles3Dcomm::Particles3Dcomm(
   // subcycle time
   t(*new Larray<double>),
   //
-  particleType(ParticleType::SoA),
+  particleType(ParticleType::AoS),
 
   // average positions, used in iterative particle advance
-  _xavg(*new Larray<double>);
-  _yavg(*new Larray<double>);
-  _zavg(*new Larray<double>);
-  _tavg(*new Larray<double>);
+  //_xavg(*new Larray<double>);
+  //_yavg(*new Larray<double>);
+  //_zavg(*new Larray<double>);
+  //_tavg(*new Larray<double>);
 
-  _pcls(*new Larray<SpeciesParticle>);
-  _pclstmp(*new Larray<SpeciesParticle>);
-
+  _pcls(*new Larray<SpeciesParticle>),
+  _pclstmp(*new Larray<SpeciesParticle>)
 {
   // info from collectiveIO
   //
@@ -127,7 +126,7 @@ Particles3Dcomm::Particles3Dcomm(
   npcely = col->getNpcely(species);
   npcelz = col->getNpcelz(species);
   nop = col->getNp(species) / (vct->getNprocs());
-  np_tot = col->getNp(species);
+  //np_tot = col->getNp(species);
   npmax = col->getNpMax(species) / (vct->getNprocs());
   // ensure that npmax is a multiple of AoS_PCLS_AT_A_TIME
   npmax = roundup_to_multiple(npmax,AoS_PCLS_AT_A_TIME);
@@ -760,16 +759,21 @@ int Particles3Dcomm::communicate_particles()
     num_pcls_resent = handle_incoming_particles();
     total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
   }
-
-  nop = _pcls.size();
 }
 
 /** return the Kinetic energy */
 double Particles3Dcomm::getKe() {
   double localKe = 0.0;
   double totalKe = 0.0;
-  for (register int i = 0; i < nop; i++)
-    localKe += .5 * (q[i] / qom) * (u[i] * u[i] + v[i] * v[i] + w[i] * w[i]);
+  for (register int i = 0; i < _pcls.size(); i++)
+  {
+    SpeciesParticle& pcl = _pcls[i];
+    const double u = pcl.get_u();
+    const double v = pcl.get_v();
+    const double w = pcl.get_w();
+    const double q = pcl.get_q();
+    localKe += .5*(q/qom)*(u*u + v*v + w*w);
+  }
   MPI_Allreduce(&localKe, &totalKe, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return (totalKe);
 }
@@ -783,8 +787,15 @@ double Particles3Dcomm::getKe() {
 double Particles3Dcomm::getP() {
   double localP = 0.0;
   double totalP = 0.0;
-  for (register int i = 0; i < nop; i++)
-    localP += (q[i] / qom) * sqrt(u[i] * u[i] + v[i] * v[i] + w[i] * w[i]);
+  for (register int i = 0; i < _pcls.size(); i++)
+  {
+    SpeciesParticle& pcl = _pcls[i];
+    const double u = pcl.get_u();
+    const double v = pcl.get_v();
+    const double w = pcl.get_w();
+    const double q = pcl.get_q();
+    localP += (q/qom)*sqrt(u*u + v*v + w*w);
+  }
   MPI_Allreduce(&localP, &totalP, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return (totalP);
 }
@@ -793,14 +804,23 @@ double Particles3Dcomm::getP() {
 double Particles3Dcomm::getMaxVelocity() {
   double localVel = 0.0;
   double maxVel = 0.0;
-  for (int i = 0; i < nop; i++)
-    localVel = std::max(localVel, sqrt(u[i] * u[i] + v[i] * v[i] + w[i] * w[i]));
+  for (int i = 0; i < _pcls.size(); i++)
+  {
+    SpeciesParticle& pcl = _pcls[i];
+    const double u = pcl.get_u();
+    const double v = pcl.get_v();
+    const double w = pcl.get_w();
+    localVel = std::max(localVel, sqrt(u*u + v*v + w*w));
+  }
   MPI_Allreduce(&localVel, &maxVel, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
   return (maxVel);
 }
 
 
 /** get energy spectrum */
+//
+// this ignores the weight of the charges. -eaj
+//
 long long *Particles3Dcomm::getVelocityDistribution(int nBins, double maxVel) {
   long long *f = new long long[nBins];
   for (int i = 0; i < nBins; i++)
@@ -808,8 +828,12 @@ long long *Particles3Dcomm::getVelocityDistribution(int nBins, double maxVel) {
   double Vel = 0.0;
   double dv = maxVel / nBins;
   int bin = 0;
-  for (int i = 0; i < nop; i++) {
-    Vel = sqrt(u[i] * u[i] + v[i] * v[i] + w[i] * w[i]);
+  for (int i = 0; i < _pcls.size(); i++) {
+    SpeciesParticle& pcl = _pcls[i];
+    const double u = pcl.get_u();
+    const double v = pcl.get_v();
+    const double w = pcl.get_w();
+    Vel = sqrt(u*u + v*v + w*w);
     bin = int (floor(Vel / dv));
     if (bin >= nBins)
       f[nBins - 1] += 1;
@@ -832,23 +856,32 @@ long long *Particles3Dcomm::getVelocityDistribution(int nBins, double maxVel) {
 
 
 /** print particles info */
-void Particles3Dcomm::Print(VirtualTopology3D * ptVCT) const
+void Particles3Dcomm::Print() const
 {
+  VirtualTopology3D *ptVCT = vct;
   cout << endl;
-  cout << "Number of Particles: " << nop << endl;
+  cout << "Number of Particles: " << _pcls.size() << endl;
   cout << "Subgrid (" << ptVCT->getCoordinates(0) << "," << ptVCT->getCoordinates(1) << "," << ptVCT->getCoordinates(2) << ")" << endl;
   cout << "Xin = " << xstart << "; Xfin = " << xend << endl;
   cout << "Yin = " << ystart << "; Yfin = " << yend << endl;
   cout << "Zin = " << zstart << "; Zfin = " << zend << endl;
   cout << "Number of species = " << ns << endl;
-  for (int i = 0; i < nop; i++)
-    cout << "Particles #" << i << " x=" << x[i] << " y=" << y[i] << " z=" << z[i] << " u=" << u[i] << " v=" << v[i] << " w=" << w[i] << endl;
+  for (int i = 0; i < _pcls.size(); i++)
+  {
+    SpeciesParticle& pcl = _pcls[i];
+    const double x = pcl.get_x();
+    const double y = pcl.get_y();
+    const double z = pcl.get_z();
+    cout << "Particle #" << i << ": x=" << x << " y=" << y << " z=" << z << " u=" << u << " v=" << v << " w=" << w << endl;
+  }
   cout << endl;
 }
 /** print just the number of particles */
-void Particles3Dcomm::PrintNp(VirtualTopology3D * ptVCT)  const {
+void Particles3Dcomm::PrintNp()  const
+{
+  VirtualTopology3D *ptVCT = vct;
   cout << endl;
-  cout << "Number of Particles of species " << ns << ": " << nop << endl;
+  cout << "Number of Particles of species " << ns << ": " << getNOP() << endl;
   cout << "Subgrid (" << ptVCT->getCoordinates(0) << "," << ptVCT->getCoordinates(1) << "," << ptVCT->getCoordinates(2) << ")" << endl;
   cout << endl;
 }
@@ -882,7 +915,7 @@ void Particles3Dcomm::sort_particles_serial_AoS()
   {
     numpcls_in_bucket->setall(0);
     // iterate through particles and count where they will go
-    for (int pidx = 0; pidx < nop; pidx++)
+    for (int pidx = 0; pidx < pcls.size(); pidx++)
     {
       const SpeciesParticle& pcl = get_pcl(pidx);
       // get the cell indices of the particle
@@ -1086,11 +1119,18 @@ void Particles3Dcomm::copyParticlesToSoA()
 {
   timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_SOA);
   dprintf("copying to struct of arrays");
-  const Larray<SpeciesParticle>& pcls = fetch_pcls();
-  assert(pcls.size()==nop);
+  const int nop = _pcls.size();
+  u.resize(nop);
+  v.resize(nop);
+  w.resize(nop);
+  q.resize(nop);
+  x.resize(nop);
+  y.resize(nop);
+  z.resize(nop);
+  t.resize(nop);
  #ifndef __MIC__
   #pragma omp for
-  for(int pidx=0; pidx<nop; pidx++)
+  for(int pidx=0; nop; pidx++)
   {
     const SpeciesParticle& pcl = pcls[pidx];
     u[pidx] = pcl.get_u(0);
@@ -1105,7 +1145,7 @@ void Particles3Dcomm::copyParticlesToSoA()
  #else // __MIC__
   // rather than doing stride-8 scatter,
   // copy and transpose data 8 particles at a time
-  assert_divides(8,npmax);
+  assert_divides(8,u.capacity());
   for(int pidx=0; pidx<nop; pidx+=8)
   {
     (F64vec8*) SoAdata[8] = {&u[pidx],&v[pidx],&w[pidx],&q[pidx],
@@ -1114,13 +1154,13 @@ void Particles3Dcomm::copyParticlesToSoA()
     transpose_8x8_double(AoSdata,SoAdata);
   }
  #endif // __MIC__
+  particleType = ParticleType::both;
 }
 
 void Particles3Dcomm::copyParticlesToAoS()
 {
-  Larray<SpeciesParticle>& pcls = fetch_pcls();
   timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_AOS);
-  pcls.realloc_if_smaller_than(nop);
+  _pcls.resize(u.size());
   dprintf("copying to array of structs");
  #ifndef __MIC__
   // use a simple stride-8 gather
@@ -1134,7 +1174,7 @@ void Particles3Dcomm::copyParticlesToAoS()
  #else // __MIC__
   // for efficiency, copy data 8 particles at a time,
   // transposing each block of particles
-  assert_divides(8,npmax);
+  assert_divides(8,_pcls.capacity());
   for(int pidx=0; pidx<nop; pidx+=8);
   {
     //double (&matrix)[8][8] = *(double (*)[8][8])(_pcls[pidx]);
@@ -1143,28 +1183,58 @@ void Particles3Dcomm::copyParticlesToAoS()
     (F64vec8*) SoAdata[8] = {&u[pidx],&v[pidx],&w[pidx],&q[pidx],
                              &x[pidx],&y[pidx],&z[pidx],&t[pidx]};
     transpose_8x8_double(SoAdata, AoSdata);
-
   }
  #endif
+  particleType = ParticleType::both;
+}
+
+void Particles3Dcomm::convertParticlesToSynched()
+{
+  switch(particleType)
+  {
+    default:
+      unsupported_value_error(particleType);
+    case ParticleType::SoA:
+      copyParticlesToAoS();
+      break;
+    case ParticleType::AoS:
+      copyParticlesToSoA();
+      break;
+    case ParticleType::synched:
+      break;
+  }
+  particleType = ParticleType::synched;
 }
 
 void Particles3Dcomm::convertParticlesToAoS()
 {
-  if(particleType!=ParticleType::AoS)
+  switch(particleType)
   {
-    assert_eq(particleType,ParticleType::SoA);
-    copyParticlesToAoS();
-    particleType = ParticleType::AoS;
+    default:
+      unsupported_value_error(particleType);
+    case ParticleType::SoA:
+      copyParticlesToAoS();
+      break;
+    case ParticleType::AoS:
+    case ParticleType::synched:
+      break;
   }
+  particleType = ParticleType::AoS;
 }
 
 void Particles3Dcomm::convertParticlesToSoA()
 {
-  if(particleType != ParticleType::SoA)
+  switch(particleType)
   {
-    assert_eq(particleType,ParticleType::AoS);
-    copyParticlesToSoA();
-    particleType = ParticleType::SoA;
+    default:
+      unsupported_value_error(particleType);
+    case ParticleType::AoS:
+      copyParticlesToSoA();
+      break;
+    case ParticleType::SoA:
+    case ParticleType::synched:
+      break;
   }
+  particleType = ParticleType::SoA;
 }
 

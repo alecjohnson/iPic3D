@@ -86,14 +86,22 @@ public:
   double *getZall()  const { return &z[0]; }
   //long long *getParticleIDall()  const { return (long long *) q; }
   // accessors for particle with index indexPart
-  double getX(int indexPart)  const { return (x[indexPart]); }
-  double getY(int indexPart)  const { return (y[indexPart]); }
-  double getZ(int indexPart)  const { return (z[indexPart]); }
-  double getU(int indexPart)  const { return (u[indexPart]); }
-  double getV(int indexPart)  const { return (v[indexPart]); }
-  double getW(int indexPart)  const { return (w[indexPart]); }
-  double getQ(int indexPart)  const { return (q[indexPart]); }
+  //double getX(int indexPart)  const { return (x[indexPart]); }
+  //double getY(int indexPart)  const { return (y[indexPart]); }
+  //double getZ(int indexPart)  const { return (z[indexPart]); }
+  //double getU(int indexPart)  const { return (u[indexPart]); }
+  //double getV(int indexPart)  const { return (v[indexPart]); }
+  //double getW(int indexPart)  const { return (w[indexPart]); }
+  //double getQ(int indexPart)  const { return (q[indexPart]); }
   //long long& fetch_ParticleID(int indexPart)  const
+  double get_u(int i)const{return _pcls.get_u(i);}
+  double get_v(int i)const{return _pcls.get_v(i);}
+  double get_w(int i)const{return _pcls.get_w(i);}
+  double get_q(int i)const{return _pcls.get_q(i);}
+  double get_x(int i)const{return _pcls.get_x(i);}
+  double get_y(int i)const{return _pcls.get_y(i);}
+  double get_z(int i)const{return _pcls.get_z(i);}
+  double get_t(int i)const{return _pcls.get_t(i);}
   //  { return (long long)(q[indexPart]); }
   int getNOP()  const { return _pcls.size(); }
   int get_npmax() const {return npmax;}
@@ -109,9 +117,9 @@ public:
   /** return the momentum */
   double getP();
   /** Print particles info: positions, velocities */
-  void Print(VirtualTopology3D * ptVCT) const;
+  void Print() const;
   /** Print the number of particles of this subdomain */
-  void PrintNp(VirtualTopology3D * ptVCT) const;
+  void PrintNp() const;
 
 public:
   // accessors
@@ -122,14 +130,20 @@ public:
   { return (*bucket_offset)[cx][cy][cz]; }
 
 protected:
+  // pointers to topology and grid information
+  // (should be const)
+  //
+  VirtualTopology3D * vct,
+  Grid * grid;
+  //
   /** number of this species */
   int ns;
   /** maximum number of particles of this species on this domain. used for memory allocation */
-  int npmax;
+  //int npmax;
   /** number of particles of this species on this domain */
   //int nop; // see getNOP();
   /** total number of particles */
-  long long np_tot;
+  //long long np_tot;
   /** number of particles per cell */
   int npcel;
   /** number of particles per cell - X direction */
@@ -153,6 +167,8 @@ protected:
   /** v0 Drift velocity - Direction Y */
   double v0;
   /** w0 Drift velocity - Direction Z */
+  VirtualTopology3D * vct,
+  Grid * grid;
   double w0;
 
   ParticleType::Type particleType;

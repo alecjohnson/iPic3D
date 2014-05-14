@@ -323,9 +323,9 @@ bool c_Solver::ParticlesMover()
         case Parameters::SoA:
           part[i].mover_PC(EMf);
           break;
-        case Parameters::SoA_vec_resort:
-          part[i].mover_PC_vectorized(EMf);
-          break;
+        //case Parameters::SoA_vec_resort:
+        //  part[i].mover_PC_vectorized(EMf);
+        //  break;
         case Parameters::AoS:
           part[i].mover_PC_AoS(EMf);
           break;
@@ -335,9 +335,9 @@ bool c_Solver::ParticlesMover()
         case Parameters::AoSvec:
           part[i].mover_PC_AoS_vec(EMf);
           break;
-        case Parameters::AoS_vec_onesort:
-          part[i].mover_PC_AoS_vec_onesort(EMf);
-          break;
+        //case Parameters::AoS_vec_onesort:
+        //  part[i].mover_PC_AoS_vec_onesort(EMf);
+        //  break;
         default:
           unsupported_value_error(Parameters::get_MOVER_TYPE());
       }
@@ -378,6 +378,7 @@ void c_Solver::WriteRestart(int cycle) {
 void c_Solver::WriteConserved(int cycle) {
   // write the conserved quantities
   if (cycle % col->getDiagnosticsOutputCycle() == 0) {
+    // convertParticlesToSynched();
     Eenergy = EMf->getEenergy();
     Benergy = EMf->getBenergy();
     TOTenergy = 0.0;
@@ -424,7 +425,8 @@ void c_Solver::WriteOutput(int cycle) {
   bool write_particles = (cycle % (col->getParticlesOutputCycle()) == 0
                          && col->getParticlesOutputCycle() != 1);
 
-  if(write_particles){ convertParticlesToSoA(); }
+  // this is a hack
+  if(write_particles){ convertParticlesToSynched(); }
 
   if (col->getWriteMethod() == "Parallel") {
     if (write_fields) {
@@ -499,4 +501,11 @@ void c_Solver::convertParticlesToAoS()
 {
   for (int i = 0; i < ns; i++)
     part[i].convertParticlesToAoS();
+}
+
+// convert particle to array of structs (used in computing)
+void c_Solver::convertParticlesToSynched()
+{
+  for (int i = 0; i < ns; i++)
+    part[i].convertParticlesToSynched();
 }

@@ -11,7 +11,8 @@ namespace ParticleType
   enum Type
   {
     AoS = 0,
-    SoA
+    SoA,
+    synched
   };
 }
 
