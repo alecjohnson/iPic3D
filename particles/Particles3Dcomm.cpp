@@ -50,28 +50,6 @@ using std::endl;
 
 /** deallocate particles */
 Particles3Dcomm::~Particles3Dcomm() {
-  // velocities
-  delete &u;
-  delete &v;
-  delete &w;
-  // charge
-  delete &q;
-  // positions
-  delete &x;
-  delete &y;
-  delete &z;
-  // subcycle time
-  delete &t;
-
-  // average positions, used in iterative particle advance
-  delete &_xavg;
-  delete &_yavg;
-  delete &_zavg;
-  delete &_tavg;
-
-  delete &_pcls;
-  delete &_pclstmp;
-
   // extra xavg for sort
   delete numpcls_in_bucket;
   delete numpcls_in_bucket_now;
@@ -93,25 +71,7 @@ Particles3Dcomm::Particles3Dcomm(
   // arrays //
   ////////////
   //
-  // SoA particle representation
-  //
-  // velocities
-  u(*new aligned_vector(double)),
-  v(*new aligned_vector(double)),
-  w(*new aligned_vector(double)),
-  // charge
-  q(*new aligned_vector(double)),
-  // positions
-  x(*new aligned_vector(double)),
-  y(*new aligned_vector(double)),
-  z(*new aligned_vector(double)),
-  // subcycle time
-  t(*new aligned_vector(double)),
-  //
   particleType(ParticleType::AoS),
-
-  _pcls(*new Larray<SpeciesParticle>),
-  _pclstmp(*new Larray<SpeciesParticle>)
 {
   // info from collectiveIO
   //
@@ -892,7 +852,7 @@ void Particles3Dcomm::sort_particles_serial()
     case ParticleType::SoA:
       convertParticlesToAoS();
       sort_particles_serial_AoS();
-      convertParticlesToSoA();
+      updateParticlesToSoA();
       break;
     default:
       unsupported_value_error(particleType);
@@ -906,6 +866,7 @@ void Particles3Dcomm::sort_particles_serial_AoS()
 
   Larray<SpeciesParticle>& pcls = fetch_pcls();
   Larray<SpeciesParticle>& pclstmp = fetch_pclstmp();
+  pclstmp.reserve(pcls.size());
   {
     numpcls_in_bucket->setall(0);
     // iterate through particles and count where they will go
@@ -957,12 +918,10 @@ void Particles3Dcomm::sort_particles_serial_AoS()
     // swap the tmp particle memory with the official particle memory
     {
       // if using accessors rather than transposition,
-      //
       // here I would need not only to swap the pointers but also
       // to swap all the accessors.
       //
       _pcls.swap(_pclstmp);
-      EDITPOINT;
     }
 
     // check if the particles were sorted incorrectly
@@ -976,6 +935,8 @@ void Particles3Dcomm::sort_particles_serial_AoS()
       }
     }
   }
+  // SoA particle representation is no longer valid
+  particleType = ParticleType::AoS;
 }
 
 //void Particles3Dcomm::sort_particles_parallel(
@@ -1182,6 +1143,8 @@ void Particles3Dcomm::copyParticlesToAoS()
   particleType = ParticleType::both;
 }
 
+// synched AoS and SoA conceptually implies a write-lock
+//
 void Particles3Dcomm::convertParticlesToSynched()
 {
   switch(particleType)
@@ -1197,9 +1160,13 @@ void Particles3Dcomm::convertParticlesToSynched()
     case ParticleType::synched:
       break;
   }
+  // this state conceptually implies a write-lock
   particleType = ParticleType::synched;
 }
 
+// defines AoS to be the authority
+// (conceptually releasing any write-lock)
+//
 void Particles3Dcomm::convertParticlesToAoS()
 {
   switch(particleType)
@@ -1216,6 +1183,9 @@ void Particles3Dcomm::convertParticlesToAoS()
   particleType = ParticleType::AoS;
 }
 
+// defines SoA to be the authority
+// (conceptually releasing any write-lock)
+//
 bool Particles3Dcomm::particlesAreSoA()
 {
   switch(particleType)

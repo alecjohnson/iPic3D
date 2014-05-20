@@ -9,10 +9,10 @@
 // linear array (e.g. of particles)
 // 
 // This basically extends aligned_vector(type),
-// and the interface should be brought in line with std::vector.
+// and the interface should be maintained in line with std::vector.
 // Unfortunately, the mechanisms that C++ provides for extending
 // the interface of a class are deficient, particularly in
-// the case of templates, and by avoiding implementation
+// the case of templates.  Also, by avoiding implementation
 // via inheritance from std::vector we also can specify the
 // code at the lowest level, which is important for this
 // performance-critical class.
@@ -44,7 +44,7 @@ class Larray
   {
     _size = 0;
   }
-  // standard-conforming would initialize added elements
+  // this modifies std::vector::resize() by not initializing added elements
   //void resize(int newsize, value_type val = value_type())
   void resize(int newsize)
   {
@@ -80,6 +80,7 @@ class Larray
     ALIGNED(list);
     return list[i];
   }
+  // this extends std::vector
   void delete_element(int i)
   {
     // works even for last particle,
@@ -127,6 +128,9 @@ class Larray
     x._capacity = tmp_capacity;
   }
   // request capacity to be at least newcapacity without deleting elements
+  //
+  // to bring this into conformity with std::vector, this should
+  // be change so as never to shrink the capacity.
   void reserve(int newcapacity)
   {
     // ignore request if requested size is too small
@@ -147,6 +151,7 @@ class Larray
       AlignedFree(oldList);
     }
   }
+  // should rename this function as shrink_to_fit to conform to std::vector.
   void realloc_if_smaller_than(int required_max_size)
   {
     if(_size < required_max_size)

@@ -369,16 +369,23 @@ bool c_Solver::ParticlesMover()
   return (false);
 }
 
-void c_Solver::WriteRestart(int cycle) {
+void c_Solver::doWriteRestart(int cycle)
+{
+  return (cycle % restart_cycle == 0 && cycle != first_cycle);
+}
+void c_Solver::WriteRestart(int cycle)
+{
+  if(!doWriteRestart(cycle))
+    return;
+  convertParticlesToSynched(); // hack
   // write the RESTART file
-  if (cycle % restart_cycle == 0 && cycle != first_cycle)
-    writeRESTART(RestartDirName, myrank, cycle, ns, mpi, vct, col, grid, EMf, part, 0); // without ,0 add to restart file
+  writeRESTART(RestartDirName, myrank, cycle, ns, mpi, vct, col, grid, EMf, part, 0); // without ,0 add to restart file
 }
 
+// write the conserved quantities
 void c_Solver::WriteConserved(int cycle) {
-  // write the conserved quantities
-  if (cycle % col->getDiagnosticsOutputCycle() == 0) {
-    // convertParticlesToSynched();
+  if(cycle % col->getDiagnosticsOutputCycle() == 0)
+  {
     Eenergy = EMf->getEenergy();
     Benergy = EMf->getBenergy();
     TOTenergy = 0.0;
@@ -418,61 +425,104 @@ void c_Solver::WriteVelocityDistribution(int cycle)
   }
 }
 
-void c_Solver::WriteOutput(int cycle) {
+// This seems to record values at a grid of sample points
+//
+void c_Solver::WriteVirtualSatelliteTraces()
+{
+  if(ns <= 2) return;
+  assert_eq(ns,4);
 
-  bool write_fields = (cycle % (col->getFieldOutputCycle()) == 0 || cycle == first_cycle);
+  ofstream my_file(cqsat.c_str(), fstream::app);
+  for (int isat = 0; isat < nsat; isat++) {
+    for (int jsat = 0; jsat < nsat; jsat++) {
+      for (int ksat = 0; ksat < nsat; ksat++) {
+        int index1 = 1 + isat * nx0 / nsat + nx0 / nsat / 2;
+        int index2 = 1 + jsat * ny0 / nsat + ny0 / nsat / 2;
+        int index3 = 1 + ksat * nz0 / nsat + nz0 / nsat / 2;
+        my_file << EMf->getBx(index1, index2, index3) << "\t" << EMf->getBy(index1, index2, index3) << "\t" << EMf->getBz(index1, index2, index3) << "\t";
+        my_file << EMf->getEx(index1, index2, index3) << "\t" << EMf->getEy(index1, index2, index3) << "\t" << EMf->getEz(index1, index2, index3) << "\t";
+        my_file << EMf->getJxs(index1, index2, index3, 0) + EMf->getJxs(index1, index2, index3, 2) << "\t" << EMf->getJys(index1, index2, index3, 0) + EMf->getJys(index1, index2, index3, 2) << "\t" << EMf->getJzs(index1, index2, index3, 0) + EMf->getJzs(index1, index2, index3, 2) << "\t";
+        my_file << EMf->getJxs(index1, index2, index3, 1) + EMf->getJxs(index1, index2, index3, 3) << "\t" << EMf->getJys(index1, index2, index3, 1) + EMf->getJys(index1, index2, index3, 3) << "\t" << EMf->getJzs(index1, index2, index3, 1) + EMf->getJzs(index1, index2, index3, 3) << "\t";
+        my_file << EMf->getRHOns(index1, index2, index3, 0) + EMf->getRHOns(index1, index2, index3, 2) << "\t";
+        my_file << EMf->getRHOns(index1, index2, index3, 1) + EMf->getRHOns(index1, index2, index3, 3) << "\t";
+      }}}
+  my_file << endl;
+  my_file.close();
+}
 
-  bool write_particles = (cycle % (col->getParticlesOutputCycle()) == 0
-                         && col->getParticlesOutputCycle() != 1);
+void c_Solver::WriteFields(int cycle) {
+  if(cycle % (col->getFieldOutputCycle()) == 0 || cycle == first_cycle)
+  {
+    if (col->getWriteMethod() == "Parallel") {
+        WriteOutputParallel(grid, EMf, col, vct, cycle);
+    }
+    else // OUTPUT to large file, called proc**
+    {
+        hdf5_agent.open_append(SaveDirName + "/proc" + num_proc.str() + ".hdf");
+        output_mgr.output("Eall + Ball + rhos + Jsall + pressure", cycle);
+        // Pressure tensor is available
+        hdf5_agent.close();
+    }
+  }
+}
+
+void c_Solver::doWriteParticles(int cycle)
+{
+  return (cycle % (col->getParticlesOutputCycle()) == 0
+          && col->getParticlesOutputCycle() != 1);
+}
+void c_Solver::WriteParticles(int cycle)
+{
+  if(!doWriteParticles())
+    return;
 
   // this is a hack
-  if(write_particles){ convertParticlesToSynched(); }
+  convertParticlesToSynched();
 
-  if (col->getWriteMethod() == "Parallel") {
-    if (write_fields) {
-      WriteOutputParallel(grid, EMf, col, vct, cycle);
-    }
+  if (col->getWriteMethod() == "Parallel")
+  {
+    dprintf("pretending to write particles (not yet implemented)");
   }
   else
   {
-    // OUTPUT to large file, called proc**
-    if (write_fields) {
-      hdf5_agent.open_append(SaveDirName + "/proc" + num_proc.str() + ".hdf");
-      output_mgr.output("Eall + Ball + rhos + Jsall + pressure", cycle);
-      // Pressure tensor is available
-      hdf5_agent.close();
-    }
     if (write_particles) {
       hdf5_agent.open_append(SaveDirName + "/proc" + num_proc.str() + ".hdf");
       output_mgr.output("position + velocity + q ", cycle, 1);
       hdf5_agent.close();
     }
-    // write the virtual satellite traces
-
-    if (ns > 2) {
-      ofstream my_file(cqsat.c_str(), fstream::app);
-      for (int isat = 0; isat < nsat; isat++) {
-        for (int jsat = 0; jsat < nsat; jsat++) {
-          for (int ksat = 0; ksat < nsat; ksat++) {
-            int index1 = 1 + isat * nx0 / nsat + nx0 / nsat / 2;
-            int index2 = 1 + jsat * ny0 / nsat + ny0 / nsat / 2;
-            int index3 = 1 + ksat * nz0 / nsat + nz0 / nsat / 2;
-            my_file << EMf->getBx(index1, index2, index3) << "\t" << EMf->getBy(index1, index2, index3) << "\t" << EMf->getBz(index1, index2, index3) << "\t";
-            my_file << EMf->getEx(index1, index2, index3) << "\t" << EMf->getEy(index1, index2, index3) << "\t" << EMf->getEz(index1, index2, index3) << "\t";
-            my_file << EMf->getJxs(index1, index2, index3, 0) + EMf->getJxs(index1, index2, index3, 2) << "\t" << EMf->getJys(index1, index2, index3, 0) + EMf->getJys(index1, index2, index3, 2) << "\t" << EMf->getJzs(index1, index2, index3, 0) + EMf->getJzs(index1, index2, index3, 2) << "\t";
-            my_file << EMf->getJxs(index1, index2, index3, 1) + EMf->getJxs(index1, index2, index3, 3) << "\t" << EMf->getJys(index1, index2, index3, 1) + EMf->getJys(index1, index2, index3, 3) << "\t" << EMf->getJzs(index1, index2, index3, 1) + EMf->getJzs(index1, index2, index3, 3) << "\t";
-            my_file << EMf->getRHOns(index1, index2, index3, 0) + EMf->getRHOns(index1, index2, index3, 2) << "\t";
-            my_file << EMf->getRHOns(index1, index2, index3, 1) + EMf->getRHOns(index1, index2, index3, 3) << "\t";
-          }}}
-      my_file << endl;
-      my_file.close();
-    }
   }
+}
+
+// This needs to be separated into methods that save particles
+// and methods that save field data
+//
+void c_Solver::WriteOutput(int cycle) {
+  // write fields-related data
+  WriteFields(cycle);
+  if (col->getWriteMethod() != "Parallel")
+  {
+    WriteVirtualSatelliteTraces();
+  }
+
+  // write particles-related data
+  //
+  // copy particles to SoA if needed for writing
+  //
+  bool convert_pcls = doWriteRestart(cycle) || doWriteParticles(cycle);
+  if(convert_pcls)
+    convertParticlesToSynched();
+  // this also writes field data...
+  WriteRestart(cycle);
+  WriteParticles(cycle);
+  //
+  WriteVelocityDistribution(cycle);
+  WriteConserved(cycle);
 }
 
 void c_Solver::Finalize() {
   if (col->getCallFinalize())
   {
+    convertParticlesToSynched();
     writeRESTART(RestartDirName, myrank, (col->getNcycles() + first_cycle) - 1, ns, mpi, vct, col, grid, EMf, part, 0);
   }
 

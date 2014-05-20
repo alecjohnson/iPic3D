@@ -34,12 +34,7 @@ int main(int argc, char **argv) {
       i = KCode.LastCycle() + 1;
     }
 
-    KCode.copyParticlesToSoA();
     KCode.WriteOutput(i);
-    KCode.WriteConserved(i);
-    KCode.WriteVelocityDistribution(i);
-    KCode.WriteRestart(i);
-
   }
 
   KCode.Finalize();

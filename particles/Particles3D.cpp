@@ -633,7 +633,8 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 
   const int NUM_PCLS_MOVED_AT_A_TIME = 8;
   // make sure that we won't overrun memory
-  assert_divides(NUM_PCLS_MOVED_AT_A_TIME,npmax);
+  int needed_capacity = roundup_to_multiple(getNOP(),NUM_PCLS_MOVED_AT_A_TIME);
+  assert_le(needed_capacity,_pcls.capacity());
 
   #pragma omp master
   { timeTasks_begin_task(TimeTasks::MOVER_PCL_MOVING); }
@@ -1125,8 +1126,8 @@ int Particles3D::mover_relativistic(Field * EMf)
 }
 
 inline void Particles3D::populate_cell_with_particles(
-  int i, int j, int k,
-  double q_per_particle)
+  int i, int j, int k, double q_per_particle,
+  double dx_per_pcl, double dy_per_pcl, double dz_per_pcl)
 {
   const double cell_low_x = grid->getXN(i,j,k);
   const double cell_low_y = grid->getYN(i,j,k);
@@ -1135,19 +1136,15 @@ inline void Particles3D::populate_cell_with_particles(
   for (int jj=0; jj < npcely; jj++)
   for (int kk=0; kk < npcelz; kk++)
   {
-    SpeciesParticle pcl;
+    double u,v,w,q,x,y,z,t=0.;
     sample_maxwellian(
-      pcl.fetch_u(),
-      pcl.fetch_v(),
-      pcl.fetch_w(),
+      u,v,w,
       uth, vth, wth,
       u0, v0, w0);
-    pcl.fetch_q() = q_per_particle;
-    pcl.fetch_x() = (ii + sample_u_double())*dx_per_pcl + cell_low_x;
-    pcl.fetch_y() = (jj + sample_u_double())*dy_per_pcl + cell_low_y;
-    pcl.fetch_z() = (kk + sample_u_double())*dz_per_pcl + cell_low_z;
-    pcl.fetch_t() = 0;
-    _pcls.push_back(pcl);
+    x = (ii + sample_u_double())*dx_per_pcl + cell_low_x;
+    y = (jj + sample_u_double())*dy_per_pcl + cell_low_y;
+    z = (kk + sample_u_double())*dz_per_pcl + cell_low_z;
+    add_new_particle(u,v,w,q_per_particle,x,y,z,0.);
   }
 }
 
@@ -1163,7 +1160,7 @@ void Particles3D::repopulate_particles()
   }
 
   // if this is not a boundary process then there is nothing to do
-  if(!isBoundaryProcess)
+  if(!vct->isBoundaryProcess())
     return;
 
   // there are better ways to obtain these values...
@@ -1184,12 +1181,12 @@ void Particles3D::repopulate_particles()
   const double yHgh = Ly-yLow;
   const double zHgh = Lz-zLow;
   // boundaries to repopulate
-  const bool repopulateXleft = (noXlowerNeighbor && bcPfaceXleft == REEMISSION);
-  const bool repopulateYleft = (noYlowerNeighbor && bcPfaceYleft == REEMISSION);
-  const bool repopulateZleft = (noZlowerNeighbor && bcPfaceZleft == REEMISSION);
-  const bool repopulateXrght = (noXupperNeighbor && bcPfaceXright == REEMISSION);
-  const bool repopulateYrght = (noYupperNeighbor && bcPfaceYright == REEMISSION);
-  const bool repopulateZrght = (noZupperNeighbor && bcPfaceZright == REEMISSION);
+  const bool repopulateXleft = (vct->noXlowerNeighbor() && bcPfaceXleft == REEMISSION);
+  const bool repopulateYleft = (vct->noYlowerNeighbor() && bcPfaceYleft == REEMISSION);
+  const bool repopulateZleft = (vct->noZlowerNeighbor() && bcPfaceZleft == REEMISSION);
+  const bool repopulateXrght = (vct->noXupperNeighbor() && bcPfaceXright == REEMISSION);
+  const bool repopulateYrght = (vct->noYupperNeighbor() && bcPfaceYright == REEMISSION);
+  const bool repopulateZrght = (vct->noZupperNeighbor() && bcPfaceZright == REEMISSION);
   if(repopulateXleft || repopulateXrght) assert_gt(nxc, 2*num_layers);
   if(repopulateYleft || repopulateYrght) assert_gt(nyc, 2*num_layers);
   if(repopulateZleft || repopulateZrght) assert_gt(nzc, 2*num_layers);
@@ -1201,15 +1198,15 @@ void Particles3D::repopulate_particles()
   {
     SpeciesParticle& pcl = _pcls[pidx];
     // determine whether to delete the particle
-    const bool delete_particle =
+    const bool delete_pcl =
       (repopulateXleft && pcl.get_x() < xLow) ||
       (repopulateYleft && pcl.get_y() < yLow) ||
       (repopulateZleft && pcl.get_z() < zLow) ||
       (repopulateXrght && pcl.get_x() > xHgh) ||
       (repopulateYrght && pcl.get_y() > yHgh) ||
       (repopulateZrght && pcl.get_z() > zHgh);
-    if(delete_particle)
-      _pcls.delete_element[pidx];
+    if(delete_pcl)
+      delete_particle(pidx);
     else
       pidx++;
   }
@@ -1243,7 +1240,8 @@ void Particles3D::repopulate_particles()
       for (int j=ybeg; j<=yend; j++)
       for (int k=zbeg; k<=zend; k++)
       {
-        populate_cell_with_particles(i,j,k,q_per_particle);
+        populate_cell_with_particles(i,j,k,q_per_particle,
+          dx_per_pcl, dy_per_pcl, dz_per_pcl);
       }
       // these have all been filled, so never touch them again.
       xbeg += num_layers;
@@ -1254,7 +1252,8 @@ void Particles3D::repopulate_particles()
       for (int j=ybeg; j<=yend; j++)
       for (int k=zbeg; k<=zend; k++)
       {
-        populate_cell_with_particles(i,j,k,q_per_particle);
+        populate_cell_with_particles(i,j,k,q_per_particle,
+          dx_per_pcl, dy_per_pcl, dz_per_pcl);
       }
       // these have all been filled, so never touch them again.
       xend -= num_layers;
@@ -1265,7 +1264,8 @@ void Particles3D::repopulate_particles()
       for (int j=1; j<=num_layers; j++)
       for (int k=zbeg; k<=zend; k++)
       {
-        populate_cell_with_particles(i,j,k,q_per_particle);
+        populate_cell_with_particles(i,j,k,q_per_particle,
+          dx_per_pcl, dy_per_pcl, dz_per_pcl);
       }
       // these have all been filled, so never touch them again.
       ybeg += num_layers;
@@ -1276,7 +1276,8 @@ void Particles3D::repopulate_particles()
       for (int j=upYstart; j<=yend; j++)
       for (int k=zbeg; k<=zend; k++)
       {
-        populate_cell_with_particles(i,j,k,q_per_particle);
+        populate_cell_with_particles(i,j,k,q_per_particle,
+          dx_per_pcl, dy_per_pcl, dz_per_pcl);
       }
       // these have all been filled, so never touch them again.
       yend -= num_layers;
@@ -1287,7 +1288,8 @@ void Particles3D::repopulate_particles()
       for (int j=ybeg; j<=yend; j++)
       for (int k=1; k<=num_layers; k++)
       {
-        populate_cell_with_particles(i,j,k,q_per_particle);
+        populate_cell_with_particles(i,j,k,q_per_particle,
+          dx_per_pcl, dy_per_pcl, dz_per_pcl);
       }
     }
     if (repopulateZrght)
@@ -1296,7 +1298,8 @@ void Particles3D::repopulate_particles()
       for (int j=ybeg; j<=yend; j++)
       for (int k=upZstart; k<=zend; k++)
       {
-        populate_cell_with_particles(i,j,k,q_per_particle);
+        populate_cell_with_particles(i,j,k,q_per_particle,
+          dx_per_pcl, dy_per_pcl, dz_per_pcl);
       }
     }
   }
@@ -1307,86 +1310,90 @@ void Particles3D::repopulate_particles()
 }
 
 /** apply a linear perturbation to particle distribution */
-void Particles3D::linear_perturbation(double deltaBoB, double kx, double ky, double angle, double omega_r, double omega_i, double Ex_mod, double Ex_phase, double Ey_mod, double Ey_phase, double Ez_mod, double Ez_phase, double Bx_mod, double Bx_phase, double By_mod, double By_phase, double Bz_mod, double Bz_phase, Field * EMf) {
-
-  double value1 = 0.0, value2 = 0.0, max_value = 0.0, min_value = 0.0, phi, n;
-  // rescaling of amplitudes according to deltaBoB //
-
-  const double alpha = deltaBoB * sqrt(EMf->getBx(1, 1, 0) * EMf->getBx(1, 1, 0) + EMf->getBy(1, 1, 0) * EMf->getBy(1, 1, 0) + EMf->getBz(1, 1, 0) * EMf->getBz(1, 1, 0)) / sqrt(Bx_mod * Bx_mod + By_mod * By_mod + Bz_mod * Bz_mod);
-
-  Ex_mod *= alpha;
-  Ey_mod *= alpha;
-  Ez_mod *= alpha;
-  Bx_mod *= alpha;
-  By_mod *= alpha;
-  Bz_mod *= alpha;
-
-
-
-  // find the maximum value of f=1+delta_f/f0
-  for (register double vpar = -2 * uth; vpar <= 2 * uth; vpar += 0.0005)
-    for (register double vperp = 1e-10; vperp <= 2 * vth; vperp += 0.0005)
-      for (register double X = xstart; X <= xend; X += 2 * grid->getDX())
-        for (register double Y = ystart; Y <= yend; Y += 2 * grid->getDY()) {
-          value1 = 1 + delta_f(vpar, vperp, 0.0, X, Y, kx, ky, omega_r, omega_i, Ex_mod, Ex_phase, Ey_mod, Ey_phase, Ez_mod, Ez_phase, angle, EMf) / f0(vpar, vperp);
-
-          if (value1 > max_value)
-            max_value = value1;
-
-
-        }
-
-
-
-  max_value *= 3.2;
-  phi = 1.48409;
-  n = 2.948687;                 // security factor...
-  if (ns == 1) {
-    max_value *= 3.0;
-    phi = -1.65858;
-    n = 2.917946;
-  }                             // security factor...
-  cout << "max-value=" << max_value << " min-value=" << min_value << endl;
-
-  /* initialize random generator */
-  srand(vct->getCartesian_rank() + 2);
-
-  const double q_value = (qom / fabs(qom)) * ((0.19635) / npcel) * (1.0 / invVOL);
-  for (int i = 1; i < grid->getNXC() - 1; i++)
-  for (int j = 1; j < grid->getNYC() - 1; j++)
-  {
-    const double x_factor = (dx / (npcelx + (int) (2 * n * (cos(2 * M_PI * 0.4125 * grid->getXN(i, j, 0) + phi))))) + grid->getXN(i, j, 0);
-    const double y_factor = (dy / npcely) + grid->getYN(i, j, 0);
-    for (int ii = 0; ii < npcelx + (int) (2 * n * (cos(2 * M_PI * 0.4125 * grid->getXN(i, j, 0) + phi))); ii++)
-    for (int jj = 0; jj < npcely; jj++)
-    {
-      x = (ii + .5) * x_factor;
-      y = (jj + .5) * y_factor;
-      q = q_value;
-
-      // apply rejection method in velocity space
-      int counter = 0;
-      int total_generated = 0;
-      bool rejected = true;
-      while (rejected) {
-        total_generated++;
-        sample_maxwellian(
-          u,v,w,
-          uth,vth,wth,
-          u0,v0,w0);
-
-        // test: if rand < (1+delta_f/f0)/max_value --> accepted
-        if (rand() / (double) RAND_MAX <= (1 + delta_f(u, v, w, x, y, kx, ky, omega_r, omega_i, Ex_mod, Ex_phase, Ey_mod, Ey_phase, Ez_mod, Ez_phase, angle, EMf) / f0(u, sqrt(v * v + w * w))) / max_value)
-          rejected = false;
-      }
-      counter++;
-      add_new_particle(u,v,w,q,x,y,z,0.);
-    }
-  }
-  assert_eq(getNOP(),counter+1);
-  // if (vct->getCartesian_rank()==0)
-  cout << "Rejection method: " << getNOP() / double (total_generated) * 100 << " % of particles are accepted for species " << ns << " counter=" << counter << endl;
-}
+//
+// This was not being used, so I took it out. -eaj
+//void Particles3D::linear_perturbation(double deltaBoB, double kx, double ky, double angle, double omega_r, double omega_i, double Ex_mod, double Ex_phase, double Ey_mod, double Ey_phase, double Ez_mod, double Ez_phase, double Bx_mod, double Bx_phase, double By_mod, double By_phase, double Bz_mod, double Bz_phase, Field * EMf) {
+//
+//  double value1 = 0.0, value2 = 0.0, max_value = 0.0, min_value = 0.0, phi, n;
+//  // rescaling of amplitudes according to deltaBoB //
+//
+//  const double alpha = deltaBoB * sqrt(EMf->getBx(1, 1, 0) * EMf->getBx(1, 1, 0) + EMf->getBy(1, 1, 0) * EMf->getBy(1, 1, 0) + EMf->getBz(1, 1, 0) * EMf->getBz(1, 1, 0)) / sqrt(Bx_mod * Bx_mod + By_mod * By_mod + Bz_mod * Bz_mod);
+//
+//  Ex_mod *= alpha;
+//  Ey_mod *= alpha;
+//  Ez_mod *= alpha;
+//  Bx_mod *= alpha;
+//  By_mod *= alpha;
+//  Bz_mod *= alpha;
+//
+//
+//
+//  // find the maximum value of f=1+delta_f/f0
+//  for (register double vpar = -2 * uth; vpar <= 2 * uth; vpar += 0.0005)
+//    for (register double vperp = 1e-10; vperp <= 2 * vth; vperp += 0.0005)
+//      for (register double X = xstart; X <= xend; X += 2 * grid->getDX())
+//        for (register double Y = ystart; Y <= yend; Y += 2 * grid->getDY()) {
+//          value1 = 1 + delta_f(vpar, vperp, 0.0, X, Y, kx, ky, omega_r, omega_i, Ex_mod, Ex_phase, Ey_mod, Ey_phase, Ez_mod, Ez_phase, angle, EMf) / f0(vpar, vperp);
+//
+//          if (value1 > max_value)
+//            max_value = value1;
+//
+//
+//        }
+//
+//
+//
+//  max_value *= 3.2;
+//  phi = 1.48409;
+//  n = 2.948687;                 // security factor...
+//  if (ns == 1) {
+//    max_value *= 3.0;
+//    phi = -1.65858;
+//    n = 2.917946;
+//  }                             // security factor...
+//  cout << "max-value=" << max_value << " min-value=" << min_value << endl;
+//
+//  /* initialize random generator */
+//  srand(vct->getCartesian_rank() + 2);
+//
+//  int counter = 0;
+//  int total_generated = 0;
+//  const double q_value = (qom / fabs(qom)) * ((0.19635) / npcel) * (1.0 / invVOL);
+//  for (int i = 1; i < grid->getNXC() - 1; i++)
+//  for (int j = 1; j < grid->getNYC() - 1; j++)
+//  {
+//    const double x_factor = (dx / (npcelx + (int) (2 * n * (cos(2 * M_PI * 0.4125 * grid->getXN(i, j, 0) + phi))))) + grid->getXN(i, j, 0);
+//    const double y_factor = (dy / npcely) + grid->getYN(i, j, 0);
+//    for (int ii = 0; ii < npcelx + (int) (2 * n * (cos(2 * M_PI * 0.4125 * grid->getXN(i, j, 0) + phi))); ii++)
+//    for (int jj = 0; jj < npcely; jj++)
+//    {
+//      const double x = (ii + .5) * x_factor;
+//      const double y = (jj + .5) * y_factor;
+//      eprintf("this was not being initialized.");
+//      const double z = 0.;
+//
+//      // apply rejection method in velocity space
+//      double u,v,w;
+//      bool rejected = true;
+//      while (rejected) {
+//        total_generated++;
+//        sample_maxwellian(
+//          u,v,w,
+//          uth,vth,wth,
+//          u0,v0,w0);
+//
+//        // test: if rand < (1+delta_f/f0)/max_value --> accepted
+//        if (rand() / (double) RAND_MAX <= (1 + delta_f(u, v, w, x, y, kx, ky, omega_r, omega_i, Ex_mod, Ex_phase, Ey_mod, Ey_phase, Ez_mod, Ez_phase, angle, EMf) / f0(u, sqrt(v * v + w * w))) / max_value)
+//          rejected = false;
+//      }
+//      counter++;
+//      add_new_particle(u,v,w,q_value,x,y,z,0.);
+//    }
+//  }
+//  assert_eq(getNOP(),counter+1);
+//  // if (vct->getCartesian_rank()==0)
+//  cout << "Rejection method: " << getNOP() / double (total_generated) * 100 << " % of particles are accepted for species " << ns << " counter=" << counter << endl;
+//}
 
 /** Linear delta f for bi-maxwellian plasma */
 double Particles3D::delta_f(double u, double v, double w, double x, double y, double kx, double ky, double omega_re, double omega_i, double Ex_mod, double Ex_phase, double Ey_mod, double Ey_phase, double Ez_mod, double Ez_phase, double theta, Field * EMf) {
@@ -1471,7 +1478,7 @@ double Particles3D::f0(double vpar, double vperp) {
 
 void Particles3D::RotatePlaneXY(double theta) {
   double temp, temp2;
-  for (register int s = 0; s < nop; s++) {
+  for (register int s = 0; s < getNOP(); s++) {
     temp = u[s];
     temp2 = v[s];
     u[s] = temp * cos(theta) + v[s] * sin(theta);
@@ -1483,6 +1490,7 @@ void Particles3D::RotatePlaneXY(double theta) {
 double Particles3D::deleteParticlesInsideSphere(double R, double x_center, double y_center, double z_center)
 {
   int pidx = 0;
+  double Q_removed=0.;
   while (pidx < _pcls.size())
   {
     SpeciesParticle& pcl = _pcls[pidx];
@@ -1492,13 +1500,11 @@ double Particles3D::deleteParticlesInsideSphere(double R, double x_center, doubl
 
     if ( (xd*xd+yd*yd+zd*zd) < R*R ){
       Q_removed += pcl.get_q();
-      _pcls.delete_element[pidx];
-
+      delete_particle(pidx);
     } else {
       pidx++;
     }
   }
-  nop = _pcls.size();
   return(Q_removed);
 }
 

@@ -43,6 +43,7 @@ public:
   void copyParticlesToSoA();
 
  public:
+  void convertParticlesToSynched();
   void convertParticlesToAoS();
   void convertParticlesToSoA();
   bool particlesAreSoA()const;
@@ -56,15 +57,19 @@ public:
   // get accessors for optional arrays
   //
   Larray<SpeciesParticle>& fetch_pcls(){ return _pcls; }
-  Larray<SpeciesParticle>& fetch_pclstmp(){ return *_pclstmp; }
+  Larray<SpeciesParticle>& fetch_pclstmp(){ return _pclstmp; }
 
   // add new particle
   void add_new_particle(
     double u, double v, double w, double q,
     double x, double y, double z, double t)
   {
-    SpeciesParticle pcl(u,v,w,q,x,y,z,t);
-    _pcls.push_back(pcl);
+    _pcls.push_back(SpeciesParticle(u,v,w,q,x,y,z,t));
+  }
+
+  void delete_particle(int pidx)
+  {
+    _pcls.delete_element(pidx);
   }
 
   // inline get accessors
@@ -236,7 +241,7 @@ protected:
   //
   // alternate temporary storage for sorting particles
   //
-  Larray<SpeciesParticle>* _pclstmp;
+  Larray<SpeciesParticle> _pclstmp;
   //
   // references for buckets for serial sort.
   //
@@ -279,12 +284,12 @@ protected:
   //
   // send buffers
   //
-  BlockCommunicator<SpeciesParticle>& sendXleft;
-  BlockCommunicator<SpeciesParticle>& sendXrght;
-  BlockCommunicator<SpeciesParticle>& sendYleft;
-  BlockCommunicator<SpeciesParticle>& sendYrght;
-  BlockCommunicator<SpeciesParticle>& sendZleft;
-  BlockCommunicator<SpeciesParticle>& sendZrght;
+  BlockCommunicator<SpeciesParticle> sendXleft;
+  BlockCommunicator<SpeciesParticle> sendXrght;
+  BlockCommunicator<SpeciesParticle> sendYleft;
+  BlockCommunicator<SpeciesParticle> sendYrght;
+  BlockCommunicator<SpeciesParticle> sendZleft;
+  BlockCommunicator<SpeciesParticle> sendZrght;
   //
   // recv buffers
   //

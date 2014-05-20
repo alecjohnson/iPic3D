@@ -44,7 +44,7 @@ class Particles3D:public Particles3Dcomm {
     /** Initial condition: uniform in space and maxwellian in velocity */
     void alt_maxwellian(Field * EMf);
     /** Linear_perturbation */
-    void linear_perturbation(double deltaBX, double kx, double ky, double theta, double omega_r, double omega_i, double Ex_mod, double Ex_phase, double Ey_mod, double Ey_phase, double Ez_mod, double Ez_phase, double Bx_mod, double Bx_phase, double By_mod, double By_phase, double Bz_mod, double Bz_phase, Field * EMf);
+    //void linear_perturbation(double deltaBX, double kx, double ky, double theta, double omega_r, double omega_i, double Ex_mod, double Ex_phase, double Ey_mod, double Ey_phase, double Ez_mod, double Ez_phase, double Bx_mod, double Bx_phase, double By_mod, double By_phase, double Bz_mod, double Bz_phase, Field * EMf);
     /**Add a periodic perturbation in velocity exp i(kx - \omega t); deltaBoB is the ratio (Delta B / B0) **/
     void AddPerturbationJ(double deltaBoB, double kx, double ky, double Bx_mod, double By_mod, double Bz_mod, double jx_mod, double jx_phase, double jy_mod, double jy_phase, double jz_mod, double jz_phase, double B0);
     /** Linear delta f for bi-maxwellian plasma */
@@ -73,8 +73,13 @@ class Particles3D:public Particles3Dcomm {
     void mover_PC_vectorized(Field * EMf);
     /** relativistic mover with a Predictor-Corrector scheme */
     int mover_relativistic(Field * EMf);
+   private:
+    /** repopulate particles in a single cell */
+    void populate_cell_with_particles(int i, int j, int k, double q,
+      double dx_per_pcl, double dy_per_pcl, double dz_per_pcl);
+   public:
     /** repopulate particles in boundary layer */
-    int repopulate_particlerepopulate_particle();
+    void repopulate_particles();
     /*! Delete the particles inside the sphere with radius R and center x_center y_center and return the total charge removed */
     double deleteParticlesInsideSphere(double R, double x_center, double y_center, double z_center);
 
