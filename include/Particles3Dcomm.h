@@ -8,16 +8,12 @@ developers: Stefano Markidis, Giovanni Lapenta
 #define Part3DCOMM_H
 
 //#include "CollectiveIO.h"
-// taken from #include "ipicfwd.h" on merge2amaya
-class Collective;
-typedef Collective CollectiveIO;
+#include "ipicfwd.h"
 #include "Alloc.h"
 #include "Particle.h" // for ParticleType
-class Grid3DCU;
-typedef Grid3DCU Grid;
-class EMfields3D;
-typedef EMfields3D Field;
-class VirtualTopology3D;
+#include "BlockCommunicator.h"
+#include "aligned_vector.h"
+#include "Larray.h"
 /**
  * 
  * class for particles of the same species with communications methods
@@ -49,6 +45,7 @@ public:
  public:
   void convertParticlesToAoS();
   void convertParticlesToSoA();
+  bool particlesAreSoA()const;
 
   /*! sort particles for vectorized push (needs to be parallelized) */
   //void sort_particles_serial_SoA_by_xavg();
@@ -59,10 +56,16 @@ public:
   // get accessors for optional arrays
   //
   Larray<SpeciesParticle>& fetch_pcls(){ return _pcls; }
-  Larray<SpeciesParticle>& fetch_pclstmp(){ return _pclstmp; }
-  Larray<double>& fetch_xavg() { return _xavg; }
-  Larray<double>& fetch_yavg() { return _yavg; }
-  Larray<double>& fetch_zavg() { return _zavg; }
+  Larray<SpeciesParticle>& fetch_pclstmp(){ return *_pclstmp; }
+
+  // add new particle
+  void add_new_particle(
+    double u, double v, double w, double q,
+    double x, double y, double z, double t)
+  {
+    SpeciesParticle pcl(u,v,w,q,x,y,z,t);
+    _pcls.push_back(pcl);
+  }
 
   // inline get accessors
   //
@@ -76,35 +79,64 @@ public:
   double get_ystart(){return ystart;}
   double get_zstart(){return zstart;}
   ParticleType::Type get_particleType()const { return particleType; }
-  const SpeciesParticle& get_pcl(int pidx)const{ return fetch_pcls()[pidx]; }
-  double *getUall()  const { return &u[0]; }
-  double *getVall()  const { return &v[0]; }
-  double *getWall()  const { return &w[0]; }
-  double *getQall()  const { return &q[0]; }
-  double *getXall()  const { return &x[0]; }
-  double *getYall()  const { return &y[0]; }
-  double *getZall()  const { return &z[0]; }
-  //long long *getParticleIDall()  const { return (long long *) q; }
+  const SpeciesParticle& get_pcl(int pidx)const{ return _pcls[pidx]; }
+  const double *getUall()  const { assert(particlesAreSoA()); return &u[0]; }
+  const double *getVall()  const { assert(particlesAreSoA()); return &v[0]; }
+  const double *getWall()  const { assert(particlesAreSoA()); return &w[0]; }
+  const double *getQall()  const { assert(particlesAreSoA()); return &q[0]; }
+  const double *getXall()  const { assert(particlesAreSoA()); return &x[0]; }
+  const double *getYall()  const { assert(particlesAreSoA()); return &y[0]; }
+  const double *getZall()  const { assert(particlesAreSoA()); return &z[0]; }
+  static ID_field::Enum id_field()
+  {
+    return ID_field::Q; // q
+    return ID_field::T; // t
+  }
+  const longid*getParticleIDall() const
+  {
+    longid* ret;
+    switch(id_field())
+    {
+      default:
+        invalid_value_error(id_field());
+      case ID_field::Q:
+        ret = (longid*) &q[0];
+      case ID_field::T:
+        ret = (longid*) &t[0];
+    }
+    return ret;
+  }
   // accessors for particle with index indexPart
-  //double getX(int indexPart)  const { return (x[indexPart]); }
-  //double getY(int indexPart)  const { return (y[indexPart]); }
-  //double getZ(int indexPart)  const { return (z[indexPart]); }
-  //double getU(int indexPart)  const { return (u[indexPart]); }
-  //double getV(int indexPart)  const { return (v[indexPart]); }
-  //double getW(int indexPart)  const { return (w[indexPart]); }
-  //double getQ(int indexPart)  const { return (q[indexPart]); }
-  //long long& fetch_ParticleID(int indexPart)  const
-  double get_u(int i)const{return _pcls.get_u(i);}
-  double get_v(int i)const{return _pcls.get_v(i);}
-  double get_w(int i)const{return _pcls.get_w(i);}
-  double get_q(int i)const{return _pcls.get_q(i);}
-  double get_x(int i)const{return _pcls.get_x(i);}
-  double get_y(int i)const{return _pcls.get_y(i);}
-  double get_z(int i)const{return _pcls.get_z(i);}
-  double get_t(int i)const{return _pcls.get_t(i);}
-  //  { return (long long)(q[indexPart]); }
+  //
   int getNOP()  const { return _pcls.size(); }
-  int get_npmax() const {return npmax;}
+  // set particle components
+  void setU(int i, double in){_pcls[i].set_u(in);}
+  void setV(int i, double in){_pcls[i].set_v(in);}
+  void setW(int i, double in){_pcls[i].set_w(in);}
+  void setQ(int i, double in){_pcls[i].set_q(in);}
+  void setX(int i, double in){_pcls[i].set_x(in);}
+  void setY(int i, double in){_pcls[i].set_y(in);}
+  void setZ(int i, double in){_pcls[i].set_z(in);}
+  void setT(int i, double in){_pcls[i].set_t(in);}
+  // fetch particle components
+  double& fetchU(int i){return _pcls[i].fetch_u();}
+  double& fetchV(int i){return _pcls[i].fetch_v();}
+  double& fetchW(int i){return _pcls[i].fetch_w();}
+  double& fetchQ(int i){return _pcls[i].fetch_q();}
+  double& fetchX(int i){return _pcls[i].fetch_x();}
+  double& fetchY(int i){return _pcls[i].fetch_y();}
+  double& fetchZ(int i){return _pcls[i].fetch_z();}
+  double& fetchT(int i){return _pcls[i].fetch_t();}
+  // get particle components
+  double getU(int i)const{return _pcls[i].get_u();}
+  double getV(int i)const{return _pcls[i].get_v();}
+  double getW(int i)const{return _pcls[i].get_w();}
+  double getQ(int i)const{return _pcls[i].get_q();}
+  double getX(int i)const{return _pcls[i].get_x();}
+  double getY(int i)const{return _pcls[i].get_y();}
+  double getZ(int i)const{return _pcls[i].get_z();}
+  double getT(int i)const{return _pcls[i].get_t();}
+  //int get_npmax() const {return npmax;}
 
   // computed get access
   //
@@ -133,7 +165,7 @@ protected:
   // pointers to topology and grid information
   // (should be const)
   //
-  VirtualTopology3D * vct,
+  VirtualTopology3D * vct;
   Grid * grid;
   //
   /** number of this species */
@@ -167,8 +199,6 @@ protected:
   /** v0 Drift velocity - Direction Y */
   double v0;
   /** w0 Drift velocity - Direction Z */
-  VirtualTopology3D * vct,
-  Grid * grid;
   double w0;
 
   ParticleType::Type particleType;
@@ -182,17 +212,17 @@ protected:
   // SoA representation
   //
   // velocity components
-  Larray<double>& u;
-  Larray<double>& v;
-  Larray<double>& w;
+  aligned_vector(double) u;
+  aligned_vector(double) v;
+  aligned_vector(double) w;
   // charge
-  Larray<double>& q;
+  aligned_vector(double) q;
   // position
-  Larray<double>& x;
-  Larray<double>& y;
-  Larray<double>& z;
+  aligned_vector(double) x;
+  aligned_vector(double) y;
+  aligned_vector(double) z;
   // subcycle time
-  //Larray<double>& t;
+  aligned_vector(double) t;
   // indicates whether this class is for tracking particles
   bool TrackParticleID;
 
@@ -206,7 +236,7 @@ protected:
   //
   // alternate temporary storage for sorting particles
   //
-  Larray<SpeciesParticle>& _pclstmp;
+  Larray<SpeciesParticle>* _pclstmp;
   //
   // references for buckets for serial sort.
   //

@@ -114,12 +114,12 @@ void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
   _isPeriodicZlower = PERIODICZ && coordinates[2]==0;
   _isPeriodicZupper = PERIODICZ && coordinates[2]==dims[2];
 
-  _noXlowerNeighbor = (ptVCT->getXleft_neighbor_P() == MPI_PROC_NULL);
-  _noXupperNeighbor = (ptVCT->getXright_neighbor_P() == MPI_PROC_NULL);
-  _noYlowerNeighbor = (ptVCT->getYleft_neighbor_P() == MPI_PROC_NULL);
-  _noYupperNeighbor = (ptVCT->getYright_neighbor_P() == MPI_PROC_NULL);
-  _noZlowerNeighbor = (ptVCT->getZleft_neighbor_P() == MPI_PROC_NULL);
-  _noZupperNeighbor = (ptVCT->getZright_neighbor_P() == MPI_PROC_NULL);
+  _noXlowerNeighbor = (getXleft_neighbor_P() == MPI_PROC_NULL);
+  _noXupperNeighbor = (getXright_neighbor_P() == MPI_PROC_NULL);
+  _noYlowerNeighbor = (getYleft_neighbor_P() == MPI_PROC_NULL);
+  _noYupperNeighbor = (getYright_neighbor_P() == MPI_PROC_NULL);
+  _noZlowerNeighbor = (getZleft_neighbor_P() == MPI_PROC_NULL);
+  _noZupperNeighbor = (getZright_neighbor_P() == MPI_PROC_NULL);
 
   _isBoundaryProcess = 
     _isPeriodicXlower ||

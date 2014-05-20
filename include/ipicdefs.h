@@ -1,6 +1,9 @@
 #ifndef __IPIC_DEFS_H__
 #define __IPIC_DEFS_H__
 
+typedef unsigned long long longid;
+//typedef uint64_t longid; // requires #include <stdint.h>
+
 // comment this out if OpenMP is not installed on your system.
 #define USING_OMP
 

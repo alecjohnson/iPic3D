@@ -329,7 +329,6 @@ void HDF5OutputAdaptor::write(const std::string & tag, const Dimens dimens, cons
 }
 
 void HDF5OutputAdaptor::write(const std::string & tag, const Dimens dimens, const long *i_array) {
-  //try {
     if (dimens.size() == 0) {
       eprintf("Zero Dimens size");
       //PSK::OutputException e("Zero Dimens size", "HDF5OutputAdaptor::write(long* array)");
@@ -353,18 +352,17 @@ void HDF5OutputAdaptor::write(const std::string & tag, const Dimens dimens, cons
 
     if (hdf5err < 0) {
       eprintf("make_dataset fails for %s", tag.c_str());
-      //PSK::OutputException e("make_dataset fails for " + tag, "HDF5OutputAdaptor::write(long* array)");
-      //throw e;
     }
 
     // close groups, if any, but don't try to close the file id at [0]
     for (int i = hid_array.size() - 1; i > 0; --i)
       hdf5err = H5Gclose(hid_array[i]);
+}
 
-  //} catch(PSK::Exception & e) {
-  //  e.push("In HDF5OutputAdaptor::write(long* array)");
-  //  throw e;
-  //}
+void HDF5OutputAdaptor::write(const std::string & tag, const Dimens dimens, const longid *i_array)
+{
+  assert_eq(sizeof(long),sizeof(longid));
+  write(tag, dimens, (const long *) i_array);
 }
 
 void HDF5OutputAdaptor::write(const std::string & tag, const Dimens dimens, const std::vector < int >&i_array) {
@@ -377,20 +375,6 @@ void HDF5OutputAdaptor::write(const std::string & tag, const Dimens dimens, cons
     delete[]i_array_p;
   //} catch(PSK::Exception & e) {
   //  e.push("In HDF5OutputAdaptor::write(vector<int> array)");
-  //  throw e;
-  //}
-}
-
-void HDF5OutputAdaptor::write(const std::string & tag, const Dimens dimens, const std::vector < long >&i_array) {
-  //try {
-    int n = dimens.nels();
-    long *i_array_p = new long[n];
-    for (int i = 0; i < n; ++i)
-      i_array_p[i] = i_array[i];
-    write(tag, dimens, i_array_p);
-    delete[]i_array_p;
-  //} catch(PSK::Exception & e) {
-  //  e.push("In HDF5OutputAdaptor::write(vector<long> array)");
   //  throw e;
   //}
 }

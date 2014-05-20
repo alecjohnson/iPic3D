@@ -96,25 +96,19 @@ Particles3Dcomm::Particles3Dcomm(
   // SoA particle representation
   //
   // velocities
-  u(*new Larray<double>),
-  v(*new Larray<double>),
-  w(*new Larray<double>),
+  u(*new aligned_vector(double)),
+  v(*new aligned_vector(double)),
+  w(*new aligned_vector(double)),
   // charge
-  q(*new Larray<double>),
+  q(*new aligned_vector(double)),
   // positions
-  x(*new Larray<double>),
-  y(*new Larray<double>),
-  z(*new Larray<double>),
+  x(*new aligned_vector(double)),
+  y(*new aligned_vector(double)),
+  z(*new aligned_vector(double)),
   // subcycle time
-  t(*new Larray<double>),
+  t(*new aligned_vector(double)),
   //
   particleType(ParticleType::AoS),
-
-  // average positions, used in iterative particle advance
-  //_xavg(*new Larray<double>);
-  //_yavg(*new Larray<double>);
-  //_zavg(*new Larray<double>);
-  //_tavg(*new Larray<double>);
 
   _pcls(*new Larray<SpeciesParticle>),
   _pclstmp(*new Larray<SpeciesParticle>)
@@ -228,7 +222,7 @@ Particles3Dcomm::Particles3Dcomm(
     assert_eq(sizeof(SpeciesParticle),64);
   }
 
-  //ParticleID = new Larray<long long>;
+  //ParticleID = new Larray<longid>;
 
   // if RESTART is true initialize the particle in allocate method
   restart = col->getRestart_status();
@@ -1220,6 +1214,22 @@ void Particles3Dcomm::convertParticlesToAoS()
       break;
   }
   particleType = ParticleType::AoS;
+}
+
+bool Particles3Dcomm::particlesAreSoA()
+{
+  switch(particleType)
+  {
+    default:
+      unsupported_value_error(particleType);
+    case ParticleType::AoS:
+      return false;
+      break;
+    case ParticleType::SoA:
+    case ParticleType::synched:
+      break;
+  }
+  return true;
 }
 
 void Particles3Dcomm::convertParticlesToSoA()

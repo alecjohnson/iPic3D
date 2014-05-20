@@ -27,7 +27,7 @@ namespace BCparticles
 
 void BCpclLeft(double& x, double& u, double& v, double& w, double Lx, double ut, double vt, double wt, int bcFaceXleft)
 {
-  assert_lt(x, 0);
+  assert_lt(x, 0.);
   switch (bcFaceXleft)
   {
     case BCparticles::PERFECT_MIRROR:

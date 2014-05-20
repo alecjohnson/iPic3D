@@ -11,7 +11,6 @@
 #include "ipicfwd.h"
 #include "math.h" // for floor
 
-class VirtualTopology3D;
 /**
  * Uniform cartesian local grid 3D
  *
