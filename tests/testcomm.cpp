@@ -411,12 +411,12 @@ int main(int argc, char **argv)
     //
     // receive message from lower
     //
-    BlockCommunicator<Particle> recv_pcls(blocksize, numblocks, lowXrecvConn);
+    BlockCommunicator<Particle> recv_pcls(lowXrecvConn, blocksize, numblocks);
     recv_pcls.recv_start();
     //
     // send particles
     //
-    BlockCommunicator<Particle> send_pcls(blocksize, numblocks, hghXsendConn);
+    BlockCommunicator<Particle> send_pcls(hghXsendConn, blocksize, numblocks);
     // create and send particles
     int num_blocks_sent = 0;
     for(int p=0;p<numpcls;p++)
@@ -458,13 +458,13 @@ int main(int argc, char **argv)
 
     // for each neighbor, create a receive communicator
     //
-    BlockCommunicator<Particle> lowXrecv(blocksize, 1, lowXrecvConn);
-    BlockCommunicator<Particle> hghXrecv(blocksize, 1, hghXrecvConn);
+    BlockCommunicator<Particle> lowXrecv(lowXrecvConn, blocksize, 1);
+    BlockCommunicator<Particle> hghXrecv(hghXrecvConn, blocksize, 1);
 
     // for each neighbor, create a send communicator
     //
-    BlockCommunicator<Particle> lowXsend(blocksize, 1, lowXsendConn);
-    BlockCommunicator<Particle> hghXsend(blocksize, 1, hghXsendConn);
+    BlockCommunicator<Particle> lowXsend(lowXsendConn, blocksize, 1);
+    BlockCommunicator<Particle> hghXsend(hghXsendConn, blocksize, 1);
 
     lowXrecv.post_recvs();
     hghXrecv.post_recvs();

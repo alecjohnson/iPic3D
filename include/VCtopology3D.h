@@ -50,6 +50,9 @@ public:
   bool getPERIODICX() { return (PERIODICX); }
   bool getPERIODICY() { return (PERIODICY); }
   bool getPERIODICZ() { return (PERIODICZ); }
+
+  // legacy names
+  //
   int getCartesian_rank() { return (cartesian_rank); }
   int getXleft_neighbor() { return (xleft_neighbor); }
   int getXright_neighbor() { return (xright_neighbor); }
@@ -57,12 +60,21 @@ public:
   int getYright_neighbor() { return (yright_neighbor); }
   int getZleft_neighbor() { return (zleft_neighbor); }
   int getZright_neighbor() { return (zright_neighbor); }
-  int getXleft_neighbor_P() { return (xleft_neighbor_P); }
-  int getXright_neighbor_P() { return (xright_neighbor_P); }
-  int getYleft_neighbor_P() { return (yleft_neighbor_P); }
-  int getYright_neighbor_P() { return (yright_neighbor_P); }
-  int getZleft_neighbor_P() { return (zleft_neighbor_P); }
-  int getZright_neighbor_P() { return (zright_neighbor_P); }
+  int getXleft_neighbor_P() { return (xleft_neighbor); }
+  int getXright_neighbor_P() { return (xright_neighbor); }
+  int getYleft_neighbor_P() { return (yleft_neighbor); }
+  int getYright_neighbor_P() { return (yright_neighbor); }
+  int getZleft_neighbor_P() { return (zleft_neighbor); }
+  int getZright_neighbor_P() { return (zright_neighbor); }
+
+  // new interface
+  //
+  int getXleft() { return (xleft_neighbor); }
+  int getXrght() { return (xright_neighbor); }
+  int getYleft() { return (yleft_neighbor); }
+  int getYrght() { return (yright_neighbor); }
+  int getZleft() { return (zleft_neighbor); }
+  int getZrght() { return (zright_neighbor); }
 
   bool isPeriodicXlower() { return _isPeriodicXlower; }
   bool isPeriodicXupper() { return _isPeriodicXupper; }
@@ -91,7 +103,7 @@ private:
   /** New communicator with virtual cartesian topology */
   MPI_Comm CART_COMM;
   /** New communicator with virtual cartesian topology for Particles*/
-  MPI_Comm CART_COMM_P;
+  //MPI_Comm CART_COMM_P;
   /** MPI status during sending and receiving communication */
   MPI_Status status;
   /** Direction X for shift MPI_Cart_Shift*/
@@ -121,18 +133,18 @@ private:
   /** periodicity on boundaries - DIRECTION Z*/
   bool PERIODICZ;
   /** periodicity on boundaries - DIRECTION X*/
-  bool PERIODICX_P;
+  //bool PERIODICX_P;
   /** periodicity on boundaries - DIRECTION Y*/
-  bool PERIODICY_P;
+  //bool PERIODICY_P;
   /** periodicity on boundaries - DIRECTION Z*/
-  bool PERIODICZ_P;
+  //bool PERIODICZ_P;
   /** rank may be reordered     */
   int reorder;
   /** arrays for Create_Cart_create  */
   int dims[3];
   /** periodicity */
   int periods[3];
-  int periods_P[3];
+  //int periods_P[3];
   /** coordinates on processors grid */
   int coordinates[3];
   /** cartesian rank */
@@ -150,17 +162,17 @@ private:
   /** cartesian rank of ZLEFT neighbor */
   int zright_neighbor;
   /** cartesian rank of XLEFT neighbor */
-  int xleft_neighbor_P;
+  //int xleft_neighbor_P;
   /** cartesian rank of XRIGHT neighbor */
-  int xright_neighbor_P;
+  //int xright_neighbor_P;
   /** cartesian rank of YLEFT neighbor */
-  int yleft_neighbor_P;
+  //int yleft_neighbor_P;
   /** cartesian rank of YRIGHT neighbor */
-  int yright_neighbor_P;
+  //int yright_neighbor_P;
   /** cartesian rank of ZRIGHT neighbor */
-  int zleft_neighbor_P;
+  //int zleft_neighbor_P;
   /** cartesian rank of ZLEFT neighbor */
-  int zright_neighbor_P;
+  //int zright_neighbor_P;
   
   /** indicators of whether this is a periodic boundary */
   bool _isPeriodicXlower;

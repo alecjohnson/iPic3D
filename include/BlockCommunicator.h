@@ -43,11 +43,21 @@ class Connection
   int _tag; // tag to attach to messages
   MPI_Comm _comm; // communicator group
  public: // init
-  Connection(int rank_, int tag_, const MPI_Comm& comm_):
-    _rank(rank_),
-    _tag(tag_),
-    _comm(comm_)
+  Connection():
+    _rank(0),
+    _tag(0),
+    _comm(MPI_COMM_WORLD)
   {}
+  Connection(int rank_, int tag_, const MPI_Comm& comm_)
+  {
+    init(rank_,tag_,comm_);
+  }
+  void init(int rank_, int tag_, const MPI_Comm& comm_)
+  {
+    _rank = rank_;
+    _tag = tag_;
+    _comm = comm_;
+  }
  public: // accessors
   int rank()const{return _rank;}
   int tag()const{return _tag;}
@@ -281,7 +291,8 @@ class BlockCommunicator
 {
  enum CommState
  {
-   INITIAL=0,
+   NONE=0,
+   INITIAL,
    ACTIVE,
    FINISHED
  };
@@ -297,26 +308,16 @@ class BlockCommunicator
   int commState;
  // methods
  public: // construction
-  BlockCommunicator(int blocksize_, int numblocks, Connection connection_):
-    blocksize(blocksize_),
-    connection(connection_),
-    commState(INITIAL)
-  {
-    assert(numblocks>0);
-    for(nextid=0;nextid<numblocks;nextid++)
-    {
-      Block<type>* newBlock = new Block<type>(blocksize, nextid);
-      blockList.push_back(newBlock);
-    }
-    curr_block = blockList.begin();
-  }
+  BlockCommunicator():
+    connection(),
+    blocksize(0),
+    nextid(0),
+    commState(NONE)
+  {}
+  BlockCommunicator(Connection connection_);
+  void init(Connection connection_);
  //protected: // if destructor is public then it should be virtual
-  ~BlockCommunicator()
-  {
-    std::list<void*>::iterator i;
-    for(i=blockList.begin(); i != blockList.end(); ++i)
-      delete &fetch_block(i);
-  }
+  ~BlockCommunicator();
  // information access
  //
  private: // access
@@ -363,12 +364,6 @@ class BlockCommunicator
   //  curr_block = blockList.begin();
   //}
  public: // receiving operations
-
-  void revc_start()
-  {
-    // make sure that all blocks
-    // have a recv posted on it.
-  }
 
   // insert blocks prior to the current block
   // and call recv on them.

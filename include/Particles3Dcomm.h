@@ -36,6 +36,24 @@ public:
   void interpP2G(Field * EMf);
 
   // communicate particles between processes
+ private:
+  bool apply_boundary_conditions(
+    SpeciesParticle& pcl,
+    bool isBoundaryProcess,
+    bool noXlowerNeighbor, bool noXupperNeighbor,
+    bool noYlowerNeighbor, bool noYupperNeighbor,
+    bool noZlowerNeighbor, bool noZupperNeighbor);
+  bool send_pcl_to_appropriate_buffer(
+    SpeciesParticle& pcl,
+    bool hasXlowerNeighbor, bool hasXupperNeighbor,
+    bool hasYlowerNeighbor, bool hasYupperNeighbor,
+    bool hasZlowerNeighbor, bool hasZupperNeighbor,
+    bool isPeriodicXlower, bool isPeriodicXupper,
+    bool isPeriodicYlower, bool isPeriodicYupper,
+    bool isPeriodicZlower, bool isPeriodicZupper);
+  void flush_send();
+  int handle_incoming_particles();
+ public:
   int communicate_particles();
 
  private:
@@ -160,7 +178,9 @@ public:
 
 public:
   // accessors
-  int get_ns()const{return ns;}
+  //int get_ns()const{return ns;}
+  // return number of this species
+  int get_species_num()const{return ns;}
   int get_numpcls_in_bucket(int cx, int cy, int cz)const
   { return (*numpcls_in_bucket)[cx][cy][cz]; }
   int get_bucket_offset(int cx, int cy, int cz)const
@@ -210,7 +230,7 @@ protected:
   //
   // AoS representation
   //
-  Larray<SpeciesParticle>& _pcls;
+  Larray<SpeciesParticle> _pcls;
   //
   // particles data
   //
@@ -293,12 +313,12 @@ protected:
   //
   // recv buffers
   //
-  BlockCommunicator<SpeciesParticle>& recvXleft;
-  BlockCommunicator<SpeciesParticle>& recvXrght;
-  BlockCommunicator<SpeciesParticle>& recvYleft;
-  BlockCommunicator<SpeciesParticle>& recvYrght;
-  BlockCommunicator<SpeciesParticle>& recvZleft;
-  BlockCommunicator<SpeciesParticle>& recvZrght;
+  BlockCommunicator<SpeciesParticle> recvXleft;
+  BlockCommunicator<SpeciesParticle> recvXrght;
+  BlockCommunicator<SpeciesParticle> recvYleft;
+  BlockCommunicator<SpeciesParticle> recvYrght;
+  BlockCommunicator<SpeciesParticle> recvZleft;
+  BlockCommunicator<SpeciesParticle> recvZrght;
 
   /** bool for communication verbose */
   bool cVERBOSE;

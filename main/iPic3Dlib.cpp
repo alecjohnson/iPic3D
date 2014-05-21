@@ -506,11 +506,6 @@ void c_Solver::WriteOutput(int cycle) {
 
   // write particles-related data
   //
-  // copy particles to SoA if needed for writing
-  //
-  bool convert_pcls = doWriteRestart(cycle) || doWriteParticles(cycle);
-  if(convert_pcls)
-    convertParticlesToSynched();
   // this also writes field data...
   WriteRestart(cycle);
   WriteParticles(cycle);

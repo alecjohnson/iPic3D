@@ -129,6 +129,7 @@ class SpeciesParticle
 // intended to occupy 64 bytes
 //
 // dust particle for second-order-accuracy implicit advance
+#if 0
 class IDpcl
 {
   int c[3]; // cell
@@ -140,5 +141,6 @@ class IDpcl
   float u[3];
   float m; // mass of particle
 };
+#endif
 
 #endif

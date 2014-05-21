@@ -238,7 +238,7 @@ void EMfields3D::sumMomentsOld(const Particles3Dcomm& pcls, Grid * grid, Virtual
   double const*const w = pcls.getWall();
   double const*const q = pcls.getQall();
   //
-  const int is = pcls.get_ns();
+  const int is = pcls.get_species_num();
 
   const int nop = pcls.getNOP();
   // To make memory use scale to a large number of threads, we
@@ -403,7 +403,7 @@ void EMfields3D::sumMoments(const Particles3Dcomm* part, Grid * grid, VirtualTop
   {
     const Particles3Dcomm& pcls = part[i];
     assert_eq(pcls.get_particleType(), ParticleType::SoA);
-    const int is = pcls.get_ns();
+    const int is = pcls.get_species_num();
     assert_eq(i,is);
 
     double const*const x = pcls.getXall();
@@ -617,7 +617,7 @@ void EMfields3D::sumMoments_AoS(
   {
     const Particles3Dcomm& pcls = part[species_idx];
     assert_eq(pcls.get_particleType(), ParticleType::AoS);
-    const int is = pcls.get_ns();
+    const int is = pcls.get_species_num();
     assert_eq(species_idx,is);
 
     const int nop = pcls.getNOP();
@@ -914,7 +914,7 @@ void EMfields3D::sumMoments_AoS_intr(
     {
       const Particles3Dcomm& pcls = part[species_idx];
       assert_eq(pcls.get_particleType(), ParticleType::AoS);
-      const int is = pcls.get_ns();
+      const int is = pcls.get_species_num();
       assert_eq(species_idx,is);
 
       // moments.setmode(ompmode::mine);
@@ -1457,7 +1457,7 @@ void EMfields3D::sumMoments_vectorized(
   {
     const Particles3Dcomm& pcls = part[species_idx];
     assert_eq(pcls.get_particleType(), ParticleType::SoA);
-    const int is = pcls.get_ns();
+    const int is = pcls.get_species_num();
     assert_eq(species_idx,is);
 
     double const*const x = pcls.getXall();
@@ -1618,7 +1618,7 @@ void EMfields3D::sumMoments_vectorized_AoS(
   {
     const Particles3Dcomm& pcls = part[species_idx];
     assert_eq(pcls.get_particleType(), ParticleType::AoS);
-    const int is = pcls.get_ns();
+    const int is = pcls.get_species_num();
     assert_eq(species_idx,is);
 
     const int nop = pcls.getNOP();

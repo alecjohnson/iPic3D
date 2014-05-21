@@ -58,39 +58,38 @@ Particles3Dcomm::~Particles3Dcomm() {
 /** constructor for a single species*/
 // was Particles3Dcomm::allocate()
 Particles3Dcomm::Particles3Dcomm(
-  int species_,
+  int species_number,
   CollectiveIO * col,
   VirtualTopology3D * vct_,
   Grid * grid_)
  :
-  ns(species_),
+  ns(species_number),
   vct(vct_),
   grid(grid_),
-  //
-  ////////////
-  // arrays //
-  ////////////
-  //
-  particleType(ParticleType::AoS),
+  particleType(ParticleType::AoS)
 {
   // info from collectiveIO
   //
-  npcel = col->getNpcel(species);
-  npcelx = col->getNpcelx(species);
-  npcely = col->getNpcely(species);
-  npcelz = col->getNpcelz(species);
-  nop = col->getNp(species) / (vct->getNprocs());
-  //np_tot = col->getNp(species);
-  npmax = col->getNpMax(species) / (vct->getNprocs());
-  // ensure that npmax is a multiple of AoS_PCLS_AT_A_TIME
+  npcel = col->getNpcel(get_species_num());
+  npcelx = col->getNpcelx(get_species_num());
+  npcely = col->getNpcely(get_species_num());
+  npcelz = col->getNpcelz(get_species_num());
+  //
+  // determine number of particles to preallocate for this process.
+  //
+  int nop = col->getNp(get_species_num()) / (vct->getNprocs());
+  //int npmax = 2*nop;
+  int npmax = col->getNpMax(get_species_num()) / (vct->getNprocs());
+  //np_tot = col->getNp(get_species_num());
   npmax = roundup_to_multiple(npmax,AoS_PCLS_AT_A_TIME);
-  qom = col->getQOM(species);
-  uth = col->getUth(species);
-  vth = col->getVth(species);
-  wth = col->getWth(species);
-  u0 = col->getU0(species);
-  v0 = col->getV0(species);
-  w0 = col->getW0(species);
+  //
+  qom = col->getQOM(get_species_num());
+  uth = col->getUth(get_species_num());
+  vth = col->getVth(get_species_num());
+  wth = col->getWth(get_species_num());
+  u0 = col->getU0(get_species_num());
+  v0 = col->getV0(get_species_num());
+  w0 = col->getW0(get_species_num());
   dt = col->getDt();
   Lx = col->getLx();
   Ly = col->getLy();
@@ -99,13 +98,13 @@ Particles3Dcomm::Particles3Dcomm(
   dy = grid->getDY();
   dz = grid->getDZ();
   delta = col->getDelta();
-  TrackParticleID = col->getTrackParticleID(species);
+  TrackParticleID = col->getTrackParticleID(get_species_num());
   c = col->getC();
   // info for mover
   NiterMover = col->getNiterMover();
   // velocity of the injection from the wall
   Vinj = col->getVinj();
-  Ninj = col->getRHOinject(species);
+  Ninj = col->getRHOinject(get_species_num());
   //
   // boundary condition for particles
   //
@@ -170,6 +169,24 @@ Particles3Dcomm::Particles3Dcomm(
   //
   _pcls.reserve(npmax);
 
+  // communicators for particles
+  //
+  const MPI_Comm comm = MPI_COMM_WORLD;
+  // X direction
+  sendXleft.init(Connection(vct->getXleft(),Connection::PARTICLE_DN,comm));
+  sendXrght.init(Connection(vct->getXrght(),Connection::PARTICLE_UP,comm));
+  recvXleft.init(Connection(vct->getXleft(),Connection::PARTICLE_UP,comm));
+  recvXrght.init(Connection(vct->getXrght(),Connection::PARTICLE_DN,comm));
+  // Y direction
+  sendYleft.init(Connection(vct->getYleft(),Connection::PARTICLE_DN,comm));
+  sendYrght.init(Connection(vct->getYrght(),Connection::PARTICLE_UP,comm));
+  recvYleft.init(Connection(vct->getYleft(),Connection::PARTICLE_UP,comm));
+  recvYrght.init(Connection(vct->getYrght(),Connection::PARTICLE_DN,comm));
+  // Z direction
+  sendZleft.init(Connection(vct->getZleft(),Connection::PARTICLE_DN,comm));
+  sendZrght.init(Connection(vct->getZrght(),Connection::PARTICLE_UP,comm));
+  recvZleft.init(Connection(vct->getZleft(),Connection::PARTICLE_UP,comm));
+  recvZrght.init(Connection(vct->getZrght(),Connection::PARTICLE_DN,comm));
   //
   // allocate arrays for sorting particles
   //
@@ -187,7 +204,7 @@ Particles3Dcomm::Particles3Dcomm(
   // if RESTART is true initialize the particle in allocate method
   restart = col->getRestart_status();
   if (restart != 0) {
-    if (vct->getCartesian_rank() == 0 && ns == 0)
+    if (vct->getCartesian_rank() == 0 && get_species_num() == 0)
       cout << "LOADING PARTICLES FROM RESTART FILE in " + col->getRestartDirName() + "/restart.hdf" << endl;
     stringstream ss;
     ss << vct->getCartesian_rank();
@@ -208,7 +225,7 @@ Particles3Dcomm::Particles3Dcomm(
     }
 
     stringstream species_name;
-    species_name << ns;
+    species_name << get_species_num();
     // the cycle of the last restart is set to 0
     string name_dataset = "/particles/species_" + species_name.str() + "/x/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
@@ -219,43 +236,51 @@ Particles3Dcomm::Particles3Dcomm(
 
     // get how many particles there are on this processor for this species
     status_n = H5Sget_simple_extent_dims(dataspace, dims_out, NULL);
-    nop = dims_out[0];          // this the number of particles on the processor!
+    const int nop = dims_out[0];          // this the number of particles on the processor!
+    u.resize(nop);
+    v.resize(nop);
+    w.resize(nop);
+    q.resize(nop);
+    x.resize(nop);
+    y.resize(nop);
+    z.resize(nop);
+    t.resize(nop);
     // get x
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, x);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &x[0]);
     // close the data set
     status = H5Dclose(dataset_id);
 
     // get y
     name_dataset = "/particles/species_" + species_name.str() + "/y/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, y);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &y[0]);
     status = H5Dclose(dataset_id);
 
     // get z
     name_dataset = "/particles/species_" + species_name.str() + "/z/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, z);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &z[0]);
     status = H5Dclose(dataset_id);
 
     // get u
     name_dataset = "/particles/species_" + species_name.str() + "/u/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, u);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &u[0]);
     status = H5Dclose(dataset_id);
     // get v
     name_dataset = "/particles/species_" + species_name.str() + "/v/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, v);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &v[0]);
     status = H5Dclose(dataset_id);
     // get w
     name_dataset = "/particles/species_" + species_name.str() + "/w/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, w);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &w[0]);
     status = H5Dclose(dataset_id);
     // get q
     name_dataset = "/particles/species_" + species_name.str() + "/q/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, q);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &q[0]);
     status = H5Dclose(dataset_id);
     // ID 
     //if (TrackParticleID) {
@@ -400,24 +425,24 @@ inline bool Particles3Dcomm::apply_boundary_conditions(
 {
   if(isBoundaryProcess)
   {
-    double& x = &pcl.fetch_x();
-    double& y = &pcl.fetch_y();
-    double& z = &pcl.fetch_z();
-    double& u = &pcl.fetch_u();
-    double& v = &pcl.fetch_v();
-    double& w = &pcl.fetch_w();
+    double& x = pcl.fetch_x();
+    double& y = pcl.fetch_y();
+    double& z = pcl.fetch_z();
+    double& u = pcl.fetch_u();
+    double& v = pcl.fetch_v();
+    double& w = pcl.fetch_w();
     if (noXlowerNeighbor && pcl.get_x() < 0)
       BCpclLeft(x,u,v,w,Lx,uth,vth,wth,bcPfaceXleft);
     else if (noXupperNeighbor && pcl.get_x() > Lx)
-      BCpclRght(x,u,v,w,Lx,uth,vth,wth,bcPfaceXright);
+      BCpclRight(x,u,v,w,Lx,uth,vth,wth,bcPfaceXright);
     if (noYlowerNeighbor && pcl.get_y() < 0)
       BCpclLeft(y,u,v,w,Ly,uth,vth,wth,bcPfaceYleft);
     else if (noYupperNeighbor && pcl.get_y() > Ly)
-      BCpclRght(y,u,v,w,Ly,uth,vth,wth,bcPfaceYright);
+      BCpclRight(y,u,v,w,Ly,uth,vth,wth,bcPfaceYright);
     if (noZlowerNeighbor && pcl.get_z() < 0)
       BCpclLeft(z,u,v,w,Lz,uth,vth,wth,bcPfaceZleft);
     else if (noZupperNeighbor && pcl.get_z() > Lz)
-      BCpclRght(z,u,v,w,Lz,uth,vth,wth,bcPfaceZright);
+      BCpclRight(z,u,v,w,Lz,uth,vth,wth,bcPfaceZright);
   }
 }
 
@@ -472,14 +497,14 @@ inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
     // handle periodic boundary conditions only when wrapping particles
     if(isPeriodicZlower && pcl.get_z() < 0) pcl.fetch_z() += Lz;
     // put it in the communication buffer
-    sendZLeft.send(pcl);
+    sendZleft.send(pcl);
   }
   else if(hasZupperNeighbor && pcl.get_z() > zend)
   {
     // handle periodic boundary conditions only when wrapping particles
     if(isPeriodicZupper && pcl.get_z() > Lz) pcl.fetch_z() -= Lz;
     // put it in the communication buffer
-    sendZRght.send(pcl);
+    sendZrght.send(pcl);
   }
   else {
     // particle is still in the domain, procede with the next particle
@@ -523,25 +548,25 @@ int Particles3Dcomm::handle_incoming_particles()
     &recvZleft, &recvZrght
   };
 
-  const bool noXlowerNeighbor = ptVCT->noXlowerNeighbor();
-  const bool noXupperNeighbor = ptVCT->noXupperNeighbor();
-  const bool noYlowerNeighbor = ptVCT->noYlowerNeighbor();
-  const bool noYupperNeighbor = ptVCT->noYupperNeighbor();
-  const bool noZlowerNeighbor = ptVCT->noZlowerNeighbor();
-  const bool noZupperNeighbor = ptVCT->noZupperNeighbor();
-  const bool isBoundaryProcess = ptVCT->isBoundaryProcess();
-  const bool hasXlowerNeighbor = !ptVCT->noXlowerNeighbor();
-  const bool hasXupperNeighbor = !ptVCT->noXupperNeighbor();
-  const bool hasYlowerNeighbor = !ptVCT->noYlowerNeighbor();
-  const bool hasYupperNeighbor = !ptVCT->noYupperNeighbor();
-  const bool hasZlowerNeighbor = !ptVCT->noZlowerNeighbor();
-  const bool hasZupperNeighbor = !ptVCT->noZupperNeighbor();
-  const bool isPeriodicXlower = ptVCT->isPeriodicXlower();
-  const bool isPeriodicXupper = ptVCT->isPeriodicXupper();
-  const bool isPeriodicYlower = ptVCT->isPeriodicYlower();
-  const bool isPeriodicYupper = ptVCT->isPeriodicYupper();
-  const bool isPeriodicZlower = ptVCT->isPeriodicZlower();
-  const bool isPeriodicZupper = ptVCT->isPeriodicZupper();
+  const bool noXlowerNeighbor = vct->noXlowerNeighbor();
+  const bool noXupperNeighbor = vct->noXupperNeighbor();
+  const bool noYlowerNeighbor = vct->noYlowerNeighbor();
+  const bool noYupperNeighbor = vct->noYupperNeighbor();
+  const bool noZlowerNeighbor = vct->noZlowerNeighbor();
+  const bool noZupperNeighbor = vct->noZupperNeighbor();
+  const bool isBoundaryProcess = vct->isBoundaryProcess();
+  const bool hasXlowerNeighbor = !vct->noXlowerNeighbor();
+  const bool hasXupperNeighbor = !vct->noXupperNeighbor();
+  const bool hasYlowerNeighbor = !vct->noYlowerNeighbor();
+  const bool hasYupperNeighbor = !vct->noYupperNeighbor();
+  const bool hasZlowerNeighbor = !vct->noZlowerNeighbor();
+  const bool hasZupperNeighbor = !vct->noZupperNeighbor();
+  const bool isPeriodicXlower = vct->isPeriodicXlower();
+  const bool isPeriodicXupper = vct->isPeriodicXupper();
+  const bool isPeriodicYlower = vct->isPeriodicYlower();
+  const bool isPeriodicYupper = vct->isPeriodicYupper();
+  const bool isPeriodicZlower = vct->isPeriodicZlower();
+  const bool isPeriodicZupper = vct->isPeriodicZupper();
 
   // while there are still incoming particles
   // put them in the appropriate buffer
@@ -553,7 +578,7 @@ int Particles3Dcomm::handle_incoming_particles()
   {
     int recv_index;
     MPI_Status recv_status;
-    MPI_Waitany(incount, recv_requests, &recv_index, &recv_status);
+    MPI_Waitany(num_recv_buffers, recv_requests, &recv_index, &recv_status);
     if(recv_index==MPI_UNDEFINED)
       eprintf("recv_requests contains no active handles");
     assert_ge(recv_index,0);
@@ -819,7 +844,7 @@ void Particles3Dcomm::Print() const
   cout << "Xin = " << xstart << "; Xfin = " << xend << endl;
   cout << "Yin = " << ystart << "; Yfin = " << yend << endl;
   cout << "Zin = " << zstart << "; Zfin = " << zend << endl;
-  cout << "Number of species = " << ns << endl;
+  cout << "Number of species = " << get_species_num() << endl;
   for (int i = 0; i < _pcls.size(); i++)
   {
     SpeciesParticle& pcl = _pcls[i];
@@ -835,7 +860,7 @@ void Particles3Dcomm::PrintNp()  const
 {
   VirtualTopology3D *ptVCT = vct;
   cout << endl;
-  cout << "Number of Particles of species " << ns << ": " << getNOP() << endl;
+  cout << "Number of Particles of species " << get_species_num() << ": " << getNOP() << endl;
   cout << "Subgrid (" << ptVCT->getCoordinates(0) << "," << ptVCT->getCoordinates(1) << "," << ptVCT->getCoordinates(2) << ")" << endl;
   cout << endl;
 }

@@ -32,5 +32,9 @@ namespace Parameters
   //bool get_VECTORIZE_MOVER();
   Enum get_MOVER_TYPE();
   Enum get_MOMENTS_TYPE();
+
+  // blocksize and numblocks for use in BlockCommunicator
+  int get_blockSize();
+  int get_numBlocks();
 }
 #endif
