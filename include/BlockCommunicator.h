@@ -24,8 +24,8 @@
 // downward directions for a pair of subdomains is sufficient;
 // one way is to compare the positions of the centroids, first in
 // the x direction, then in the y direction, and then in the z
-// direction.  One might use tag=0 for downward communication and
-// tag=1 for upward communication, and use MPI_COMM_WORLD for the
+// direction.  One might use tag=1 for downward communication and
+// tag=2 for upward communication, and use MPI_COMM_WORLD for the
 // group.
 //
 class Connection
@@ -35,7 +35,13 @@ class Connection
   {
     DEFAULT = 0,
     PARTICLE_DN, // downward communication of particles
-    PARTICLE_UP // upward communication of particles
+    PARTICLE_UP, // upward communication of particles
+    XDN,
+    XUP,
+    YDN,
+    YUP,
+    ZDN,
+    ZUP
   };
  private: // data
   // In MPI a message envelope includes the following

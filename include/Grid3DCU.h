@@ -160,18 +160,18 @@ private:
   double xStart, xEnd, yStart, yEnd, zStart, zEnd;
 
 public: // accessors (inline)
-  int getNXC() { return (nxc); }
-  int getNXN() { return (nxn); }
-  int getNYC() { return (nyc); }
-  int getNYN() { return (nyn); }
-  int getNZC() { return (nzc); }
-  int getNZN() { return (nzn); }
-  double getDX() { return (dx); }
-  double getDY() { return (dy); }
-  double getDZ() { return (dz); }
-  double get_invdx() { return (invdx); }
-  double get_invdy() { return (invdy); }
-  double get_invdz() { return (invdz); }
+  int getNXC()const{ return (nxc); }
+  int getNXN()const{ return (nxn); }
+  int getNYC()const{ return (nyc); }
+  int getNYN()const{ return (nyn); }
+  int getNZC()const{ return (nzc); }
+  int getNZN()const{ return (nzn); }
+  double getDX()const{ return (dx); }
+  double getDY()const{ return (dy); }
+  double getDZ()const{ return (dz); }
+  double get_invdx()const{ return (invdx); }
+  double get_invdy()const{ return (invdy); }
+  double get_invdz()const{ return (invdz); }
   //
   // coordinate accessors
   //
@@ -179,9 +179,9 @@ public: // accessors (inline)
   double calcXN(int X)const{ return xStart+(X-1)*dx;}
   double calcYN(int Y)const{ return yStart+(Y-1)*dy;}
   double calcZN(int Z)const{ return zStart+(Z-1)*dz;}
-  const pfloat &get_pfloat_XN(int X)const{ return pfloat_node_xcoord[X];}
-  const pfloat &get_pfloat_YN(int Y)const{ return pfloat_node_ycoord[Y];}
-  const pfloat &get_pfloat_ZN(int Z)const{ return pfloat_node_zcoord[Z];}
+  //const pfloat &get_pfloat_XN(int X)const{ return pfloat_node_xcoord[X];}
+  //const pfloat &get_pfloat_YN(int Y)const{ return pfloat_node_ycoord[Y];}
+  //const pfloat &get_pfloat_ZN(int Z)const{ return pfloat_node_zcoord[Z];}
   const double &getXN(int X)const{ return node_xcoord[X];}
   const double &getYN(int Y)const{ return node_ycoord[Y];}
   const double &getZN(int Z)const{ return node_zcoord[Z];}
@@ -193,20 +193,20 @@ public: // accessors (inline)
   // unless we truly anticipate generalizing to a deformed
   // logically cartesian mesh.  See issue #40.
   //
-  const double &getXN(int X, int Y, int Z) { return node_xcoord[X];}
-  const double &getYN(int X, int Y, int Z) { return node_ycoord[Y];}
-  const double &getZN(int X, int Y, int Z) { return node_zcoord[Z];}
-  const double &getXC(int X, int Y, int Z) { return center_xcoord[X];}
-  const double &getYC(int X, int Y, int Z) { return center_ycoord[Y];}
-  const double &getZC(int X, int Y, int Z) { return center_zcoord[Z];}
+  const double &getXN(int X, int Y, int Z)const{ return node_xcoord[X];}
+  const double &getYN(int X, int Y, int Z)const{ return node_ycoord[Y];}
+  const double &getZN(int X, int Y, int Z)const{ return node_zcoord[Z];}
+  const double &getXC(int X, int Y, int Z)const{ return center_xcoord[X];}
+  const double &getYC(int X, int Y, int Z)const{ return center_ycoord[Y];}
+  const double &getZC(int X, int Y, int Z)const{ return center_zcoord[Z];}
   //
-  double getXstart() { return (xStart); }
-  double getXend() { return (xEnd); }
-  double getYstart() { return (yStart); }
-  double getYend() { return (yEnd); } 
-  double getZstart() { return (zStart); }
-  double getZend() { return (zEnd); }
-  double getInvVOL() { return (invVOL); }
+  double getXstart()const{ return (xStart); }
+  double getXend()const{ return (xEnd); }
+  double getYstart()const{ return (yStart); }
+  double getYend()const{ return (yEnd); } 
+  double getZstart()const{ return (zStart); }
+  double getZend()const{ return (zEnd); }
+  double getInvVOL()const{ return (invVOL); }
 
   // inline methods to calculate mesh cell and weights.
   static void get_weights(double weights[8],
@@ -243,7 +243,7 @@ public: // accessors (inline)
   }
   void get_cell_coordinates(
     int& cx, int& cy, int& cz,
-    double xpos, double ypos, double zpos)
+    double xpos, double ypos, double zpos)const
   {
       // xStart marks start of domain excluding ghosts
       const double rel_xpos = xpos - xStart;
@@ -257,7 +257,7 @@ public: // accessors (inline)
       cy = 1 + int(floor(cym1_pos));
       cz = 1 + int(floor(czm1_pos));
   }
-  void make_cell_coordinates_safe(int& cx, int& cy, int& cz)
+  void make_cell_coordinates_safe(int& cx, int& cy, int& cz)const
   {
     // if the cell is outside the domain, then treat it as
     // in the nearest ghost cell.
@@ -271,7 +271,7 @@ public: // accessors (inline)
   }
   void get_safe_cell_coordinates(
     int& cx, int& cy, int& cz,
-    double x, double y, double z)
+    double x, double y, double z)const
   {
     get_cell_coordinates(cx,cy,cz,x,y,z);
     make_cell_coordinates_safe(cx,cy,cz);
@@ -279,7 +279,7 @@ public: // accessors (inline)
   void get_safe_cell_and_weights(
     double xpos, double ypos, double zpos,
     int &cx, int& cy, int& cz,
-    double weights[8])
+    double weights[8])const
   {
     //convert_xpos_to_cxpos(xpos,ypos,zpos,cxpos,cypos,czpos);
     // xStart marks start of domain excluding ghosts
@@ -308,7 +308,7 @@ public: // accessors (inline)
 
     get_weights(weights, w0x, w0y, w0z, w1x, w1y, w1z);
   }
-  void get_safe_cell_and_weights(double xpos[3], int cx[3], double weights[8])
+  void get_safe_cell_and_weights(double xpos[3], int cx[3], double weights[8])const
   {
     get_safe_cell_and_weights(xpos[0],xpos[1],xpos[2],cx[0],cx[1],cx[2],weights);
   }

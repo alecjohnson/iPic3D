@@ -43,60 +43,60 @@ public:
   /** Print the mapping of topology */
   void PrintMapping();
 
-  int getXLEN() { return (XLEN); }
-  int getYLEN() { return (YLEN); }
-  int getZLEN() { return (ZLEN); }
-  int getNprocs() { return (nprocs); }
-  bool getPERIODICX() { return (PERIODICX); }
-  bool getPERIODICY() { return (PERIODICY); }
-  bool getPERIODICZ() { return (PERIODICZ); }
+  int getXLEN()const{ return (XLEN); }
+  int getYLEN()const{ return (YLEN); }
+  int getZLEN()const{ return (ZLEN); }
+  int getNprocs()const{ return (nprocs); }
+  bool getPERIODICX()const{ return (PERIODICX); }
+  bool getPERIODICY()const{ return (PERIODICY); }
+  bool getPERIODICZ()const{ return (PERIODICZ); }
 
   // legacy names
   //
-  int getCartesian_rank() { return (cartesian_rank); }
-  int getXleft_neighbor() { return (xleft_neighbor); }
-  int getXright_neighbor() { return (xright_neighbor); }
-  int getYleft_neighbor() { return (yleft_neighbor); }
-  int getYright_neighbor() { return (yright_neighbor); }
-  int getZleft_neighbor() { return (zleft_neighbor); }
-  int getZright_neighbor() { return (zright_neighbor); }
-  int getXleft_neighbor_P() { return (xleft_neighbor); }
-  int getXright_neighbor_P() { return (xright_neighbor); }
-  int getYleft_neighbor_P() { return (yleft_neighbor); }
-  int getYright_neighbor_P() { return (yright_neighbor); }
-  int getZleft_neighbor_P() { return (zleft_neighbor); }
-  int getZright_neighbor_P() { return (zright_neighbor); }
+  int getCartesian_rank()const{ return (cartesian_rank); }
+  int getXleft_neighbor()const{ return (xleft_neighbor); }
+  int getXright_neighbor()const{ return (xright_neighbor); }
+  int getYleft_neighbor()const{ return (yleft_neighbor); }
+  int getYright_neighbor()const{ return (yright_neighbor); }
+  int getZleft_neighbor()const{ return (zleft_neighbor); }
+  int getZright_neighbor()const{ return (zright_neighbor); }
+  int getXleft_neighbor_P()const{ return (xleft_neighbor); }
+  int getXright_neighbor_P()const{ return (xright_neighbor); }
+  int getYleft_neighbor_P()const{ return (yleft_neighbor); }
+  int getYright_neighbor_P()const{ return (yright_neighbor); }
+  int getZleft_neighbor_P()const{ return (zleft_neighbor); }
+  int getZright_neighbor_P()const{ return (zright_neighbor); }
 
   // new interface
   //
-  int getXleft() { return (xleft_neighbor); }
-  int getXrght() { return (xright_neighbor); }
-  int getYleft() { return (yleft_neighbor); }
-  int getYrght() { return (yright_neighbor); }
-  int getZleft() { return (zleft_neighbor); }
-  int getZrght() { return (zright_neighbor); }
+  int getXleft()const{ return (xleft_neighbor); }
+  int getXrght()const{ return (xright_neighbor); }
+  int getYleft()const{ return (yleft_neighbor); }
+  int getYrght()const{ return (yright_neighbor); }
+  int getZleft()const{ return (zleft_neighbor); }
+  int getZrght()const{ return (zright_neighbor); }
 
-  bool isPeriodicXlower() { return _isPeriodicXlower; }
-  bool isPeriodicXupper() { return _isPeriodicXupper; }
-  bool isPeriodicYlower() { return _isPeriodicYlower; }
-  bool isPeriodicYupper() { return _isPeriodicYupper; }
-  bool isPeriodicZlower() { return _isPeriodicZlower; }
-  bool isPeriodicZupper() { return _isPeriodicZupper; }
+  bool isPeriodicXlower()const{ return _isPeriodicXlower; }
+  bool isPeriodicXupper()const{ return _isPeriodicXupper; }
+  bool isPeriodicYlower()const{ return _isPeriodicYlower; }
+  bool isPeriodicYupper()const{ return _isPeriodicYupper; }
+  bool isPeriodicZlower()const{ return _isPeriodicZlower; }
+  bool isPeriodicZupper()const{ return _isPeriodicZupper; }
 
-  bool noXlowerNeighbor() { return _noXlowerNeighbor; }
-  bool noXupperNeighbor() { return _noXupperNeighbor; }
-  bool noYlowerNeighbor() { return _noYlowerNeighbor; }
-  bool noYupperNeighbor() { return _noYupperNeighbor; }
-  bool noZlowerNeighbor() { return _noZlowerNeighbor; }
-  bool noZupperNeighbor() { return _noZupperNeighbor; }
+  bool noXlowerNeighbor()const{ return _noXlowerNeighbor; }
+  bool noXupperNeighbor()const{ return _noXupperNeighbor; }
+  bool noYlowerNeighbor()const{ return _noYlowerNeighbor; }
+  bool noYupperNeighbor()const{ return _noYupperNeighbor; }
+  bool noZlowerNeighbor()const{ return _noZlowerNeighbor; }
+  bool noZupperNeighbor()const{ return _noZupperNeighbor; }
 
-  bool isBoundaryProcess() { return _isBoundaryProcess; }
+  bool isBoundaryProcess()const{ return _isBoundaryProcess; }
 
-  bool getcVERBOSE() { return (cVERBOSE); }
-  int getCoordinates(int dir) { return (coordinates[dir]); }
-  int *getCoordinates() { return (coordinates); }
-  int getPeriods(int dir) { return (periods[dir]); }
-  MPI_Comm getComm(){ return (CART_COMM); }
+  bool getcVERBOSE()const{ return (cVERBOSE); }
+  int getCoordinates(int dir)const{ return (coordinates[dir]); }
+  const int *getCoordinates()const{ return (coordinates); }
+  int getPeriods(int dir)const{ return (periods[dir]); }
+  MPI_Comm getComm()const{ return (CART_COMM); }
 
 
 private:

@@ -191,8 +191,8 @@ protected:
   // pointers to topology and grid information
   // (should be const)
   //
-  VirtualTopology3D * vct;
-  Grid * grid;
+  const VirtualTopology3D * vct;
+  const Grid * grid;
   //
   /** number of this species */
   int ns;

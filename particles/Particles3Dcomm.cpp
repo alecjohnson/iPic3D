@@ -71,21 +71,28 @@ Particles3Dcomm::Particles3Dcomm(
   // communicators for particles
   //
   // X direction
-  sendXleft(Connection(vct->getXleft(),Connection::PARTICLE_DN)),
-  sendXrght(Connection(vct->getXrght(),Connection::PARTICLE_UP)),
-  recvXleft(Connection(vct->getXleft(),Connection::PARTICLE_UP)),
-  recvXrght(Connection(vct->getXrght(),Connection::PARTICLE_DN)),
+  sendXleft(Connection(vct->getXleft(),Connection::XDN)),
+  sendXrght(Connection(vct->getXrght(),Connection::XUP)),
+  recvXleft(Connection(vct->getXleft(),Connection::XUP)),
+  recvXrght(Connection(vct->getXrght(),Connection::XDN)),
   // Y
-  sendYleft(Connection(vct->getYleft(),Connection::PARTICLE_DN)),
-  sendYrght(Connection(vct->getYrght(),Connection::PARTICLE_UP)),
-  recvYleft(Connection(vct->getYleft(),Connection::PARTICLE_UP)),
-  recvYrght(Connection(vct->getYrght(),Connection::PARTICLE_DN)),
+  sendYleft(Connection(vct->getYleft(),Connection::YDN)),
+  sendYrght(Connection(vct->getYrght(),Connection::YUP)),
+  recvYleft(Connection(vct->getYleft(),Connection::YUP)),
+  recvYrght(Connection(vct->getYrght(),Connection::YDN)),
   // Z
-  sendZleft(Connection(vct->getZleft(),Connection::PARTICLE_DN)),
-  sendZrght(Connection(vct->getZrght(),Connection::PARTICLE_UP)),
-  recvZleft(Connection(vct->getZleft(),Connection::PARTICLE_UP)),
-  recvZrght(Connection(vct->getZrght(),Connection::PARTICLE_DN))
+  sendZleft(Connection(vct->getZleft(),Connection::ZDN)),
+  sendZrght(Connection(vct->getZrght(),Connection::ZUP)),
+  recvZleft(Connection(vct->getZleft(),Connection::ZUP)),
+  recvZrght(Connection(vct->getZrght(),Connection::ZDN))
 {
+  recvXleft.recv_start();
+  recvXrght.recv_start();
+  recvYleft.recv_start();
+  recvYrght.recv_start();
+  recvZleft.recv_start();
+  recvZrght.recv_start();
+
   // info from collectiveIO
   //
   npcel = col->getNpcel(get_species_num());
