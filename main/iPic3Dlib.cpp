@@ -224,8 +224,7 @@ void c_Solver::CalculateMoments() {
 
   timeTasks_set_main_task(TimeTasks::MOMENTS);
 
-  // why is this being done here?
-  EMf->updateInfoFields(grid,vct,col);
+  pad_particle_capacities();
 
   // vectorized assumes that particles are sorted by mesh cell
   if(Parameters::get_VECTORIZE_MOMENTS())
@@ -292,6 +291,9 @@ void c_Solver::CalculateMoments() {
   EMf->interpDensitiesN2C(vct, grid);       // calculate densities on centers from nodes
   EMf->calculateHatFunctions(grid, vct);    // calculate the hat quantities for the implicit method
   former_MPI_Barrier(MPI_COMM_WORLD);
+
+  // why is this being done here?
+  EMf->updateInfoFields(grid,vct,col);
 }
 
 //! MAXWELL SOLVER for Efield
@@ -317,6 +319,9 @@ bool c_Solver::ParticlesMover()
     timeTasks_set_main_task(TimeTasks::PARTICLES);
     // Should change this to add background field
     EMf->set_fieldForPcls();
+
+    pad_particle_capacities();
+
     #pragma omp parallel
     {
     for (int i = 0; i < ns; i++)  // move each species
@@ -538,6 +543,12 @@ void c_Solver::Finalize() {
 //  for (int i = 0; i < ns; i++)
 //    part[i].copyParticlesToSoA();
 //}
+
+void c_Solver::pad_particle_capacities()
+{
+  for (int i = 0; i < ns; i++)
+    part[i].pad_capacities();
+}
 
 // convert particle to struct of arrays (assumed by I/O)
 void c_Solver::convertParticlesToSoA()

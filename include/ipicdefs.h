@@ -37,6 +37,11 @@ const int VECBYTES = VECBITS/8;
 // the number of doubles that fill a vector
 const int DVECWIDTH = VECBYTES/sizeof(double);
 const int SVECWIDTH = VECBYTES/sizeof(float);
+#if defined(__MIC__)
+  #if (DVECWIDTH!=8)
+  #error DVECWIDTH should be 8 on MIC
+  #endif
+#endif
 //#define SINGLE_PRECISION_PCLS
 //
 // single precision does not seem to help on the MIC

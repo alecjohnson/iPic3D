@@ -100,14 +100,6 @@ Particles3Dcomm::Particles3Dcomm(
   npcely = col->getNpcely(get_species_num());
   npcelz = col->getNpcelz(get_species_num());
   //
-  // determine number of particles to preallocate for this process.
-  //
-  int nop = col->getNp(get_species_num()) / (vct->getNprocs());
-  //int npmax = 2*nop;
-  int npmax = col->getNpMax(get_species_num()) / (vct->getNprocs());
-  //np_tot = col->getNp(get_species_num());
-  npmax = roundup_to_multiple(npmax,AoS_PCLS_AT_A_TIME);
-  //
   qom = col->getQOM(get_species_num());
   uth = col->getUth(get_species_num());
   vth = col->getVth(get_species_num());
@@ -174,6 +166,14 @@ Particles3Dcomm::Particles3Dcomm(
   /////////////////////////////////
   // preallocate space in arrays //
   /////////////////////////////////
+  //
+  // determine number of particles to preallocate for this process.
+  //
+  int nop = col->getNp(get_species_num()) / (vct->getNprocs());
+  //int npmax = 2*nop;
+  int npmax = col->getNpMax(get_species_num()) / (vct->getNprocs());
+  //np_tot = col->getNp(get_species_num());
+  npmax = roundup_to_multiple(npmax,DVECWIDTH);
   //
   // SoA particle representation
   //
@@ -244,14 +244,7 @@ Particles3Dcomm::Particles3Dcomm(
     // get how many particles there are on this processor for this species
     status_n = H5Sget_simple_extent_dims(dataspace, dims_out, NULL);
     const int nop = dims_out[0];          // this the number of particles on the processor!
-    u.resize(nop);
-    v.resize(nop);
-    w.resize(nop);
-    q.resize(nop);
-    x.resize(nop);
-    y.resize(nop);
-    z.resize(nop);
-    t.resize(nop);
+    resize_SoA(int nop);
     // get x
     status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &x[0]);
     // close the data set
@@ -316,7 +309,57 @@ Particles3Dcomm::Particles3Dcomm(
 
 }
 
+// pad capacities so that aligned vectorization
+// does not result in an array overrun.
+//
+// this should usually be cheap (a no-op)
+//
+void Particles3Dcomm::pad_capacities()
+{
+  _pcls.reserve(roundup_to_multiple(_pcls.size(),DVECWIDTH));
+  u.reserve(roundup_to_multiple(u.size(),DVECWIDTH));
+  v.reserve(roundup_to_multiple(v.size(),DVECWIDTH));
+  w.reserve(roundup_to_multiple(w.size(),DVECWIDTH));
+  q.reserve(roundup_to_multiple(q.size(),DVECWIDTH));
+  x.reserve(roundup_to_multiple(x.size(),DVECWIDTH));
+  y.reserve(roundup_to_multiple(y.size(),DVECWIDTH));
+  z.reserve(roundup_to_multiple(z.size(),DVECWIDTH));
+  t.reserve(roundup_to_multiple(t.size(),DVECWIDTH));
+}
 
+void Particles3Dcomm::resize_AoS(int nop)
+{
+  const int padded_nop = roundup_to_multiple(nop,DVECWIDTH);
+  _pcls.reserve(padded_nop);
+  _pcls.resize(nop);
+}
+
+void Particles3Dcomm::resize_SoA(int nop)
+{
+  //
+  // allocate space for particles including padding
+  //
+  const int padded_nop = roundup_to_multiple(nop,DVECWIDTH);
+  u.reserve(padded_nop);
+  v.reserve(padded_nop);
+  w.reserve(padded_nop);
+  q.reserve(padded_nop);
+  x.reserve(padded_nop);
+  y.reserve(padded_nop);
+  z.reserve(padded_nop);
+  t.reserve(padded_nop);
+  //
+  // define size of particle data
+  //
+  u.resize(nop);
+  v.resize(nop);
+  w.resize(nop);
+  q.resize(nop);
+  x.resize(nop);
+  y.resize(nop);
+  z.resize(nop);
+  t.resize(nop);
+}
 // A much faster version of this is at EMfields3D::sumMoments
 //
 //void Particles3Dcomm::interpP2G(Field * EMf)
@@ -1110,14 +1153,8 @@ void Particles3Dcomm::copyParticlesToSoA()
   timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_SOA);
   dprintf("copying to struct of arrays");
   const int nop = _pcls.size();
-  u.resize(nop);
-  v.resize(nop);
-  w.resize(nop);
-  q.resize(nop);
-  x.resize(nop);
-  y.resize(nop);
-  z.resize(nop);
-  t.resize(nop);
+  // create memory for SoA representation
+  resize_SoA(nop);
  #ifndef __MIC__
   #pragma omp for
   for(int pidx=0; nop; pidx++)
@@ -1151,7 +1188,7 @@ void Particles3Dcomm::copyParticlesToAoS()
 {
   timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_AOS);
   const int nop = u.size();
-  _pcls.resize(nop);
+  resize_AoS(nop);
   dprintf("copying to array of structs");
  #ifndef __MIC__
   // use a simple stride-8 gather

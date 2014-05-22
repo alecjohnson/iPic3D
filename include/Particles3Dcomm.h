@@ -56,8 +56,10 @@ public:
   int handle_incoming_particles();
  public:
   int communicate_particles();
-
+  void pad_capacities();
  private:
+  void resize_AoS(int nop);
+  void resize_SoA(int nop);
   void copyParticlesToAoS();
   void copyParticlesToSoA();
 
