@@ -47,13 +47,6 @@ inline int roundup_to_multiple(int n, int m)
   return (n+m-1)/m*m;
 }
 
-// sample from open unit interval (0,1)
-double sample_openu_double()
-{
-  const double max_inv = 1./(double(RAND_MAX)+2);
-  return (double(rand())+1)*max_inv;
-}
-
 // sample from clopen unit interval (0,1]
 inline double sample_clopen_u_double()
 {
@@ -66,7 +59,7 @@ inline double sample_clopen_u_double()
 }
 
 // sample from open unit interval (0,1)
-inline double sample_open_u_double()
+static inline double sample_open_u_double()
 {
   const double max_inv = 1./(double(RAND_MAX)+2);
   return (double(rand())+1)*max_inv;

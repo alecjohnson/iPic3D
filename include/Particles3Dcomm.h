@@ -11,6 +11,7 @@ developers: Stefano Markidis, Giovanni Lapenta
 #include "ipicfwd.h"
 #include "Alloc.h"
 #include "Particle.h" // for ParticleType
+// unfortunately this includes mpi.h, which includes 35000 lines:
 #include "BlockCommunicator.h"
 #include "aligned_vector.h"
 #include "Larray.h"
@@ -37,7 +38,7 @@ public:
 
   // communicate particles between processes
  private:
-  bool apply_boundary_conditions(
+  void apply_boundary_conditions(
     SpeciesParticle& pcl,
     bool isBoundaryProcess,
     bool noXlowerNeighbor, bool noXupperNeighbor,

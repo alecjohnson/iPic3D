@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <iostream>
 #include "BlockCommunicator.h"
+#include "../communication/BlockCommunicator.cpp"
+#include "../main/Parameters.cpp"
 #include "../utility/debug.cpp"
 #include "../utility/asserts.cpp"
 #include "../utility/errors.cpp"
@@ -283,10 +285,10 @@ int main(int argc, char **argv)
   //Connection hghXsendConn(up_dst,2,up_comm);
   assert(up_src==dn_dst);
   assert(dn_src==up_dst);
-  Connection lowXrecvConn(up_src,Connection::PARTICLE_UP,MPI_COMM_WORLD);
-  Connection hghXrecvConn(dn_src,Connection::PARTICLE_DN,MPI_COMM_WORLD);
-  Connection lowXsendConn(dn_dst,Connection::PARTICLE_DN,MPI_COMM_WORLD);
-  Connection hghXsendConn(up_dst,Connection::PARTICLE_UP,MPI_COMM_WORLD);
+  Connection lowXrecvConn(up_src,Connection::PARTICLE_UP);
+  Connection hghXrecvConn(dn_src,Connection::PARTICLE_DN);
+  Connection lowXsendConn(dn_dst,Connection::PARTICLE_DN);
+  Connection hghXsendConn(up_dst,Connection::PARTICLE_UP);
 
   // showing that we can propagate a message upward
   if(0)

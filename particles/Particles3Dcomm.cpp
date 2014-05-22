@@ -66,7 +66,25 @@ Particles3Dcomm::Particles3Dcomm(
   ns(species_number),
   vct(vct_),
   grid(grid_),
-  particleType(ParticleType::AoS)
+  particleType(ParticleType::AoS),
+  //
+  // communicators for particles
+  //
+  // X direction
+  sendXleft(Connection(vct->getXleft(),Connection::PARTICLE_DN)),
+  sendXrght(Connection(vct->getXrght(),Connection::PARTICLE_UP)),
+  recvXleft(Connection(vct->getXleft(),Connection::PARTICLE_UP)),
+  recvXrght(Connection(vct->getXrght(),Connection::PARTICLE_DN)),
+  // Y
+  sendYleft(Connection(vct->getYleft(),Connection::PARTICLE_DN)),
+  sendYrght(Connection(vct->getYrght(),Connection::PARTICLE_UP)),
+  recvYleft(Connection(vct->getYleft(),Connection::PARTICLE_UP)),
+  recvYrght(Connection(vct->getYrght(),Connection::PARTICLE_DN)),
+  // Z
+  sendZleft(Connection(vct->getZleft(),Connection::PARTICLE_DN)),
+  sendZrght(Connection(vct->getZrght(),Connection::PARTICLE_UP)),
+  recvZleft(Connection(vct->getZleft(),Connection::PARTICLE_UP)),
+  recvZrght(Connection(vct->getZrght(),Connection::PARTICLE_DN))
 {
   // info from collectiveIO
   //
@@ -169,24 +187,6 @@ Particles3Dcomm::Particles3Dcomm(
   //
   _pcls.reserve(npmax);
 
-  // communicators for particles
-  //
-  const MPI_Comm comm = MPI_COMM_WORLD;
-  // X direction
-  sendXleft.init(Connection(vct->getXleft(),Connection::PARTICLE_DN,comm));
-  sendXrght.init(Connection(vct->getXrght(),Connection::PARTICLE_UP,comm));
-  recvXleft.init(Connection(vct->getXleft(),Connection::PARTICLE_UP,comm));
-  recvXrght.init(Connection(vct->getXrght(),Connection::PARTICLE_DN,comm));
-  // Y direction
-  sendYleft.init(Connection(vct->getYleft(),Connection::PARTICLE_DN,comm));
-  sendYrght.init(Connection(vct->getYrght(),Connection::PARTICLE_UP,comm));
-  recvYleft.init(Connection(vct->getYleft(),Connection::PARTICLE_UP,comm));
-  recvYrght.init(Connection(vct->getYrght(),Connection::PARTICLE_DN,comm));
-  // Z direction
-  sendZleft.init(Connection(vct->getZleft(),Connection::PARTICLE_DN,comm));
-  sendZrght.init(Connection(vct->getZrght(),Connection::PARTICLE_UP,comm));
-  recvZleft.init(Connection(vct->getZleft(),Connection::PARTICLE_UP,comm));
-  recvZrght.init(Connection(vct->getZrght(),Connection::PARTICLE_DN,comm));
   //
   // allocate arrays for sorting particles
   //
@@ -416,7 +416,7 @@ Particles3Dcomm::Particles3Dcomm(
 // unless we also restrict the distance moved by a particle in
 // each (subcycle) step.
 //
-inline bool Particles3Dcomm::apply_boundary_conditions(
+inline void Particles3Dcomm::apply_boundary_conditions(
   SpeciesParticle& pcl,
   bool isBoundaryProcess,
   bool noXlowerNeighbor, bool noXupperNeighbor,
@@ -510,6 +510,7 @@ inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
     // particle is still in the domain, procede with the next particle
     was_sent = false;
   }
+  return was_sent;
 }
 
 // flush sending particles.
@@ -590,7 +591,8 @@ int Particles3Dcomm::handle_incoming_particles()
     // grab the received block of particles and process it
     //
     BlockCommunicator<SpeciesParticle>* recvBuff = recvBuffArr[recv_index];
-    Block<Particle>& recv_block = recvBuff->fetch_received_block(recv_status);
+    Block<SpeciesParticle>& recv_block
+      = recvBuff->fetch_received_block(recv_status);
 
     // process each particle in the received block.
     //
@@ -603,13 +605,12 @@ int Particles3Dcomm::handle_incoming_particles()
         noYlowerNeighbor, noYupperNeighbor,
         noZlowerNeighbor, noZupperNeighbor);
       bool was_sent = send_pcl_to_appropriate_buffer(pcl,
-        isBoundaryProcess,
         hasXlowerNeighbor, hasXupperNeighbor,
         hasYlowerNeighbor, hasYupperNeighbor,
         hasZlowerNeighbor, hasZupperNeighbor,
         isPeriodicXlower, isPeriodicXupper,
         isPeriodicYlower, isPeriodicYupper,
-        isPeriodicZlower, isPeriodicZupper)
+        isPeriodicZlower, isPeriodicZupper);
 
       if(was_sent)
       {
@@ -624,7 +625,7 @@ int Particles3Dcomm::handle_incoming_particles()
       }
     }
     // release the block and update the receive request
-    recvBuff->release_received_block(recv_status);
+    recvBuff->release_received_block();
     recv_requests[recv_index] = recvBuff->get_curr_request();
   }
 
@@ -635,9 +636,8 @@ int Particles3Dcomm::handle_incoming_particles()
 static long long mpi_global_sum(int in)
 {
   long long total;
-  long long long_in = long long(in);
+  long long long_in = (long long)in;
   MPI_Allreduce(&long_in, &total, 1, MPI_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
-  RESOLVE: WHAT DOES // THE 1 MEAN?
 }
 
 // exchange particles with neighboring processors
@@ -665,25 +665,25 @@ int Particles3Dcomm::communicate_particles()
   sendYleft.send_start(); sendYrght.send_start();
   sendZleft.send_start(); sendZrght.send_start();
 
-  const bool noXlowerNeighbor = ptVCT->noXlowerNeighbor();
-  const bool noXupperNeighbor = ptVCT->noXupperNeighbor();
-  const bool noYlowerNeighbor = ptVCT->noYlowerNeighbor();
-  const bool noYupperNeighbor = ptVCT->noYupperNeighbor();
-  const bool noZlowerNeighbor = ptVCT->noZlowerNeighbor();
-  const bool noZupperNeighbor = ptVCT->noZupperNeighbor();
-  const bool isBoundaryProcess = ptVCT->isBoundaryProcess();
-  const bool hasXlowerNeighbor = !ptVCT->noXlowerNeighbor();
-  const bool hasXupperNeighbor = !ptVCT->noXupperNeighbor();
-  const bool hasYlowerNeighbor = !ptVCT->noYlowerNeighbor();
-  const bool hasYupperNeighbor = !ptVCT->noYupperNeighbor();
-  const bool hasZlowerNeighbor = !ptVCT->noZlowerNeighbor();
-  const bool hasZupperNeighbor = !ptVCT->noZupperNeighbor();
-  const bool isPeriodicXlower = ptVCT->isPeriodicXlower();
-  const bool isPeriodicXupper = ptVCT->isPeriodicXupper();
-  const bool isPeriodicYlower = ptVCT->isPeriodicYlower();
-  const bool isPeriodicYupper = ptVCT->isPeriodicYupper();
-  const bool isPeriodicZlower = ptVCT->isPeriodicZlower();
-  const bool isPeriodicZupper = ptVCT->isPeriodicZupper();
+  const bool noXlowerNeighbor = vct->noXlowerNeighbor();
+  const bool noXupperNeighbor = vct->noXupperNeighbor();
+  const bool noYlowerNeighbor = vct->noYlowerNeighbor();
+  const bool noYupperNeighbor = vct->noYupperNeighbor();
+  const bool noZlowerNeighbor = vct->noZlowerNeighbor();
+  const bool noZupperNeighbor = vct->noZupperNeighbor();
+  const bool isBoundaryProcess = vct->isBoundaryProcess();
+  const bool hasXlowerNeighbor = !vct->noXlowerNeighbor();
+  const bool hasXupperNeighbor = !vct->noXupperNeighbor();
+  const bool hasYlowerNeighbor = !vct->noYlowerNeighbor();
+  const bool hasYupperNeighbor = !vct->noYupperNeighbor();
+  const bool hasZlowerNeighbor = !vct->noZlowerNeighbor();
+  const bool hasZupperNeighbor = !vct->noZupperNeighbor();
+  const bool isPeriodicXlower = vct->isPeriodicXlower();
+  const bool isPeriodicXupper = vct->isPeriodicXupper();
+  const bool isPeriodicYlower = vct->isPeriodicYlower();
+  const bool isPeriodicYupper = vct->isPeriodicYupper();
+  const bool isPeriodicZlower = vct->isPeriodicZlower();
+  const bool isPeriodicZupper = vct->isPeriodicZupper();
 
   int np_current = 0;
   while(np_current < _pcls.size())
@@ -701,10 +701,12 @@ int Particles3Dcomm::communicate_particles()
     // converted to AoS format in order to overlap communication
     // with computation.
     bool was_sent = send_pcl_to_appropriate_buffer(pcl,
-      isBoundaryProcess,
       hasXlowerNeighbor, hasXupperNeighbor,
       hasYlowerNeighbor, hasYupperNeighbor,
-      hasZlowerNeighbor, hasZupperNeighbor);
+      hasZlowerNeighbor, hasZupperNeighbor,
+      isPeriodicXlower, isPeriodicXupper,
+      isPeriodicYlower, isPeriodicYupper,
+      isPeriodicZlower, isPeriodicZupper);
     if(was_sent)
     {
       _pcls.delete_element(np_current);
@@ -837,31 +839,33 @@ long long *Particles3Dcomm::getVelocityDistribution(int nBins, double maxVel) {
 /** print particles info */
 void Particles3Dcomm::Print() const
 {
-  VirtualTopology3D *ptVCT = vct;
   cout << endl;
   cout << "Number of Particles: " << _pcls.size() << endl;
-  cout << "Subgrid (" << ptVCT->getCoordinates(0) << "," << ptVCT->getCoordinates(1) << "," << ptVCT->getCoordinates(2) << ")" << endl;
+  cout << "Subgrid (" << vct->getCoordinates(0) << "," << vct->getCoordinates(1) << "," << vct->getCoordinates(2) << ")" << endl;
   cout << "Xin = " << xstart << "; Xfin = " << xend << endl;
   cout << "Yin = " << ystart << "; Yfin = " << yend << endl;
   cout << "Zin = " << zstart << "; Zfin = " << zend << endl;
   cout << "Number of species = " << get_species_num() << endl;
   for (int i = 0; i < _pcls.size(); i++)
   {
-    SpeciesParticle& pcl = _pcls[i];
-    const double x = pcl.get_x();
-    const double y = pcl.get_y();
-    const double z = pcl.get_z();
-    cout << "Particle #" << i << ": x=" << x << " y=" << y << " z=" << z << " u=" << u << " v=" << v << " w=" << w << endl;
+    const SpeciesParticle& pcl = _pcls[i];
+    cout << "Particle #" << i << ":"
+      << " x=" << pcl.get_x()
+      << " y=" << pcl.get_y()
+      << " z=" << pcl.get_z()
+      << " u=" << pcl.get_u()
+      << " v=" << pcl.get_v()
+      << " w=" << pcl.get_w()
+      << endl;
   }
   cout << endl;
 }
 /** print just the number of particles */
 void Particles3Dcomm::PrintNp()  const
 {
-  VirtualTopology3D *ptVCT = vct;
   cout << endl;
   cout << "Number of Particles of species " << get_species_num() << ": " << getNOP() << endl;
-  cout << "Subgrid (" << ptVCT->getCoordinates(0) << "," << ptVCT->getCoordinates(1) << "," << ptVCT->getCoordinates(2) << ")" << endl;
+  cout << "Subgrid (" << vct->getCoordinates(0) << "," << vct->getCoordinates(1) << "," << vct->getCoordinates(2) << ")" << endl;
   cout << endl;
 }
 
@@ -877,7 +881,7 @@ void Particles3Dcomm::sort_particles_serial()
     case ParticleType::SoA:
       convertParticlesToAoS();
       sort_particles_serial_AoS();
-      updateParticlesToSoA();
+      convertParticlesToSynched();
       break;
     default:
       unsupported_value_error(particleType);
@@ -917,10 +921,11 @@ void Particles3Dcomm::sort_particles_serial_AoS()
       (*bucket_offset)[cx][cy][cz] = accpcls;
       accpcls += (*numpcls_in_bucket)[cx][cy][cz];
     }
-    assert_eq(accpcls,nop);
+    assert_eq(accpcls,getNOP());
 
     numpcls_in_bucket_now->setall(0);
     // put the particles where they are supposed to go
+    const int nop = getNOP();
     for (int pidx = 0; pidx < nop; pidx++)
     {
       const SpeciesParticle& pcl = get_pcl(pidx);
@@ -1112,7 +1117,7 @@ void Particles3Dcomm::copyParticlesToSoA()
   #pragma omp for
   for(int pidx=0; nop; pidx++)
   {
-    const SpeciesParticle& pcl = pcls[pidx];
+    const SpeciesParticle& pcl = _pcls[pidx];
     u[pidx] = pcl.get_u(0);
     v[pidx] = pcl.get_u(1);
     w[pidx] = pcl.get_u(2);
@@ -1134,20 +1139,21 @@ void Particles3Dcomm::copyParticlesToSoA()
     transpose_8x8_double(AoSdata,SoAdata);
   }
  #endif // __MIC__
-  particleType = ParticleType::both;
+  particleType = ParticleType::synched;
 }
 
 void Particles3Dcomm::copyParticlesToAoS()
 {
   timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_AOS);
-  _pcls.resize(u.size());
+  const int nop = u.size();
+  _pcls.resize(nop);
   dprintf("copying to array of structs");
  #ifndef __MIC__
   // use a simple stride-8 gather
   #pragma omp for
   for(int pidx=0; pidx<nop; pidx++)
   {
-    pcls[pidx].set(
+    _pcls[pidx].set(
       u[pidx],v[pidx],w[pidx], q[pidx],
       x[pidx],y[pidx],z[pidx], t[pidx]);
   }
@@ -1165,7 +1171,7 @@ void Particles3Dcomm::copyParticlesToAoS()
     transpose_8x8_double(SoAdata, AoSdata);
   }
  #endif
-  particleType = ParticleType::both;
+  particleType = ParticleType::synched;
 }
 
 // synched AoS and SoA conceptually implies a write-lock
@@ -1208,10 +1214,8 @@ void Particles3Dcomm::convertParticlesToAoS()
   particleType = ParticleType::AoS;
 }
 
-// defines SoA to be the authority
-// (conceptually releasing any write-lock)
-//
-bool Particles3Dcomm::particlesAreSoA()
+// check whether particles are SoA
+bool Particles3Dcomm::particlesAreSoA()const
 {
   switch(particleType)
   {
@@ -1227,6 +1231,9 @@ bool Particles3Dcomm::particlesAreSoA()
   return true;
 }
 
+// defines SoA to be the authority
+// (conceptually releasing any write-lock)
+//
 void Particles3Dcomm::convertParticlesToSoA()
 {
   switch(particleType)

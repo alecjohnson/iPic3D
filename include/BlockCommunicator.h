@@ -1,10 +1,11 @@
 #ifndef BlockCommunicator_h
 #define BlockCommunicator_h
-#include "aligned_vector.h"
+#include <assert.h>
 #include "asserts.h"
 #include "debug.h" // temporary
+#include "aligned_vector.h"
 #include <list>
-#include <assert.h>
+#include <mpi.h> // is there a way to forward declare mpi types?
 
 // The combination of group (comm), tag, and neighbor
 // should be unique for each connection.
@@ -48,11 +49,12 @@ class Connection
     _tag(0),
     _comm(MPI_COMM_WORLD)
   {}
-  Connection(int rank_, int tag_, const MPI_Comm& comm_)
+  Connection(int rank_, int tag_, const MPI_Comm& comm_ = MPI_COMM_WORLD)
   {
     init(rank_,tag_,comm_);
   }
-  void init(int rank_, int tag_, const MPI_Comm& comm_)
+ private:
+  void init(int rank_, int tag_, const MPI_Comm& comm_ = MPI_COMM_WORLD)
   {
     _rank = rank_;
     _tag = tag_;
@@ -64,7 +66,7 @@ class Connection
   MPI_Comm comm()const{return _comm;}
 };
 
-bool signal_hack()
+inline bool signal_hack()
 {
   return false;
 }
@@ -314,6 +316,8 @@ class BlockCommunicator
     nextid(0),
     commState(NONE)
   {}
+  BlockCommunicator(Connection connection_, int blocksize_, int numblocks);
+  void init(Connection connection_, int blocksize_, int numblocks);
   BlockCommunicator(Connection connection_);
   void init(Connection connection_);
  //protected: // if destructor is public then it should be virtual
@@ -585,6 +589,53 @@ class BlockCommunicator
   //}
 };
 
+// === code above this point could go in something like BlockCommunicatorFwd.h ===
+#include "Parameters.h"
+
+template <typename type>
+BlockCommunicator<type>::BlockCommunicator(Connection connection_,
+  int blocksize_, int numblocks)
+{
+  commState=NONE;
+  init(connection_,blocksize_,numblocks);
+}
+template <typename type>
+BlockCommunicator<type>::BlockCommunicator(Connection connection_)
+{
+  commState=NONE;
+  init(connection_);
+}
+
+template <typename type>
+void BlockCommunicator<type>::init(Connection connection_)
+{
+  init(connection_, Parameters::get_blockSize(), Parameters::get_numBlocks());
+}
+template <typename type>
+void BlockCommunicator<type>::init(Connection connection_, int blocksize_, int numblocks)
+{
+  assert(commState==NONE);
+  connection = connection_;
+  blocksize = blocksize_;
+  commState = INITIAL;
+
+  assert(blocksize>0);
+  assert(numblocks>0);
+  for(nextid=0;nextid<numblocks;nextid++)
+  {
+    Block<type>* newBlock = new Block<type>(blocksize, nextid);
+    blockList.push_back(newBlock);
+  }
+  curr_block = blockList.begin();
+}
+
+template <typename type>
+BlockCommunicator<type>::~BlockCommunicator()
+{
+  std::list<void*>::iterator i;
+  for(i=blockList.begin(); i != blockList.end(); ++i)
+    delete &fetch_block(i);
+}
 //#include <iosfwd> // for ostream
 //
 //inline std::ostream& operator<<(std::ostream& os, const Block<Particle>& block_)

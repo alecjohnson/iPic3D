@@ -113,12 +113,12 @@ void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
   _noZupperNeighbor = (getZrght() == MPI_PROC_NULL);
 
   _isBoundaryProcess = 
-    _isPeriodicXlower ||
-    _isPeriodicXupper ||
-    _isPeriodicYlower ||
-    _isPeriodicYupper ||
-    _isPeriodicZlower ||
-    _isPeriodicZupper;
+    _noXlowerNeighbor ||
+    _noXupperNeighbor ||
+    _noYlowerNeighbor ||
+    _noYupperNeighbor ||
+    _noZlowerNeighbor ||
+    _noZupperNeighbor;
 }
 /** destructor */
 VCtopology3D::~VCtopology3D() {

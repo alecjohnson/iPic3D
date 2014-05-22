@@ -33,8 +33,8 @@ namespace iPic3D {
   class c_Solver {
 
   public:
+    ~c_Solver();
     c_Solver():
-      mpi(0),
       col(0),
       vct(0),
       grid(0),
@@ -53,13 +53,11 @@ namespace iPic3D {
     //
     // output methods
     //
-    void doWriteRestart(int cycle);
     void WriteRestart(int cycle);
     void WriteConserved(int cycle);
     void WriteVelocityDistribution(int cycle);
     void WriteVirtualSatelliteTraces();
     void WriteFields(int cycle);
-    void doWriteParticles(int cycle);
     void WriteParticles(int cycle);
     void WriteOutput(int cycle);
     void Finalize();
@@ -68,14 +66,15 @@ namespace iPic3D {
     inline int LastCycle();
     inline int get_myrank();
 
-    void copyParticlesToSoA();
+    //void copyParticlesToSoA();
     void convertParticlesToSoA();
     void convertParticlesToAoS();
+    void convertParticlesToSynched();
   private:
     void sortParticles();
 
   private:
-    static MPIdata * mpi;
+    //static MPIdata * mpi;
     Collective    *col;
     VCtopology3D  *vct;
     Grid3DCU      *grid;

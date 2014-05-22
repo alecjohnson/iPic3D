@@ -20,6 +20,7 @@
 template<class type>
 class Larray
 {
+  static const int num_elem_in_block = 8;
  private: // members
   type* list;
   int _size; // number of particles in list
@@ -137,7 +138,6 @@ class Larray
     if(_size > newcapacity) return;
 
     // round up size to a multiple of num_elem_in_block
-    const int num_elem_in_block = 8;
     //newcapacity = roundup_to_multiple(newcapacity,num_elem_in_block);
     newcapacity = ((newcapacity-1)/num_elem_in_block+1)*num_elem_in_block;
     if(newcapacity != _capacity)

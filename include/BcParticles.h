@@ -14,6 +14,7 @@ email                : markidis@lanl.gov, lapenta@lanl.gov
 
 #include "VirtualTopology3D.h"
 #include "Basic.h"
+#include "errors.h"
 
 namespace BCparticles
 {
@@ -25,11 +26,13 @@ namespace BCparticles
   };
 }
 
-void BCpclLeft(double& x, double& u, double& v, double& w, double Lx, double ut, double vt, double wt, int bcFaceXleft)
+inline void BCpclLeft(double& x, double& u, double& v, double& w, double Lx, double ut, double vt, double wt, int bcFaceXleft)
 {
   assert_lt(x, 0.);
   switch (bcFaceXleft)
   {
+    default:
+      unsupported_value_error(bcFaceXleft);
     case BCparticles::PERFECT_MIRROR:
       x = -x;
       u = -u;
@@ -39,13 +42,17 @@ void BCpclLeft(double& x, double& u, double& v, double& w, double Lx, double ut,
       sample_maxwellian(u,v,w, ut,vt,wt);
       u = fabs(u);
       break;
+    case BCparticles::NO_BOUNDARY:
+      break;
   }
 }
-void BCpclRight(double& x, double& u, double& v, double& w, double Lx, double ut, double vt, double wt, int bcFaceXright)
+inline void BCpclRight(double& x, double& u, double& v, double& w, double Lx, double ut, double vt, double wt, int bcFaceXright)
 {
   assert_gt(x, Lx);
   switch (bcFaceXright)
   {
+    default:
+      unsupported_value_error(bcFaceXright);
     case BCparticles::PERFECT_MIRROR:
       x = 2 * Lx - x;
       u = -u;
@@ -54,6 +61,9 @@ void BCpclRight(double& x, double& u, double& v, double& w, double Lx, double ut
       x = 2 * Lx - x;
       sample_maxwellian(u,v,w, ut,vt,wt);
       u = -fabs(u);
+      break;
+    case BCparticles::NO_BOUNDARY:
+      break;
   }
 }
 

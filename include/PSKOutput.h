@@ -281,7 +281,6 @@ template < class Toa > class myOutputAgent:public PSK::OutputAgent < Toa > {
   Field *_field;
   Grid *_grid;
   VCtopology3D *_vct;
-  MPIdata *_mpi;
   Collective *_col;
   int ns;
   // std::vector<Particles1DX*> _part;
@@ -291,11 +290,10 @@ public:
   myOutputAgent(void) {;
   }
 
-  void set_simulation_pointers(Field * field, Grid * grid, VCtopology3D * vct, MPIdata * mpi, Collective * col) {
+  void set_simulation_pointers(Field * field, Grid * grid, VCtopology3D * vct, Collective * col) {
     _field = field;
     _grid = grid;
     _vct = vct;
-    _mpi = mpi;
     _col = col;
   }
 
@@ -335,7 +333,7 @@ public:
     stringstream ss;
     stringstream cc;
     stringstream ii;
-    ss << _mpi->get_rank();
+    ss << MPIdata::instance().get_rank();
     cc << cycle;
     const int ns = _col->getNs();
     if (tag.find("last_cycle", 0) != string::npos)
@@ -612,7 +610,7 @@ public:
   void output(const string & tag, int cycle, int sample) {
     stringstream ss;
     stringstream cc;
-    ss << _mpi->get_rank();
+    ss << MPIdata::instance().get_rank();
     cc << cycle;
     const int ns = _col->getNs();
 

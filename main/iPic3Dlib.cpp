@@ -9,7 +9,7 @@
 #include "Moments.h" // for debugging
 
 using namespace iPic3D;
-MPIdata* iPic3D::c_Solver::mpi=0;
+//MPIdata* iPic3D::c_Solver::mpi=0;
 
 c_Solver::~c_Solver()
 {
@@ -46,7 +46,7 @@ int c_Solver::Init(int argc, char **argv) {
   // nprocs = number of processors
   // myrank = rank of tha process*/
   Parameters::init_parameters();
-  mpi = &MPIdata::instance();
+  //mpi = &MPIdata::instance();
   nprocs = MPIdata::get_nprocs();
   myrank = MPIdata::get_rank();
 
@@ -64,7 +64,7 @@ int c_Solver::Init(int argc, char **argv) {
   if (nprocs != vct->getNprocs()) {
     if (myrank == 0) {
       cerr << "Error: " << nprocs << " processes cant be mapped into " << vct->getXLEN() << "x" << vct->getYLEN() << "x" << vct->getZLEN() << " matrix: Change XLEN,YLEN, ZLEN in method VCtopology3D.init()" << endl;
-      mpi->finalize_mpi();
+      MPIdata::instance().finalize_mpi();
       return (1);
     }
   }
@@ -82,7 +82,7 @@ int c_Solver::Init(int argc, char **argv) {
   nz0 = col->getNzc() / vct->getZLEN(); // get the number of cells in z for each processor
   // Print the initial settings to stdout and a file
   if (myrank == 0) {
-    mpi->Print();
+    MPIdata::instance().Print();
     vct->Print();
     col->Print();
     col->save();
@@ -134,17 +134,17 @@ int c_Solver::Init(int argc, char **argv) {
     // wave = new Planewave(col, EMf, grid, vct);
     // wave->Wave_Rotated(part); // Single Plane Wave
     for (int i = 0; i < ns; i++)
-      if      (col->getCase()=="ForceFree") part[i].force_free(grid,EMf,vct);
+      if      (col->getCase()=="ForceFree") part[i].force_free(EMf);
 #ifdef BATSRUS
-      else if (col->getCase()=="BATSRUS")   part[i].MaxwellianFromFluid(grid,EMf,vct,col,i);
+      else if (col->getCase()=="BATSRUS")   part[i].MaxwellianFromFluid(EMf,col,i);
 #endif
-      else                                  part[i].maxwellian(grid, EMf, vct);
+      else                                  part[i].maxwellian(EMf);
   }
 
   // Initialize the output (simulation results and restart file)
   // PSK::OutputManager < PSK::OutputAdaptor > output_mgr; // Create an Output Manager
   // myOutputAgent < PSK::HDF5OutputAdaptor > hdf5_agent; // Create an Output Agent for HDF5 output
-  hdf5_agent.set_simulation_pointers(EMf, grid, vct, mpi, col);
+  hdf5_agent.set_simulation_pointers(EMf, grid, vct, col);
   for (int i = 0; i < ns; ++i)
     hdf5_agent.set_simulation_pointers_part(&part[i]);
   output_mgr.push_back(&hdf5_agent);  // Add the HDF5 output agent to the Output Manager's list
@@ -209,7 +209,7 @@ int c_Solver::Init(int argc, char **argv) {
 void c_Solver::sortParticles() {
   timeTasks_begin_task(TimeTasks::MOMENT_PCL_SORTING);
   for(int species_idx=0; species_idx<ns; species_idx++)
-    part[species_idx].sort_particles_serial(grid,vct);
+    part[species_idx].sort_particles_serial();
   timeTasks_end_task(TimeTasks::MOMENT_PCL_SORTING);
 }
 
@@ -369,17 +369,15 @@ bool c_Solver::ParticlesMover()
   return (false);
 }
 
-void c_Solver::doWriteRestart(int cycle)
-{
-  return (cycle % restart_cycle == 0 && cycle != first_cycle);
-}
 void c_Solver::WriteRestart(int cycle)
 {
-  if(!doWriteRestart(cycle))
+  bool do_WriteRestart = (cycle % restart_cycle == 0 && cycle != first_cycle);
+  if(!do_WriteRestart)
     return;
+
   convertParticlesToSynched(); // hack
   // write the RESTART file
-  writeRESTART(RestartDirName, myrank, cycle, ns, mpi, vct, col, grid, EMf, part, 0); // without ,0 add to restart file
+  writeRESTART(RestartDirName, myrank, cycle, ns, vct, col, grid, EMf, part, 0); // without ,0 add to restart file
 }
 
 // write the conserved quantities
@@ -407,7 +405,7 @@ void c_Solver::WriteConserved(int cycle) {
 void c_Solver::WriteVelocityDistribution(int cycle)
 {
   // Velocity distribution
-  if(cycle % col->getVelocityDistributionCycle() == 0)
+  //if(cycle % col->getVelocityDistributionOutputCycle() == 0)
   {
     for (int is = 0; is < ns; is++) {
       double maxVel = part[is].getMaxVelocity();
@@ -466,14 +464,12 @@ void c_Solver::WriteFields(int cycle) {
   }
 }
 
-void c_Solver::doWriteParticles(int cycle)
-{
-  return (cycle % (col->getParticlesOutputCycle()) == 0
-          && col->getParticlesOutputCycle() != 1);
-}
 void c_Solver::WriteParticles(int cycle)
 {
-  if(!doWriteParticles())
+  const bool do_WriteParticles
+    = (cycle % (col->getParticlesOutputCycle()) == 0
+       && col->getParticlesOutputCycle() != 1);
+  if(!do_WriteParticles)
     return;
 
   // this is a hack
@@ -485,11 +481,9 @@ void c_Solver::WriteParticles(int cycle)
   }
   else
   {
-    if (write_particles) {
-      hdf5_agent.open_append(SaveDirName + "/proc" + num_proc.str() + ".hdf");
-      output_mgr.output("position + velocity + q ", cycle, 1);
-      hdf5_agent.close();
-    }
+    hdf5_agent.open_append(SaveDirName + "/proc" + num_proc.str() + ".hdf");
+    output_mgr.output("position + velocity + q ", cycle, 1);
+    hdf5_agent.close();
   }
 }
 
@@ -501,6 +495,8 @@ void c_Solver::WriteOutput(int cycle) {
   WriteFields(cycle);
   if (col->getWriteMethod() != "Parallel")
   {
+    // This should be invoked by user if desired
+    // by means of a callback mechanism.
     WriteVirtualSatelliteTraces();
   }
 
@@ -510,7 +506,9 @@ void c_Solver::WriteOutput(int cycle) {
   WriteRestart(cycle);
   WriteParticles(cycle);
   //
-  WriteVelocityDistribution(cycle);
+  // This should be invoked by user if desired
+  // by means of a callback mechanism.
+  //WriteVelocityDistribution(cycle);
   WriteConserved(cycle);
 }
 
@@ -518,21 +516,21 @@ void c_Solver::Finalize() {
   if (col->getCallFinalize())
   {
     convertParticlesToSynched();
-    writeRESTART(RestartDirName, myrank, (col->getNcycles() + first_cycle) - 1, ns, mpi, vct, col, grid, EMf, part, 0);
+    writeRESTART(RestartDirName, myrank, (col->getNcycles() + first_cycle) - 1, ns, vct, col, grid, EMf, part, 0);
   }
 
   // stop profiling
   my_clock->stopTiming();
 
   // close MPI
-  mpi->finalize_mpi();
+  MPIdata::instance().finalize_mpi();
 }
 
-void c_Solver::copyParticlesToSoA()
-{
-  for (int i = 0; i < ns; i++)
-    part[i].copyParticlesToSoA();
-}
+//void c_Solver::copyParticlesToSoA()
+//{
+//  for (int i = 0; i < ns; i++)
+//    part[i].copyParticlesToSoA();
+//}
 
 // convert particle to struct of arrays (assumed by I/O)
 void c_Solver::convertParticlesToSoA()

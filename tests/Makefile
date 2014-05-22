@@ -34,6 +34,7 @@ FLAGS = $(PERFORMANCE_FLAGS) -DNO_MPI $(ARRAY_FLAGS) #-ggdb
 
 COMPILER = g++ # icpc # c++
 
+	#$(COMPILER) -E testcomm.cpp $(INCLUDE) $(MPI_LIBS)
 testcomm: testcomm.cpp
 	$(COMPILER) testcomm.cpp $(INCLUDE) $(PERFORMANCE_FLAGS) $(MPI_LIBS) $(MPI_LINK) -o testcomm
 

@@ -1312,6 +1312,7 @@ void Particles3D::repopulate_particles()
 /** apply a linear perturbation to particle distribution */
 //
 // This was not being used, so I took it out. -eaj
+//
 //void Particles3D::linear_perturbation(double deltaBoB, double kx, double ky, double angle, double omega_r, double omega_i, double Ex_mod, double Ex_phase, double Ey_mod, double Ey_phase, double Ez_mod, double Ez_phase, double Bx_mod, double Bx_phase, double By_mod, double By_phase, double Bz_mod, double Bz_phase, Field * EMf) {
 //
 //  double value1 = 0.0, value2 = 0.0, max_value = 0.0, min_value = 0.0, phi, n;
