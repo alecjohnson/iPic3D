@@ -14,6 +14,7 @@ int main(int argc, char **argv) {
   bool b_err = false;
 
   KCode.Init(argc, argv);
+  dprintf("gothere");
 
   for (int i = KCode.FirstCycle(); i < KCode.LastCycle(); i++) {
 
@@ -21,9 +22,13 @@ int main(int argc, char **argv) {
 
     if (!b_err) {
       timeTasks.resetCycle();
+  dprintf("gothere");
       KCode.CalculateMoments();
+  dprintf("gothere");
       KCode.CalculateField();
+  dprintf("gothere");
       b_err = KCode.ParticlesMover();
+  dprintf("gothere");
       KCode.CalculateB();
 
       // print out total time for all tasks

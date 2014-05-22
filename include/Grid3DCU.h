@@ -138,6 +138,8 @@ private:
   double invdy;
   /** invdz = 1/dz */
   double invdz;
+  /** volume of mesh cell*/
+  double VOL;
   /** invol = inverse of volume*/
   double invVOL;
   /** index of last cell including ghost cells */
@@ -206,6 +208,7 @@ public: // accessors (inline)
   double getYend()const{ return (yEnd); } 
   double getZstart()const{ return (zStart); }
   double getZend()const{ return (zEnd); }
+  double getVOL()const{ return (VOL); }
   double getInvVOL()const{ return (invVOL); }
 
   // inline methods to calculate mesh cell and weights.

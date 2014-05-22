@@ -175,16 +175,21 @@ void Particles3D::MaxwellianFromFluidCell(Collective *col, int is, int i, int j,
 /** Maxellian random velocity and uniform spatial distribution */
 void Particles3D::maxwellian(Field * EMf)
 {
+  dprintf("gothere");
   /* initialize random generator with different seed on different processor */
   srand(vct->getCartesian_rank() + 2);
 
+  dprintf("gothere");
   assert_eq(_pcls.size(),0);
 
+  dprintf("gothere");
   const double q_sgn = (qom / fabs(qom));
   // multipled by charge density gives charge per particle
-  const double q_factor =  q_sgn / (npcel * grid->getInvVOL());
+  const double q_factor =  q_sgn * grid->getVOL() / npcel;
 
+  dprintf("gothere");
   for (int i = 1; i < grid->getNXC() - 1; i++)
+  {
   for (int j = 1; j < grid->getNYC() - 1; j++)
   for (int k = 1; k < grid->getNZC() - 1; k++)
   {
@@ -193,23 +198,21 @@ void Particles3D::maxwellian(Field * EMf)
     for (int jj = 0; jj < npcely; jj++)
     for (int kk = 0; kk < npcelz; kk++)
     {
-      SpeciesParticle pcl;
+      double u,v,w;
       sample_maxwellian(
-        pcl.fetch_u(),
-        pcl.fetch_v(),
-        pcl.fetch_w(),
+        u,v,w,
         uth, vth, wth,
         u0, v0, w0);
-      // q = charge
-      pcl.set_q(q);
       // could also sample positions randomly as in repopulate_particles();
-      pcl.fetch_x() = (ii + .5) * (dx / npcelx) + grid->getXN(i, j, k);
-      pcl.fetch_y() = (jj + .5) * (dy / npcely) + grid->getYN(i, j, k);
-      pcl.fetch_z() = (kk + .5) * (dz / npcelz) + grid->getZN(i, j, k);
-      pcl.set_t(0.);
-      _pcls.push_back(pcl);
+      const double x = (ii + .5) * (dx / npcelx) + grid->getXN(i, j, k);
+      const double y = (jj + .5) * (dy / npcely) + grid->getYN(i, j, k);
+      const double z = (kk + .5) * (dz / npcelz) + grid->getZN(i, j, k);
+      _pcls.push_back(SpeciesParticle(u,v,w,q,x,y,z,0.));
     }
   }
+  dprintf("capacity=%d, size=%d", _pcls.capacity(), getNOP());
+  }
+  dprintf("final size: %d",getNOP());
 }
 
 /** Force Free initialization (JxB=0) for particles */
@@ -536,7 +539,7 @@ void Particles3D::mover_PC_AoS_vec_intr(Field * EMf)
   }
   const_arr4_pfloat fieldForPcls = EMf->get_fieldForPcls();
 
-  SpeciesParticle * pcls = fetch_pcls();
+  SpeciesParticle * pcls = &_pcls[0];
   ALIGNED(pcls);
   #pragma omp master
   { timeTasks_begin_task(TimeTasks::MOVER_PCL_MOVING); }

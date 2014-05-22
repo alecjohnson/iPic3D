@@ -75,8 +75,8 @@ public:
 
   // get accessors for optional arrays
   //
-  Larray<SpeciesParticle>& fetch_pcls(){ return _pcls; }
-  Larray<SpeciesParticle>& fetch_pclstmp(){ return _pclstmp; }
+  //Larray<SpeciesParticle>& fetch_pcls(){ return _pcls; }
+  //Larray<SpeciesParticle>& fetch_pclstmp(){ return _pclstmp; }
 
   // add new particle
   void add_new_particle(
@@ -88,7 +88,9 @@ public:
 
   void delete_particle(int pidx)
   {
-    _pcls.delete_element(pidx);
+    _pcls[pidx]=_pcls.back();
+    _pcls.pop_back();
+    //_pcls.delete_element(pidx);
   }
 
   // inline get accessors
@@ -231,7 +233,8 @@ protected:
   //
   // AoS representation
   //
-  Larray<SpeciesParticle> _pcls;
+  //Larray<SpeciesParticle> _pcls;
+  aligned_vector(SpeciesParticle) _pcls;
   //
   // particles data
   //
@@ -262,7 +265,8 @@ protected:
   //
   // alternate temporary storage for sorting particles
   //
-  Larray<SpeciesParticle> _pclstmp;
+  //Larray<SpeciesParticle> _pclstmp;
+  aligned_vector(SpeciesParticle) _pclstmp;
   //
   // references for buckets for serial sort.
   //

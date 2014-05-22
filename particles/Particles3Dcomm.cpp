@@ -86,12 +86,12 @@ Particles3Dcomm::Particles3Dcomm(
   recvZleft(Connection(vct->getZleft(),Connection::ZUP)),
   recvZrght(Connection(vct->getZrght(),Connection::ZDN))
 {
-  recvXleft.recv_start();
-  recvXrght.recv_start();
-  recvYleft.recv_start();
-  recvYrght.recv_start();
-  recvZleft.recv_start();
-  recvZrght.recv_start();
+  recvXleft.post_recvs();
+  recvXrght.post_recvs();
+  recvYleft.post_recvs();
+  recvYrght.post_recvs();
+  recvZleft.post_recvs();
+  recvZrght.post_recvs();
 
   // info from collectiveIO
   //
@@ -716,7 +716,7 @@ int Particles3Dcomm::communicate_particles()
       isPeriodicZlower, isPeriodicZupper);
     if(was_sent)
     {
-      _pcls.delete_element(np_current);
+      delete_particle(np_current);
     }
     else
     {
@@ -900,13 +900,11 @@ void Particles3Dcomm::sort_particles_serial_AoS()
 {
   convertParticlesToAoS();
 
-  Larray<SpeciesParticle>& pcls = fetch_pcls();
-  Larray<SpeciesParticle>& pclstmp = fetch_pclstmp();
-  pclstmp.reserve(pcls.size());
+  _pclstmp.reserve(_pcls.size());
   {
     numpcls_in_bucket->setall(0);
     // iterate through particles and count where they will go
-    for (int pidx = 0; pidx < pcls.size(); pidx++)
+    for (int pidx = 0; pidx < _pcls.size(); pidx++)
     {
       const SpeciesParticle& pcl = get_pcl(pidx);
       // get the cell indices of the particle
@@ -950,7 +948,7 @@ void Particles3Dcomm::sort_particles_serial_AoS()
 
       // copy particle data to new location
       //
-      pclstmp[outpidx] = pcl;
+      _pclstmp[outpidx] = pcl;
     }
     // swap the tmp particle memory with the official particle memory
     {

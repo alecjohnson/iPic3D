@@ -69,6 +69,7 @@ void fprintf_fileLine(FILE * fptr,
   const char *type, const char *func, const char *file, int line_number,
   const char *format, ...)
 {
+  //if(MPIdata::get_rank()) return;
   // writing directly to fptr would avoid limiting the length
   // of the output string, but by first writing to a string
   // we achieve thread safety.

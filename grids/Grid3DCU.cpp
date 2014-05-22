@@ -77,7 +77,8 @@ void Grid3DCU::init_derived_parameters()
 {
   // calculation conveniences
   //
-  invVOL = 1.0 / (dx * dy * dz);
+  VOL = dx * dy * dz;
+  invVOL = 1.0 / VOL;
   invdx = 1.0 / dx;
   invdy = 1.0 / dy;
   invdz = 1.0 / dz;
