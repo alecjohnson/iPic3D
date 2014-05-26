@@ -206,9 +206,10 @@ void Particles3D::maxwellian(Field * EMf)
       _pcls.push_back(SpeciesParticle(u,v,w,q,x,y,z,0.));
     }
   }
-  dprintf("capacity=%d, size=%d", _pcls.capacity(), getNOP());
+  //dprintf("capacity=%d, size=%d", _pcls.capacity(), getNOP());
   }
   dprintf("final size: %d",getNOP());
+  print_pcls(_pcls,0,0);
 }
 
 /** Force Free initialization (JxB=0) for particles */

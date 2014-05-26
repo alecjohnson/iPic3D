@@ -66,6 +66,18 @@ implement_dprintvar_fileLine("%p", const void *);
 //   fflush(fptr);
 // }
 
+// implemented here because the new
+// standard basename() in libgen.h eliminates the const
+// (because standard basename returns non-const? -- seems
+// like an attempted correction in the wrong direction...).
+const char *my_basename (const char *name)
+{
+  const char *base;
+  for (base = name; *name; name++)
+    if (*name == '/') base = name + 1;
+  return base;
+}
+
 void fprintf_fileLine(FILE * fptr,
   const char *type, const char *func, const char *file, int line_number,
   const char *format, ...)
@@ -105,7 +117,7 @@ void fprintf_fileLine(FILE * fptr,
     "%s%s %s(), %s:%d: ",
     process_thread_str,
     type,
-    func, file, // my_basename(file),
+    func, /*file,*/ my_basename(file),
     line_number);
   /* print out remainder of message */
   chars_so_far += vsnprintf(sptr+chars_so_far, maxchars-chars_so_far, format, args);

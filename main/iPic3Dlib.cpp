@@ -353,6 +353,7 @@ bool c_Solver::ParticlesMover()
       part[i].communicate_particles();
     }
   }
+  dprintf("gothere");
 
   /* -------------------------------------- */
   /* Repopulate the buffer zone at the edge */
@@ -371,6 +372,7 @@ bool c_Solver::ParticlesMover()
     for (int i=0; i < ns; i++)
       Qremoved[i] = part[i].deleteParticlesInsideSphere(col->getL_square(),col->getx_center(),col->gety_center(),col->getz_center());
   }
+  dprintf("gothere");
   return (false);
 }
 
@@ -526,9 +528,6 @@ void c_Solver::Finalize() {
 
   // stop profiling
   my_clock->stopTiming();
-
-  // close MPI
-  MPIdata::instance().finalize_mpi();
 }
 
 //void c_Solver::copyParticlesToSoA()

@@ -9,7 +9,8 @@ using namespace iPic3D;
 
 int main(int argc, char **argv) {
 
-  MPIdata::init(&argc, &argv);
+ MPIdata::init(&argc, &argv);
+ {
   iPic3D::c_Solver KCode;
   bool b_err = false;
 
@@ -24,9 +25,7 @@ int main(int argc, char **argv) {
     if (!b_err) {
       timeTasks.resetCycle();
       KCode.CalculateField();
-  dprintf("gothere");
       b_err = KCode.ParticlesMover();
-  dprintf("gothere");
       KCode.CalculateB();
       KCode.CalculateMoments();
 
@@ -42,6 +41,9 @@ int main(int argc, char **argv) {
   }
 
   KCode.Finalize();
+ }
+ // close MPI
+ MPIdata::instance().finalize_mpi();
 
-  return 0;
+ return 0;
 }

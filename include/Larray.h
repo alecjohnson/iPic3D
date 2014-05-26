@@ -70,7 +70,7 @@ class Larray
   }
   void push_back(const type& element)
   {
-    if(_size>=_capacity)
+    if(__builtin_expect(_size>=_capacity,false))
     {
       int newcapacity = pow2roundup(_size+1);
       reserve(newcapacity);

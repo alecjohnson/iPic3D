@@ -521,6 +521,8 @@ inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
   if(hasXlowerNeighbor && pcl.get_x() < xstart)
   {
     // handle periodic boundary conditions only when wrapping particles
+    // This should be handled when reading wrapped particles out
+    // of the buffer so that no conditional has to be executed here.
     if(isPeriodicXlower && pcl.get_x() < 0) pcl.fetch_x() += Lx;
     // put it in the communication buffer
     sendXleft.send(pcl);
@@ -690,6 +692,7 @@ static long long mpi_global_sum(int in)
 {
   long long total;
   long long long_in = (long long)in;
+  dprintf("calling MPI_Allreduce(%d,&total,1, ...)", long_in);
   MPI_Allreduce(&long_in, &total, 1, MPI_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
 }
 
@@ -705,6 +708,7 @@ int Particles3Dcomm::communicate_particles()
 {
   timeTasks_set_communicating(); // communicating until end of scope
   convertParticlesToAoS();
+  print_pcls(_pcls,0,0);
 
   // activate receiving
   //
@@ -769,7 +773,7 @@ int Particles3Dcomm::communicate_particles()
       isPeriodicZlower, isPeriodicZupper);
     if(was_sent)
     {
-      dprintf("sent particle %d", np_current);
+      //dprintf("sent particle %d", np_current);
       delete_particle(np_current);
     }
     else
@@ -780,6 +784,8 @@ int Particles3Dcomm::communicate_particles()
   assert_eq(_pcls.size(),np_current);
   const int num_pcls_sent = orig_size - getNOP();
   dprint(num_pcls_sent);
+  // flush sending of particles
+  flush_send();
 
   // receive and redistribute particles once for
   // each dimension of space without doing an
@@ -788,16 +794,17 @@ int Particles3Dcomm::communicate_particles()
   int num_pcls_resent;
   for(int i=0;i<3;i++)
   {
-    flush_send();
     num_pcls_resent = handle_received_particles();
+    dprint(num_pcls_resent);
+    flush_send();
   }
-  dprint(num_pcls_resent);
 
   // continue receiving and resending incoming particles until
   // global all-reduce of num_pcls_resent is zero, indicating
   // that there are no more particles to be received.
   //
   long long total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
+  dprint(total_num_pcls_resent);
   while(total_num_pcls_resent)
   {
     flush_send();
@@ -805,6 +812,7 @@ int Particles3Dcomm::communicate_particles()
     total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
     dprint(total_num_pcls_resent);
   }
+  print_pcls(_pcls,0,0);
 }
 
 /** return the Kinetic energy */

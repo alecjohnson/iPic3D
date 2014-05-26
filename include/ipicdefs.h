@@ -62,10 +62,4 @@ typedef double pfloat;
 //  typedef double pfloat;
 //#endif
 
-#if defined(__builtin_expect) // defined(__GNUC__) || defined (__ICC)
-  #define builtin_expect(exp,c) __builtin_expect((exp),(c))
-#else
-  #define builtin_expect(exp,c) (exp)
-#endif
-
 #endif

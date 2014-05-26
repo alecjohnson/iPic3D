@@ -366,6 +366,21 @@ protected:
   double Ninj;
 };
 
+static void print_pcls(aligned_vector(SpeciesParticle)& pcls, int first, int last)
+{
+  for(int i=first; i<=last;i++)
+  {
+    dprintf("u[%d] = %g", i, pcls[i].get_u());
+    dprintf("v[%d] = %g", i, pcls[i].get_v());
+    dprintf("w[%d] = %g", i, pcls[i].get_w());
+    dprintf("q[%d] = %g", i, pcls[i].get_q());
+    dprintf("x[%d] = %g", i, pcls[i].get_x());
+    dprintf("y[%d] = %g", i, pcls[i].get_y());
+    dprintf("z[%d] = %g", i, pcls[i].get_z());
+    dprintf("t[%d] = %g", i, pcls[i].get_t());
+  }
+}
+
 typedef Particles3Dcomm Particles;
 
 #endif

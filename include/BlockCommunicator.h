@@ -208,19 +208,17 @@ struct Block
 
     if(last_block)
     {
-      //dprintf("sending last block, number %d", id);
-      dprintf("sending final block (#%d) to %d.%s of size %d", id,
-        dest.rank(),
-        dest.tag_name(),
-        size());
+      //dprintf("sending final block (#%d) to %d.%s of size %d", id,
+      //  dest.rank(),
+      //  dest.tag_name(),
+      //  size());
     }
     else
     {
-      //dprintf("sending block number %d", id);
-      dprintf("sending block (#%d) to %d.%s of size %d", id,
-        dest.rank(),
-        dest.tag_name(),
-        size());
+      //dprintf("sending block (#%d) to %d.%s of size %d", id,
+      //  dest.rank(),
+      //  dest.tag_name(),
+      //  size());
     }
     MPI_Isend(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
       dest.rank(), dest.tag(), dest.comm(), &request);
@@ -275,7 +273,7 @@ struct Block
     {
       if(num_elements_received < capacity)
       {
-        dprintf("setting finished flag");
+        //dprintf("setting finished flag");
         set_finished_flag();
       }
       else
@@ -477,10 +475,10 @@ class BlockCommunicator
     }
     if(fetch_curr_block().finished_flag_is_set())
     {
-      dprintf("fetched final block from %d.%s of size %d",
-         connection.rank(),
-         connection.tag_name(),
-         fetch_curr_block().size());
+      //dprintf("fetched final block from %d.%s of size %d",
+      //   connection.rank(),
+      //   connection.tag_name(),
+      //   fetch_curr_block().size());
       commState=FINISHED;
     }
     return fetch_curr_block();
@@ -574,7 +572,7 @@ class BlockCommunicator
     fetch_curr_block().fast_push_back(in);
 
     // if the block is full, send it
-    if(builtin_expect(fetch_curr_block().isfull(),false))
+    if(__builtin_expect(fetch_curr_block().isfull(),false))
     {
       if(connection_is_null())
       {
@@ -642,10 +640,8 @@ class BlockCommunicator
   {
     assert(!fetch_curr_block().isfull());
     fetch_curr_block().set_finished_flag();
-    dprintf("sending last block");
     send_block();
-    dprintf("finished sending last block");
-    commState=FINISHED;
+    //commState=FINISHED;
   }
   //void clear_send()
   //{
@@ -685,7 +681,15 @@ BlockCommunicator<type>::BlockCommunicator(Connection connection_)
 template <typename type>
 void BlockCommunicator<type>::init(Connection connection_)
 {
-  init(connection_, Parameters::get_blockSize(), Parameters::get_numBlocks());
+  if(connection_is_null())
+  {
+    // might as well use a single block in this case
+    init(connection_, Parameters::get_blockSize(), 1);
+  }
+  else
+  {
+    init(connection_, Parameters::get_blockSize(), Parameters::get_numBlocks());
+  }
 }
 template <typename type>
 void BlockCommunicator<type>::init(Connection connection_, int blocksize_, int numblocks)
@@ -694,11 +698,6 @@ void BlockCommunicator<type>::init(Connection connection_, int blocksize_, int n
   connection = connection_;
   blocksize = blocksize_;
   commState = INITIAL;
-  if(connection_is_null())
-  {
-    commState=FINISHED;
-    // in this case maybe we do not want
-  }
 
   assert(blocksize>0);
   assert(numblocks>0);
