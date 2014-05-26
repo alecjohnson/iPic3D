@@ -193,6 +193,7 @@ Particles3Dcomm::Particles3Dcomm(
   // AoS particle representation
   //
   _pcls.reserve(npmax);
+  particleType = ParticleType::AoS; // canonical representation
 
   //
   // allocate arrays for sorting particles
@@ -243,8 +244,10 @@ Particles3Dcomm::Particles3Dcomm(
 
     // get how many particles there are on this processor for this species
     status_n = H5Sget_simple_extent_dims(dataspace, dims_out, NULL);
-    const int nop = dims_out[0];          // this the number of particles on the processor!
-    resize_SoA(int nop);
+    const int nop = dims_out[0]; // number of particles in this process
+    // prepare arrays to receive particles
+    particleType = ParticleType::SoA;
+    resize_SoA(nop);
     // get x
     status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &x[0]);
     // close the data set
@@ -305,8 +308,8 @@ Particles3Dcomm::Particles3Dcomm(
     //}
     // close the hdf file
     status = H5Fclose(file_id);
+    convertParticlesToAoS();
   }
-
 }
 
 // pad capacities so that aligned vectorization
@@ -527,7 +530,7 @@ inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
     // handle periodic boundary conditions only when wrapping particles
     if(isPeriodicXupper && pcl.get_x() > Lx) pcl.fetch_x() -= Lx;
     // put it in the communication buffer
-    sendXleft.send(pcl);
+    sendXrght.send(pcl);
   }
   else if(hasYlowerNeighbor && pcl.get_y() < ystart)
   {
@@ -735,12 +738,19 @@ int Particles3Dcomm::communicate_particles()
   const bool isPeriodicZlower = vct->isPeriodicZlower();
   const bool isPeriodicZupper = vct->isPeriodicZupper();
 
+  const int orig_size = _pcls.size();
   int np_current = 0;
   while(np_current < _pcls.size())
   {
     SpeciesParticle& pcl = _pcls[np_current];
     // should change to enforce boundary conditions at conclusion of push,
     // when particles are still in SoA format.
+    //
+    // a better way to do this would be to separate out these
+    // particles by "sending" them to the appropriate communicator
+    // with a null connection and then go through that list of
+    // particles and handle them (probably along with transposing
+    // such list to SoA for efficient processing).
     apply_boundary_conditions(pcl,
       isBoundaryProcess,
       noXlowerNeighbor, noXupperNeighbor,
@@ -767,6 +777,8 @@ int Particles3Dcomm::communicate_particles()
     }
   }
   assert_eq(_pcls.size(),np_current);
+  const int num_pcls_sent = orig_size - getNOP();
+  dprint(num_pcls_sent);
 
   // receive and redistribute particles once for
   // each dimension of space without doing an
@@ -778,6 +790,7 @@ int Particles3Dcomm::communicate_particles()
     flush_send();
     num_pcls_resent = handle_incoming_particles();
   }
+  dprint(num_pcls_resent);
 
   // continue receiving and resending incoming particles until
   // global all-reduce of num_pcls_resent is zero, indicating
@@ -789,6 +802,7 @@ int Particles3Dcomm::communicate_particles()
     flush_send();
     num_pcls_resent = handle_incoming_particles();
     total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
+    dprint(total_num_pcls_resent);
   }
 }
 
@@ -1157,16 +1171,16 @@ void Particles3Dcomm::copyParticlesToSoA()
   resize_SoA(nop);
  #ifndef __MIC__
   #pragma omp for
-  for(int pidx=0; nop; pidx++)
+  for(int pidx=0; pidx<nop; pidx++)
   {
     const SpeciesParticle& pcl = _pcls[pidx];
-    u[pidx] = pcl.get_u(0);
-    v[pidx] = pcl.get_u(1);
-    w[pidx] = pcl.get_u(2);
+    u[pidx] = pcl.get_u();
+    v[pidx] = pcl.get_v();
+    w[pidx] = pcl.get_w();
     q[pidx] = pcl.get_q();
-    x[pidx] = pcl.get_x(0);
-    y[pidx] = pcl.get_x(1);
-    z[pidx] = pcl.get_x(2);
+    x[pidx] = pcl.get_x();
+    y[pidx] = pcl.get_y();
+    z[pidx] = pcl.get_z();
     t[pidx] = pcl.get_t();
   }
  #else // __MIC__

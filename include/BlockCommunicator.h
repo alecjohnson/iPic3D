@@ -70,6 +70,19 @@ class Connection
   int rank()const{return _rank;}
   int tag()const{return _tag;}
   MPI_Comm comm()const{return _comm;}
+  const char* tag_name()const
+  {
+    switch(_tag)
+    {
+      default: unsupported_value_error(_tag);
+      case XDN: return "XDN";
+      case XUP: return "XUP";
+      case YDN: return "YDN";
+      case YUP: return "YUP";
+      case ZDN: return "ZDN";
+      case ZUP: return "ZUP";
+    }
+  }
 };
 
 inline bool signal_hack()
@@ -177,9 +190,21 @@ struct Block
     }
 
     if(last_block)
-      dprintf("sending last block, number %d", id);
+    {
+      //dprintf("sending last block, number %d", id);
+      dprintf("sending final block (#%d) to %d.%s of size %d", id,
+        dest.rank(),
+        dest.tag_name(),
+        size());
+    }
     else
-      dprintf("sending block number %d", id);
+    {
+      //dprintf("sending block number %d", id);
+      dprintf("sending block (#%d) to %d.%s of size %d", id,
+        dest.rank(),
+        dest.tag_name(),
+        size());
+    }
     MPI_Isend(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
       dest.rank(), dest.tag(), dest.comm(), &request);
     //dprintf("finished sending block number %d", id);
@@ -331,6 +356,10 @@ class BlockCommunicator
  // information access
  //
  private: // access
+  bool connection_is_null()
+  {
+    return connection.rank()==MPI_PROC_NULL;
+  }
   // mimic behavior of a ring
   void increment_block(std::list<void*>::iterator& block_iter)
   {
@@ -431,7 +460,10 @@ class BlockCommunicator
     }
     if(fetch_curr_block().finished_flag_is_set())
     {
-      dprintf("looks like that was the last block.");
+      dprintf("fetched final block from %d.%s of size %d",
+         connection.rank(),
+         connection.tag_name(),
+         fetch_curr_block().size());
       commState=FINISHED;
     }
     return fetch_curr_block();
@@ -469,6 +501,8 @@ class BlockCommunicator
  public:
   void post_recvs()
   {
+    if(connection_is_null())
+      return;
     std::list<void*>::iterator b;
     for(b=blockList.begin(); b != blockList.end(); ++b)
     {
@@ -482,6 +516,11 @@ class BlockCommunicator
  public:
   void recv_start()
   {
+    if(connection_is_null())
+    {
+      commState=FINISHED;
+      return;
+    }
     // make sure that receives are posted on all block
     std::list<void*>::iterator b;
     for(b=blockList.begin(); b != blockList.end(); ++b)
@@ -624,6 +663,11 @@ void BlockCommunicator<type>::init(Connection connection_, int blocksize_, int n
   connection = connection_;
   blocksize = blocksize_;
   commState = INITIAL;
+  if(connection_is_null())
+  {
+    commState=FINISHED;
+    // in this case maybe we do not want
+  }
 
   assert(blocksize>0);
   assert(numblocks>0);
