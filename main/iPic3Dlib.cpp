@@ -119,7 +119,6 @@ int c_Solver::Init(int argc, char **argv) {
   // OpenBC
   EMf->updateInfoFields(grid,vct,col);
 
-  dprintf("gothere");
   // Allocation of particles
   // part = new Particles3D[ns];
   part = (Particles3D*) malloc(sizeof(Particles3D)*ns);
@@ -129,7 +128,6 @@ int c_Solver::Init(int argc, char **argv) {
     //part[i] = new Particles3D(i, col, vct, grid);
     //part[i].allocate(i, col, vct, grid);
   }
-  dprintf("gothere");
 
   // Initial Condition for PARTICLES if you are not starting from RESTART
   if (restart == 0) {
@@ -142,7 +140,6 @@ int c_Solver::Init(int argc, char **argv) {
 #endif
       else                                  part[i].maxwellian(EMf);
   }
-  dprintf("gothere");
 
   // Initialize the output (simulation results and restart file)
   // PSK::OutputManager < PSK::OutputAdaptor > output_mgr; // Create an Output Manager
@@ -159,7 +156,6 @@ int c_Solver::Init(int argc, char **argv) {
     output_mgr.output("collective + total_topology + proc_topology", 0);
     hdf5_agent.close();
   }
-  dprintf("gothere");
   // Restart
   num_proc << myrank;
   if (restart == 0) {           // new simulation from input file
@@ -173,7 +169,6 @@ int c_Solver::Init(int argc, char **argv) {
     hdf5_agent.close();
   }
 
-  dprintf("gothere");
   former_MPI_Barrier(MPI_COMM_WORLD);
   Eenergy, Benergy, TOTenergy = 0.0, TOTmomentum = 0.0;
   Ke = new double[ns];
@@ -192,7 +187,6 @@ int c_Solver::Init(int argc, char **argv) {
   }
   cqsat = SaveDirName + "/VirtualSatelliteTraces" + num_proc.str() + ".txt";
   // if(myrank==0)
-  dprintf("gothere");
   ofstream my_file(cqsat.c_str(), fstream::binary);
   nsat = 3;
   for (int isat = 0; isat < nsat; isat++) {
@@ -207,7 +201,6 @@ int c_Solver::Init(int argc, char **argv) {
 
   Qremoved = new double[ns];
 
-  dprintf("gothere");
   my_clock = new Timing(myrank);
 
   return 0;

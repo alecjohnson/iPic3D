@@ -59,6 +59,15 @@ class Larray
       _size = newsize;
     }
   }
+  // unsafe version that assumes sufficient capacity
+  // (extends std::vector)
+  void fast_push_back(const type& element)
+  {
+    // remove this assertion to make this fast but unsafe
+    assert_ge(_size,_capacity);
+    list[_size] = element;
+    _size++;
+  }
   void push_back(const type& element)
   {
     if(_size>=_capacity)

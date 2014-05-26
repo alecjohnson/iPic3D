@@ -582,7 +582,7 @@ void Particles3Dcomm::flush_send()
 //
 // assumes that flush_send() has been called
 //
-int Particles3Dcomm::handle_incoming_particles()
+int Particles3Dcomm::handle_received_particles()
 {
   int num_pcls_resent = 0;
   // receive incoming particles, 
@@ -769,6 +769,7 @@ int Particles3Dcomm::communicate_particles()
       isPeriodicZlower, isPeriodicZupper);
     if(was_sent)
     {
+      dprintf("sent particle %d", np_current);
       delete_particle(np_current);
     }
     else
@@ -788,7 +789,7 @@ int Particles3Dcomm::communicate_particles()
   for(int i=0;i<3;i++)
   {
     flush_send();
-    num_pcls_resent = handle_incoming_particles();
+    num_pcls_resent = handle_received_particles();
   }
   dprint(num_pcls_resent);
 
@@ -800,7 +801,7 @@ int Particles3Dcomm::communicate_particles()
   while(total_num_pcls_resent)
   {
     flush_send();
-    num_pcls_resent = handle_incoming_particles();
+    num_pcls_resent = handle_received_particles();
     total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
     dprint(total_num_pcls_resent);
   }

@@ -53,7 +53,7 @@ public:
     bool isPeriodicYlower, bool isPeriodicYupper,
     bool isPeriodicZlower, bool isPeriodicZupper);
   void flush_send();
-  int handle_incoming_particles();
+  int handle_received_particles();
  public:
   int communicate_particles();
   void pad_capacities();

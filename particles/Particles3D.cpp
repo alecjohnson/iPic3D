@@ -175,19 +175,15 @@ void Particles3D::MaxwellianFromFluidCell(Collective *col, int is, int i, int j,
 /** Maxellian random velocity and uniform spatial distribution */
 void Particles3D::maxwellian(Field * EMf)
 {
-  dprintf("gothere");
   /* initialize random generator with different seed on different processor */
   srand(vct->getCartesian_rank() + 2);
 
-  dprintf("gothere");
   assert_eq(_pcls.size(),0);
 
-  dprintf("gothere");
   const double q_sgn = (qom / fabs(qom));
   // multipled by charge density gives charge per particle
   const double q_factor =  q_sgn * grid->getVOL() / npcel;
 
-  dprintf("gothere");
   for (int i = 1; i < grid->getNXC() - 1; i++)
   {
   for (int j = 1; j < grid->getNYC() - 1; j++)

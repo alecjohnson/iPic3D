@@ -65,6 +65,7 @@ class Connection
     _rank = rank_;
     _tag = tag_;
     _comm = comm_;
+    dprintf("direction %s is %d",tag_name(),_rank);
   }
  public: // accessors
   int rank()const{return _rank;}
@@ -94,7 +95,6 @@ inline bool signal_hack()
 template <class type>
 struct Block
 {
- private:
  private: // initialized in constructor
   // change the block to use an aligned allocator
   aligned_vector(type) block;
@@ -107,6 +107,8 @@ struct Block
  private: // initialized at compile time
   // assumes using MPI_DOUBLE
   static const int NUMBERS_PER_ELEMENT = sizeof(type)/sizeof(double);
+ public:
+  int get_capacity()const{return capacity;}
  public:
   Block(int capacity_, int id_):
     capacity(capacity_),
@@ -138,6 +140,12 @@ struct Block
   int size(){return block.size();}
 
  public: // operations
+  // used when the connection is null
+  void increase_capacity()
+  {
+    capacity*=2;
+    block.reserve(capacity);
+  }
   // returns true if communication is complete; else returns false
   bool test_comm(MPI_Status& status)
   {
@@ -171,6 +179,15 @@ struct Block
   {
     bool retval = (block.size()>=capacity);
     return retval;
+  }
+  // to implement this in the case that block is of type std::vector,
+  // I would need to make the "size" a member of this class
+  // and treat block.size() as a capacity.
+  void fast_push_back(const type& in)
+  {
+    block.push_back(in);
+    // assumes block is of type Larray
+    //block.fast_push_back(in);
   }
   void push_back(const type& in)
   {
@@ -552,13 +569,22 @@ class BlockCommunicator
   // (whereupon the caller might want to check for incoming messages).
   bool send(const type& in)
   {
+    //assert_le(fetch_curr_block.size(), fetch_curr_block().get_capacity());
     // append the particle to the block.
-    fetch_curr_block().push_back(in);
+    fetch_curr_block().fast_push_back(in);
 
     // if the block is full, send it
-    if(fetch_curr_block().isfull())
+    if(builtin_expect(fetch_curr_block().isfull(),false))
     {
-      send_block();
+      if(connection_is_null())
+      {
+        // simply increase the capacity
+        fetch_curr_block().increase_capacity();
+      }
+      else
+      {
+        send_block();
+      }
       return true;
     }
     return false;
@@ -567,6 +593,11 @@ class BlockCommunicator
   // a still-active send request on it
   void send_start()
   {
+    if(connection_is_null())
+    {
+      fetch_curr_block().clear();
+      return;
+    }
     // if current block is still communicating,
     // either wait for it or insert another block 
     // and use it instead.
@@ -677,6 +708,7 @@ void BlockCommunicator<type>::init(Connection connection_, int blocksize_, int n
     blockList.push_back(newBlock);
   }
   curr_block = blockList.begin();
+
 }
 
 template <typename type>

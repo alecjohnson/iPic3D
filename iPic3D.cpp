@@ -14,7 +14,6 @@ int main(int argc, char **argv) {
   bool b_err = false;
 
   KCode.Init(argc, argv);
-  dprintf("gothere");
 
   timeTasks.resetCycle();
   KCode.CalculateMoments();
@@ -25,7 +24,9 @@ int main(int argc, char **argv) {
     if (!b_err) {
       timeTasks.resetCycle();
       KCode.CalculateField();
+  dprintf("gothere");
       b_err = KCode.ParticlesMover();
+  dprintf("gothere");
       KCode.CalculateB();
       KCode.CalculateMoments();
 
