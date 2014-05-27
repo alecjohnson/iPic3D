@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <iostream>
 #include "BlockCommunicator.h"
-#include "../communication/BlockCommunicator.cpp"
 #include "../main/Parameters.cpp"
 #include "../utility/debug.cpp"
 #include "../utility/asserts.cpp"
@@ -221,10 +220,8 @@ void test_particle_communication(
     }
 }
 
-int main(int argc, char **argv)
+void test_particle_communication()
 {
-  MPIdata::init(&argc, &argv);
-
   //MPI_Init(&argc, &argv);
   //MPI_Comm_rank(MPI_COMM_WORLD, &MPIrank);
   //MPI_Comm_size(MPI_COMM_WORLD, &MPInumprocs);
@@ -285,10 +282,10 @@ int main(int argc, char **argv)
   //Connection hghXsendConn(up_dst,2,up_comm);
   assert(up_src==dn_dst);
   assert(dn_src==up_dst);
-  Connection lowXrecvConn(up_src,Connection::PARTICLE_UP);
-  Connection hghXrecvConn(dn_src,Connection::PARTICLE_DN);
-  Connection lowXsendConn(dn_dst,Connection::PARTICLE_DN);
-  Connection hghXsendConn(up_dst,Connection::PARTICLE_UP);
+  Connection lowXrecvConn(up_src,Connection::XUP);
+  Connection hghXrecvConn(dn_src,Connection::XDN);
+  Connection lowXsendConn(dn_dst,Connection::XDN);
+  Connection hghXsendConn(up_dst,Connection::XUP);
 
   // showing that we can propagate a message upward
   if(0)
@@ -481,6 +478,14 @@ int main(int argc, char **argv)
   // probably MPI_Finalize takes care of this anyway...
   MPI_Comm_free(&up_comm);
   MPI_Comm_free(&dn_comm);
+}
+
+int main(int argc, char **argv)
+{
+  MPIdata::init(&argc, &argv);
+
+  test_particle_communication();
+
   MPIdata::finalize_mpi();
   //MPI_Finalize();
 }
