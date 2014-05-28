@@ -15,6 +15,7 @@ developers: Stefano Markidis, Giovanni Lapenta
 #include "BlockCommunicator.h"
 #include "aligned_vector.h"
 #include "Larray.h"
+#include "IDgenerator.h"
 /**
  * 
  * class for particles of the same species with communications methods
@@ -80,7 +81,22 @@ public:
   //Larray<SpeciesParticle>& fetch_pcls(){ return _pcls; }
   //Larray<SpeciesParticle>& fetch_pclstmp(){ return _pclstmp; }
 
-  // add new particle
+  // particle creation methods
+  //
+  void reserve_remaining_particle_IDs()
+  {
+    // reserve remaining particle IDs starting from getNOP()
+    pclIDgenerator.reserve_particles_in_range(getNOP());
+  }
+  // create new particle
+  void create_new_particle(
+    double u, double v, double w, double q,
+    double x, double y, double z)
+  {
+    const double t = pclIDgenerator.generateID();
+    _pcls.push_back(SpeciesParticle(u,v,w,q,x,y,z,t));
+  }
+  // add particle to the list
   void add_new_particle(
     double u, double v, double w, double q,
     double x, double y, double z, double t)
@@ -230,6 +246,8 @@ protected:
   double v0;
   /** w0 Drift velocity - Direction Z */
   double w0;
+  // used to generate unique particle IDs
+  doubleIDgenerator pclIDgenerator;
 
   ParticleType::Type particleType;
   //

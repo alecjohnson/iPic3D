@@ -66,6 +66,7 @@ Particles3Dcomm::Particles3Dcomm(
   ns(species_number),
   vct(vct_),
   grid(grid_),
+  pclIDgenerator(),
   particleType(ParticleType::AoS),
   //
   // communicators for particles
@@ -169,30 +170,39 @@ Particles3Dcomm::Particles3Dcomm(
   //
   // determine number of particles to preallocate for this process.
   //
-  int nop = col->getNp(get_species_num()) / (vct->getNprocs());
-  //int npmax = 2*nop;
-  int npmax = col->getNpMax(get_species_num()) / (vct->getNprocs());
-  //np_tot = col->getNp(get_species_num());
-  npmax = roundup_to_multiple(npmax,DVECWIDTH);
+  // determine number of cells in this process
+  //
+  // we calculate in double precision to guard against overflow
+  double dNp = double(col->get_num_cells_r())*col->getNpcel(species_number);
+  double dNpmax = dNp * col->getNpMaxNpRatio();
+  // ensure that particle index will not overflow 32-bit
+  // representation as long as dmaxnop is respected.
+  assert_le(dNpmax,double(INT_MAX));
+  const int nop = dNp;
+  // initialize particle ID generator based on number of particles
+  // that will initially be produced.
+  pclIDgenerator.reserve_num_particles(nop);
+  // initialize each process with capacity for some extra particles
+  const int initial_capacity = roundup_to_multiple(nop*1.2,DVECWIDTH);
   //
   // SoA particle representation
   //
   // velocities
-  u.reserve(npmax);
-  v.reserve(npmax);
-  w.reserve(npmax);
+  u.reserve(initial_capacity);
+  v.reserve(initial_capacity);
+  w.reserve(initial_capacity);
   // charge
-  q.reserve(npmax);
+  q.reserve(initial_capacity);
   // positions
-  x.reserve(npmax);
-  y.reserve(npmax);
-  z.reserve(npmax);
+  x.reserve(initial_capacity);
+  y.reserve(initial_capacity);
+  z.reserve(initial_capacity);
   // subcycle time
-  t.reserve(npmax);
+  t.reserve(initial_capacity);
   //
   // AoS particle representation
   //
-  _pcls.reserve(npmax);
+  _pcls.reserve(initial_capacity);
   particleType = ParticleType::AoS; // canonical representation
 
   //
@@ -202,12 +212,7 @@ Particles3Dcomm::Particles3Dcomm(
   numpcls_in_bucket_now = new array3_int(nxc,nyc,nzc);
   bucket_offset = new array3_int(nxc,nyc,nzc);
   
-  if(Parameters::get_USING_AOS())
-  {
-    assert_eq(sizeof(SpeciesParticle),64);
-  }
-
-  //ParticleID = new Larray<longid>;
+  assert_eq(sizeof(SpeciesParticle),64);
 
   // if RESTART is true initialize the particle in allocate method
   restart = col->getRestart_status();

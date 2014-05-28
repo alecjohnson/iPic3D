@@ -46,6 +46,7 @@ class Collective
     void ReadInput(string inputfile);
     /*! read the restart input file from HDF5 */
     int ReadRestart(string inputfile);
+    void init_derived_parameters();
     /*! Print physical parameters */
     void Print();
     /*! save setting in a file */
@@ -87,8 +88,8 @@ class Collective
     int getNpcelx(int nspecies)const{ return (npcelx[nspecies]); }
     int getNpcely(int nspecies)const{ return (npcely[nspecies]); }
     int getNpcelz(int nspecies)const{ return (npcelz[nspecies]); }
-    int getNp(int nspecies)const{ return (np[nspecies]); }
-    int getNpMax(int nspecies)const{ return (npMax[nspecies]); }
+    //int getNp(int nspecies)const{ return (np[nspecies]); }
+    //int getNpMax(int nspecies)const{ return (npMax[nspecies]); }
     double getNpMaxNpRatio()const{ return (NpMaxNpRatio); }
     double getQOM(int nspecies)const{ return (qom[nspecies]); }
     double getRHOinit(int nspecies)const{ return (rhoINIT[nspecies]); }
@@ -145,6 +146,12 @@ class Collective
     int getRestartOutputCycle()const{ return (RestartOutputCycle); }
     int getDiagnosticsOutputCycle()const{ return (DiagnosticsOutputCycle); }
     bool getCallFinalize()const{ return (CallFinalize); }
+    
+    // accessors for derived quantities
+    int get_num_cells_r(){return num_cells_r;}
+    //double get_nxc_r()const{return nxc_per_proc;}
+    //double get_nyc_r()const{return nyc_per_proc;}
+    //double get_nzc_r()const{return nzc_per_proc;}
 
     /*! Boundary condition selection for BCFace for the electric field components */
     int bcEx[6], bcEy[6], bcEz[6];
@@ -194,11 +201,9 @@ class Collective
     double z_center;
     /*! object size - assuming a cubic box */
     double L_square;
-    /*! number of cells - X direction */
+    // number of cells per direction of problem domain
     int nxc;
-    /*! number of cells - Y direction */
     int nyc;
-    /*! number of cells - Z direction */
     int nzc;
     /*! grid spacing - X direction */
     double dx;
@@ -224,10 +229,9 @@ class Collective
     int *npcely;
     /*! number of particles per cell - Z direction */
     int *npcelz;
-    /*! number of particles array for different species */
-    int *np;
-    /*! maximum number of particles array for different species */
-    int *npMax;
+    // either make these of longid type or do not declare them.
+    //int *np; /*! number of particles array for different species */
+    //int *npMax; /*! maximum number of particles array for different species */
     /*! max number of particles */
     double NpMaxNpRatio;
     /*! charge to mass ratio array for different species */
@@ -349,6 +353,22 @@ class Collective
     int DiagnosticsOutputCycle;
     /*! Call Finalize() at end of program execution (true by default) */
     bool CallFinalize;
+
+    // derived parameters
+    //
+    // regular number of cells restricted to process subdomain
+    int num_cells_r;
+    //int num_procs;
+    //int nxc_r;
+    //int nyc_r;
+    //int nzc_r;
+    //int ncells_r; // product of previous three
+    // regular number of particles restricted to process
+    //int* nop_rs;
+    //int* maxnop_per_proc;
+    //double xWidth_r;
+    //double yWidth_r;
+    //double zWidth_r;
 };
 typedef Collective CollectiveIO;
 

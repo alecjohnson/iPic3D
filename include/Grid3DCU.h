@@ -113,6 +113,83 @@ private:
   void init_derived_parameters();
 
   // /////////// PRIVATE VARIABLES //////////////
+  //
+  // Grid conventions:
+  //
+  //   [The purpose of this note is not so much to teach as
+  //   to establish a consistent vocabulary and set of naming
+  //   conventions for grid parameters.]
+  //
+  //   The purpose of iPic3D is to solve a Vlasov-Maxwell
+  //   plasma problem.  Each problem is solved on a box-shaped
+  //   domain and is defined by initial conditions and boundary
+  //   conditions.
+  //
+  //   Conceptually, the full problem domain is solved on
+  //   a "guarded" global grid.  The guarded global grid
+  //   consists of proper grid cells (that partition the domain)
+  //   surrounded by a layer of "guard" or "ghost" cells that are
+  //   used to handle boundary conditions.  At the beginning of
+  //   each cycle of the algorithm, the guard cells are populated
+  //   with data based on the choice of boundary conditions of
+  //   the problem.  Refer to the layer of proper cells just
+  //   inside the guard cells as "(proper) boundary cells".
+  //   Guard cell data is generally populated with data from
+  //   boundary cells.  For periodic boundary conditions, guard
+  //   cell data is simply copied from the appropriate boundary
+  //   cell.  For conducting wall and outflow boundaries, each
+  //   guard cell is populated based on the data from the
+  //   neighboring boundary cell, probably with reflection of
+  //   location and often with negation of some values, depending
+  //   on the type of boundaries involved.
+  //
+  //   The corners of the mesh cells are referred to as
+  //   "nodes".  In iPic3D, electromagnetic field quantities are
+  //   canonically represented as sample values at the nodes, and
+  //   the value of the electromagnetic field in the interior of
+  //   a grid cell is determined by bilinear interpolation of
+  //   the field values at the nodes.  Bilinear interpolation
+  //   is also used when converting between a representation as
+  //   cell-average quantities and a representation as nodal
+  //   samples.  This maintains second-order accuracy in space.
+  //
+  //   To parallelize with MPI, the full domain of the problem
+  //   is partitioned into "(proper) subdomains", one for
+  //   each process, such that the global grid partitions the
+  //   subdomains.  Refer to the grid cells within a subdomain
+  //   as its "(proper) subgrid".  Refer to the outer layer of
+  //   cells within each subgrid as "boundary cells".  The grid
+  //   defined in each process is a "guarded subgrid", which
+  //   consists of the proper subgrid surrounded by a layer of
+  //   guard cells corresponding either to the boundary cells of
+  //   the neighboring subdomain or to ghost cells of the guarded
+  //   global grid.
+  //
+  //   The guard cells thus lie outside the proper physical
+  //   subdomain for which the process is responsible.  Guard
+  //   cells are used to handle boundary conditions and
+  //   interprocess communication.  At the beginning of each
+  //   cycle of the algorithm, the guard cells are repopulated.
+  //   Guard cells outside the problem domain are populated using
+  //   boundary conditions.  Any guard cell inside the problem
+  //   domain is populated from the appropriate boundary cell of
+  //   the appropriate process.
+  //
+  // Conventions for naming of grid quantities:
+  //
+  //   n = number
+  //   x = x-direction
+  //   y = y-direction
+  //   z = z-direction
+  //   c = cell of grid
+  //   n = node of grid
+  //   
+  //   nxc = number of x cells (in guarded grid)
+  //   nxn = number of x nodes (in guarded grid)
+  //
+  //   nxc_g = number of x cells in guarded/"greater"/padded subgrid
+  //   nxc_r = number of x cells in "real"/"restricted"/proper subgrid
+  //   
 private:
   /** number of cells - X direction, including + 2 (guard cells) */
   int nxc;
@@ -147,6 +224,11 @@ private:
   int cxlast; // nxc-1;
   int cylast; // nyc-1;
   int czlast; // nzc-1;
+  // number of cells excluding guard cells
+  // (i.e. restricted to proper subdomain)
+  int nxc_r;
+  int nyc_r;
+  int nzc_r;
   /** node coordinate */
   pfloat *pfloat_node_xcoord;
   pfloat *pfloat_node_ycoord;
@@ -158,7 +240,7 @@ private:
   double *center_xcoord;
   double *center_ycoord;
   double *center_zcoord;
-  /** local grid boundaries coordinate  */
+  /** local grid boundaries coordinate of proper subdomain */
   double xStart, xEnd, yStart, yEnd, zStart, zEnd;
 
 public: // accessors (inline)
@@ -168,6 +250,9 @@ public: // accessors (inline)
   int getNYN()const{ return (nyn); }
   int getNZC()const{ return (nzc); }
   int getNZN()const{ return (nzn); }
+  int get_nxc_r()const{return nxc_r;}
+  int get_nyc_r()const{return nyc_r;}
+  int get_nzc_r()const{return nzc_r;}
   double getDX()const{ return (dx); }
   double getDY()const{ return (dy); }
   double getDZ()const{ return (dz); }

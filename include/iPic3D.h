@@ -102,9 +102,6 @@ namespace iPic3D {
     int nprocs;
     int myrank;
     int nsat;
-    int nx0;
-    int ny0;
-    int nz0;
     int nDistributionBins;
     double Eenergy;
     double Benergy;

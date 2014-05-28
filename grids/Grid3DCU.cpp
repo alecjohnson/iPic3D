@@ -9,68 +9,97 @@
 
 /*! constructor */
 Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct) {
-  if(!MPIdata::get_rank())
-  {
-    fflush(stdout);
-    bool xerror = false;
-    bool yerror = false;
-    bool zerror = false;
-    if((col->getNxc()) % (vct->getXLEN())) xerror=true;
-    if((col->getNyc()) % (vct->getYLEN())) yerror=true;
-    if((col->getNzc()) % (vct->getZLEN())) zerror=true;
-    if(xerror) printf("!!!ERROR: XLEN=%d does not divide nxc=%d\n", vct->getXLEN(),col->getNxc());
-    if(yerror) printf("!!!ERROR: YLEN=%d does not divide nyc=%d\n", vct->getYLEN(),col->getNyc());
-    if(zerror) printf("!!!ERROR: ZLEN=%d does not divide nzc=%d\n", vct->getZLEN(),col->getNzc());
-    fflush(stdout);
-    bool error = xerror||yerror||zerror;
-    if(error) exit(1);
-  }
-  // add 2 for the guard cells
-  nxc = (col->getNxc()) / (vct->getXLEN()) + 2;
-  nyc = (col->getNyc()) / (vct->getYLEN()) + 2;
-  nzc = (col->getNzc()) / (vct->getZLEN()) + 2;
-  dx = col->getLx() / col->getNxc();
-  dy = col->getLy() / col->getNyc();
-  dz = col->getLz() / col->getNzc();
+
+  // get regular number of cells restricted to subdomain
+  //
+  const int nxc_rr = ceil(col->getNxc() / double(col->getXLEN()));
+  const int nyc_rr = ceil(col->getNyc() / double(col->getYLEN()));
+  const int nzc_rr = ceil(col->getNzc() / double(col->getZLEN()));
+
+  nxc_r = nxc_rr;
+  nyc_r = nyc_rr;
+  nzc_r = nzc_rr;
+
+  // Truncate the number of cells appropriately in the upper process.
+  // (We truncate rather than extend to avoid causing any load imbalance.)
+  //
+  if(vct->isXupper()) nxc_r = col->getNxc()-nxc_r*(col->getXLEN()-1);
+  if(vct->isYupper()) nyc_r = col->getNyc()-nyc_r*(col->getYLEN()-1);
+  if(vct->isZupper()) nzc_r = col->getNzc()-nzc_r*(col->getZLEN()-1);
+  //
+  assert_lt(0,nxc_r); assert_le(nxc_r,nxc_rr);
+  assert_lt(0,nyc_r); assert_le(nyc_r,nyc_rr);
+  assert_lt(0,nzc_r); assert_le(nzc_r,nzc_rr);
+
+  // These restrictions should be removed.
+  //
+  // An objection to removing them is that the user can always
+  // increase the number of mesh cells appropriately to be a
+  // multiple of XLEN, but as a rejoinder, it is desirable to be
+  // able to change the number of processors without changing
+  // the discretized problem in any way and without divisibility
+  // restrictions.
+  //
+  assert_divides(vct->getXLEN(), col->getNxc());
+  assert_divides(vct->getYLEN(), col->getNyc());
+  assert_divides(vct->getZLEN(), col->getNzc());
+  //
+  assert_eq(nxc_r,nxc_rr);
+  assert_eq(nyc_r,nyc_rr);
+  assert_eq(nzc_r,nzc_rr);
+
+  // add two for ghost cells
+  nxc = nxc_r + 2;
+  nyc = nyc_r + 2;
+  nzc = nzc_r + 2;
+
+  dx = col->getDx();
+  dy = col->getDy();
+  dz = col->getDz();
+  assert(dx == col->getLx() / col->getNxc());
+  assert(dy == col->getLy() / col->getNyc());
+  assert(dz == col->getLz() / col->getNzc());
 
   // local grid dimensions and boundaries of active nodes
+  //
+  // width of an ordinary mesh cell
   //
   const double xWidth = (col->getLx() / (double) vct->getXLEN());
   const double yWidth = (col->getLy() / (double) vct->getYLEN());
   const double zWidth = (col->getLz() / (double) vct->getZLEN());
-  assert_almost_eq(dx*(nxc-2),xWidth,dx*1e-8);
-  assert_almost_eq(dy*(nyc-2),yWidth,dy*1e-8);
-  assert_almost_eq(dz*(nzc-2),zWidth,dz*1e-8);
+  assert_almost_eq(dx*(nxc_r),xWidth,dx*1e-8);
+  assert_almost_eq(dy*(nyc_r),yWidth,dy*1e-8);
+  assert_almost_eq(dz*(nzc_r),zWidth,dz*1e-8);
   //
   xStart = vct->getCoordinates(0) * xWidth;
   yStart = vct->getCoordinates(1) * yWidth;
   zStart = vct->getCoordinates(2) * zWidth;
   //
-  xEnd = xStart + xWidth;
-  yEnd = yStart + yWidth;
-  zEnd = zStart + zWidth;
+  xEnd = xStart + xWidth - (nxc_rr-nxc_r)*dx;
+  yEnd = yStart + yWidth - (nyc_rr-nyc_r)*dy;
+  zEnd = zStart + zWidth - (nzc_rr-nzc_r)*dz;
 
   init_derived_parameters();
 }
 
-Grid3DCU::Grid3DCU(
-  int nxc_, int nyc_, int nzc_,
-  double dx_, double dy_, double dz_,
-  double xStart_, double yStart_, double zStart_)
-: nxc(nxc_), nyc(nyc_), nzc(nzc_),
-  dx(dx_), dy(dy_), dz(dz_),
-  xStart(xStart_), yStart(yStart_), zStart(zStart_)
-{
-  const double xWidth = dx*(nxc-2);
-  const double yWidth = dy*(nyc-2);
-  const double zWidth = dz*(nzc-2);
-
-  xEnd = xStart + xWidth;
-  yEnd = yStart + yWidth;
-  zEnd = zStart + zWidth;
-
-  init_derived_parameters();
-}
+//Grid3DCU::Grid3DCU(
+//  int nxc_, int nyc_, int nzc_,
+//  double dx_, double dy_, double dz_,
+//  double xStart_, double yStart_, double zStart_)
+//: nxc(nxc_), nyc(nyc_), nzc(nzc_),
+//  dx(dx_), dy(dy_), dz(dz_),
+//  xStart(xStart_), yStart(yStart_), zStart(zStart_)
+//{
+//  const double xWidth = dx*(nxc-2);
+//  const double yWidth = dy*(nyc-2);
+//  const double zWidth = dz*(nzc-2);
+//
+//  xEnd = xStart + xWidth;
+//  yEnd = yStart + yWidth;
+//  zEnd = zStart + zWidth;
+//
+//  init_derived_parameters();
+//}
 
 // set derived convenience
 void Grid3DCU::init_derived_parameters()
@@ -110,6 +139,8 @@ void Grid3DCU::init_derived_parameters()
   for(int i=0; i<nxc; i++) center_xcoord[i] = .5*(node_xcoord[i]+node_xcoord[i+1]);
   for(int j=0; j<nyc; j++) center_ycoord[j] = .5*(node_ycoord[j]+node_ycoord[j+1]);
   for(int k=0; k<nzc; k++) center_zcoord[k] = .5*(node_zcoord[k]+node_zcoord[k+1]);
+  //num_cells_r = nxc_r*nyc_r*nzc_r;
+  //num_cells = nxc*nyc*nzc;
 }
 
 /** deallocate the local grid */

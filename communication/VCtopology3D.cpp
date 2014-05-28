@@ -98,12 +98,12 @@ void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
   //  eprintf("A process is thrown away from the new topology for Particles.");
   //}
 
-  _isPeriodicXlower = PERIODICX && coordinates[0]==0;
-  _isPeriodicXupper = PERIODICX && coordinates[0]==dims[0];
-  _isPeriodicYlower = PERIODICY && coordinates[1]==0;
-  _isPeriodicYupper = PERIODICY && coordinates[1]==dims[1];
-  _isPeriodicZlower = PERIODICZ && coordinates[2]==0;
-  _isPeriodicZupper = PERIODICZ && coordinates[2]==dims[2];
+  _isPeriodicXlower = PERIODICX && isXlower();
+  _isPeriodicXupper = PERIODICX && isXupper();
+  _isPeriodicYlower = PERIODICY && isYlower();
+  _isPeriodicYupper = PERIODICY && isYupper();
+  _isPeriodicZlower = PERIODICZ && isZlower();
+  _isPeriodicZupper = PERIODICZ && isZupper();
 
   _noXlowerNeighbor = (getXleft() == MPI_PROC_NULL);
   _noXupperNeighbor = (getXrght() == MPI_PROC_NULL);

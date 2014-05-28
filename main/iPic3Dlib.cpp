@@ -77,9 +77,6 @@ int c_Solver::Init(int argc, char **argv) {
   col->setGlobalStartIndex(vct);
 #endif
 
-  nx0 = col->getNxc() / vct->getXLEN(); // get the number of cells in x for each processor
-  ny0 = col->getNyc() / vct->getYLEN(); // get the number of cells in y for each processor
-  nz0 = col->getNzc() / vct->getZLEN(); // get the number of cells in z for each processor
   // Print the initial settings to stdout and a file
   if (myrank == 0) {
     MPIdata::instance().Print();
@@ -134,11 +131,14 @@ int c_Solver::Init(int argc, char **argv) {
     // wave = new Planewave(col, EMf, grid, vct);
     // wave->Wave_Rotated(part); // Single Plane Wave
     for (int i = 0; i < ns; i++)
+    {
       if      (col->getCase()=="ForceFree") part[i].force_free(EMf);
 #ifdef BATSRUS
       else if (col->getCase()=="BATSRUS")   part[i].MaxwellianFromFluid(EMf,col,i);
 #endif
       else                                  part[i].maxwellian(EMf);
+      part[i].reserve_remaining_particle_IDs();
+    }
   }
 
   // Initialize the output (simulation results and restart file)
@@ -189,6 +189,9 @@ int c_Solver::Init(int argc, char **argv) {
   // if(myrank==0)
   ofstream my_file(cqsat.c_str(), fstream::binary);
   nsat = 3;
+  const int nx0 = grid->get_nxc_r();
+  const int ny0 = grid->get_nyc_r();
+  const int nz0 = grid->get_nzc_r();
   for (int isat = 0; isat < nsat; isat++) {
     for (int jsat = 0; jsat < nsat; jsat++) {
       for (int ksat = 0; ksat < nsat; ksat++) {
@@ -438,6 +441,9 @@ void c_Solver::WriteVirtualSatelliteTraces()
   assert_eq(ns,4);
 
   ofstream my_file(cqsat.c_str(), fstream::app);
+  const int nx0 = grid->get_nxc_r();
+  const int ny0 = grid->get_nyc_r();
+  const int nz0 = grid->get_nzc_r();
   for (int isat = 0; isat < nsat; isat++) {
     for (int jsat = 0; jsat < nsat; jsat++) {
       for (int ksat = 0; ksat < nsat; ksat++) {

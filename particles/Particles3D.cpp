@@ -203,7 +203,7 @@ void Particles3D::maxwellian(Field * EMf)
       const double x = (ii + .5) * (dx / npcelx) + grid->getXN(i, j, k);
       const double y = (jj + .5) * (dy / npcely) + grid->getYN(i, j, k);
       const double z = (kk + .5) * (dz / npcelz) + grid->getZN(i, j, k);
-      _pcls.push_back(SpeciesParticle(u,v,w,q,x,y,z,0.));
+      create_new_particle(u,v,w,q,x,y,z);
     }
   }
   //dprintf("capacity=%d, size=%d", _pcls.capacity(), getNOP());
@@ -248,7 +248,7 @@ void Particles3D::force_free(Field * EMf)
           uth, vth, wth,
           flvx, flvy, flvz);
       }
-      _pcls.push_back(SpeciesParticle(u,v,w,q,x,y,z,0));
+      create_new_particle(u,v,w,q,x,y,z);
     }
   }
 }
@@ -1136,7 +1136,7 @@ inline void Particles3D::populate_cell_with_particles(
   for (int jj=0; jj < npcely; jj++)
   for (int kk=0; kk < npcelz; kk++)
   {
-    double u,v,w,q,x,y,z,t=0.;
+    double u,v,w,q,x,y,z;
     sample_maxwellian(
       u,v,w,
       uth, vth, wth,
@@ -1144,7 +1144,7 @@ inline void Particles3D::populate_cell_with_particles(
     x = (ii + sample_u_double())*dx_per_pcl + cell_low_x;
     y = (jj + sample_u_double())*dy_per_pcl + cell_low_y;
     z = (kk + sample_u_double())*dz_per_pcl + cell_low_z;
-    add_new_particle(u,v,w,q_per_particle,x,y,z,0.);
+    create_new_particle(u,v,w,q_per_particle,x,y,z);
   }
 }
 
