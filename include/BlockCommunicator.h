@@ -4,6 +4,7 @@
 #include "asserts.h"
 #include "debug.h" // temporary
 #include "aligned_vector.h"
+#include "MPIdata.h"
 #include <list>
 #include <mpi.h> // is there a way to forward declare mpi types?
 
@@ -50,6 +51,19 @@ class Connection
   int _tag; // tag to attach to messages
   MPI_Comm _comm; // communicator group
  public: // init
+  // construct a connection that creates self-communication
+  // in place of null connection
+  static Connection null2self(int rank_, int tag_)
+  {
+    Connection c(rank_,tag_);
+    if(c._rank==MPI_PROC_NULL)
+    {
+      c._rank = MPIdata::get_rank();
+      // is this needed?
+      // c._comm = MPI_COMM_SELF;
+    }
+    return c;
+  }
   Connection():
     _rank(0),
     _tag(0),
@@ -640,6 +654,8 @@ class BlockCommunicator
   {
     assert(!fetch_curr_block().isfull());
     fetch_curr_block().set_finished_flag();
+    if(connection_is_null())
+      return;
     send_block();
     //commState=FINISHED;
   }

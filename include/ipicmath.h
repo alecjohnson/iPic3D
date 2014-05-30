@@ -126,10 +126,19 @@ inline double sample_maxwellian(
   w = w0 + wt*w;
 }
 
+// add or subtract multiples of L until x lies
+// between 0 and L.
+//
 /** RIFAI QUESTA PARTE questo e' la tomba delle performance*/
-inline void MODULO(double *x, double L)
+//inline void MODULO(double *x, double L)
+//{
+//  *x = *x - floor(*x / L) * L;
+//}
+// version of previous method that assumes Linv = 1/L
+// (faster if 1/L is precomputed)
+inline double modulo(double x, double L, double Linv)
 {
-  *x = *x - floor(*x / L) * L;
+  return x - floor(x * Linv) * L;
 }
 
 #endif

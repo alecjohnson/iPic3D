@@ -64,6 +64,7 @@ class SpeciesParticle
   double get_q()const{ return q; }
   double get_x(int i)const{ return x[i]; }
   double get_t()const{ return t; }
+  void set_u(double* in, int n=3) { for(int i=0;i<n;i++) u[i] = in[i]; }
   void set_u(int i, double in) { u[i] = in; }
   void set_q(double in) { q = in; }
   void set_x(int i, double in) { x[i] = in; }

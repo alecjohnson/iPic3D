@@ -39,23 +39,16 @@ public:
 
   // communicate particles between processes
  private:
-  void apply_boundary_conditions(
-    SpeciesParticle& pcl,
-    bool isBoundaryProcess,
-    bool noXlowerNeighbor, bool noXupperNeighbor,
-    bool noYlowerNeighbor, bool noYupperNeighbor,
-    bool noZlowerNeighbor, bool noZupperNeighbor);
-  bool send_pcl_to_appropriate_buffer(
-    SpeciesParticle& pcl,
-    bool hasXlowerNeighbor, bool hasXupperNeighbor,
-    bool hasYlowerNeighbor, bool hasYupperNeighbor,
-    bool hasZlowerNeighbor, bool hasZupperNeighbor,
-    bool isPeriodicXlower, bool isPeriodicXupper,
-    bool isPeriodicYlower, bool isPeriodicYupper,
-    bool isPeriodicZlower, bool isPeriodicZupper);
   void flush_send();
+  bool send_pcl_to_appropriate_buffer(SpeciesParticle& pcl);
   int handle_received_particles();
  public:
+  virtual void apply_Xleft_BC(aligned_vector(SpeciesParticle)& pcls);
+  virtual void apply_Yleft_BC(aligned_vector(SpeciesParticle)& pcls);
+  virtual void apply_Zleft_BC(aligned_vector(SpeciesParticle)& pcls);
+  virtual void apply_Xrght_BC(aligned_vector(SpeciesParticle)& pcls);
+  virtual void apply_Yrght_BC(aligned_vector(SpeciesParticle)& pcls);
+  virtual void apply_Zrght_BC(aligned_vector(SpeciesParticle)& pcls);
   int communicate_particles();
   void pad_capacities();
  private:

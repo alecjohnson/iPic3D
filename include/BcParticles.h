@@ -20,7 +20,7 @@ namespace BCparticles
 {
   enum Enum
   {
-    NO_BOUNDARY = 0,
+    EXIT = 0,
     PERFECT_MIRROR = 1,
     REEMISSION = 2
   };
@@ -42,7 +42,7 @@ inline void BCpclLeft(double& x, double& u, double& v, double& w, double Lx, dou
       sample_maxwellian(u,v,w, ut,vt,wt);
       u = fabs(u);
       break;
-    case BCparticles::NO_BOUNDARY:
+    case BCparticles::EXIT:
       break;
   }
 }
@@ -62,7 +62,7 @@ inline void BCpclRight(double& x, double& u, double& v, double& w, double Lx, do
       sample_maxwellian(u,v,w, ut,vt,wt);
       u = -fabs(u);
       break;
-    case BCparticles::NO_BOUNDARY:
+    case BCparticles::EXIT:
       break;
   }
 }

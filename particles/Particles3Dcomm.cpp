@@ -72,20 +72,20 @@ Particles3Dcomm::Particles3Dcomm(
   // communicators for particles
   //
   // X direction
-  sendXleft(Connection(vct->getXleft(),Connection::XDN)),
-  sendXrght(Connection(vct->getXrght(),Connection::XUP)),
-  recvXleft(Connection(vct->getXleft(),Connection::XUP)),
-  recvXrght(Connection(vct->getXrght(),Connection::XDN)),
+  sendXleft(Connection::null2self(vct->getXleft(),Connection::XDN)),
+  sendXrght(Connection::null2self(vct->getXrght(),Connection::XUP)),
+  recvXleft(Connection::null2self(vct->getXleft(),Connection::XUP)),
+  recvXrght(Connection::null2self(vct->getXrght(),Connection::XDN)),
   // Y
-  sendYleft(Connection(vct->getYleft(),Connection::YDN)),
-  sendYrght(Connection(vct->getYrght(),Connection::YUP)),
-  recvYleft(Connection(vct->getYleft(),Connection::YUP)),
-  recvYrght(Connection(vct->getYrght(),Connection::YDN)),
+  sendYleft(Connection::null2self(vct->getYleft(),Connection::YDN)),
+  sendYrght(Connection::null2self(vct->getYrght(),Connection::YUP)),
+  recvYleft(Connection::null2self(vct->getYleft(),Connection::YUP)),
+  recvYrght(Connection::null2self(vct->getYrght(),Connection::YDN)),
   // Z
-  sendZleft(Connection(vct->getZleft(),Connection::ZDN)),
-  sendZrght(Connection(vct->getZrght(),Connection::ZUP)),
-  recvZleft(Connection(vct->getZleft(),Connection::ZUP)),
-  recvZrght(Connection(vct->getZrght(),Connection::ZDN))
+  sendZleft(Connection::null2self(vct->getZleft(),Connection::ZDN)),
+  sendZrght(Connection::null2self(vct->getZrght(),Connection::ZUP)),
+  recvZleft(Connection::null2self(vct->getZleft(),Connection::ZUP)),
+  recvZrght(Connection::null2self(vct->getZrght(),Connection::ZDN))
 {
   recvXleft.post_recvs();
   recvXrght.post_recvs();
@@ -474,102 +474,57 @@ void Particles3Dcomm::resize_SoA(int nop)
 // unless we also restrict the distance moved by a particle in
 // each (subcycle) step.
 //
-inline void Particles3Dcomm::apply_boundary_conditions(
-  SpeciesParticle& pcl,
-  bool isBoundaryProcess,
-  bool noXlowerNeighbor, bool noXupperNeighbor,
-  bool noYlowerNeighbor, bool noYupperNeighbor,
-  bool noZlowerNeighbor, bool noZupperNeighbor)
-{
-  if(isBoundaryProcess)
-  {
-    double& x = pcl.fetch_x();
-    double& y = pcl.fetch_y();
-    double& z = pcl.fetch_z();
-    double& u = pcl.fetch_u();
-    double& v = pcl.fetch_v();
-    double& w = pcl.fetch_w();
-    if (noXlowerNeighbor && pcl.get_x() < 0)
-      BCpclLeft(x,u,v,w,Lx,uth,vth,wth,bcPfaceXleft);
-    else if (noXupperNeighbor && pcl.get_x() > Lx)
-      BCpclRight(x,u,v,w,Lx,uth,vth,wth,bcPfaceXright);
-    if (noYlowerNeighbor && pcl.get_y() < 0)
-      BCpclLeft(y,u,v,w,Ly,uth,vth,wth,bcPfaceYleft);
-    else if (noYupperNeighbor && pcl.get_y() > Ly)
-      BCpclRight(y,u,v,w,Ly,uth,vth,wth,bcPfaceYright);
-    if (noZlowerNeighbor && pcl.get_z() < 0)
-      BCpclLeft(z,u,v,w,Lz,uth,vth,wth,bcPfaceZleft);
-    else if (noZupperNeighbor && pcl.get_z() > Lz)
-      BCpclRight(z,u,v,w,Lz,uth,vth,wth,bcPfaceZright);
-  }
-}
+//inline void Particles3Dcomm::apply_boundary_conditions(
+//  SpeciesParticle& pcl,
+//  bool isBoundaryProcess,
+//  bool noXlowerNeighbor, bool noXupperNeighbor,
+//  bool noYlowerNeighbor, bool noYupperNeighbor,
+//  bool noZlowerNeighbor, bool noZupperNeighbor)
+//{
+//  if(isBoundaryProcess)
+//  {
+//    double& x = pcl.fetch_x();
+//    double& y = pcl.fetch_y();
+//    double& z = pcl.fetch_z();
+//    double& u = pcl.fetch_u();
+//    double& v = pcl.fetch_v();
+//    double& w = pcl.fetch_w();
+//    if (noXlowerNeighbor && pcl.get_x() < 0)
+//      BCpclLeft(x,u,v,w,Lx,uth,vth,wth,bcPfaceXleft);
+//    else if (noXupperNeighbor && pcl.get_x() > Lx)
+//      BCpclRight(x,u,v,w,Lx,uth,vth,wth,bcPfaceXright);
+//    if (noYlowerNeighbor && pcl.get_y() < 0)
+//      BCpclLeft(y,u,v,w,Ly,uth,vth,wth,bcPfaceYleft);
+//    else if (noYupperNeighbor && pcl.get_y() > Ly)
+//      BCpclRight(y,u,v,w,Ly,uth,vth,wth,bcPfaceYright);
+//    if (noZlowerNeighbor && pcl.get_z() < 0)
+//      BCpclLeft(z,u,v,w,Lz,uth,vth,wth,bcPfaceZleft);
+//    else if (noZupperNeighbor && pcl.get_z() > Lz)
+//      BCpclRight(z,u,v,w,Lz,uth,vth,wth,bcPfaceZright);
+//  }
+//}
 
 // returns true if particle was sent
 //
-inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
-  SpeciesParticle& pcl,
-  bool hasXlowerNeighbor, bool hasXupperNeighbor,
-  bool hasYlowerNeighbor, bool hasYupperNeighbor,
-  bool hasZlowerNeighbor, bool hasZupperNeighbor,
-  bool isPeriodicXlower, bool isPeriodicXupper,
-  bool isPeriodicYlower, bool isPeriodicYupper,
-  bool isPeriodicZlower, bool isPeriodicZupper)
+// should vectorize this by comparing position vectors
+//
+inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(SpeciesParticle& pcl)
 {
   bool was_sent = true;
-  
   // put particle in appropriate communication buffer if exiting
-  //
-  // (should change to do this immediately after pushing it so that
-  // only once pass through particles is necessary and so that
-  // communication can overlap computation)
-  //
-  if(hasXlowerNeighbor && pcl.get_x() < xstart)
-  {
-    // handle periodic boundary conditions only when wrapping particles
-    // This should be handled when reading wrapped particles out
-    // of the buffer so that no conditional has to be executed here.
-    if(isPeriodicXlower && pcl.get_x() < 0) pcl.fetch_x() += Lx;
-    // put it in the communication buffer
+  if(pcl.get_x() < xstart)
     sendXleft.send(pcl);
-  }
-  else if(hasXupperNeighbor && pcl.get_x() > xend)
-  {
-    // handle periodic boundary conditions only when wrapping particles
-    if(isPeriodicXupper && pcl.get_x() > Lx) pcl.fetch_x() -= Lx;
-    // put it in the communication buffer
+  else if(pcl.get_x() > xend)
     sendXrght.send(pcl);
-  }
-  else if(hasYlowerNeighbor && pcl.get_y() < ystart)
-  {
-    // handle periodic boundary conditions only when wrapping particles
-    if(isPeriodicYlower && pcl.get_y() < 0) pcl.fetch_y() += Ly;
-    // put it in the communication buffer
+  else if(pcl.get_y() < ystart)
     sendYleft.send(pcl);
-  }
-  else if(hasYupperNeighbor && pcl.get_y() > yend)
-  {
-    // handle periodic boundary conditions only when wrapping particles
-    if(isPeriodicYupper && pcl.get_y() > Ly) pcl.fetch_y() -= Ly;
+  else if(pcl.get_y() > yend)
     sendYrght.send(pcl);
-  }
-  else if(hasZlowerNeighbor && pcl.get_z() < zstart)
-  {
-    // handle periodic boundary conditions only when wrapping particles
-    if(isPeriodicZlower && pcl.get_z() < 0) pcl.fetch_z() += Lz;
-    // put it in the communication buffer
+  else if(pcl.get_z() < zstart)
     sendZleft.send(pcl);
-  }
-  else if(hasZupperNeighbor && pcl.get_z() > zend)
-  {
-    // handle periodic boundary conditions only when wrapping particles
-    if(isPeriodicZupper && pcl.get_z() > Lz) pcl.fetch_z() -= Lz;
-    // put it in the communication buffer
+  else if(pcl.get_z() > zend)
     sendZrght.send(pcl);
-  }
-  else {
-    // particle is still in the domain, procede with the next particle
-    was_sent = false;
-  }
+  else was_sent = false;
   return was_sent;
 }
 
@@ -591,11 +546,28 @@ void Particles3Dcomm::flush_send()
 //
 int Particles3Dcomm::handle_received_particles()
 {
+  const int num_recv_buffers = 6;
+  // determine the periodicity shift for each incoming buffer
+  bool apply_shift[num_recv_buffers] =
+  {
+    vct->isPeriodicXlower(), vct->isPeriodicXupper(),
+    vct->isPeriodicYlower(), vct->isPeriodicYupper(),
+    vct->isPeriodicZlower(), vct->isPeriodicZupper()
+  };
+  bool apply_BCs[num_recv_buffers] =
+  {
+    vct->noXlowerNeighbor(), vct->noXupperNeighbor(),
+    vct->noYlowerNeighbor(), vct->noYupperNeighbor(),
+    vct->noZlowerNeighbor(), vct->noZupperNeighbor()
+  };
+  // The documentation in the input file says that boundary conditions
+  // are simply ignored in the periodic case, so I omit this check.
+  //for(int i=0;i<6;i++)assert(!(apply_shift[i]&&apply_BCs[i]));
+
   int num_pcls_resent = 0;
   // receive incoming particles, 
   // immediately resending any exiting particles
   //
-  const int num_recv_buffers = 6;
   MPI_Request recv_requests[num_recv_buffers] = 
   {
     recvXleft.get_curr_request(), recvXrght.get_curr_request(),
@@ -608,26 +580,6 @@ int Particles3Dcomm::handle_received_particles()
     &recvYleft, &recvYrght,
     &recvZleft, &recvZrght
   };
-
-  const bool noXlowerNeighbor = vct->noXlowerNeighbor();
-  const bool noXupperNeighbor = vct->noXupperNeighbor();
-  const bool noYlowerNeighbor = vct->noYlowerNeighbor();
-  const bool noYupperNeighbor = vct->noYupperNeighbor();
-  const bool noZlowerNeighbor = vct->noZlowerNeighbor();
-  const bool noZupperNeighbor = vct->noZupperNeighbor();
-  const bool isBoundaryProcess = vct->isBoundaryProcess();
-  const bool hasXlowerNeighbor = !vct->noXlowerNeighbor();
-  const bool hasXupperNeighbor = !vct->noXupperNeighbor();
-  const bool hasYlowerNeighbor = !vct->noYlowerNeighbor();
-  const bool hasYupperNeighbor = !vct->noYupperNeighbor();
-  const bool hasZlowerNeighbor = !vct->noZlowerNeighbor();
-  const bool hasZupperNeighbor = !vct->noZupperNeighbor();
-  const bool isPeriodicXlower = vct->isPeriodicXlower();
-  const bool isPeriodicXupper = vct->isPeriodicXupper();
-  const bool isPeriodicYlower = vct->isPeriodicYlower();
-  const bool isPeriodicYupper = vct->isPeriodicYupper();
-  const bool isPeriodicZlower = vct->isPeriodicZlower();
-  const bool isPeriodicZupper = vct->isPeriodicZupper();
 
   // while there are still incoming particles
   // put them in the appropriate buffer
@@ -645,34 +597,97 @@ int Particles3Dcomm::handle_received_particles()
     assert_ge(recv_index,0);
     assert_lt(recv_index,num_recv_buffers);
     //
-    // code specific to the receive buffer could be handled with a
-    // switch(recv_index) code block.
-    //
     // grab the received block of particles and process it
     //
     BlockCommunicator<SpeciesParticle>* recvBuff = recvBuffArr[recv_index];
     Block<SpeciesParticle>& recv_block
       = recvBuff->fetch_received_block(recv_status);
 
+    // if appropriate apply periodicity shift for this block
+    //
+    // I prefer to use modulo rather than a simple shift.
+    // modulo guarantees an upper bound on the number of
+    // communications needed before the particles are in
+    // their correct domain.  Otherwise, the existence of
+    // a single "OMG" particle can result in an unbounded
+    // number of communication cycles.
+    //
+    if(apply_shift[recv_index])
+    {
+      aligned_vector(SpeciesParticle)& pcl_list = recv_block.fetch_block();
+      switch(recv_index)
+      {
+        default:
+          invalid_value_error(recv_index);
+        case 0:
+        case 1:
+          double Lxinv = 1/Lx;
+          for(int pidx=0;pidx<pcl_list.size();pidx++)
+          {
+            double& x = pcl_list[pidx].fetch_x();
+            x = modulo(x, Lx, Lxinv);
+            // if(recv_index==0) x -= Lx; else x += Lx;
+          }
+          break;
+        case 2:
+        case 3:
+          double Lyinv = 1/Ly;
+          for(int pidx=0;pidx<pcl_list.size();pidx++)
+          {
+            double& y = pcl_list[pidx].fetch_y();
+            y = modulo(y, Ly, Lyinv);
+            // if(recv_index==2) y -= Ly; else y += Ly;
+          }
+          break;
+        case 4:
+        case 5:
+          double Lzinv = 1/Lz;
+          for(int pidx=0;pidx<pcl_list.size();pidx++)
+          {
+            double& z = pcl_list[pidx].fetch_z();
+            z = modulo(z, Lz, Lzinv);
+            // if(recv_index==4) z -= Lz; else z += Lz;
+          }
+          break;
+      }
+    }
+    // if appropriate apply boundary conditions to this block
+    else if(apply_BCs[recv_index])
+    {
+      aligned_vector(SpeciesParticle)& pcl_list = recv_block.fetch_block();
+      switch(recv_index)
+      {
+        default:
+          invalid_value_error(recv_index);
+        case 0: assert(vct->noXlowerNeighbor());
+          apply_Xleft_BC(pcl_list);
+          break;
+        case 1: assert(vct->noXupperNeighbor());
+          apply_Xrght_BC(pcl_list);
+          break;
+        case 2: assert(vct->noYlowerNeighbor());
+          apply_Yleft_BC(pcl_list);
+          break;
+        case 3: assert(vct->noYupperNeighbor());
+          apply_Yrght_BC(pcl_list);
+          break;
+        case 4: assert(vct->noZlowerNeighbor());
+          apply_Zleft_BC(pcl_list);
+          break;
+        case 5: assert(vct->noZupperNeighbor());
+          apply_Zrght_BC(pcl_list);
+          break;
+      }
+    }
+
     // process each particle in the received block.
     //
-    for(int i=0;i<recv_block.size();i++)
+    for(int pidx=0;pidx<recv_block.size();pidx++)
     {
-      SpeciesParticle& pcl = recv_block[i];
-      apply_boundary_conditions(pcl,
-        isBoundaryProcess,
-        noXlowerNeighbor, noXupperNeighbor,
-        noYlowerNeighbor, noYupperNeighbor,
-        noZlowerNeighbor, noZupperNeighbor);
-      bool was_sent = send_pcl_to_appropriate_buffer(pcl,
-        hasXlowerNeighbor, hasXupperNeighbor,
-        hasYlowerNeighbor, hasYupperNeighbor,
-        hasZlowerNeighbor, hasZupperNeighbor,
-        isPeriodicXlower, isPeriodicXupper,
-        isPeriodicYlower, isPeriodicYupper,
-        isPeriodicZlower, isPeriodicZupper);
+      SpeciesParticle& pcl = recv_block[pidx];
+      bool was_sent = send_pcl_to_appropriate_buffer(pcl);
 
-      if(was_sent)
+      if(__builtin_expect(was_sent,false))
       {
         num_pcls_resent++;
       }
@@ -701,6 +716,204 @@ static long long mpi_global_sum(int in)
   MPI_Allreduce(&long_in, &total, 1, MPI_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
 }
 
+// these methods should be made virtual
+// so that the user can override boundary conditions.
+//
+void Particles3Dcomm::apply_Xleft_BC(
+  aligned_vector(SpeciesParticle)& pcls)
+{
+  switch(bcPfaceXleft)
+  {
+    default:
+      unsupported_value_error(bcPfaceXleft);
+    case BCparticles::PERFECT_MIRROR:
+      for(int p=0;p<pcls.size();p++)
+      {
+        pcls[p].fetch_x() *= -1;
+        pcls[p].fetch_u() *= -1;
+      }
+      break;
+    case BCparticles::REEMISSION:
+      // in this case it might be faster to convert to and
+      // from SoA format, if calls to rand() can vectorize.
+      for(int p=0;p<pcls.size();p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        pcl.fetch_x() *= -1;
+        double u[3];
+        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
+        u[0] = fabs(u[0]);
+        pcl.set_u(u);
+      }
+      break;
+    case BCparticles::EXIT:
+      pcls.clear();
+      break;
+  }
+}
+void Particles3Dcomm::apply_Yleft_BC(
+  aligned_vector(SpeciesParticle)& pcls)
+{
+  switch(bcPfaceYleft)
+  {
+    default:
+      unsupported_value_error(bcPfaceYleft);
+    case BCparticles::PERFECT_MIRROR:
+      for(int p=0;p<pcls.size();p++)
+      {
+        pcls[p].fetch_y() *= -1;
+        pcls[p].fetch_v() *= -1;
+      }
+      break;
+    case BCparticles::REEMISSION:
+      // in this case it might be faster to convert to and
+      // from SoA format, if calls to rand() can vectorize.
+      for(int p=0;p<pcls.size();p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        pcl.fetch_y() *= -1;
+        double u[3];
+        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
+        u[1] = fabs(u[1]);
+        pcl.set_u(u);
+      }
+      break;
+    case BCparticles::EXIT:
+      pcls.clear();
+      break;
+  }
+}
+void Particles3Dcomm::apply_Zleft_BC(
+  aligned_vector(SpeciesParticle)& pcls)
+{
+  switch(bcPfaceZleft)
+  {
+    default:
+      unsupported_value_error(bcPfaceZleft);
+    case BCparticles::PERFECT_MIRROR:
+      for(int p=0;p<pcls.size();p++)
+      {
+        pcls[p].fetch_z() *= -1;
+        pcls[p].fetch_w() *= -1;
+      }
+      break;
+    case BCparticles::REEMISSION:
+      // in this case it might be faster to convert to and
+      // from SoA format, if calls to rand() can vectorize.
+      for(int p=0;p<pcls.size();p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        pcl.fetch_z() *= -1;
+        double u[3];
+        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
+        u[2] = fabs(u[2]);
+        pcl.set_u(u);
+      }
+      break;
+    case BCparticles::EXIT:
+      pcls.clear();
+      break;
+  }
+}
+void Particles3Dcomm::apply_Xrght_BC(
+  aligned_vector(SpeciesParticle)& pcls)
+{
+  switch(bcPfaceXright)
+  {
+    default:
+      unsupported_value_error(bcPfaceXright);
+    case BCparticles::PERFECT_MIRROR:
+      for(int p=0;p<pcls.size();p++)
+      {
+        double& x = pcls[p].fetch_x();
+        x = 2*Lx - x;
+        pcls[p].fetch_u() *= -1;
+      }
+      break;
+    case BCparticles::REEMISSION:
+      // in this case it might be faster to convert to and
+      // from SoA format, if calls to rand() can vectorize.
+      for(int p=0;p<pcls.size();p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        double& x = pcl.fetch_x();
+        x = 2*Lx - x;
+        double u[3];
+        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
+        u[0] = -fabs(u[0]);
+        pcl.set_u(u);
+      }
+      break;
+    case BCparticles::EXIT:
+      pcls.clear();
+      break;
+  }
+}
+void Particles3Dcomm::apply_Yrght_BC(
+  aligned_vector(SpeciesParticle)& pcls)
+{
+  switch(bcPfaceYright)
+  {
+    default:
+      unsupported_value_error(bcPfaceYright);
+    case BCparticles::PERFECT_MIRROR:
+      for(int p=0;p<pcls.size();p++)
+      {
+        double& y = pcls[p].fetch_y();
+        y = 2*Ly - y;
+        pcls[p].fetch_v() *= -1;
+      }
+      break;
+    case BCparticles::REEMISSION:
+      for(int p=0;p<pcls.size();p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        double& y = pcl.fetch_y();
+        y = 2*Ly - y;
+        double u[3];
+        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
+        v[0] = -fabs(v[0]);
+        pcl.set_u(u);
+      }
+      break;
+    case BCparticles::EXIT:
+      pcls.clear();
+      break;
+  }
+}
+void Particles3Dcomm::apply_Zrght_BC(
+  aligned_vector(SpeciesParticle)& pcls)
+{
+  switch(bcPfaceZright)
+  {
+    default:
+      unsupported_value_error(bcPfaceZright);
+    case BCparticles::PERFECT_MIRROR:
+      for(int p=0;p<pcls.size();p++)
+      {
+        double& z = pcls[p].fetch_z();
+        z = 2*Lz - z;
+        pcls[p].fetch_w() *= -1;
+      }
+      break;
+    case BCparticles::REEMISSION:
+      for(int p=0;p<pcls.size();p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        double& z = pcl.fetch_z();
+        z = 2*Lz - z;
+        double u[3];
+        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
+        w[0] = -fabs(w[0]);
+        pcl.set_u(u);
+      }
+      break;
+    case BCparticles::EXIT:
+      pcls.clear();
+      break;
+  }
+}
+
 // exchange particles with neighboring processors
 //
 // sent particles are deleted from _pcls.
@@ -727,56 +940,26 @@ int Particles3Dcomm::communicate_particles()
   sendYleft.send_start(); sendYrght.send_start();
   sendZleft.send_start(); sendZrght.send_start();
 
-  const bool noXlowerNeighbor = vct->noXlowerNeighbor();
-  const bool noXupperNeighbor = vct->noXupperNeighbor();
-  const bool noYlowerNeighbor = vct->noYlowerNeighbor();
-  const bool noYupperNeighbor = vct->noYupperNeighbor();
-  const bool noZlowerNeighbor = vct->noZlowerNeighbor();
-  const bool noZupperNeighbor = vct->noZupperNeighbor();
-  const bool isBoundaryProcess = vct->isBoundaryProcess();
-  const bool hasXlowerNeighbor = !vct->noXlowerNeighbor();
-  const bool hasXupperNeighbor = !vct->noXupperNeighbor();
-  const bool hasYlowerNeighbor = !vct->noYlowerNeighbor();
-  const bool hasYupperNeighbor = !vct->noYupperNeighbor();
-  const bool hasZlowerNeighbor = !vct->noZlowerNeighbor();
-  const bool hasZupperNeighbor = !vct->noZupperNeighbor();
-  const bool isPeriodicXlower = vct->isPeriodicXlower();
-  const bool isPeriodicXupper = vct->isPeriodicXupper();
-  const bool isPeriodicYlower = vct->isPeriodicYlower();
-  const bool isPeriodicYupper = vct->isPeriodicYupper();
-  const bool isPeriodicZlower = vct->isPeriodicZlower();
-  const bool isPeriodicZupper = vct->isPeriodicZupper();
-
   const int orig_size = _pcls.size();
   int np_current = 0;
   while(np_current < _pcls.size())
   {
     SpeciesParticle& pcl = _pcls[np_current];
-    // should change to enforce boundary conditions at conclusion of push,
-    // when particles are still in SoA format.
-    //
-    // a better way to do this would be to separate out these
-    // particles by "sending" them to the appropriate communicator
-    // with a null connection and then go through that list of
-    // particles and handle them (probably along with transposing
-    // such list to SoA for efficient processing).
-    apply_boundary_conditions(pcl,
-      isBoundaryProcess,
-      noXlowerNeighbor, noXupperNeighbor,
-      noYlowerNeighbor, noYupperNeighbor,
-      noZlowerNeighbor, noZupperNeighbor);
     // if the particle is exiting, put it in the appropriate send bin;
     // this could be done at conclusion of push after particles are
     // converted to AoS format in order to overlap communication
     // with computation.
-    bool was_sent = send_pcl_to_appropriate_buffer(pcl,
-      hasXlowerNeighbor, hasXupperNeighbor,
-      hasYlowerNeighbor, hasYupperNeighbor,
-      hasZlowerNeighbor, hasZupperNeighbor,
-      isPeriodicXlower, isPeriodicXupper,
-      isPeriodicYlower, isPeriodicYupper,
-      isPeriodicZlower, isPeriodicZupper);
-    if(was_sent)
+    bool was_sent = send_pcl_to_appropriate_buffer(pcl);
+
+    // fill in hole; for the sake of data pipelining could change
+    // this to make a list of holes and then go back and fill
+    // them in, but will builtin_expect also allow efficient
+    // pipelining?  Or does the compiler generate instructions
+    // that automatically adjust pipelining based on
+    // accumulated statistical branching behavior?
+    //
+    // optimizer should assume that most particles are not sent
+    if(__builtin_expect(was_sent,false))
     {
       //dprintf("sent particle %d", np_current);
       delete_particle(np_current);
@@ -792,10 +975,11 @@ int Particles3Dcomm::communicate_particles()
   // flush sending of particles
   flush_send();
 
-  // receive and redistribute particles once for
-  // each dimension of space without doing an
-  // all-reduce to check if any particles are
-  // actually being communicated.
+  // most likely exactly three particle communications
+  // will be needed, one for each dimension of space,
+  // so we begin with three receives and thereafter
+  // before each receive we do an all-reduce to check
+  // if more particles actually need to be received.
   int num_pcls_resent;
   for(int i=0;i<3;i++)
   {
@@ -810,12 +994,23 @@ int Particles3Dcomm::communicate_particles()
   //
   long long total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
   dprint(total_num_pcls_resent);
+  // the maximum number of neighbor communications needed to
+  // put a particle in the correct mesh cell.
+  int comm_limit = 3*std::max(vct->getXLEN(),
+    std::max(vct->getYLEN(), vct->getYLEN()));
+  int comm_idx=0;
   while(total_num_pcls_resent)
   {
+    if(comm_idx>=comm_limit);
+    {
+      eprintf("failed to complete particle communication"
+        " within %d communications", comm_limit);
+    }
     flush_send();
     num_pcls_resent = handle_received_particles();
     total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
     dprint(total_num_pcls_resent);
+    comm_idx++;
   }
   print_pcls(_pcls,0,0);
 }
