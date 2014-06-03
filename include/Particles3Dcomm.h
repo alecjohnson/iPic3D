@@ -320,6 +320,8 @@ protected:
   //
   /** buffers for communication */
   //
+  // communicator for this species (duplicated from MPI_COMM_WORLD)
+  MPI_Comm mpi_comm;
   // send buffers
   //
   BlockCommunicator<SpeciesParticle> sendXleft;

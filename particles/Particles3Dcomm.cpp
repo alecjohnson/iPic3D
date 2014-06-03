@@ -51,6 +51,7 @@ using std::endl;
 /** deallocate particles */
 Particles3Dcomm::~Particles3Dcomm() {
   // extra xavg for sort
+  MPI_Comm_free(&mpi_comm);
   delete numpcls_in_bucket;
   delete numpcls_in_bucket_now;
   delete bucket_offset;
@@ -67,26 +68,27 @@ Particles3Dcomm::Particles3Dcomm(
   vct(vct_),
   grid(grid_),
   pclIDgenerator(),
-  particleType(ParticleType::AoS),
-  //
+  particleType(ParticleType::AoS)
+{
   // communicators for particles
   //
+  MPI_Comm_dup(MPI_COMM_WORLD, &mpi_comm);
   // X direction
-  sendXleft(Connection::null2self(vct->getXleft(),Connection::XDN)),
-  sendXrght(Connection::null2self(vct->getXrght(),Connection::XUP)),
-  recvXleft(Connection::null2self(vct->getXleft(),Connection::XUP)),
-  recvXrght(Connection::null2self(vct->getXrght(),Connection::XDN)),
-  // Y
-  sendYleft(Connection::null2self(vct->getYleft(),Connection::YDN)),
-  sendYrght(Connection::null2self(vct->getYrght(),Connection::YUP)),
-  recvYleft(Connection::null2self(vct->getYleft(),Connection::YUP)),
-  recvYrght(Connection::null2self(vct->getYrght(),Connection::YDN)),
-  // Z
-  sendZleft(Connection::null2self(vct->getZleft(),Connection::ZDN)),
-  sendZrght(Connection::null2self(vct->getZrght(),Connection::ZUP)),
-  recvZleft(Connection::null2self(vct->getZleft(),Connection::ZUP)),
-  recvZrght(Connection::null2self(vct->getZrght(),Connection::ZDN))
-{
+  sendXleft.init(Connection::null2self(vct->getXleft(),Connection::XDN,mpi_comm));
+  sendXrght.init(Connection::null2self(vct->getXrght(),Connection::XUP,mpi_comm));
+  recvXleft.init(Connection::null2self(vct->getXleft(),Connection::XUP,mpi_comm));
+  recvXrght.init(Connection::null2self(vct->getXrght(),Connection::XDN,mpi_comm));
+  // Y                                                                         
+  sendYleft.init(Connection::null2self(vct->getYleft(),Connection::YDN,mpi_comm));
+  sendYrght.init(Connection::null2self(vct->getYrght(),Connection::YUP,mpi_comm));
+  recvYleft.init(Connection::null2self(vct->getYleft(),Connection::YUP,mpi_comm));
+  recvYrght.init(Connection::null2self(vct->getYrght(),Connection::YDN,mpi_comm));
+  // Z                                                                         
+  sendZleft.init(Connection::null2self(vct->getZleft(),Connection::ZDN,mpi_comm));
+  sendZrght.init(Connection::null2self(vct->getZrght(),Connection::ZUP,mpi_comm));
+  recvZleft.init(Connection::null2self(vct->getZleft(),Connection::ZUP,mpi_comm));
+  recvZrght.init(Connection::null2self(vct->getZrght(),Connection::ZDN,mpi_comm));
+
   recvXleft.post_recvs();
   recvXrght.post_recvs();
   recvYleft.post_recvs();
@@ -566,6 +568,20 @@ void Particles3Dcomm::flush_send()
 //
 int Particles3Dcomm::handle_received_particles()
 {
+  // we expect to receive at least one communication from every
+  // communicator, so make sure that all receive buffers are clear
+  // and waiting
+  //
+  recvXleft.recv_start(); recvXrght.recv_start();
+  recvYleft.recv_start(); recvYrght.recv_start();
+  recvZleft.recv_start(); recvZrght.recv_start();
+
+  // make sure that current block in each sender is ready for sending
+  //
+  sendXleft.send_start(); sendXrght.send_start();
+  sendYleft.send_start(); sendYrght.send_start();
+  sendZleft.send_start(); sendZrght.send_start();
+
   const int num_recv_buffers = 6;
   // determine the periodicity shift for each incoming buffer
   bool apply_shift[num_recv_buffers] =
@@ -603,6 +619,13 @@ int Particles3Dcomm::handle_received_particles()
     &recvYleft, &recvYrght,
     &recvZleft, &recvZrght
   };
+
+  assert(!recvXleft.comm_finished());
+  assert(!recvXrght.comm_finished());
+  assert(!recvYleft.comm_finished());
+  assert(!recvYrght.comm_finished());
+  assert(!recvZleft.comm_finished());
+  assert(!recvZrght.comm_finished());
 
   // while there are still incoming particles
   // put them in the appropriate buffer
@@ -743,6 +766,7 @@ int Particles3Dcomm::handle_received_particles()
   dprintf("spec %d #pcls recved = %d", ns, num_pcls_recved);
   dprintf("spec %d #pcls resent = %d", ns, num_pcls_resent);
   // return the number of particles that were resent
+
   return num_pcls_resent;
 }
 
@@ -1015,8 +1039,6 @@ int Particles3Dcomm::communicate_particles()
     send_count[0], send_count[1], send_count[2],
     send_count[3], send_count[4], send_count[5]);
   dprintf("spec %d #pcls sent = %d", ns, num_pcls_sent);
-  // flush sending of particles
-  flush_send();
 
   // most likely exactly three particle communications
   // will be needed, one for each dimension of space,
@@ -1026,9 +1048,10 @@ int Particles3Dcomm::communicate_particles()
   int num_pcls_resent;
   for(int i=0;i<3;i++)
   {
+    // flush sending of particles
+    flush_send();
     num_pcls_resent = handle_received_particles();
     //dprintf("spec %d #pcls resent = %d", ns, num_pcls_resent);
-    flush_send();
   }
 
   // continue receiving and resending incoming particles until
@@ -1048,8 +1071,11 @@ int Particles3Dcomm::communicate_particles()
     if(comm_idx>=comm_limit);
       eprintf("failed to complete particle communication"
         " within %d communications", comm_limit);
+
+    // flush sending of particles
     flush_send();
     num_pcls_resent = handle_received_particles();
+
     total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
     dprint(total_num_pcls_resent);
     comm_idx++;

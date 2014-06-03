@@ -5,6 +5,7 @@
 #include "debug.h" // temporary
 #include "aligned_vector.h"
 #include "MPIdata.h"
+#include "Parameters.h"
 #include <list>
 #include <mpi.h> // is there a way to forward declare mpi types?
 
@@ -53,9 +54,9 @@ class Connection
  public: // init
   // construct a connection that creates self-communication
   // in place of null connection
-  static Connection null2self(int rank_, int tag_)
+  static Connection null2self(int rank_, int tag_, MPI_Comm comm_ = MPI_COMM_WORLD)
   {
-    Connection c(rank_,tag_);
+    Connection c(rank_,tag_,comm_);
     if(c._rank==MPI_PROC_NULL)
     {
       c._rank = MPIdata::get_rank();
@@ -70,12 +71,12 @@ class Connection
     _tag(0),
     _comm(MPI_COMM_WORLD)
   {}
-  Connection(int rank_, int tag_, const MPI_Comm& comm_ = MPI_COMM_WORLD)
+  Connection(int rank_, int tag_, MPI_Comm comm_ = MPI_COMM_WORLD)
   {
     init(rank_,tag_,comm_);
   }
  private:
-  void init(int rank_, int tag_, const MPI_Comm& comm_ = MPI_COMM_WORLD)
+  void init(int rank_, int tag_, MPI_Comm comm_ = MPI_COMM_WORLD)
   {
     _rank = rank_;
     _tag = tag_;
@@ -102,7 +103,7 @@ class Connection
 
 inline bool signal_hack()
 {
-  return false;
+  return true;
 }
 
 // block of elements
@@ -113,7 +114,7 @@ struct Block
   // change the block to use an aligned allocator
   aligned_vector(type) block;
   int capacity;
-  int id;
+  int listID;
   // used for MPI communication
   MPI_Request request;
   // hack to piggy-back information onto message
@@ -126,7 +127,7 @@ struct Block
  public:
   Block(int capacity_, int id_):
     capacity(capacity_),
-    id(id_),
+    listID(id_),
     request(MPI_REQUEST_NULL),
     signal(0)
   {
@@ -145,7 +146,7 @@ struct Block
   MPI_Request& fetch_request(){return request;}
   aligned_vector(type)& fetch_block(){return block;}
   const aligned_vector(type)& get_block()const{return block;}
-  int get_id(){ return id; }
+  int get_id(){ return listID; }
   void set_finished_flag() { signal |= 2; }
   void unset_finished_flag() { signal &= ~2; }
   bool finished_flag_is_set() { return signal & 2; }
@@ -207,36 +208,32 @@ struct Block
   {
     block.push_back(in);
   }
-  void send(const Connection& dest)
+  void send_block(const Connection& dest, int commID)
   {
-    assert_le(block.size(), capacity);
-    bool last_block = (block.size() < capacity);
+    const int nop = size();
+    assert_le(nop, capacity);
+    bool last_block = (nop < capacity);
     // hack: put signal in an extra "particle"
     if(signal_hack())
     {
-      type signal_element;
-      // convert signal to double and put in signal_element
-      *((double*) &signal_element) = double(signal);
-      push_back(signal_element);
+      type extra_element;
+      double* extra_arr = (double*) &extra_element;
+      assert(sizeof(type) >= sizeof(double)*2);
+      // convert signal to double and put in extra_element
+      extra_arr[0] = double(signal);
+      // convert block ID to double and put in extra_element
+      extra_arr[1] = double(commID);
+      push_back(extra_element);
     }
 
-    if(last_block)
-    {
-      //dprintf("sending final block (#%d) to %d.%s of size %d", id,
-      //  dest.rank(),
-      //  dest.tag_name(),
-      //  size());
-    }
-    else
-    {
-      //dprintf("sending block (#%d) to %d.%s of size %d", id,
-      //  dest.rank(),
-      //  dest.tag_name(),
-      //  size());
-    }
+    dprintf("sending%s block (listID %d), (commID %d) to %d.%s of size %d",
+      (last_block ? " final" : ""),
+      listID, commID,
+      dest.rank(), dest.tag_name(),
+      nop);
     MPI_Isend(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
       dest.rank(), dest.tag(), dest.comm(), &request);
-    //dprintf("finished sending block number %d", id);
+    //dprintf("finished sending block number %d", listID);
   }
   void waitfor_send()
   {
@@ -255,7 +252,7 @@ struct Block
   }
  public: // receiving
   // post a receive
-  void recv(const Connection& source)
+  void recv_block(const Connection& source)
   {
     // verify that there is no receive already posted
     assert(request==MPI_REQUEST_NULL);
@@ -273,6 +270,7 @@ struct Block
   bool shrink_received_block(MPI_Status& status)
   {
     int count;
+    int commID = -1;
     MPI_Get_count(&status, MPI_DOUBLE, &count);
     int num_elements_received = count / NUMBERS_PER_ELEMENT;
     // hack: handle the signal particle
@@ -281,7 +279,9 @@ struct Block
       // discount signal particle
       num_elements_received--;
       // extract signal from signal element
-      signal = int(*((double*)&block[num_elements_received]));
+      double* extra_arr = (double*) &block[num_elements_received];
+      signal = int(extra_arr[0]);
+      commID = int(extra_arr[1]);
     }
     else
     {
@@ -299,6 +299,11 @@ struct Block
     assert_le(num_elements_received,capacity);
     // shrink to eliminate the trailing garbage
     block.resize(num_elements_received);
+    dprintf("received%s block (listID %d), (commID %d) of size %d",
+      (finished_flag_is_set() ? " final" : ""),
+      listID, commID,
+      //dest.rank(), dest.tag_name(),
+      block.size());
     return retval;
   }
   void waitfor_recv()
@@ -366,33 +371,48 @@ class BlockCommunicator
   //std::list<Block<type>*> blockList;
   Connection connection;
   int blocksize;
-  int nextid;
+  // for generating the ID of the block as a list element
+  int nextListID;
+  // for generating the ID of the block as a message
+  int nextCommID;
   int commState;
  // methods
  public: // construction
   BlockCommunicator():
     connection(),
     blocksize(0),
-    nextid(0),
+    nextListID(0),
+    nextCommID(0),
     commState(NONE)
   {}
-  BlockCommunicator(Connection connection_, int blocksize_, int numblocks);
+  BlockCommunicator(Connection connection_,
+    int blocksize_, int numblocks)
+  {
+    commState=NONE;
+    init(connection_,blocksize_,numblocks);
+  }
+  BlockCommunicator(Connection connection_)
+  {
+    commState=NONE;
+    init(connection_);
+  }
   void init(Connection connection_, int blocksize_, int numblocks);
-  BlockCommunicator(Connection connection_);
-  void init(Connection connection_);
+  void init(Connection connection_)
+  {
+    init(connection_, Parameters::get_blockSize(), Parameters::get_numBlocks());
+  }
  //protected: // if destructor is public then it should be virtual
-  ~BlockCommunicator();
+  ~BlockCommunicator()
+  {
+    std::list<void*>::iterator i;
+    for(i=blockList.begin(); i != blockList.end(); ++i)
+      delete &fetch_block(i);
+  }
  // information access
  //
  public:
   const Connection& get_connection()const{return connection;}
  private: // access
-  bool connection_is_null()
-  {
-    assert(connection.rank()!=MPI_PROC_NULL);
-    return false;
-    //return connection.rank()==MPI_PROC_NULL;
-  }
   // mimic behavior of a ring
   void increment_block(std::list<void*>::iterator& block_iter)
   {
@@ -438,7 +458,7 @@ class BlockCommunicator
  public: // receiving operations
 
   // insert blocks prior to the current block
-  // and call recv on them.
+  // and call recv_block on them.
   //
   // If there is nowhere to write an incoming message, then I
   // suppose that a good MPI implementation would buffer it
@@ -459,9 +479,9 @@ class BlockCommunicator
   {
     for(int i=0;i<numblocks;i++)
     {
-      Block<type>* newBlock = new Block<type>(blocksize, nextid++);
+      Block<type>* newBlock = new Block<type>(blocksize, nextListID++);
       blockList.insert(curr_block, newBlock);
-      newBlock->recv(connection);
+      newBlock->recv_block(connection);
     }
   }
  public: // receiving operations
@@ -506,7 +526,7 @@ class BlockCommunicator
   void release_received_block()
   {
     // post receive again and proceed to next block
-    fetch_curr_block().recv(connection);
+    fetch_curr_block().recv_block(connection);
     increment_curr_block();
     assert(fetch_curr_block().is_active());
   }
@@ -535,13 +555,11 @@ class BlockCommunicator
  public:
   void post_recvs()
   {
-    if(connection_is_null())
-      return;
     std::list<void*>::iterator b;
     for(b=blockList.begin(); b != blockList.end(); ++b)
     {
       assert(fetch_block(b).is_inactive());
-      fetch_block(b).recv(connection);
+      fetch_block(b).recv_block(connection);
     }
     // reset curr_block to initial block
     curr_block = blockList.begin();
@@ -550,11 +568,6 @@ class BlockCommunicator
  public:
   void recv_start()
   {
-    if(connection_is_null())
-    {
-      commState=FINISHED;
-      return;
-    }
     // make sure that receives are posted on all block
     std::list<void*>::iterator b;
     for(b=blockList.begin(); b != blockList.end(); ++b)
@@ -570,10 +583,10 @@ class BlockCommunicator
  //
  private:
   // assumes that there is a block to send
-  void send_block()
+  void send_curr_block()
   {
     // send the block
-    fetch_curr_block().send(connection);
+    fetch_curr_block().send_block(connection,nextCommID++);
     // proceed to next block
     increment_curr_block();
     // start communication
@@ -595,15 +608,7 @@ class BlockCommunicator
     // if the block is full, send it
     if(__builtin_expect(fetch_curr_block().isfull(),false))
     {
-      if(connection_is_null())
-      {
-        // simply increase the capacity
-        fetch_curr_block().increase_capacity();
-      }
-      else
-      {
-        send_block();
-      }
+      send_curr_block();
       return true;
     }
     return false;
@@ -612,11 +617,6 @@ class BlockCommunicator
   // a still-active send request on it
   void send_start()
   {
-    if(connection_is_null())
-    {
-      fetch_curr_block().clear();
-      return;
-    }
     // if current block is still communicating,
     // either wait for it or insert another block 
     // and use it instead.
@@ -628,10 +628,11 @@ class BlockCommunicator
         // if next block is still sending, insert another block to
         // use instead as next_block
         //
-        Block<type>* newBlock = new Block<type>(blocksize, nextid);
+        Block<type>* newBlock = new Block<type>(blocksize, nextListID++);
         blockList.insert(curr_block,newBlock);
         curr_block--;
         assert(*curr_block == newBlock);
+        dprintf("inserted new block %d",nextListID-1);
 
         // hack: set flag in currblock to tell receiver
         // to insert another block for receiving
@@ -661,9 +662,7 @@ class BlockCommunicator
   {
     assert(!fetch_curr_block().isfull());
     fetch_curr_block().set_finished_flag();
-    if(connection_is_null())
-      return;
-    send_block();
+    send_curr_block();
     //commState=FINISHED;
   }
   //void clear_send()
@@ -688,58 +687,24 @@ class BlockCommunicator
 #include "Parameters.h"
 
 template <typename type>
-BlockCommunicator<type>::BlockCommunicator(Connection connection_,
-  int blocksize_, int numblocks)
-{
-  commState=NONE;
-  init(connection_,blocksize_,numblocks);
-}
-template <typename type>
-BlockCommunicator<type>::BlockCommunicator(Connection connection_)
-{
-  commState=NONE;
-  init(connection_);
-}
-
-template <typename type>
-void BlockCommunicator<type>::init(Connection connection_)
-{
-  if(connection_is_null())
-  {
-    // might as well use a single block in this case
-    init(connection_, Parameters::get_blockSize(), 1);
-  }
-  else
-  {
-    init(connection_, Parameters::get_blockSize(), Parameters::get_numBlocks());
-  }
-}
-template <typename type>
 void BlockCommunicator<type>::init(Connection connection_, int blocksize_, int numblocks)
 {
   assert(commState==NONE);
   connection = connection_;
   blocksize = blocksize_;
   commState = INITIAL;
+  nextCommID = 0;
 
   assert(blocksize>0);
   assert(numblocks>0);
-  for(nextid=0;nextid<numblocks;nextid++)
+  for(nextListID=0;nextListID<numblocks;nextListID++)
   {
-    Block<type>* newBlock = new Block<type>(blocksize, nextid);
+    Block<type>* newBlock = new Block<type>(blocksize, nextListID);
     blockList.push_back(newBlock);
   }
   curr_block = blockList.begin();
-
 }
 
-template <typename type>
-BlockCommunicator<type>::~BlockCommunicator()
-{
-  std::list<void*>::iterator i;
-  for(i=blockList.begin(); i != blockList.end(); ++i)
-    delete &fetch_block(i);
-}
 //#include <iosfwd> // for ostream
 //
 //inline std::ostream& operator<<(std::ostream& os, const Block<Particle>& block_)
