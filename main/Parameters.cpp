@@ -41,7 +41,8 @@ bool Parameters::get_RESORTING_PARTICLES() { return RESORTING_PARTICLES; }
 bool Parameters::get_SORTING_PARTICLES() { return SORTING_PARTICLES; }
 bool Parameters::get_SORTING_SOA() { return SORTING_SOA; }
 bool Parameters::get_USING_AOS() { return USING_AOS; }
-int Parameters::get_blockSize() { return 64; }
+// int Parameters::get_blockSize() { return 64; }
+int Parameters::get_blockSize() { return 2048; }
 int Parameters::get_numBlocks() { return 4; }
 
 //bool Parameters::get_RESORTING_PARTICLES() { return true; }

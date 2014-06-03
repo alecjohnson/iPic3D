@@ -132,7 +132,7 @@ void VCtopology3D::Print() {
   cout << "Processors grid: " << XLEN << "x" << YLEN << "x" << ZLEN << endl;
   cout << "Periodicity X: " << periods[0] << endl;
   cout << "Periodicity Y: " << periods[1] << endl;
-  cout << "Periodicity z: " << periods[2] << endl;
+  cout << "Periodicity Z: " << periods[2] << endl;
   cout << endl;
 }
 /** print cartesian rank of neighbors and coordinate of process */

@@ -62,6 +62,7 @@ class Connection
       // is this needed?
       // c._comm = MPI_COMM_SELF;
     }
+    dprintf("direction %s is %d",c.tag_name(),c._rank);
     return c;
   }
   Connection():
@@ -79,7 +80,6 @@ class Connection
     _rank = rank_;
     _tag = tag_;
     _comm = comm_;
-    dprintf("direction %s is %d",tag_name(),_rank);
   }
  public: // accessors
   int rank()const{return _rank;}
@@ -384,10 +384,14 @@ class BlockCommunicator
   ~BlockCommunicator();
  // information access
  //
+ public:
+  const Connection& get_connection()const{return connection;}
  private: // access
   bool connection_is_null()
   {
-    return connection.rank()==MPI_PROC_NULL;
+    assert(connection.rank()!=MPI_PROC_NULL);
+    return false;
+    //return connection.rank()==MPI_PROC_NULL;
   }
   // mimic behavior of a ring
   void increment_block(std::list<void*>::iterator& block_iter)
@@ -439,16 +443,17 @@ class BlockCommunicator
   // If there is nowhere to write an incoming message, then I
   // suppose that a good MPI implementation would buffer it
   // somewhere until we post a receive that can accept it, rather
-  // than blocking on the completing the send.  If MPI provides a
+  // than blocking on completing the send.  If MPI provides a
   // mechanism to query how much such intermediate buffering is
   // happening then we could use it as a trigger to insert more
   // receive blocks, but I don't know of such a mechanism.
   //
   // Alternatively, I think that we can take the number of send
-  // blocks needed to keep from having to wait for sends to
-  // complete as a reasonable indicator of the number of receive
-  // blocks needed to avoid having to buffer.  So when the sender
-  // adds more blocks, it can signal the receiver to do likewise.
+  // blocks that we need to have in order to keep from having
+  // to wait for sends to complete as a reasonable indicator
+  // of the number of receive blocks needed to avoid having to
+  // buffer.  So when the sender adds more blocks, it can signal
+  // the receiver to do likewise.
   //
   void insert_more_recv_blocks(int numblocks=1)
   {
@@ -584,6 +589,8 @@ class BlockCommunicator
     //assert_le(fetch_curr_block.size(), fetch_curr_block().get_capacity());
     // append the particle to the block.
     fetch_curr_block().fast_push_back(in);
+    dprintf("sending particle %d in direction %d.%s",
+      int(in.get_t()),connection.rank(), connection.tag_name());
 
     // if the block is full, send it
     if(__builtin_expect(fetch_curr_block().isfull(),false))

@@ -40,7 +40,7 @@ public:
   // communicate particles between processes
  private:
   void flush_send();
-  bool send_pcl_to_appropriate_buffer(SpeciesParticle& pcl);
+  bool send_pcl_to_appropriate_buffer(SpeciesParticle& pcl, int count[6]);
   int handle_received_particles();
  public:
   virtual void apply_Xleft_BC(aligned_vector(SpeciesParticle)& pcls);
@@ -377,10 +377,12 @@ protected:
   double Ninj;
 };
 
-static void print_pcls(aligned_vector(SpeciesParticle)& pcls, int first, int last)
+static void print_pcls(aligned_vector(SpeciesParticle)& pcls, int ns, int first, int last)
 {
+  dprintf("=== species %d ===", ns);
   for(int i=first; i<=last;i++)
   {
+    dprintf("--- particle %d.%d ---", ns,i);
     dprintf("u[%d] = %g", i, pcls[i].get_u());
     dprintf("v[%d] = %g", i, pcls[i].get_v());
     dprintf("w[%d] = %g", i, pcls[i].get_w());

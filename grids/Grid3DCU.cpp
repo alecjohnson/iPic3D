@@ -6,11 +6,12 @@
 #include "CollectiveIO.h"
 #include "ComNodes3D.h" // for communicateCenterBC
 #include "VirtualTopology3D.h"
+#include "debug.h"
 
 /*! constructor */
 Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct) {
 
-  // get regular number of cells restricted to subdomain
+  // get number of cells restricted to regular (untruncated) subdomain
   //
   const int nxc_rr = ceil(col->getNxc() / double(col->getXLEN()));
   const int nyc_rr = ceil(col->getNyc() / double(col->getYLEN()));
@@ -19,6 +20,8 @@ Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct) {
   nxc_r = nxc_rr;
   nyc_r = nyc_rr;
   nzc_r = nzc_rr;
+
+  num_cells_rr = nxc_rr*nyc_rr*nzc_rr;
 
   // Truncate the number of cells appropriately in the upper process.
   // (We truncate rather than extend to avoid causing any load imbalance.)

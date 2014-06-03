@@ -1,6 +1,7 @@
 #include "IDgenerator.h"
 #include "MPIdata.h"
 #include "math.h"
+#include "debug.h"
 
 // Increasing the number of unique IDs to 2^64 would be possible
 // using uint64_t or via large double precision IDs created by
@@ -86,5 +87,6 @@ void doubleIDgenerator::reserve_num_particles(int nop)
   num_threads_in_this_proc = 1;
   counter = new double[num_threads_in_this_proc];
   counter[0] = nop * MPIdata::get_rank();
+  // dprintf("initialized first particle ID to %g", counter[0]);
 }
 

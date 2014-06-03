@@ -173,7 +173,7 @@ Particles3Dcomm::Particles3Dcomm(
   // determine number of cells in this process
   //
   // we calculate in double precision to guard against overflow
-  double dNp = double(col->get_num_cells_r())*col->getNpcel(species_number);
+  double dNp = double(grid->get_num_cells_rr())*col->getNpcel(species_number);
   double dNpmax = dNp * col->getNpMaxNpRatio();
   // ensure that particle index will not overflow 32-bit
   // representation as long as dmaxnop is respected.
@@ -508,23 +508,43 @@ void Particles3Dcomm::resize_SoA(int nop)
 //
 // should vectorize this by comparing position vectors
 //
-inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(SpeciesParticle& pcl)
+inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
+  SpeciesParticle& pcl, int count[6])
 {
-  bool was_sent = true;
+  int was_sent = true;
   // put particle in appropriate communication buffer if exiting
   if(pcl.get_x() < xstart)
+  {
     sendXleft.send(pcl);
+    count[0]++;
+  }
   else if(pcl.get_x() > xend)
+  {
     sendXrght.send(pcl);
+    count[1]++;
+  }
   else if(pcl.get_y() < ystart)
+  {
     sendYleft.send(pcl);
+    count[2]++;
+  }
   else if(pcl.get_y() > yend)
+  {
     sendYrght.send(pcl);
+    count[3]++;
+  }
   else if(pcl.get_z() < zstart)
+  {
     sendZleft.send(pcl);
+    count[4]++;
+  }
   else if(pcl.get_z() > zend)
+  {
     sendZrght.send(pcl);
+    count[5]++;
+  }
   else was_sent = false;
+
   return was_sent;
 }
 
@@ -564,6 +584,9 @@ int Particles3Dcomm::handle_received_particles()
   // are simply ignored in the periodic case, so I omit this check.
   //for(int i=0;i<6;i++)assert(!(apply_shift[i]&&apply_BCs[i]));
 
+  int recv_count[6]={0,0,0,0,0,0};
+  int send_count[6]={0,0,0,0,0,0};
+  int num_pcls_recved = 0;
   int num_pcls_resent = 0;
   // receive incoming particles, 
   // immediately resending any exiting particles
@@ -591,6 +614,7 @@ int Particles3Dcomm::handle_received_particles()
   {
     int recv_index;
     MPI_Status recv_status;
+    dprintf("waiting for receive request");
     MPI_Waitany(num_recv_buffers, recv_requests, &recv_index, &recv_status);
     if(recv_index==MPI_UNDEFINED)
       eprintf("recv_requests contains no active handles");
@@ -679,13 +703,19 @@ int Particles3Dcomm::handle_received_particles()
           break;
       }
     }
+    dprintf("received %d particles from direction %s",
+      recv_block.size(),
+      recvBuff->get_connection().tag_name());
 
+    recv_count[recv_index]+=recv_block.size();
+    num_pcls_recved += recv_block.size();
     // process each particle in the received block.
     //
     for(int pidx=0;pidx<recv_block.size();pidx++)
     {
       SpeciesParticle& pcl = recv_block[pidx];
-      bool was_sent = send_pcl_to_appropriate_buffer(pcl);
+      dprintf("received particle %d", int(pcl.get_t()));
+      bool was_sent = send_pcl_to_appropriate_buffer(pcl, send_count);
 
       if(__builtin_expect(was_sent,false))
       {
@@ -704,6 +734,14 @@ int Particles3Dcomm::handle_received_particles()
     recv_requests[recv_index] = recvBuff->get_curr_request();
   }
 
+  dprintf("recv_count = [%d,%d,%d,%d,%d,%d]",
+    recv_count[0], recv_count[1], recv_count[2],
+    recv_count[3], recv_count[4], recv_count[5]);
+  dprintf("send_count = [%d,%d,%d,%d,%d,%d]",
+    send_count[0], send_count[1], send_count[2],
+    send_count[3], send_count[4], send_count[5]);
+  dprintf("spec %d #pcls recved = %d", ns, num_pcls_recved);
+  dprintf("spec %d #pcls resent = %d", ns, num_pcls_resent);
   // return the number of particles that were resent
   return num_pcls_resent;
 }
@@ -926,7 +964,7 @@ int Particles3Dcomm::communicate_particles()
 {
   timeTasks_set_communicating(); // communicating until end of scope
   convertParticlesToAoS();
-  print_pcls(_pcls,0,0);
+  print_pcls(_pcls,ns,0,0);
 
   // activate receiving
   //
@@ -940,6 +978,7 @@ int Particles3Dcomm::communicate_particles()
   sendYleft.send_start(); sendYrght.send_start();
   sendZleft.send_start(); sendZrght.send_start();
 
+  int send_count[6]={0,0,0,0,0,0};
   const int orig_size = _pcls.size();
   int np_current = 0;
   while(np_current < _pcls.size())
@@ -949,7 +988,7 @@ int Particles3Dcomm::communicate_particles()
     // this could be done at conclusion of push after particles are
     // converted to AoS format in order to overlap communication
     // with computation.
-    bool was_sent = send_pcl_to_appropriate_buffer(pcl);
+    bool was_sent = send_pcl_to_appropriate_buffer(pcl,send_count);
 
     // fill in hole; for the sake of data pipelining could change
     // this to make a list of holes and then go back and fill
@@ -971,7 +1010,11 @@ int Particles3Dcomm::communicate_particles()
   }
   assert_eq(_pcls.size(),np_current);
   const int num_pcls_sent = orig_size - getNOP();
-  dprint(num_pcls_sent);
+  //dprint(num_pcls_sent);
+  dprintf("send_count = [%d,%d,%d,%d,%d,%d]",
+    send_count[0], send_count[1], send_count[2],
+    send_count[3], send_count[4], send_count[5]);
+  dprintf("spec %d #pcls sent = %d", ns, num_pcls_sent);
   // flush sending of particles
   flush_send();
 
@@ -984,7 +1027,7 @@ int Particles3Dcomm::communicate_particles()
   for(int i=0;i<3;i++)
   {
     num_pcls_resent = handle_received_particles();
-    dprint(num_pcls_resent);
+    //dprintf("spec %d #pcls resent = %d", ns, num_pcls_resent);
     flush_send();
   }
 
@@ -993,7 +1036,8 @@ int Particles3Dcomm::communicate_particles()
   // that there are no more particles to be received.
   //
   long long total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
-  dprint(total_num_pcls_resent);
+  dprintf("spec %d pcls resent = %d, %d",
+    ns, num_pcls_resent, total_num_pcls_resent);
   // the maximum number of neighbor communications needed to
   // put a particle in the correct mesh cell.
   int comm_limit = 3*std::max(vct->getXLEN(),
@@ -1002,17 +1046,15 @@ int Particles3Dcomm::communicate_particles()
   while(total_num_pcls_resent)
   {
     if(comm_idx>=comm_limit);
-    {
       eprintf("failed to complete particle communication"
         " within %d communications", comm_limit);
-    }
     flush_send();
     num_pcls_resent = handle_received_particles();
     total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
     dprint(total_num_pcls_resent);
     comm_idx++;
   }
-  print_pcls(_pcls,0,0);
+  //print_pcls(_pcls,ns,0,0);
 }
 
 /** return the Kinetic energy */

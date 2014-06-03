@@ -147,12 +147,6 @@ class Collective
     int getDiagnosticsOutputCycle()const{ return (DiagnosticsOutputCycle); }
     bool getCallFinalize()const{ return (CallFinalize); }
     
-    // accessors for derived quantities
-    int get_num_cells_r(){return num_cells_r;}
-    //double get_nxc_r()const{return nxc_per_proc;}
-    //double get_nyc_r()const{return nyc_per_proc;}
-    //double get_nzc_r()const{return nzc_per_proc;}
-
     /*! Boundary condition selection for BCFace for the electric field components */
     int bcEx[6], bcEy[6], bcEz[6];
     /*! Boundary condition selection for BCFace for the magnetic field components */
@@ -353,22 +347,6 @@ class Collective
     int DiagnosticsOutputCycle;
     /*! Call Finalize() at end of program execution (true by default) */
     bool CallFinalize;
-
-    // derived parameters
-    //
-    // regular number of cells restricted to process subdomain
-    int num_cells_r;
-    //int num_procs;
-    //int nxc_r;
-    //int nyc_r;
-    //int nzc_r;
-    //int ncells_r; // product of previous three
-    // regular number of particles restricted to process
-    //int* nop_rs;
-    //int* maxnop_per_proc;
-    //double xWidth_r;
-    //double yWidth_r;
-    //double zWidth_r;
 };
 typedef Collective CollectiveIO;
 

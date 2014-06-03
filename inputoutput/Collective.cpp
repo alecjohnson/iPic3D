@@ -730,7 +730,7 @@ void Collective::Print() {
   cout << "---------------------" << endl;
   cout << "Number of species    = " << ns << endl;
   for (int i = 0; i < ns; i++)
-    cout << "qom[%d] = " << qom[i] << endl;
+    cout << "qom[" << i << "] = " << qom[i] << endl;
   cout << "x-Length                 = " << Lx << endl;
   cout << "y-Length                 = " << Ly << endl;
   cout << "z-Length                 = " << Lz << endl;
@@ -767,7 +767,7 @@ void Collective::Print() {
     if (uth[is] * dt / dx > .1)
       cout << "OK u_th*dt/dx (species " << is << ") = " << uth[is] * dt / dx << " > .1" << endl;
     else
-      cout << "WARNING.  u_th*dt/dx (species " << is << ") = " << uth[is] * dt / dx << " < .1" << endl;
+      cout << "WARNING. u_th*dt/dx (species " << is << ") = " << uth[is] * dt / dx << " < .1" << endl;
 
     if (vth[is] * dt / dy > .1)
       cout << "OK v_th*dt/dy (species " << is << ") = " << vth[is] * dt / dy << " > .1" << endl;

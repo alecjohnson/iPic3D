@@ -485,10 +485,11 @@ void test_particle_communication()
 void test_pcl_id_generator()
 {
   const int nop=100;
-  doubleIDgenerator pclIDgenerator(0,nop);
-  dprint(pclIDgenerator.getID());
-  dprint(pclIDgenerator.getID());
-  dprint(pclIDgenerator.getID());
+  doubleIDgenerator pclIDgenerator;
+  pclIDgenerator.reserve_particles_in_range(0,nop);
+  dprint(pclIDgenerator.generateID());
+  dprint(pclIDgenerator.generateID());
+  dprint(pclIDgenerator.generateID());
 }
 
 int main(int argc, char **argv)

@@ -229,6 +229,8 @@ private:
   int nxc_r;
   int nyc_r;
   int nzc_r;
+  // number of subdomain cells in a regular (untruncated) subdomain grid
+  int num_cells_rr;
   /** node coordinate */
   pfloat *pfloat_node_xcoord;
   pfloat *pfloat_node_ycoord;
@@ -253,6 +255,7 @@ public: // accessors (inline)
   int get_nxc_r()const{return nxc_r;}
   int get_nyc_r()const{return nyc_r;}
   int get_nzc_r()const{return nzc_r;}
+  int get_num_cells_rr()const{return num_cells_rr;}
   double getDX()const{ return (dx); }
   double getDY()const{ return (dy); }
   double getDZ()const{ return (dz); }
