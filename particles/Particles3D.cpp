@@ -1155,12 +1155,40 @@ void Particles3D::repopulate_particles()
 {
   using namespace BCparticles;
 
+  // if there are no reemission boundaries then no one has anything to do
+  const bool repop_bndry_in_X = !vct->getPERIODICX() &&
+        (bcPfaceXleft == REEMISSION || bcPfaceXright == REEMISSION);
+  const bool repop_bndry_in_Y = !vct->getPERIODICY() &&
+        (bcPfaceYleft == REEMISSION || bcPfaceYright == REEMISSION);
+  const bool repop_bndry_in_Z = !vct->getPERIODICZ() &&
+        (bcPfaceZleft == REEMISSION || bcPfaceZright == REEMISSION);
+  const bool repopulation_boundary_exists =
+        repop_bndry_in_X || repop_bndry_in_Y || repop_bndry_in_Z;
+
+  if(!repopulation_boundary_exists)
+    return;
+
   if (vct->getCartesian_rank()==0){
     cout << "*** Repopulator species " << ns << " ***" << endl;
   }
 
   // if this is not a boundary process then there is nothing to do
   if(!vct->isBoundaryProcess())
+    return;
+
+  // boundaries to repopulate
+  //
+  const bool repopulateXleft = (vct->noXlowerNeighbor() && bcPfaceXleft == REEMISSION);
+  const bool repopulateYleft = (vct->noYlowerNeighbor() && bcPfaceYleft == REEMISSION);
+  const bool repopulateZleft = (vct->noZlowerNeighbor() && bcPfaceZleft == REEMISSION);
+  const bool repopulateXrght = (vct->noXupperNeighbor() && bcPfaceXright == REEMISSION);
+  const bool repopulateYrght = (vct->noYupperNeighbor() && bcPfaceYright == REEMISSION);
+  const bool repopulateZrght = (vct->noZupperNeighbor() && bcPfaceZright == REEMISSION);
+  const bool do_repopulate = 
+       repopulateXleft || repopulateYleft || repopulateZleft
+    || repopulateXrght || repopulateYrght || repopulateZrght;
+  // if this process has no reemission boundaries then there is nothing to do
+  if(!do_repopulate)
     return;
 
   // there are better ways to obtain these values...
@@ -1170,8 +1198,7 @@ void Particles3D::repopulate_particles()
     = (qom/fabs(qom))*(Ninj/FourPI/npcel)*(1.0/grid->getInvVOL());
 
   const int nxc = grid->getNXC();
-  const int nyc = grid->getNYC();
-  const int nzc = grid->getNZC();
+  const int nyc = grid->getNYC(); const int nzc = grid->getNZC();
   // number of cell layers to repopulate at boundary
   const int num_layers = 3;
   const double xLow = num_layers*dx;
@@ -1180,21 +1207,15 @@ void Particles3D::repopulate_particles()
   const double xHgh = Lx-xLow;
   const double yHgh = Ly-yLow;
   const double zHgh = Lz-zLow;
-  // boundaries to repopulate
-  const bool repopulateXleft = (vct->noXlowerNeighbor() && bcPfaceXleft == REEMISSION);
-  const bool repopulateYleft = (vct->noYlowerNeighbor() && bcPfaceYleft == REEMISSION);
-  const bool repopulateZleft = (vct->noZlowerNeighbor() && bcPfaceZleft == REEMISSION);
-  const bool repopulateXrght = (vct->noXupperNeighbor() && bcPfaceXright == REEMISSION);
-  const bool repopulateYrght = (vct->noYupperNeighbor() && bcPfaceYright == REEMISSION);
-  const bool repopulateZrght = (vct->noZupperNeighbor() && bcPfaceZright == REEMISSION);
   if(repopulateXleft || repopulateXrght) assert_gt(nxc, 2*num_layers);
   if(repopulateYleft || repopulateYrght) assert_gt(nyc, 2*num_layers);
   if(repopulateZleft || repopulateZrght) assert_gt(nzc, 2*num_layers);
 
   // delete particles in repopulation layers
   //
+  const int nop_orig = getNOP();
   int pidx = 0;
-  while(pidx < _pcls.size())
+  while(pidx < getNOP())
   {
     SpeciesParticle& pcl = _pcls[pidx];
     // determine whether to delete the particle
@@ -1210,6 +1231,7 @@ void Particles3D::repopulate_particles()
     else
       pidx++;
   }
+  const int nop_remaining = getNOP();
 
   const double dx_per_pcl = dx/npcelx;
   const double dy_per_pcl = dy/npcely;
@@ -1303,10 +1325,16 @@ void Particles3D::repopulate_particles()
       }
     }
   }
+  const int nop_final = getNOP();
+  const int nop_deleted = nop_orig - nop_remaining;
+  const int nop_created = nop_final - nop_remaining;
 
-  if (vct->getCartesian_rank()==0){
-    cout << "*** number of particles " << getNOP() << " ***" << endl;
-  }
+  dprintf("change in # particles: %d - %d + %d = %d",
+    nop_orig, nop_deleted, nop_created, nop_final);
+
+  //if (vct->getCartesian_rank()==0){
+  //  cout << "*** number of particles " << getNOP() << " ***" << endl;
+  //}
 }
 
 /** apply a linear perturbation to particle distribution */

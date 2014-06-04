@@ -70,8 +70,8 @@ class SpeciesParticle
   void set_x(int i, double in) { x[i] = in; }
   void set_t(double in){ t=in; }
   // tracking particles would actually use q for the ID
-  longid get_ID()const{ return (longid) t; }
-  void set_ID(longid in){ t = (longid) in; }
+  longid get_ID()const{ return longid(t); }
+  void set_ID(longid in){ t = double(in); }
   // alternative accessors
   double get_x()const{ return x[0]; }
   double get_y()const{ return x[1]; }

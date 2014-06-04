@@ -757,14 +757,12 @@ int Particles3Dcomm::handle_received_particles()
     recv_requests[recv_index] = recvBuff->get_curr_request();
   }
 
-  dprintf("recv_count = [%d,%d,%d,%d,%d,%d]",
+  dprintf("recv_count: %d+%d+%d+%d+%d+%d=%d",
     recv_count[0], recv_count[1], recv_count[2],
-    recv_count[3], recv_count[4], recv_count[5]);
-  dprintf("send_count = [%d,%d,%d,%d,%d,%d]",
+    recv_count[3], recv_count[4], recv_count[5], num_pcls_recved);
+  dprintf("send_count: %d+%d+%d+%d+%d+%d=%d",
     send_count[0], send_count[1], send_count[2],
-    send_count[3], send_count[4], send_count[5]);
-  dprintf("spec %d #pcls recved = %d", ns, num_pcls_recved);
-  dprintf("spec %d #pcls resent = %d", ns, num_pcls_resent);
+    send_count[3], send_count[4], send_count[5], num_pcls_resent);
   // return the number of particles that were resent
 
   return num_pcls_resent;
@@ -986,9 +984,11 @@ void Particles3Dcomm::apply_Zrght_BC(
 //
 int Particles3Dcomm::communicate_particles()
 {
+  const int num_ids = 1;
+  longid id_list[num_ids] = {0};
   timeTasks_set_communicating(); // communicating until end of scope
   convertParticlesToAoS();
-  print_pcls(_pcls,ns,0,0);
+  print_pcls(_pcls,ns,id_list, num_ids);
 
   // activate receiving
   //

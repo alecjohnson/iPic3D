@@ -379,20 +379,23 @@ protected:
   double Ninj;
 };
 
-static void print_pcls(aligned_vector(SpeciesParticle)& pcls, int ns, int first, int last)
+// find the particles with particular IDs and print them
+static void print_pcls(aligned_vector(SpeciesParticle)& pcls, int ns, longid* id_list, int num_ids)
 {
   dprintf("=== species %d ===", ns);
-  for(int i=first; i<=last;i++)
+  for(int pidx=0; pidx<pcls.size();pidx++)
+  for(int i=0;i<num_ids;i++)
+  if(pcls[pidx].get_ID()==id_list[i])
   {
-    dprintf("--- particle %d.%d ---", ns,i);
-    dprintf("u[%d] = %g", i, pcls[i].get_u());
-    dprintf("v[%d] = %g", i, pcls[i].get_v());
-    dprintf("w[%d] = %g", i, pcls[i].get_w());
-    dprintf("q[%d] = %g", i, pcls[i].get_q());
-    dprintf("x[%d] = %g", i, pcls[i].get_x());
-    dprintf("y[%d] = %g", i, pcls[i].get_y());
-    dprintf("z[%d] = %g", i, pcls[i].get_z());
-    dprintf("t[%d] = %g", i, pcls[i].get_t());
+    dprintf("--- particle %d.%d ---", ns,pidx);
+    dprintf("u[%d] = %g", pidx, pcls[pidx].get_u());
+    dprintf("v[%d] = %g", pidx, pcls[pidx].get_v());
+    dprintf("w[%d] = %g", pidx, pcls[pidx].get_w());
+    dprintf("q[%d] = %g", pidx, pcls[pidx].get_q());
+    dprintf("x[%d] = %g", pidx, pcls[pidx].get_x());
+    dprintf("y[%d] = %g", pidx, pcls[pidx].get_y());
+    dprintf("z[%d] = %g", pidx, pcls[pidx].get_z());
+    dprintf("t[%d] = %g", pidx, pcls[pidx].get_t());
   }
 }
 
