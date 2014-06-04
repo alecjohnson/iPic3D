@@ -604,6 +604,10 @@ int Particles3Dcomm::handle_received_particles()
   int send_count[6]={0,0,0,0,0,0};
   int num_pcls_recved = 0;
   int num_pcls_resent = 0;
+  const int direction_map[6]={
+    Connection::XDN,Connection::XUP,
+    Connection::YDN,Connection::YUP,
+    Connection::ZDN,Connection::ZUP};
   // receive incoming particles, 
   // immediately resending any exiting particles
   //
@@ -637,7 +641,6 @@ int Particles3Dcomm::handle_received_particles()
   {
     int recv_index;
     MPI_Status recv_status;
-    dprintf("waiting for receive request");
     MPI_Waitany(num_recv_buffers, recv_requests, &recv_index, &recv_status);
     if(recv_index==MPI_UNDEFINED)
       eprintf("recv_requests contains no active handles");
@@ -671,8 +674,11 @@ int Particles3Dcomm::handle_received_particles()
           double Lxinv = 1/Lx;
           for(int pidx=0;pidx<pcl_list.size();pidx++)
           {
-            double& x = pcl_list[pidx].fetch_x();
+            SpeciesParticle& pcl = pcl_list[pidx];
+            double& x = pcl.fetch_x();
+            //const double x_old = x;
             x = modulo(x, Lx, Lxinv);
+            //dprintf("recved pcl#%g: remapped x=%g outside [0,%g] to x=%g", pcl.get_t(), x_old, Lx, x);
             // if(recv_index==0) x -= Lx; else x += Lx;
           }
           break;
@@ -726,9 +732,9 @@ int Particles3Dcomm::handle_received_particles()
           break;
       }
     }
-    dprintf("received %d particles from direction %s",
-      recv_block.size(),
-      recvBuff->get_connection().tag_name());
+    //dprintf("received %d particles from direction %s",
+    //  recv_block.size(),
+    //  recvBuff->get_connection().tag_name());
 
     recv_count[recv_index]+=recv_block.size();
     num_pcls_recved += recv_block.size();
@@ -737,7 +743,9 @@ int Particles3Dcomm::handle_received_particles()
     for(int pidx=0;pidx<recv_block.size();pidx++)
     {
       SpeciesParticle& pcl = recv_block[pidx];
-      dprintf("received particle %d", int(pcl.get_t()));
+      //dprintf("received particle %d from direction %s",
+      //  int(pcl.get_t()),
+      //  Connection::tag_name(direction_map[recv_index]));
       bool was_sent = send_pcl_to_appropriate_buffer(pcl, send_count);
 
       if(__builtin_expect(was_sent,false))
@@ -772,7 +780,7 @@ static long long mpi_global_sum(int in)
 {
   long long total;
   long long long_in = (long long)in;
-  dprintf("calling MPI_Allreduce(%d,&total,1, ...)", long_in);
+  //dprintf("calling MPI_Allreduce(%d,&total,1, ...)", long_in);
   MPI_Allreduce(&long_in, &total, 1, MPI_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
 }
 
@@ -1035,10 +1043,9 @@ int Particles3Dcomm::communicate_particles()
   assert_eq(_pcls.size(),np_current);
   const int num_pcls_sent = orig_size - getNOP();
   //dprint(num_pcls_sent);
-  dprintf("send_count = [%d,%d,%d,%d,%d,%d]",
+  dprintf("spec %d send_count: %d+%d+%d+%d+%d+%d=%d",ns,
     send_count[0], send_count[1], send_count[2],
-    send_count[3], send_count[4], send_count[5]);
-  dprintf("spec %d #pcls sent = %d", ns, num_pcls_sent);
+    send_count[3], send_count[4], send_count[5],num_pcls_sent);
 
   // most likely exactly three particle communications
   // will be needed, one for each dimension of space,
