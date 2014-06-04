@@ -33,10 +33,13 @@ class Larray
       assert_lt(i, _size);
     #endif
   }
- public: // access
+ public: // access on list
   int size()const { return _size; }
   int capacity()const { return _capacity; }
-  void pop()
+
+ public: // operations
+  type& back(){ return list[_size-1]; }
+  void pop_back()
   {
     assert(_size>0);
     _size--;

@@ -41,7 +41,7 @@ public:
  private:
   void flush_send();
   bool send_pcl_to_appropriate_buffer(SpeciesParticle& pcl, int count[6]);
-  int handle_received_particles();
+  int handle_received_particles(bool no_resend=false);
  public:
   virtual void apply_Xleft_BC(aligned_vector(SpeciesParticle)& pcls);
   virtual void apply_Yleft_BC(aligned_vector(SpeciesParticle)& pcls);
@@ -380,24 +380,7 @@ protected:
 };
 
 // find the particles with particular IDs and print them
-static void print_pcls(aligned_vector(SpeciesParticle)& pcls, int ns, longid* id_list, int num_ids)
-{
-  dprintf("=== species %d ===", ns);
-  for(int pidx=0; pidx<pcls.size();pidx++)
-  for(int i=0;i<num_ids;i++)
-  if(pcls[pidx].get_ID()==id_list[i])
-  {
-    dprintf("--- particle %d.%d ---", ns,pidx);
-    dprintf("u[%d] = %g", pidx, pcls[pidx].get_u());
-    dprintf("v[%d] = %g", pidx, pcls[pidx].get_v());
-    dprintf("w[%d] = %g", pidx, pcls[pidx].get_w());
-    dprintf("q[%d] = %g", pidx, pcls[pidx].get_q());
-    dprintf("x[%d] = %g", pidx, pcls[pidx].get_x());
-    dprintf("y[%d] = %g", pidx, pcls[pidx].get_y());
-    dprintf("z[%d] = %g", pidx, pcls[pidx].get_z());
-    dprintf("t[%d] = %g", pidx, pcls[pidx].get_t());
-  }
-}
+void print_pcls(aligned_vector(SpeciesParticle)& pcls, int ns, longid* id_list, int num_ids);
 
 typedef Particles3Dcomm Particles;
 

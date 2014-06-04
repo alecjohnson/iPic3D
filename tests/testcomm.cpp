@@ -284,10 +284,10 @@ void test_particle_communication()
   //Connection hghXsendConn(up_dst,2,up_comm);
   assert(up_src==dn_dst);
   assert(dn_src==up_dst);
-  Connection lowXrecvConn(up_src,Connection::XUP);
-  Connection hghXrecvConn(dn_src,Connection::XDN);
-  Connection lowXsendConn(dn_dst,Connection::XDN);
-  Connection hghXsendConn(up_dst,Connection::XUP);
+  Connection lowXrecvConn(up_src,Direction::XUP);
+  Connection hghXrecvConn(dn_src,Direction::XDN);
+  Connection lowXsendConn(dn_dst,Direction::XDN);
+  Connection hghXsendConn(up_dst,Direction::XUP);
 
   // showing that we can propagate a message upward
   if(0)

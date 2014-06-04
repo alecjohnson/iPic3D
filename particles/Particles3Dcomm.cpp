@@ -73,21 +73,24 @@ Particles3Dcomm::Particles3Dcomm(
   // communicators for particles
   //
   MPI_Comm_dup(MPI_COMM_WORLD, &mpi_comm);
-  // X direction
-  sendXleft.init(Connection::null2self(vct->getXleft(),Connection::XDN,mpi_comm));
-  sendXrght.init(Connection::null2self(vct->getXrght(),Connection::XUP,mpi_comm));
-  recvXleft.init(Connection::null2self(vct->getXleft(),Connection::XUP,mpi_comm));
-  recvXrght.init(Connection::null2self(vct->getXrght(),Connection::XDN,mpi_comm));
-  // Y                                                                         
-  sendYleft.init(Connection::null2self(vct->getYleft(),Connection::YDN,mpi_comm));
-  sendYrght.init(Connection::null2self(vct->getYrght(),Connection::YUP,mpi_comm));
-  recvYleft.init(Connection::null2self(vct->getYleft(),Connection::YUP,mpi_comm));
-  recvYrght.init(Connection::null2self(vct->getYrght(),Connection::YDN,mpi_comm));
-  // Z                                                                         
-  sendZleft.init(Connection::null2self(vct->getZleft(),Connection::ZDN,mpi_comm));
-  sendZrght.init(Connection::null2self(vct->getZrght(),Connection::ZUP,mpi_comm));
-  recvZleft.init(Connection::null2self(vct->getZleft(),Connection::ZUP,mpi_comm));
-  recvZrght.init(Connection::null2self(vct->getZrght(),Connection::ZDN,mpi_comm));
+  //
+  // define connections
+  using namespace Direction;
+  //
+  sendXleft.init(Connection::null2self(vct->getXleft(),XDN,XDN,mpi_comm));
+  sendXrght.init(Connection::null2self(vct->getXrght(),XUP,XUP,mpi_comm));
+  recvXleft.init(Connection::null2self(vct->getXleft(),XUP,XDN,mpi_comm));
+  recvXrght.init(Connection::null2self(vct->getXrght(),XDN,XUP,mpi_comm));
+
+  sendYleft.init(Connection::null2self(vct->getYleft(),YDN,YDN,mpi_comm));
+  sendYrght.init(Connection::null2self(vct->getYrght(),YUP,YUP,mpi_comm));
+  recvYleft.init(Connection::null2self(vct->getYleft(),YUP,YDN,mpi_comm));
+  recvYrght.init(Connection::null2self(vct->getYrght(),YDN,YUP,mpi_comm));
+
+  sendZleft.init(Connection::null2self(vct->getZleft(),ZDN,ZDN,mpi_comm));
+  sendZrght.init(Connection::null2self(vct->getZrght(),ZUP,ZUP,mpi_comm));
+  recvZleft.init(Connection::null2self(vct->getZleft(),ZUP,ZDN,mpi_comm));
+  recvZrght.init(Connection::null2self(vct->getZrght(),ZDN,ZUP,mpi_comm));
 
   recvXleft.post_recvs();
   recvXrght.post_recvs();
@@ -467,45 +470,6 @@ void Particles3Dcomm::resize_SoA(int nop)
 //  EMf->communicateGhostP2G(ns, 0, 0, 0, 0, vct);
 //}
 
-// boundary conditions that must be applied to each dimension
-//
-// It would be better to call an SoA version of this method in
-// the mover where particles are still arranged in SoA format,
-// though in that case we would not be able to restrict the
-// application of boundary conditions to boundary processes
-// unless we also restrict the distance moved by a particle in
-// each (subcycle) step.
-//
-//inline void Particles3Dcomm::apply_boundary_conditions(
-//  SpeciesParticle& pcl,
-//  bool isBoundaryProcess,
-//  bool noXlowerNeighbor, bool noXupperNeighbor,
-//  bool noYlowerNeighbor, bool noYupperNeighbor,
-//  bool noZlowerNeighbor, bool noZupperNeighbor)
-//{
-//  if(isBoundaryProcess)
-//  {
-//    double& x = pcl.fetch_x();
-//    double& y = pcl.fetch_y();
-//    double& z = pcl.fetch_z();
-//    double& u = pcl.fetch_u();
-//    double& v = pcl.fetch_v();
-//    double& w = pcl.fetch_w();
-//    if (noXlowerNeighbor && pcl.get_x() < 0)
-//      BCpclLeft(x,u,v,w,Lx,uth,vth,wth,bcPfaceXleft);
-//    else if (noXupperNeighbor && pcl.get_x() > Lx)
-//      BCpclRight(x,u,v,w,Lx,uth,vth,wth,bcPfaceXright);
-//    if (noYlowerNeighbor && pcl.get_y() < 0)
-//      BCpclLeft(y,u,v,w,Ly,uth,vth,wth,bcPfaceYleft);
-//    else if (noYupperNeighbor && pcl.get_y() > Ly)
-//      BCpclRight(y,u,v,w,Ly,uth,vth,wth,bcPfaceYright);
-//    if (noZlowerNeighbor && pcl.get_z() < 0)
-//      BCpclLeft(z,u,v,w,Lz,uth,vth,wth,bcPfaceZleft);
-//    else if (noZupperNeighbor && pcl.get_z() > Lz)
-//      BCpclRight(z,u,v,w,Lz,uth,vth,wth,bcPfaceZright);
-//  }
-//}
-
 // returns true if particle was sent
 //
 // should vectorize this by comparing position vectors
@@ -566,11 +530,11 @@ void Particles3Dcomm::flush_send()
 //
 // assumes that flush_send() has been called
 //
-int Particles3Dcomm::handle_received_particles()
+int Particles3Dcomm::handle_received_particles(bool no_resend)
 {
-  // we expect to receive at least one communication from every
-  // communicator, so make sure that all receive buffers are clear
-  // and waiting
+  // we expect to receive at least one block from every
+  // communicator, so make sure that all receive buffers are
+  // clear and waiting
   //
   recvXleft.recv_start(); recvXrght.recv_start();
   recvYleft.recv_start(); recvYrght.recv_start();
@@ -604,10 +568,10 @@ int Particles3Dcomm::handle_received_particles()
   int send_count[6]={0,0,0,0,0,0};
   int num_pcls_recved = 0;
   int num_pcls_resent = 0;
-  const int direction_map[6]={
-    Connection::XDN,Connection::XUP,
-    Connection::YDN,Connection::YUP,
-    Connection::ZDN,Connection::ZUP};
+  //const int direction_map[6]={
+  //  Connection::XDN,Connection::XUP,
+  //  Connection::YDN,Connection::YUP,
+  //  Connection::ZDN,Connection::ZUP};
   // receive incoming particles, 
   // immediately resending any exiting particles
   //
@@ -739,25 +703,38 @@ int Particles3Dcomm::handle_received_particles()
     recv_count[recv_index]+=recv_block.size();
     num_pcls_recved += recv_block.size();
     // process each particle in the received block.
-    //
-    for(int pidx=0;pidx<recv_block.size();pidx++)
+    if(no_resend)
     {
-      SpeciesParticle& pcl = recv_block[pidx];
-      //dprintf("received particle %d from direction %s",
-      //  int(pcl.get_t()),
-      //  Connection::tag_name(direction_map[recv_index]));
-      bool was_sent = send_pcl_to_appropriate_buffer(pcl, send_count);
-
-      if(__builtin_expect(was_sent,false))
+      // simply put the particle in the list
+      for(int pidx=0;pidx<recv_block.size();pidx++)
       {
-        num_pcls_resent++;
-      }
-      else
-      {
-        // the particle belongs here, so put it in the
-        // appropriate place. for now all particles are in a
-        // single list, so we append to the list.
+        SpeciesParticle& pcl = recv_block[pidx];
+        // should we first remap the particle into the domain?
+        // what would be the safest remapping strategy?
         _pcls.push_back(pcl);
+      }
+    }
+    else
+    {
+      for(int pidx=0;pidx<recv_block.size();pidx++)
+      {
+        SpeciesParticle& pcl = recv_block[pidx];
+        //dprintf("received particle %d from direction %s",
+        //  int(pcl.get_t()),
+        //  Connection::tag_name(direction_map[recv_index]));
+        bool was_sent = send_pcl_to_appropriate_buffer(pcl, send_count);
+
+        if(__builtin_expect(was_sent,false))
+        {
+          num_pcls_resent++;
+        }
+        else
+        {
+          // the particle belongs here, so put it in the
+          // appropriate place. for now all particles are in a
+          // single list, so we append to the list.
+          _pcls.push_back(pcl);
+        }
       }
     }
     // release the block and update the receive request
@@ -779,16 +756,16 @@ int Particles3Dcomm::handle_received_particles()
 static long long mpi_global_sum(int in)
 {
   long long total;
-  long long long_in = (long long)in;
+  long long long_in = in;
   //dprintf("calling MPI_Allreduce(%d,&total,1, ...)", long_in);
   MPI_Allreduce(&long_in, &total, 1, MPI_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
+  return total;
 }
 
 // these methods should be made virtual
 // so that the user can override boundary conditions.
 //
-void Particles3Dcomm::apply_Xleft_BC(
-  aligned_vector(SpeciesParticle)& pcls)
+void Particles3Dcomm::apply_Xleft_BC(aligned_vector(SpeciesParticle)& pcls)
 {
   switch(bcPfaceXleft)
   {
@@ -819,8 +796,7 @@ void Particles3Dcomm::apply_Xleft_BC(
       break;
   }
 }
-void Particles3Dcomm::apply_Yleft_BC(
-  aligned_vector(SpeciesParticle)& pcls)
+void Particles3Dcomm::apply_Yleft_BC(aligned_vector(SpeciesParticle)& pcls)
 {
   switch(bcPfaceYleft)
   {
@@ -829,8 +805,15 @@ void Particles3Dcomm::apply_Yleft_BC(
     case BCparticles::PERFECT_MIRROR:
       for(int p=0;p<pcls.size();p++)
       {
-        pcls[p].fetch_y() *= -1;
-        pcls[p].fetch_v() *= -1;
+        SpeciesParticle& pcl = pcls[p];
+        const double y_old = pcl.fetch_y();
+        const double v_old = pcl.fetch_v();
+        pcl.fetch_y() *= -1;
+        pcl.fetch_v() *= -1;
+        const double y_new = pcl.fetch_y();
+        const double v_new = pcl.fetch_v();
+        //dprintf("mirrored pcl#%g: y: %g->%g, v: %g->%g",
+        //  pcl.get_t(), y_old, y_new, v_old, v_new);
       }
       break;
     case BCparticles::REEMISSION:
@@ -851,8 +834,7 @@ void Particles3Dcomm::apply_Yleft_BC(
       break;
   }
 }
-void Particles3Dcomm::apply_Zleft_BC(
-  aligned_vector(SpeciesParticle)& pcls)
+void Particles3Dcomm::apply_Zleft_BC(aligned_vector(SpeciesParticle)& pcls)
 {
   switch(bcPfaceZleft)
   {
@@ -883,8 +865,7 @@ void Particles3Dcomm::apply_Zleft_BC(
       break;
   }
 }
-void Particles3Dcomm::apply_Xrght_BC(
-  aligned_vector(SpeciesParticle)& pcls)
+void Particles3Dcomm::apply_Xrght_BC(aligned_vector(SpeciesParticle)& pcls)
 {
   switch(bcPfaceXright)
   {
@@ -917,8 +898,7 @@ void Particles3Dcomm::apply_Xrght_BC(
       break;
   }
 }
-void Particles3Dcomm::apply_Yrght_BC(
-  aligned_vector(SpeciesParticle)& pcls)
+void Particles3Dcomm::apply_Yrght_BC(aligned_vector(SpeciesParticle)& pcls)
 {
   switch(bcPfaceYright)
   {
@@ -927,9 +907,16 @@ void Particles3Dcomm::apply_Yrght_BC(
     case BCparticles::PERFECT_MIRROR:
       for(int p=0;p<pcls.size();p++)
       {
-        double& y = pcls[p].fetch_y();
+        SpeciesParticle& pcl = pcls[p];
+        double& y = pcl.fetch_y();
+        const double y_old = y;
+        const double v_old = pcl.fetch_v();
         y = 2*Ly - y;
-        pcls[p].fetch_v() *= -1;
+        pcl.fetch_v() *= -1;
+        const double y_new = pcl.fetch_y();
+        const double v_new = pcl.fetch_v();
+        //dprintf("mirrored pcl#%g: y: %g->%g, v: %g->%g",
+        //  pcl.get_t(), y_old, y_new, v_old, v_new);
       }
       break;
     case BCparticles::REEMISSION:
@@ -949,8 +936,7 @@ void Particles3Dcomm::apply_Yrght_BC(
       break;
   }
 }
-void Particles3Dcomm::apply_Zrght_BC(
-  aligned_vector(SpeciesParticle)& pcls)
+void Particles3Dcomm::apply_Zrght_BC(aligned_vector(SpeciesParticle)& pcls)
 {
   switch(bcPfaceZright)
   {
@@ -1011,7 +997,7 @@ int Particles3Dcomm::communicate_particles()
   sendZleft.send_start(); sendZrght.send_start();
 
   int send_count[6]={0,0,0,0,0,0};
-  const int orig_size = _pcls.size();
+  const int num_pcls_initially = _pcls.size();
   int np_current = 0;
   while(np_current < _pcls.size())
   {
@@ -1041,7 +1027,8 @@ int Particles3Dcomm::communicate_particles()
     }
   }
   assert_eq(_pcls.size(),np_current);
-  const int num_pcls_sent = orig_size - getNOP();
+  const int num_pcls_unsent = getNOP();
+  const int num_pcls_sent = num_pcls_initially - num_pcls_unsent;
   //dprint(num_pcls_sent);
   dprintf("spec %d send_count: %d+%d+%d+%d+%d+%d=%d",ns,
     send_count[0], send_count[1], send_count[2],
@@ -1068,16 +1055,44 @@ int Particles3Dcomm::communicate_particles()
   long long total_num_pcls_resent = mpi_global_sum(num_pcls_resent);
   dprintf("spec %d pcls resent = %d, %d",
     ns, num_pcls_resent, total_num_pcls_resent);
-  // the maximum number of neighbor communications needed to
-  // put a particle in the correct mesh cell.
+  assert_eq(total_num_pcls_resent, (long long)num_pcls_resent);
+  // the maximum number of neighbor communications that would
+  // be needed to put a particle in the correct mesh cell if
+  // boundary conditions were purely periodic; with reflection
+  // and resampling, however, there is no upper limit
   int comm_limit = 3*std::max(vct->getXLEN(),
     std::max(vct->getYLEN(), vct->getYLEN()));
   int comm_idx=0;
   while(total_num_pcls_resent)
   {
     if(comm_idx>=comm_limit);
+    {
+      // instead of quitting, we could simply stop
+      // communicating the particles further;
+      // the physical position of a particle moving
+      // so fast is not really resolved by this
+      // algorithm anyway.
+      {
+        flush_send();
+        const int num_pcls = getNOP();
+        handle_received_particles(true);
+        // number of particles partly communicated
+        const int num_bad_pcls = getNOP()-num_pcls;
+        const int total_num_bad_pcls = mpi_global_sum(num_bad_pcls);
+        if(!MPIdata::get_rank())
+        {
+          // this is a sign that the simulation is blowing up
+          warning_printf("spec %d: #pcls partly communicated: %d",
+            ns, total_num_bad_pcls);
+          // if more than a handful are badly communicated, give up.
+          assert_lt(num_bad_pcls, num_pcls_unsent/100);
+        }
+      }
+      // probably the simulation is blowing up if a single
+      // particle is only partly communicated
       eprintf("failed to complete particle communication"
         " within %d communications", comm_limit);
+    }
 
     // flush sending of particles
     flush_send();
@@ -1088,6 +1103,7 @@ int Particles3Dcomm::communicate_particles()
     comm_idx++;
   }
   //print_pcls(_pcls,ns,0,0);
+  return num_pcls_unsent;
 }
 
 /** return the Kinetic energy */
@@ -1588,5 +1604,24 @@ void Particles3Dcomm::convertParticlesToSoA()
       break;
   }
   particleType = ParticleType::SoA;
+}
+
+void print_pcls(aligned_vector(SpeciesParticle)& pcls, int ns, longid* id_list, int num_ids)
+{
+  dprintf("=== species %d, with %d pcls ===", ns, pcls.size());
+  for(int pidx=0; pidx<pcls.size();pidx++)
+  for(int i=0;i<num_ids;i++)
+  if(pcls[pidx].get_ID()==id_list[i])
+  {
+    dprintf("--- particle %d.%d ---", ns,pidx);
+    dprintf("u[%d] = %+6.4f", pidx, pcls[pidx].get_u());
+    dprintf("v[%d] = %+6.4f", pidx, pcls[pidx].get_v());
+    dprintf("w[%d] = %+6.4f", pidx, pcls[pidx].get_w());
+    dprintf("q[%d] = %+6.4f", pidx, pcls[pidx].get_q());
+    dprintf("x[%d] = %+6.4f", pidx, pcls[pidx].get_x());
+    dprintf("y[%d] = %+6.4f", pidx, pcls[pidx].get_y());
+    dprintf("z[%d] = %+6.4f", pidx, pcls[pidx].get_z());
+    dprintf("t[%d] = %5.0f", pidx, pcls[pidx].get_t());
+  }
 }
 

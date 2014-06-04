@@ -95,9 +95,9 @@ public:
   bool isXlower()const{ return coordinates[0]==0; }
   bool isYlower()const{ return coordinates[1]==0; }
   bool isZlower()const{ return coordinates[2]==0; }
-  bool isXupper()const{ return coordinates[0]==dims[0]; }
-  bool isYupper()const{ return coordinates[1]==dims[1]; }
-  bool isZupper()const{ return coordinates[2]==dims[2]; }
+  bool isXupper()const{ return coordinates[0]==dims[0]-1; }
+  bool isYupper()const{ return coordinates[1]==dims[1]-1; }
+  bool isZupper()const{ return coordinates[2]==dims[2]-1; }
 
   bool getcVERBOSE()const{ return (cVERBOSE); }
   int getCoordinates(int dir)const{ return (coordinates[dir]); }

@@ -30,10 +30,9 @@
 // tag=2 for upward communication, and use MPI_COMM_WORLD for the
 // group.
 //
-class Connection
+namespace Direction
 {
- public: // constants
-  enum Tag
+  enum Enum
   {
     DEFAULT = 0,
     PARTICLE_DN, // downward communication of particles
@@ -45,6 +44,9 @@ class Connection
     ZDN,
     ZUP
   };
+}
+class Connection
+{
  private: // data
   // In MPI a message envelope includes the following
   // information plus the rank of this process.
@@ -54,16 +56,14 @@ class Connection
  public: // init
   // construct a connection that creates self-communication
   // in place of null connection
-  static Connection null2self(int rank_, int tag_, MPI_Comm comm_ = MPI_COMM_WORLD)
+  static Connection null2self(int rank_, int tag_, int self_tag, MPI_Comm comm_)
   {
     Connection c(rank_,tag_,comm_);
     if(c._rank==MPI_PROC_NULL)
     {
       c._rank = MPIdata::get_rank();
-      // is this needed?
-      // c._comm = MPI_COMM_SELF;
+      c._tag = self_tag;
     }
-    dprintf("direction %s is %d",c.tag_name(),c._rank);
     return c;
   }
   Connection():
@@ -86,24 +86,28 @@ class Connection
   int rank()const{return _rank;}
   int tag()const{return _tag;}
   MPI_Comm comm()const{return _comm;}
+  static char* tag_name(int tag)
+  {
+    switch(tag)
+    {
+      default: unsupported_value_error(tag);
+      case Direction::XDN: return "XDN";
+      case Direction::XUP: return "XUP";
+      case Direction::YDN: return "YDN";
+      case Direction::YUP: return "YUP";
+      case Direction::ZDN: return "ZDN";
+      case Direction::ZUP: return "ZUP";
+    }
+  }
   const char* tag_name()const
   {
-    switch(_tag)
-    {
-      default: unsupported_value_error(_tag);
-      case XDN: return "XDN";
-      case XUP: return "XUP";
-      case YDN: return "YDN";
-      case YUP: return "YUP";
-      case ZDN: return "ZDN";
-      case ZUP: return "ZUP";
-    }
+    return tag_name(_tag);
   }
 };
 
 inline bool signal_hack()
 {
-  return true;
+  return false;
 }
 
 // block of elements
@@ -226,11 +230,11 @@ struct Block
       push_back(extra_element);
     }
 
-    dprintf("sending%s block (listID %d), (commID %d) to %d.%s of size %d",
-      (last_block ? " final" : ""),
-      listID, commID,
-      dest.rank(), dest.tag_name(),
-      nop);
+    //dprintf("sending%s block (listID %d), (commID %d) to %d.%s of size %d",
+    //  (last_block ? " final" : ""),
+    //  listID, commID,
+    //  dest.rank(), dest.tag_name(),
+    //  nop);
     MPI_Isend(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
       dest.rank(), dest.tag(), dest.comm(), &request);
     //dprintf("finished sending block number %d", listID);
@@ -299,11 +303,10 @@ struct Block
     assert_le(num_elements_received,capacity);
     // shrink to eliminate the trailing garbage
     block.resize(num_elements_received);
-    dprintf("received%s block (listID %d), (commID %d) of size %d",
-      (finished_flag_is_set() ? " final" : ""),
-      listID, commID,
-      //dest.rank(), dest.tag_name(),
-      block.size());
+    //dprintf("received%s block (listID %d), (commID %d) of size %d",
+    //  (finished_flag_is_set() ? " final" : ""),
+    //  listID, commID,
+    //  block.size());
     return retval;
   }
   void waitfor_recv()
@@ -315,43 +318,40 @@ struct Block
   // returns true if message has been received.
 };
 
-// We use the same class for sending and receiving, because
-// in the case where a dimension is only one process thick,
-// the sender and receiver are the same process (in which case
-// the send and receive methods do not need to be called at
-// all).  A more correct way to handle this would be to inherit
-// from BlockSender_interface and BlockRecver_interface abstract
-// base classes.
+// This could be separated into separate classes for sending and
+// receiving.
+//
+// In the cases where the sender and receiver are the same
+// process, it might be better to transfer data with a simple
+// list.
 //
 // The implementation should probably be changed to use
 // persistent requests.  My analysis of the decision 
 // regarding message size is as follows:
 //
-#if 0
-   Communication time is a linear combination of total data
-   to be sent and the number of messages it is broken into:
-
-     time = data_time + message_overhead, i.e.,
-     time = data_size*data_coef + num_msgs*msg_coef.
-
-   Assuming no blocking issues,
-   data_time is presumably the same for both persistent
-   and non-persistent communication.
-
-   message_overhead is presumably much smaller for persistent
-   than non-persistent communication (or persistent would not add
-   value).
-
-   data_time must dominate message_overhead for relevant cases or
-   persistent communication adds no value.
-
-   Assuming persistent communication can add value,
-   messages should be large enough so that data_time dominates
-   for persistent communication but small enough so that
-   message_overhead dominates for non-persistent communication.
-   This determines a window of message sizes appropriate
-   for persistent communication.
-#endif
+//   Communication time is a linear combination of total data
+//   to be sent and the number of messages it is broken into:
+//  
+//     time = data_time + message_overhead, i.e.,
+//     time = data_size*data_coef + num_msgs*msg_coef.
+//  
+//   Assuming no blocking issues,
+//   data_time is presumably the same for both persistent
+//   and non-persistent communication.
+//  
+//   message_overhead is presumably much smaller for persistent
+//   than non-persistent communication (or persistent would not add
+//   value).
+//  
+//   data_time must dominate message_overhead for relevant cases or
+//   persistent communication adds no value.
+//  
+//   Assuming persistent communication can add value,
+//   messages should be large enough so that data_time dominates
+//   for persistent communication but small enough so that
+//   message_overhead dominates for non-persistent communication.
+//   This determines a window of message sizes appropriate
+//   for persistent communication.
 //
 template <class type>
 class BlockCommunicator
@@ -602,8 +602,8 @@ class BlockCommunicator
     //assert_le(fetch_curr_block.size(), fetch_curr_block().get_capacity());
     // append the particle to the block.
     fetch_curr_block().fast_push_back(in);
-    dprintf("sending particle %d in direction %d.%s",
-      int(in.get_t()),connection.rank(), connection.tag_name());
+    //dprintf("sending particle %d in direction %d.%s",
+    //  int(in.get_t()),connection.rank(), connection.tag_name());
 
     // if the block is full, send it
     if(__builtin_expect(fetch_curr_block().isfull(),false))
@@ -663,24 +663,7 @@ class BlockCommunicator
     assert(!fetch_curr_block().isfull());
     fetch_curr_block().set_finished_flag();
     send_curr_block();
-    //commState=FINISHED;
   }
-  //void clear_send()
-  //{
-  //  // make sure that pending sends have cleared
-  //  //
-  //  std::list<void*>::iterator b = blockList.begin();
-  //  for(;b!=blockList.end();b++)
-  //  {
-  //    // might be more efficient to make
-  //    // a single call to MPI_Waitall
-  //    fetch_block(b).waitfor_send();
-  //    // clear the block
-  //    fetch_block(b).clear();
-  //  }
-  //  // reset curr_block
-  //  rewind();
-  //}
 };
 
 // === code above this point could go in something like BlockCommunicatorFwd.h ===
