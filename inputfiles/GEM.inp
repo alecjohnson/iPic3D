@@ -40,7 +40,7 @@ Smooth = 0.5                  # Smoothing value (5-points stencil)
 # %%%%%%%%%%%%%%%%%% BOX SIZE %%%%%%%%%%%%%%%
 Lx =   10.0                  # Lx = simulation box length - x direction   
 Ly =   10.0                  # Ly = simulation box length - y direction
-Lz =   1.0                  # Lz = simulation box length - z direction   
+Lz =   10.0                  # Lz = simulation box length - z direction   
 
 x_center =   1.                  # Lx = simulation box length - x direction in m  
 y_center =   1.                  # Ly = simulation box length - y direction in m
