@@ -349,11 +349,13 @@ bool c_Solver::ParticlesMover()
         default:
           unsupported_value_error(Parameters::get_MOVER_TYPE());
       }
+      // overlap initial communication of electrons with moving of ions
+      part[i].separate_and_send_particles();
     }
     }
     for (int i = 0; i < ns; i++)  // communicate each species
     {
-      part[i].communicate_particles();
+      part[i].recommunicate_particles_until_done(1);
     }
   }
 

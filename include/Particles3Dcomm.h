@@ -37,19 +37,43 @@ public:
   // This does not belong in this class and is no longer in use.
   void interpP2G(Field * EMf);
 
-  // communicate particles between processes
- private:
+ public: // handle boundary conditions
+  // these are virtual so user can override these
+  // to provide arbitrary custom boundary conditions
+  virtual void apply_Xleft_BC(SpeciesParticle* pcls, int& size);
+  virtual void apply_Yleft_BC(SpeciesParticle* pcls, int& size);
+  virtual void apply_Zleft_BC(SpeciesParticle* pcls, int& size);
+  virtual void apply_Xrght_BC(SpeciesParticle* pcls, int& size);
+  virtual void apply_Yrght_BC(SpeciesParticle* pcls, int& size);
+  virtual void apply_Zrght_BC(SpeciesParticle* pcls, int& size);
+ private: // handle boundary conditions
+  void apply_periodic_BC_global(vector_SpeciesParticle& pcl_list, int pstart);
+  bool test_outside_domain(const SpeciesParticle& pcl);
+  bool test_Xleft_of_domain(const SpeciesParticle& pcl)
+  { return pcl.get_x() < 0.; }
+  bool test_Xrght_of_domain(const SpeciesParticle& pcl)
+  { return pcl.get_x() > Lx; }
+  bool test_Yleft_of_domain(const SpeciesParticle& pcl)
+  { return pcl.get_y() < 0.; }
+  bool test_Yrght_of_domain(const SpeciesParticle& pcl)
+  { return pcl.get_y() > Ly; }
+  bool test_Zleft_of_domain(const SpeciesParticle& pcl)
+  { return pcl.get_z() < 0.; }
+  bool test_Zrght_of_domain(const SpeciesParticle& pcl)
+  { return pcl.get_z() > Lz; }
+  void apply_nonperiodic_BCs_global(vector_SpeciesParticle&, int pstart);
+  bool test_all_pcls_are_in_subdomain();
+  void apply_BCs_globally(vector_SpeciesParticle& pcl_list);
+  void apply_BCs_locally(vector_SpeciesParticle& pcl_list,
+    int direction, bool apply_shift, bool do_apply_BCs);
+ private: // communicate particles between processes
   void flush_send();
   bool send_pcl_to_appropriate_buffer(SpeciesParticle& pcl, int count[6]);
   int handle_received_particles(bool no_resend=false);
  public:
-  virtual void apply_Xleft_BC(aligned_vector(SpeciesParticle)& pcls);
-  virtual void apply_Yleft_BC(aligned_vector(SpeciesParticle)& pcls);
-  virtual void apply_Zleft_BC(aligned_vector(SpeciesParticle)& pcls);
-  virtual void apply_Xrght_BC(aligned_vector(SpeciesParticle)& pcls);
-  virtual void apply_Yrght_BC(aligned_vector(SpeciesParticle)& pcls);
-  virtual void apply_Zrght_BC(aligned_vector(SpeciesParticle)& pcls);
-  int communicate_particles();
+  int separate_and_send_particles();
+  void recommunicate_particles_until_done(int min_num_iterations=3);
+  void communicate_particles();
   void pad_capacities();
  private:
   void resize_AoS(int nop);
@@ -247,24 +271,24 @@ protected:
   // AoS representation
   //
   //Larray<SpeciesParticle> _pcls;
-  aligned_vector(SpeciesParticle) _pcls;
+  vector_SpeciesParticle _pcls;
   //
   // particles data
   //
   // SoA representation
   //
   // velocity components
-  aligned_vector(double) u;
-  aligned_vector(double) v;
-  aligned_vector(double) w;
+  vector_double u;
+  vector_double v;
+  vector_double w;
   // charge
-  aligned_vector(double) q;
+  vector_double q;
   // position
-  aligned_vector(double) x;
-  aligned_vector(double) y;
-  aligned_vector(double) z;
+  vector_double x;
+  vector_double y;
+  vector_double z;
   // subcycle time
-  aligned_vector(double) t;
+  vector_double t;
   // indicates whether this class is for tracking particles
   bool TrackParticleID;
 
@@ -279,7 +303,7 @@ protected:
   // alternate temporary storage for sorting particles
   //
   //Larray<SpeciesParticle> _pclstmp;
-  aligned_vector(SpeciesParticle) _pclstmp;
+  vector_SpeciesParticle _pclstmp;
   //
   // references for buckets for serial sort.
   //
@@ -377,10 +401,15 @@ protected:
   double Q_removed;
   /** density of the injection of the particles */
   double Ninj;
+ private:
+  // sending is complete if this is zero.
+  // if sending is not complete, send buffers must
+  // be flushed and particles must be received.
+  //long long tot_num_pcls_sent;
 };
 
 // find the particles with particular IDs and print them
-void print_pcls(aligned_vector(SpeciesParticle)& pcls, int ns, longid* id_list, int num_ids);
+void print_pcls(vector_SpeciesParticle& pcls, int ns, longid* id_list, int num_ids);
 
 typedef Particles3Dcomm Particles;
 

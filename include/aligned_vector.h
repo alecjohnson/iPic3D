@@ -10,4 +10,21 @@
 // includes only about 2800 lines
 //
 #include "Larray.h"
+// using declaration macro confuses ctags
 #define aligned_vector(type) Larray<type>
+
+// canonical workaround for lack of support in C++ for templated typedef
+//template <typename T>
+//struct aligned_vector
+//{
+//    typedef Larray<T> type;
+//    //typedef std::vector<type, aligned_allocator<type, 64> > type;
+//};
+//
+//// and yet another layer of indirection to avoid template brackets...
+//class SpeciesParticle;
+//typedef aligned_vector<SpeciesParticle>::type SpeciesParticleVector;
+class SpeciesParticle;
+typedef aligned_vector(SpeciesParticle) vector_SpeciesParticle;
+typedef aligned_vector(double) vector_double;
+
