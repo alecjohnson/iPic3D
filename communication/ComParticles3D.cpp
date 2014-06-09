@@ -1,4 +1,4 @@
-
+#include <mpi.h>
 #include "ComParticles3D.h"
 #include "ipicdefs.h"
 

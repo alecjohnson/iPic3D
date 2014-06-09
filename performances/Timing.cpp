@@ -1,7 +1,6 @@
-
+#include <mpi.h>
 #include "Timing.h"
 #include "ipicdefs.h"
-#include <mpi.h>
 
 /**
  * 

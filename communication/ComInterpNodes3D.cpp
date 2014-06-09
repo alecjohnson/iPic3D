@@ -1,4 +1,4 @@
-
+#include <mpi.h>
 #include "ComInterpNodes3D.h"
 #include "ipicdefs.h"
 #include "Alloc.h"

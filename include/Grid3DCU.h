@@ -10,6 +10,7 @@
 #include "arraysfwd.h"
 #include "ipicfwd.h"
 #include "math.h" // for floor
+#include "assert.h"
 
 /**
  * Uniform cartesian local grid 3D
