@@ -35,6 +35,12 @@ FLAGS = $(PERFORMANCE_FLAGS) -DNO_MPI $(ARRAY_FLAGS) #-ggdb
 COMPILER = g++ # icpc # c++
 
 	#$(COMPILER) -E testcomm.cpp $(INCLUDE) $(MPI_LIBS)
+test: test.cpp
+	$(COMPILER) test.cpp $(INCLUDE) $(PERFORMANCE_FLAGS) $(MPI_LIBS) $(MPI_LINK) -o test
+
+run.test: test
+	$(MPIRUN) -n 1 ./test
+
 testcomm: testcomm.cpp
 	$(COMPILER) testcomm.cpp $(INCLUDE) $(PERFORMANCE_FLAGS) $(MPI_LIBS) $(MPI_LINK) -o testcomm
 
@@ -88,8 +94,6 @@ testv.xeon: testv.cpp Makefile
 
 vtune.mic: testv.mic Makefile
 	amplxe-cl -collect knc-general-exploration -knob enable-vpu-metrics=true -knob enable-tlb-metrics=true -- mpirun -host knc1-mic0 -np 1 -env OMP_NUM_THREADS 1 ./testv.mic > vtune.txt
-
-test: clean_test_arrays test_arrays
 
 test_arrays: clean_test_arrays $(OBJECTS)
 	$(COMPILER) $(FLAGS) $(INCLUDE) $(OBJECTS) -o test_arrays

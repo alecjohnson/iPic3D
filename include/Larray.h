@@ -52,7 +52,7 @@ class Larray
   //void resize(int newsize, value_type val = value_type())
   void resize(int newsize)
   {
-    if(newsize < _size)
+    if(newsize <= _size)
     {
       _size = newsize;
     }

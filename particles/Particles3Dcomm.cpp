@@ -48,6 +48,53 @@ using std::endl;
  *
  */
 
+static void print_pcl(SpeciesParticle& pcl, int ns)
+{
+  dprintf("--- pcl spec %d ---", ns);
+  dprintf("u = %+6.4f", pcl.get_u());
+  dprintf("v = %+6.4f", pcl.get_v());
+  dprintf("w = %+6.4f", pcl.get_w());
+  dprintf("q = %+6.4f", pcl.get_q());
+  dprintf("x = %+6.4f", pcl.get_x());
+  dprintf("y = %+6.4f", pcl.get_y());
+  dprintf("z = %+6.4f", pcl.get_z());
+  dprintf("t = %5.0f", pcl.get_t());
+}
+
+static void print_pcls(vector_SpeciesParticle& pcls, int start, int ns)
+{
+  for(int pidx=start; pidx<pcls.size();pidx++)
+  {
+    dprintf("--- particle %d.%d ---", ns,pidx);
+    dprintf("u[%d] = %+6.4f", pidx, pcls[pidx].get_u());
+    dprintf("v[%d] = %+6.4f", pidx, pcls[pidx].get_v());
+    dprintf("w[%d] = %+6.4f", pidx, pcls[pidx].get_w());
+    dprintf("q[%d] = %+6.4f", pidx, pcls[pidx].get_q());
+    dprintf("x[%d] = %+6.4f", pidx, pcls[pidx].get_x());
+    dprintf("y[%d] = %+6.4f", pidx, pcls[pidx].get_y());
+    dprintf("z[%d] = %+6.4f", pidx, pcls[pidx].get_z());
+    dprintf("t[%d] = %5.0f", pidx, pcls[pidx].get_t());
+  }
+}
+void print_pcls(vector_SpeciesParticle& pcls, int ns, longid* id_list, int num_ids)
+{
+  dprintf("=== species %d, with %d pcls ===", ns, pcls.size());
+  for(int pidx=0; pidx<pcls.size();pidx++)
+  for(int i=0;i<num_ids;i++)
+  if(pcls[pidx].get_ID()==id_list[i])
+  {
+    dprintf("--- particle %d.%d ---", ns,pidx);
+    dprintf("u[%d] = %+6.4f", pidx, pcls[pidx].get_u());
+    dprintf("v[%d] = %+6.4f", pidx, pcls[pidx].get_v());
+    dprintf("w[%d] = %+6.4f", pidx, pcls[pidx].get_w());
+    dprintf("q[%d] = %+6.4f", pidx, pcls[pidx].get_q());
+    dprintf("x[%d] = %+6.4f", pidx, pcls[pidx].get_x());
+    dprintf("y[%d] = %+6.4f", pidx, pcls[pidx].get_y());
+    dprintf("z[%d] = %+6.4f", pidx, pcls[pidx].get_z());
+    dprintf("t[%d] = %5.0f", pidx, pcls[pidx].get_t());
+  }
+}
+
 /** deallocate particles */
 Particles3Dcomm::~Particles3Dcomm() {
   // extra xavg for sort
@@ -571,34 +618,64 @@ void Particles3Dcomm::apply_periodic_BC_global(
 // condition: a (probably inline) function of SpeciesParticle
 //   that returns true if the particle should go at the end of the list
 //
-#define sort_pcls(pcls, size_in, start_in, start_out, condition) \
+#define sort_pcls(pcls, start_in, start_out, condition) \
 { \
-  SpeciesParticle* pcl_arr = &(pcls)[0]; \
-  /* copy parameters with intent in */ \
-  assert(0<=start_in); \
-  assert(start_in<=size_in); \
-  int size_local = (size_in); \
-  int start_local = (start_in); \
-  start_out = size_local; \
-  for(int pidx=size_local-1;pidx>=start_local;pidx--) \
+  int start = (start_in); \
+  assert(0<=start); \
+  start_out = pcls.size(); \
+  /* pidx traverses the array */ \
+  for(int pidx=pcls.size()-1;pidx>=start;pidx--) \
   { \
     assert(pidx<start_out); \
-    SpeciesParticle& pcl = pcl_arr[pidx]; \
-    if(condition(pcl)) \
+    /* if condition is true, put the particle at the end of the list */ \
+    if(condition(pcls[pidx])) \
     { \
-      std::swap(pcl_arr[--start_out],pcl_arr[pidx]); \
+      --start_out; \
+      SpeciesParticle tmp_pcl = pcls[pidx]; \
+      pcls[pidx] = pcls[start_out]; \
+      pcls[start_out] = tmp_pcl; \
     } \
   } \
 }
+//  /* pidx increases and start_out decreases until they meet */ \
+//  for(int pidx=start;pidx<start_out;) \
+//  { \
+//    /* if condition is true, put the particle at the end of the list */ \
+//    if(condition(pcls[pidx])) \
+//    { \
+//      --start_out; \
+//      SpeciesParticle tmp_pcl = pcls[pidx]; \
+//      pcls[pidx] = pcls[start_out]; \
+//      pcls[start_out] = tmp_pcl; \
+//    } \
+//    else \
+//    { \
+//      pidx++; \
+//    } \
+//  } \
 
 // condition methods to use in sorting particles
-inline bool Particles3Dcomm::test_outside_domain(const SpeciesParticle& pcl)
+inline bool Particles3Dcomm::test_outside_domain(const SpeciesParticle& pcl)const
 {
-  bool retval;
   // This could be vectorized
-  retval=(  pcl.get_x() < 0. || pcl.get_y() < 0. || pcl.get_z() < 0.
-         || pcl.get_x() > Lx || pcl.get_y() > Ly || pcl.get_z() > Lz );
-  return retval;
+  bool is_outside_domain=(
+       pcl.get_x() < 0. || pcl.get_y() < 0. || pcl.get_z() < 0.
+    || pcl.get_x() > Lx || pcl.get_y() > Ly || pcl.get_z() > Lz );
+  return is_outside_domain;
+}
+inline bool Particles3Dcomm::test_outside_nonperiodic_domain(const SpeciesParticle& pcl)const
+{
+  // This could be vectorized
+  bool is_outside_nonperiodic_domain =
+     (!vct->getPERIODICX() && (pcl.get_x() < 0. || pcl.get_x() > Lx)) ||
+     (!vct->getPERIODICY() && (pcl.get_y() < 0. || pcl.get_y() > Ly)) ||
+     (!vct->getPERIODICZ() && (pcl.get_z() < 0. || pcl.get_z() > Lz));
+  return is_outside_nonperiodic_domain;
+  // bool is_in_nonperiodic_domain =
+  //    (vct->getPERIODICX() || (pcl.get_x() >= 0. && pcl.get_x() <= Lx)) &&
+  //    (vct->getPERIODICY() || (pcl.get_y() >= 0. && pcl.get_y() <= Ly)) &&
+  //    (vct->getPERIODICZ() || (pcl.get_z() >= 0. && pcl.get_z() <= Lz));
+  // return !is_in_nonperiodic_domain;
 }
 
 // apply user-supplied boundary conditions
@@ -611,50 +688,62 @@ void Particles3Dcomm::apply_nonperiodic_BCs_global(
   if(!vct->getPERIODICX())
   {
     // separate out particles that need Xleft boundary conditions applied
-    sort_pcls(pcl_list, pcl_list.size(), pstart, lstart, test_Xleft_of_domain);
+    sort_pcls(pcl_list, pstart, lstart, test_Xleft_of_domain);
     // apply boundary conditions
-    lsize = pcl_list.size()-lstart;
-    apply_Xleft_BC(&pcl_list[lstart], lsize);
-    pcl_list.resize(pcl_list.size()+lsize);
+    apply_Xleft_BC(pcl_list, lstart);
     // separate out particles that need Xrght boundary conditions applied
-    sort_pcls(pcl_list, pcl_list.size(), pstart, lstart, test_Xrght_of_domain);
+    sort_pcls(pcl_list, pstart, lstart, test_Xrght_of_domain);
     // apply boundary conditions
-    lsize = pcl_list.size()-pstart;
-    apply_Xrght_BC(&pcl_list[pstart], lsize);
-    pcl_list.resize(pstart+lsize);
+    apply_Xrght_BC(pcl_list, lstart);
   }
   if(!vct->getPERIODICY())
   {
     // separate out particles that need Yleft boundary conditions applied
-    sort_pcls(pcl_list, pcl_list.size(), pstart, lstart, test_Yleft_of_domain);
+    sort_pcls(pcl_list, pstart, lstart, test_Yleft_of_domain);
     // apply boundary conditions
-    lsize = pcl_list.size()-lstart;
-    apply_Yleft_BC(&pcl_list[lstart], lsize);
-    pcl_list.resize(pcl_list.size()+lsize);
+    apply_Yleft_BC(pcl_list, lstart);
     // separate out particles that need Yrght boundary conditions applied
-    sort_pcls(pcl_list, pcl_list.size(), pstart, lstart, test_Zrght_of_domain);
+    sort_pcls(pcl_list, pstart, lstart, test_Yrght_of_domain);
     // apply boundary conditions
-    lsize = pcl_list.size()-pstart;
-    apply_Yrght_BC(&pcl_list[pstart], lsize);
-    pcl_list.resize(pstart+lsize);
+    apply_Yrght_BC(pcl_list, lstart);
   }
   if(!vct->getPERIODICZ())
   {
     // separate out particles that need Zleft boundary conditions applied
-    sort_pcls(pcl_list, pcl_list.size(), pstart, lstart, test_Zleft_of_domain);
+    sort_pcls(pcl_list, pstart, lstart, test_Zleft_of_domain);
     // apply boundary conditions
-    lsize = pcl_list.size()-lstart;
-    apply_Zleft_BC(&pcl_list[lstart], lsize);
-    pcl_list.resize(pcl_list.size()+lsize);
+    apply_Zleft_BC(pcl_list, lstart);
     // separate out particles that need Zrght boundary conditions applied
-    sort_pcls(pcl_list, pcl_list.size(), pstart, lstart, test_Zrght_of_domain);
+    sort_pcls(pcl_list, pstart, lstart, test_Zrght_of_domain);
     // apply boundary conditions
-    lsize = pcl_list.size()-pstart;
-    apply_Zrght_BC(&pcl_list[pstart], lsize);
-    pcl_list.resize(pstart+lsize);
+    apply_Zrght_BC(pcl_list, lsize);
   }
 }
 
+bool Particles3Dcomm::test_pcls_are_in_nonperiodic_domain(const vector_SpeciesParticle& pcls)const
+{
+  const int size = pcls.size();
+  for(int pidx=0;pidx<size;pidx++)
+  {
+    const SpeciesParticle& pcl = pcls[pidx];
+    // should vectorize these comparisons
+    bool not_in_domain = test_outside_nonperiodic_domain(pcl);
+    if(__builtin_expect(not_in_domain, false)) return false;
+  }
+  return true; // all pcls are in domain
+}
+bool Particles3Dcomm::test_pcls_are_in_domain(const vector_SpeciesParticle& pcls)const
+{
+  const int size = pcls.size();
+  for(int pidx=0;pidx<size;pidx++)
+  {
+    const SpeciesParticle& pcl = pcls[pidx];
+    // should vectorize these comparisons
+    bool not_in_domain = test_outside_domain(pcl);
+    if(__builtin_expect(not_in_domain, false)) return false;
+  }
+  return true; // all pcls are in domain
+}
 bool Particles3Dcomm::test_all_pcls_are_in_subdomain()
 {
   const int size = _pcls.size();
@@ -669,6 +758,25 @@ bool Particles3Dcomm::test_all_pcls_are_in_subdomain()
   }
   return true; // all pcls are in processor subdomain
 }
+
+// If do_apply_periodic_BC_global is false, then we may need to
+// communicate particles as many as 2*(XLEN+YLEN+ZLEN) times
+// after the call to handle_received_particles(true), because it
+// is conceivable that a particle will be communicated the full
+// length of a periodic domain, then have its position remapped
+// to the proper position, and then traverse the full domain
+// again.
+//
+// If do_apply_periodic_BC_global is true, then we can
+// guarantee that all particles will be communicated within
+// at most (XLEN+YLEN+ZLEN) communications, but on the other
+// hand, a particle that would have been communicated in only
+// two iterations by being wrapped around a periodic boundary
+// will instead be communicated almost the full length of that
+// dimension.
+static bool do_apply_periodic_BC_global = false;
+// apply boundary conditions to a list of particles globally
+// (i.e. without regard to their current location in memory)
 void Particles3Dcomm::apply_BCs_globally(vector_SpeciesParticle& pcl_list)
 {
   // apply boundary conditions to every
@@ -684,26 +792,63 @@ void Particles3Dcomm::apply_BCs_globally(vector_SpeciesParticle& pcl_list)
   // index of first particle that is unfinished
   int pstart = 0;
   // sort particles outside of the domain to the end of the list
-  sort_pcls(pcl_list, pcl_list.size(), 0, pstart, test_outside_domain);
+  sort_pcls(pcl_list, 0, pstart, test_outside_domain);
 
   for(int i=0; pstart < pcl_list.size(); i++)
   {
-    // The following line could be commented out; in this
-    // case we can avoid reversal of particle communication,
-    // but then we may need to communicate particles as
-    // many as 2*(XLEN+YLEN+ZLEN) times after the call to
-    // handle_received_particles(true), whereas with this call
-    // (XLEN+YLEN+ZLEN) times should be enough.
-    apply_periodic_BC_global(pcl_list, pstart);
-    // apply user-supplied boundary conditions
-    apply_nonperiodic_BCs_global(pcl_list, pstart);
-    // put particles outside of the domain at the end of the list
-    sort_pcls(pcl_list, pcl_list.size(), pstart, pstart, test_outside_domain);
+    if(do_apply_periodic_BC_global)
+    {
+      apply_periodic_BC_global(pcl_list, pstart);
+      // apply user-supplied boundary conditions
+      apply_nonperiodic_BCs_global(pcl_list, pstart);
+      // put particles outside of the domain at the end of the list
+      sort_pcls(pcl_list, pstart, pstart, test_outside_domain);
+    }
+    else
+    {
+      apply_nonperiodic_BCs_global(pcl_list, pstart);
+      sort_pcls(pcl_list, pstart, pstart, test_outside_nonperiodic_domain);
+    }
 
     // if this fails, something has surely gone wrong
     // (e.g. we have a runaway particle).
-    assert_lt(i,100);
+    if(i>=100)
+    {
+      print_pcls(pcl_list,pstart, ns);
+      dprint(pstart);
+      dprint(pcl_list.size());
+      eprintf("something went wrong.")
+    }
   }
+  if(do_apply_periodic_BC_global)
+  {
+    assert(test_pcls_are_in_domain(pcl_list));
+  }
+  else
+  {
+    assert(test_pcls_are_in_nonperiodic_domain(pcl_list));
+  }
+  // compute how many communications will be needed to communicate
+  // the particles in the list to their appropriate locations
+  //if(do_apply_periodic_BC_global)
+  //{
+  //  for(int pidx=0; pidx < pcl_list.size(); pidx++)
+  //  {
+  //    SpeciesParticle& pcl = pcl_list[pidx];
+  //    // compute the processor subdomain coordinates of this particle
+  //    ...
+  //    // compute the distance from the current processor subdomain coordinates
+  //    ...
+  //  }
+  //}
+  //else
+  //{
+  //  for(int pidx=0; pidx < pcl_list.size(); pidx++)
+  //  {
+  //    SpeciesParticle& pcl = pcl_list[pidx];
+  //    ...
+  //  }
+  //}
 }
 
 // direction: direction that list of particles is coming from
@@ -765,34 +910,45 @@ void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
       default:
         invalid_value_error(direction);
       case XDN: assert(vct->noXlowerNeighbor());
-        apply_Xleft_BC(&pcl_list[0],size);
+        apply_Xleft_BC(pcl_list);
         break;
       case XUP: assert(vct->noXupperNeighbor());
-        apply_Xrght_BC(&pcl_list[0],size);
+        apply_Xrght_BC(pcl_list);
         break;
       case YDN: assert(vct->noYlowerNeighbor());
-        apply_Yleft_BC(&pcl_list[0],size);
+        apply_Yleft_BC(pcl_list);
         break;
       case YUP: assert(vct->noYupperNeighbor());
-        apply_Yrght_BC(&pcl_list[0],size);
+        apply_Yrght_BC(pcl_list);
         break;
       case ZDN: assert(vct->noZlowerNeighbor());
-        apply_Zleft_BC(&pcl_list[0],size);
+        apply_Zleft_BC(pcl_list);
         break;
       case ZUP: assert(vct->noZupperNeighbor());
-        apply_Zrght_BC(&pcl_list[0],size);
+        apply_Zrght_BC(pcl_list);
         break;
     }
     pcl_list.resize(size);
   }
 }
 
+namespace PclCommMode
+{
+  enum Enum
+  {
+    do_apply_BCs_globally=1,
+    print_sent_pcls=2,
+  };
+}
 // receive, sort, and, as appropriate, resend incoming particles
 //
 // assumes that flush_send() has been called
 //
-int Particles3Dcomm::handle_received_particles(bool do_apply_BCs_globally)
+// returns number of particles that were resent
+//
+int Particles3Dcomm::handle_received_particles(int pclCommMode)
 {
+  using namespace PclCommMode;
   // we expect to receive at least one block from every
   // communicator, so make sure that all receive buffers are
   // clear and waiting
@@ -885,7 +1041,7 @@ int Particles3Dcomm::handle_received_particles(bool do_apply_BCs_globally)
       = recvBuff->fetch_received_block(recv_status);
     vector_SpeciesParticle& pcl_list = recv_block.fetch_block();
 
-    if(do_apply_BCs_globally)
+    if(pclCommMode&do_apply_BCs_globally)
     {
       apply_BCs_globally(pcl_list);
     }
@@ -907,11 +1063,15 @@ int Particles3Dcomm::handle_received_particles(bool do_apply_BCs_globally)
         if(__builtin_expect(was_sent,false))
         {
           num_pcls_resent++;
+          if(pclCommMode&print_sent_pcls)
+          {
+            print_pcl(pcl,ns);
+          }
         }
         else
         {
-          // the particle belongs here, so put it in the
-          // appropriate place. for now all particles are in a
+          // The particle belongs here, so put it in the
+          // appropriate place. For now, all particles are in a
           // single list, so we append to the list.
           _pcls.push_back(pcl);
         }
@@ -945,14 +1105,16 @@ static long long mpi_global_sum(int in)
 // these methods should be made virtual
 // so that the user can override boundary conditions.
 //
-void Particles3Dcomm::apply_Xleft_BC(SpeciesParticle* pcls, int& size)
+void Particles3Dcomm::apply_Xleft_BC(vector_SpeciesParticle& pcls, int start)
 {
+  int size = pcls.size();
+  assert_le(0,start);
   switch(bcPfaceXleft)
   {
     default:
       unsupported_value_error(bcPfaceXleft);
     case BCparticles::PERFECT_MIRROR:
-      for(int p=0;p<size;p++)
+      for(int p=start;p<size;p++)
       {
         pcls[p].fetch_x() *= -1;
         pcls[p].fetch_u() *= -1;
@@ -961,7 +1123,7 @@ void Particles3Dcomm::apply_Xleft_BC(SpeciesParticle* pcls, int& size)
     case BCparticles::REEMISSION:
       // in this case it might be faster to convert to and
       // from SoA format, if calls to rand() can vectorize.
-      for(int p=0;p<size;p++)
+      for(int p=start;p<size;p++)
       {
         SpeciesParticle& pcl = pcls[p];
         pcl.fetch_x() *= -1;
@@ -972,18 +1134,21 @@ void Particles3Dcomm::apply_Xleft_BC(SpeciesParticle* pcls, int& size)
       }
       break;
     case BCparticles::EXIT:
-      size=0;
+      // clear the remainder of the list
+      pcls.resize(start);
       break;
   }
 }
-void Particles3Dcomm::apply_Yleft_BC(SpeciesParticle* pcls, int& size)
+void Particles3Dcomm::apply_Yleft_BC(vector_SpeciesParticle& pcls, int start)
 {
+  int size = pcls.size();
+  assert_le(0,start);
   switch(bcPfaceYleft)
   {
     default:
       unsupported_value_error(bcPfaceYleft);
     case BCparticles::PERFECT_MIRROR:
-      for(int p=0;p<size;p++)
+      for(int p=start;p<size;p++)
       {
         SpeciesParticle& pcl = pcls[p];
         const double y_old = pcl.fetch_y();
@@ -999,7 +1164,7 @@ void Particles3Dcomm::apply_Yleft_BC(SpeciesParticle* pcls, int& size)
     case BCparticles::REEMISSION:
       // in this case it might be faster to convert to and
       // from SoA format, if calls to rand() can vectorize.
-      for(int p=0;p<size;p++)
+      for(int p=start;p<size;p++)
       {
         SpeciesParticle& pcl = pcls[p];
         pcl.fetch_y() *= -1;
@@ -1010,18 +1175,20 @@ void Particles3Dcomm::apply_Yleft_BC(SpeciesParticle* pcls, int& size)
       }
       break;
     case BCparticles::EXIT:
-      size=0;
+      pcls.resize(start);
       break;
   }
 }
-void Particles3Dcomm::apply_Zleft_BC(SpeciesParticle* pcls, int& size)
+void Particles3Dcomm::apply_Zleft_BC(vector_SpeciesParticle& pcls, int start)
 {
+  int size = pcls.size();
+  assert_le(0,start);
   switch(bcPfaceZleft)
   {
     default:
       unsupported_value_error(bcPfaceZleft);
     case BCparticles::PERFECT_MIRROR:
-      for(int p=0;p<size;p++)
+      for(int p=start;p<size;p++)
       {
         pcls[p].fetch_z() *= -1;
         pcls[p].fetch_w() *= -1;
@@ -1030,7 +1197,7 @@ void Particles3Dcomm::apply_Zleft_BC(SpeciesParticle* pcls, int& size)
     case BCparticles::REEMISSION:
       // in this case it might be faster to convert to and
       // from SoA format, if calls to rand() can vectorize.
-      for(int p=0;p<size;p++)
+      for(int p=start;p<size;p++)
       {
         SpeciesParticle& pcl = pcls[p];
         pcl.fetch_z() *= -1;
@@ -1041,18 +1208,20 @@ void Particles3Dcomm::apply_Zleft_BC(SpeciesParticle* pcls, int& size)
       }
       break;
     case BCparticles::EXIT:
-      size=0;
+      pcls.resize(start);
       break;
   }
 }
-void Particles3Dcomm::apply_Xrght_BC(SpeciesParticle* pcls, int& size)
+void Particles3Dcomm::apply_Xrght_BC(vector_SpeciesParticle& pcls, int start)
 {
+  int size = pcls.size();
+  assert_le(0,start);
   switch(bcPfaceXright)
   {
     default:
       unsupported_value_error(bcPfaceXright);
     case BCparticles::PERFECT_MIRROR:
-      for(int p=0;p<size;p++)
+      for(int p=start;p<size;p++)
       {
         double& x = pcls[p].fetch_x();
         x = 2*Lx - x;
@@ -1062,7 +1231,7 @@ void Particles3Dcomm::apply_Xrght_BC(SpeciesParticle* pcls, int& size)
     case BCparticles::REEMISSION:
       // in this case it might be faster to convert to and
       // from SoA format, if calls to rand() can vectorize.
-      for(int p=0;p<size;p++)
+      for(int p=start;p<size;p++)
       {
         SpeciesParticle& pcl = pcls[p];
         double& x = pcl.fetch_x();
@@ -1074,18 +1243,20 @@ void Particles3Dcomm::apply_Xrght_BC(SpeciesParticle* pcls, int& size)
       }
       break;
     case BCparticles::EXIT:
-      size=0;
+      pcls.resize(start);
       break;
   }
 }
-void Particles3Dcomm::apply_Yrght_BC(SpeciesParticle* pcls, int& size)
+void Particles3Dcomm::apply_Yrght_BC(vector_SpeciesParticle& pcls, int start)
 {
+  int size = pcls.size();
+  assert_le(0,start);
   switch(bcPfaceYright)
   {
     default:
       unsupported_value_error(bcPfaceYright);
     case BCparticles::PERFECT_MIRROR:
-      for(int p=0;p<size;p++)
+      for(int p=start;p<size;p++)
       {
         SpeciesParticle& pcl = pcls[p];
         double& y = pcl.fetch_y();
@@ -1100,7 +1271,7 @@ void Particles3Dcomm::apply_Yrght_BC(SpeciesParticle* pcls, int& size)
       }
       break;
     case BCparticles::REEMISSION:
-      for(int p=0;p<size;p++)
+      for(int p=start;p<size;p++)
       {
         SpeciesParticle& pcl = pcls[p];
         double& y = pcl.fetch_y();
@@ -1112,18 +1283,20 @@ void Particles3Dcomm::apply_Yrght_BC(SpeciesParticle* pcls, int& size)
       }
       break;
     case BCparticles::EXIT:
-      size=0;
+      pcls.resize(start);
       break;
   }
 }
-void Particles3Dcomm::apply_Zrght_BC(SpeciesParticle* pcls, int& size)
+void Particles3Dcomm::apply_Zrght_BC(vector_SpeciesParticle& pcls, int start)
 {
+  int size = pcls.size();
+  assert_le(0,start);
   switch(bcPfaceZright)
   {
     default:
       unsupported_value_error(bcPfaceZright);
     case BCparticles::PERFECT_MIRROR:
-      for(int p=0;p<size;p++)
+      for(int p=start;p<size;p++)
       {
         double& z = pcls[p].fetch_z();
         z = 2*Lz - z;
@@ -1131,7 +1304,7 @@ void Particles3Dcomm::apply_Zrght_BC(SpeciesParticle* pcls, int& size)
       }
       break;
     case BCparticles::REEMISSION:
-      for(int p=0;p<size;p++)
+      for(int p=start;p<size;p++)
       {
         SpeciesParticle& pcl = pcls[p];
         double& z = pcl.fetch_z();
@@ -1143,7 +1316,7 @@ void Particles3Dcomm::apply_Zrght_BC(SpeciesParticle* pcls, int& size)
       }
       break;
     case BCparticles::EXIT:
-      size=0;
+      pcls.resize(start);
       break;
   }
 }
@@ -1152,11 +1325,11 @@ void Particles3Dcomm::apply_Zrght_BC(SpeciesParticle* pcls, int& size)
 int Particles3Dcomm::separate_and_send_particles()
 {
   // why does it happen that multiple particles have an ID of 0?
+  const int num_ids = 1;
   longid id_list[num_ids] = {0};
   print_pcls(_pcls,ns,id_list, num_ids);
   timeTasks_set_communicating(); // communicating until end of scope
 
-  const int num_ids = 1;
   convertParticlesToAoS();
 
   // activate receiving
@@ -1246,6 +1419,7 @@ int Particles3Dcomm::separate_and_send_particles()
 //   
 void Particles3Dcomm::recommunicate_particles_until_done(int min_num_iterations)
 {
+  timeTasks_set_communicating(); // communicating until end of scope
   assert_gt(min_num_iterations,0);
   // most likely exactly three particle communications
   // will be needed, one for each dimension of space,
@@ -1271,7 +1445,21 @@ void Particles3Dcomm::recommunicate_particles_until_done(int min_num_iterations)
   // apply boundary conditions to incoming particles
   // until they are in the domain
   flush_send(); // flush sending of particles
-  num_pcls_sent = handle_received_particles(true);
+  num_pcls_sent = handle_received_particles(PclCommMode::do_apply_BCs_globally);
+
+  //if(do_apply_periodic_BC_global)
+  //  assert(test_pcls_are_in_domain(_pcls));
+  //else
+  //  assert(test_pcls_are_in_nonperiodic_domain(_pcls));
+
+  // compute how many times particles must be communicated
+  // globally before every particle is in the correct subdomain
+  // (would need to modify handle_received_particles so that it
+  // returns num_comm_needed)
+  //const int global_num_comm_needed = mpi_global_max(num_comm_needed);
+  // once I see that this is anticipating the number of communications
+  // correctly, I will eliminate the total_num_pcls_sent check below
+  //dprint(global_num_comm_needed);
 
   // continue receiving and resending incoming particles until
   // global all-reduce of num_pcls_resent is zero, indicating
@@ -1283,24 +1471,27 @@ void Particles3Dcomm::recommunicate_particles_until_done(int min_num_iterations)
 
   // the maximum number of neighbor communications that would
   // be needed to put a particle in the correct mesh cell
-  int comm_limit = vct->getXLEN()+vct->getYLEN()+vct->getZLEN();
-  int comm_idx=0;
-  int num_pcls_unfinished=0;
+  int comm_max_times = vct->getXLEN()+vct->getYLEN()+vct->getZLEN();
+  if(!do_apply_periodic_BC_global) comm_max_times*=2;
+  int comm_count=0;
   while(total_num_pcls_sent)
   {
-    if(comm_idx>=comm_limit);
+    if(comm_count>=(comm_max_times))
     {
+      dprintf("particles still uncommunicated:");
+      flush_send();
+      num_pcls_sent = handle_received_particles(PclCommMode::print_sent_pcls);
       eprintf("failed to finish up particle communication"
-        " within %d communications", comm_limit);
+        " within %d communications", comm_max_times);
     }
 
     // flush sending of particles
     flush_send();
-    num_pcls_sent = handle_received_particles(true);
+    num_pcls_sent = handle_received_particles();
 
     total_num_pcls_sent = mpi_global_sum(num_pcls_sent);
     dprint(total_num_pcls_sent);
-    comm_idx++;
+    comm_count++;
   }
 }
 
@@ -1314,9 +1505,9 @@ void Particles3Dcomm::communicate_particles()
 {
   timeTasks_set_communicating(); // communicating until end of scope
 
-  int num_pcls_sent = separate_and_send_particles();
+  separate_and_send_particles();
 
-  recommunicate_particles_until_done(num_pcls_sent);
+  recommunicate_particles_until_done(1);
 }
 
 /** return the Kinetic energy */
@@ -1817,24 +2008,5 @@ void Particles3Dcomm::convertParticlesToSoA()
       break;
   }
   particleType = ParticleType::SoA;
-}
-
-void print_pcls(vector_SpeciesParticle& pcls, int ns, longid* id_list, int num_ids)
-{
-  dprintf("=== species %d, with %d pcls ===", ns, pcls.size());
-  for(int pidx=0; pidx<pcls.size();pidx++)
-  for(int i=0;i<num_ids;i++)
-  if(pcls[pidx].get_ID()==id_list[i])
-  {
-    dprintf("--- particle %d.%d ---", ns,pidx);
-    dprintf("u[%d] = %+6.4f", pidx, pcls[pidx].get_u());
-    dprintf("v[%d] = %+6.4f", pidx, pcls[pidx].get_v());
-    dprintf("w[%d] = %+6.4f", pidx, pcls[pidx].get_w());
-    dprintf("q[%d] = %+6.4f", pidx, pcls[pidx].get_q());
-    dprintf("x[%d] = %+6.4f", pidx, pcls[pidx].get_x());
-    dprintf("y[%d] = %+6.4f", pidx, pcls[pidx].get_y());
-    dprintf("z[%d] = %+6.4f", pidx, pcls[pidx].get_z());
-    dprintf("t[%d] = %5.0f", pidx, pcls[pidx].get_t());
-  }
 }
 

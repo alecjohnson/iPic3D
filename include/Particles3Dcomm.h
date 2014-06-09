@@ -38,17 +38,23 @@ public:
   void interpP2G(Field * EMf);
 
  public: // handle boundary conditions
+  // apply boundary conditions to all particles at the
+  // end of a list of particles starting with index start
+  // 
   // these are virtual so user can override these
   // to provide arbitrary custom boundary conditions
-  virtual void apply_Xleft_BC(SpeciesParticle* pcls, int& size);
-  virtual void apply_Yleft_BC(SpeciesParticle* pcls, int& size);
-  virtual void apply_Zleft_BC(SpeciesParticle* pcls, int& size);
-  virtual void apply_Xrght_BC(SpeciesParticle* pcls, int& size);
-  virtual void apply_Yrght_BC(SpeciesParticle* pcls, int& size);
-  virtual void apply_Zrght_BC(SpeciesParticle* pcls, int& size);
+  virtual void apply_Xleft_BC(vector_SpeciesParticle& pcls, int start=0);
+  virtual void apply_Yleft_BC(vector_SpeciesParticle& pcls, int start=0);
+  virtual void apply_Zleft_BC(vector_SpeciesParticle& pcls, int start=0);
+  virtual void apply_Xrght_BC(vector_SpeciesParticle& pcls, int start=0);
+  virtual void apply_Yrght_BC(vector_SpeciesParticle& pcls, int start=0);
+  virtual void apply_Zrght_BC(vector_SpeciesParticle& pcls, int start=0);
  private: // handle boundary conditions
   void apply_periodic_BC_global(vector_SpeciesParticle& pcl_list, int pstart);
-  bool test_outside_domain(const SpeciesParticle& pcl);
+  bool test_pcls_are_in_nonperiodic_domain(const vector_SpeciesParticle& pcls)const;
+  bool test_pcls_are_in_domain(const vector_SpeciesParticle& pcls)const;
+  bool test_outside_domain(const SpeciesParticle& pcl)const;
+  bool test_outside_nonperiodic_domain(const SpeciesParticle& pcl)const;
   bool test_Xleft_of_domain(const SpeciesParticle& pcl)
   { return pcl.get_x() < 0.; }
   bool test_Xrght_of_domain(const SpeciesParticle& pcl)
@@ -69,7 +75,7 @@ public:
  private: // communicate particles between processes
   void flush_send();
   bool send_pcl_to_appropriate_buffer(SpeciesParticle& pcl, int count[6]);
-  int handle_received_particles(bool no_resend=false);
+  int handle_received_particles(int pclCommMode=0);
  public:
   int separate_and_send_particles();
   void recommunicate_particles_until_done(int min_num_iterations=3);

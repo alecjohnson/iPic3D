@@ -355,6 +355,7 @@ bool c_Solver::ParticlesMover()
     }
     for (int i = 0; i < ns; i++)  // communicate each species
     {
+      //part[i].communicate_particles();
       part[i].recommunicate_particles_until_done(1);
     }
   }
