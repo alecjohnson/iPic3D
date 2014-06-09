@@ -37,6 +37,9 @@ c_Solver::~c_Solver()
 }
 
 int c_Solver::Init(int argc, char **argv) {
+  #if defined(__MIC__)
+  assert_eq(DVECWIDTH,8);
+  #endif
   // get MPI data
   //
   // c_Solver is not a singleton, so the following line was pulled out.
