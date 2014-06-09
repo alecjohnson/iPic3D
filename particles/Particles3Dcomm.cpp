@@ -48,6 +48,8 @@ using std::endl;
  *
  */
 
+static bool print_pcl_comm_counts = false;
+
 static void print_pcl(SpeciesParticle& pcl, int ns)
 {
   dprintf("--- pcl spec %d ---", ns);
@@ -1082,12 +1084,15 @@ int Particles3Dcomm::handle_received_particles(int pclCommMode)
     recv_requests[recv_index] = recvBuff->get_curr_request();
   }
 
-  dprintf("spec %d recved_count: %d+%d+%d+%d+%d+%d=%d", ns,
-    recv_count[0], recv_count[1], recv_count[2],
-    recv_count[3], recv_count[4], recv_count[5], num_pcls_recved);
-  dprintf("spec %d resent_count: %d+%d+%d+%d+%d+%d=%d", ns,
-    send_count[0], send_count[1], send_count[2],
-    send_count[3], send_count[4], send_count[5], num_pcls_resent);
+  if(print_pcl_comm_counts)
+  {
+    dprintf("spec %d recved_count: %d+%d+%d+%d+%d+%d=%d", ns,
+      recv_count[0], recv_count[1], recv_count[2],
+      recv_count[3], recv_count[4], recv_count[5], num_pcls_recved);
+    dprintf("spec %d resent_count: %d+%d+%d+%d+%d+%d=%d", ns,
+      send_count[0], send_count[1], send_count[2],
+      send_count[3], send_count[4], send_count[5], num_pcls_resent);
+  }
   // return the number of particles that were resent
 
   return num_pcls_resent;
@@ -1327,7 +1332,7 @@ int Particles3Dcomm::separate_and_send_particles()
   // why does it happen that multiple particles have an ID of 0?
   const int num_ids = 1;
   longid id_list[num_ids] = {0};
-  print_pcls(_pcls,ns,id_list, num_ids);
+  //print_pcls(_pcls,ns,id_list, num_ids);
   timeTasks_set_communicating(); // communicating until end of scope
 
   convertParticlesToAoS();
@@ -1377,10 +1382,12 @@ int Particles3Dcomm::separate_and_send_particles()
   assert_eq(_pcls.size(),np_current);
   const int num_pcls_unsent = getNOP();
   const int num_pcls_sent = num_pcls_initially - num_pcls_unsent;
-  //dprint(num_pcls_sent);
-  dprintf("spec %d send_count: %d+%d+%d+%d+%d+%d=%d",ns,
-    send_count[0], send_count[1], send_count[2],
-    send_count[3], send_count[4], send_count[5],num_pcls_sent);
+  if(print_pcl_comm_counts)
+  {
+    dprintf("spec %d send_count: %d+%d+%d+%d+%d+%d=%d",ns,
+      send_count[0], send_count[1], send_count[2],
+      send_count[3], send_count[4], send_count[5],num_pcls_sent);
+  }
   return num_pcls_sent;
 }
 
@@ -1466,8 +1473,9 @@ void Particles3Dcomm::recommunicate_particles_until_done(int min_num_iterations)
   // that there are no more particles to be received.
   //
   long long total_num_pcls_sent = mpi_global_sum(num_pcls_sent);
-  dprintf("spec %d pcls sent: %d, %d",
-    ns, num_pcls_sent, total_num_pcls_sent);
+  if(print_pcl_comm_counts)
+    dprintf("spec %d pcls sent: %d, %d",
+      ns, num_pcls_sent, total_num_pcls_sent);
 
   // the maximum number of neighbor communications that would
   // be needed to put a particle in the correct mesh cell
@@ -1490,7 +1498,8 @@ void Particles3Dcomm::recommunicate_particles_until_done(int min_num_iterations)
     num_pcls_sent = handle_received_particles();
 
     total_num_pcls_sent = mpi_global_sum(num_pcls_sent);
-    dprint(total_num_pcls_sent);
+    if(print_pcl_comm_counts)
+      dprint(total_num_pcls_sent);
     comm_count++;
   }
 }
