@@ -350,6 +350,7 @@ bool c_Solver::ParticlesMover()
           unsupported_value_error(Parameters::get_MOVER_TYPE());
       }
       // overlap initial communication of electrons with moving of ions
+      #pragma omp master
       part[i].separate_and_send_particles();
     }
     }
