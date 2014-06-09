@@ -1,4 +1,4 @@
-
+#include <mpi.h>
 #include "Restart3D.h"
 
 /** write the restart file at any RESTART_CYCLE, useful for reading intermediate results */

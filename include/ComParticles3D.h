@@ -8,7 +8,6 @@ developers           : Stefano Markidis, Giovanni Lapenta
 
 #ifndef ComParticles3D_H
 #define ComParticles3D_H
-
 #include "ComBasic3D.h"
 
 /** comunicate particles and receive particles to and from 6 processors */

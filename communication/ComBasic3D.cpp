@@ -1,4 +1,4 @@
-
+#include <mpi.h>
 #include "ComBasic3D.h"
 
 /** communicate particles along a direction **/

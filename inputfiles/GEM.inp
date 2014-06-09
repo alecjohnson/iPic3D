@@ -47,14 +47,14 @@ y_center =   1.                  # Ly = simulation box length - y direction in m
 z_center =   1.                  # Lz = simulation box length - z direction in m  
 L_square =   .1
 
-nxc = 30                   # nxc = number of cells - x direction        
-nyc = 30                   # nyc = number of cells - y direction
+nxc = 60                   # nxc = number of cells - x direction        
+nyc = 60                   # nyc = number of cells - y direction
 nzc =  1                   # nzc = number of cells - z direction        
 
 # %%%%%%%%%%%%%% MPI TOPOLOGY %%%%%%%%%%%%%%
 # number of MPI subdomains in each direction
-XLEN = 1
-YLEN = 2
+XLEN = 5
+YLEN = 6
 ZLEN = 1
 # topology of subdomains in each dimension (1=true, 0=false)
 PERIODICX = 1
