@@ -25,6 +25,7 @@ developers: Stefano Markidis, Giovanni Lapenta.
 #include "ompdefs.h"
 #include "ipicmath.h"
 #include "ipicdefs.h"
+#include "mic_basics.h"
 
 #include "Particle.h"
 #include "Particles3Dcomm.h"
@@ -1893,9 +1894,16 @@ void Particles3Dcomm::copyParticlesToSoA()
   assert_divides(8,u.capacity());
   for(int pidx=0; pidx<nop; pidx+=8)
   {
-    (F64vec8*) SoAdata[8] = {&u[pidx],&v[pidx],&w[pidx],&q[pidx],
-                             &x[pidx],&y[pidx],&z[pidx],&t[pidx]};
-    F64vec8 (&AoSdata)[8] = *reinterpret_cast<double (*)F64vec8[8]>(&pcls[pidx]);
+    F64vec8* SoAdata[8] = {
+      (F64vec8*) &u[pidx],
+      (F64vec8*) &v[pidx],
+      (F64vec8*) &w[pidx],
+      (F64vec8*) &q[pidx],
+      (F64vec8*) &x[pidx],
+      (F64vec8*) &y[pidx],
+      (F64vec8*) &z[pidx],
+      (F64vec8*) &t[pidx]};
+    F64vec8* AoSdata = reinterpret_cast<F64vec8*>(&_pcls[pidx]);
     transpose_8x8_double(AoSdata,SoAdata);
   }
  #endif // __MIC__
@@ -1921,13 +1929,18 @@ void Particles3Dcomm::copyParticlesToAoS()
   // for efficiency, copy data 8 particles at a time,
   // transposing each block of particles
   assert_divides(8,_pcls.capacity());
-  for(int pidx=0; pidx<nop; pidx+=8);
+  for(int pidx=0; pidx<nop; pidx+=8)
   {
-    //double (&matrix)[8][8] = *(double (*)[8][8])(_pcls[pidx]);
-    //double (&matrix)[8][8] = *reinterpret_cast<double (*)[8][8]>(&_pcls[pidx]);
-    F64vec8 (AoSdata&) [8] = *reinterpret_cast<F64vec8(*)[8]>(&_pcls[pidx]);
-    (F64vec8*) SoAdata[8] = {&u[pidx],&v[pidx],&w[pidx],&q[pidx],
-                             &x[pidx],&y[pidx],&z[pidx],&t[pidx]};
+    F64vec8* AoSdata = reinterpret_cast<F64vec8*>(&_pcls[pidx]);
+    F64vec8* SoAdata[8] ={
+      (F64vec8*) &u[pidx],
+      (F64vec8*) &v[pidx],
+      (F64vec8*) &w[pidx],
+      (F64vec8*) &q[pidx],
+      (F64vec8*) &x[pidx],
+      (F64vec8*) &y[pidx],
+      (F64vec8*) &z[pidx],
+      (F64vec8*) &t[pidx]};
     transpose_8x8_double(SoAdata, AoSdata);
   }
  #endif

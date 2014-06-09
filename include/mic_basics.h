@@ -348,7 +348,7 @@
   //   [a0 a1 b0 b1 a4 a5 b4 b5]
   //   [a2 a3 b2 b3 a6 a7 b6 b7]
   //
-  inline void trans2x8(F64vec8& out1, F64vec8& out2, F64vec8 in1, F64vec8 in2)
+  inline void trans2x4(F64vec8& out1, F64vec8& out2, F64vec8 in1, F64vec8 in2)
   {
     // data1: copy odd 1x2 elements from even 1x2 elements of in2, i.e.,
     //   static const bool odd[] = {0,0,1,1,0,0,1,1};
@@ -397,7 +397,7 @@
   {
     // copy the data that would be used after being rewritten:
     const F64vec8 buff1 = data1;
-    trans2x8(data1, data2, buff1, data2);
+    trans2x4(data1, data2, buff1, data2);
   }
   inline void trans2x4(double in1[8], double in2[8])
   {
@@ -520,7 +520,7 @@
   }
 
   // transpose 8x8 data from in to out, leaving in unmodified
-  inline void transpose_8x8_double((F64vec8*) out[8], const F64vec8 in[8])
+  inline void transpose_8x8_double(F64vec8* out[8], const F64vec8 in[8])
   {
     F64vec8 buff[8];
     // 1. transpose each 2x2 block.
@@ -537,7 +537,7 @@
   }
 
   // transpose 8x8 data from in to out, leaving in unmodified
-  inline void transpose_8x8_double(F64vec8 out[8], (F64vec8*) in[8])
+  inline void transpose_8x8_double(F64vec8 out[8], F64vec8* in[8])
   {
     F64vec8 buff[8];
     // 1. transpose each 2x2 block.
@@ -582,13 +582,13 @@
   {
     return Dvec4(t,z,y,x);
   }
-  inline Ivec8 round_down(Dvec4 dvec)
-  {
-    Ivec8 ret;
-    for(int i=0;i<4;i++)
-      ret[i] = floor(dvec[i]);
-  }
-  typedef Ivec8 Ivec;
+  //inline Ivec8 round_down(Dvec4 dvec)
+  //{
+  //  Ivec8 ret;
+  //  for(int i=0;i<4;i++)
+  //    ret[i] = floor(dvec[i]);
+  //}
+  //typedef Ivec8 Ivec;
   typedef Dvec4 Dvec;
 #endif
 

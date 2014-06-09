@@ -147,6 +147,7 @@ public:
   double get_zstart(){return zstart;}
   ParticleType::Type get_particleType()const { return particleType; }
   const SpeciesParticle& get_pcl(int pidx)const{ return _pcls[pidx]; }
+  const vector_SpeciesParticle& get_pcl_list()const{ return _pcls; }
   const double *getUall()  const { assert(particlesAreSoA()); return &u[0]; }
   const double *getVall()  const { assert(particlesAreSoA()); return &v[0]; }
   const double *getWall()  const { assert(particlesAreSoA()); return &w[0]; }

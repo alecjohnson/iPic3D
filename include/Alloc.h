@@ -254,6 +254,7 @@ namespace iPic3D
   // - operator[].
   //
 #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+#error "how did I get here?"
 
   template <class type>
   class array_fetch1
