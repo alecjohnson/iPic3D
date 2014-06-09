@@ -193,7 +193,7 @@
       //printexpr(subs);
       int const*const subs_arr = (int*)&subs;
       // access underlying 1D array of fieldForPcls
-      double* fieldForPcls1d = fieldForPcls.get_arr();
+      const double* fieldForPcls1d = fieldForPcls.get_arr();
       #pragma unroll
       for(int i=0; i<8; i++)
       {

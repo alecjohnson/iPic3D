@@ -926,21 +926,22 @@ void EMfields3D::sumMoments_AoS_intr(
       //
       // number or particles processed at a time
       const int num_pcls_per_loop = 2;
-      const int nop = pcls.getNOP();
+      const vector_SpeciesParticle& pcl_list = pcls.get_pcl_list();
+      const int nop = pcl_list.size();
       // if the number of particles is odd, then make
       // sure that the data after the last particle
       // will not contribute to the moments.
       #pragma omp single // the implied omp barrier is needed
       {
         // make sure that we will not overrun the array
-        assert_divides(num_pcls_per_loop,pcls.get_npmax());
+        assert_divides(num_pcls_per_loop,pcl_list.capacity());
         // round up number of particles
         int nop_rounded_up = roundup_to_multiple(nop,num_pcls_per_loop);
         for(int pidx=nop; pidx<nop_rounded_up; pidx++)
         {
           // (This is a benign violation of particle
           // encapsulation and requires a cast).
-          SpeciesParticle& pcl = (SpeciesParticle&) pcls.get_pcl(pidx);
+          SpeciesParticle& pcl = (SpeciesParticle&) pcl_list[pidx];
           pcl.set_to_zero();
         }
       }
@@ -949,8 +950,8 @@ void EMfields3D::sumMoments_AoS_intr(
       {
         // cast particles as vectors
         // (assumes each particle exactly fits a cache line)
-        const F64vec8& pcl0 = (const F64vec8&)pcls.get_pcl(pidx);
-        const F64vec8& pcl1 = (const F64vec8&)pcls.get_pcl(pidx+1);
+        const F64vec8& pcl0 = (const F64vec8&)pcl_list[pidx];
+        const F64vec8& pcl1 = (const F64vec8&)pcl_list[pidx+1];
         // gather position data from particles
         // (assumes position vectors are in upper half)
         const F64vec8 xpos = cat_hgh_halves(pcl0,pcl1);
@@ -1026,12 +1027,12 @@ void EMfields3D::sumMoments_AoS_intr(
             transpose_8x8_double((double(*)[8]) cell_mom_first8);
             // scatter the moment vectors to the nodes
             array3<F64vec8>& node_moments_first8 = node_moments_first8_per_thr[this_thread];
-            array_fetch2<F64vec8> node_moments0 = node_moments_first8[ix];
-            array_fetch2<F64vec8> node_moments1 = node_moments_first8[cx];
-            array_fetch1<F64vec8> node_moments00 = node_moments0[iy];
-            array_fetch1<F64vec8> node_moments01 = node_moments0[cy];
-            array_fetch1<F64vec8> node_moments10 = node_moments1[iy];
-            array_fetch1<F64vec8> node_moments11 = node_moments1[cy];
+            arr_fetch2(F64vec8) node_moments0 = node_moments_first8[ix];
+            arr_fetch2(F64vec8) node_moments1 = node_moments_first8[cx];
+            arr_fetch1(F64vec8) node_moments00 = node_moments0[iy];
+            arr_fetch1(F64vec8) node_moments01 = node_moments0[cy];
+            arr_fetch1(F64vec8) node_moments10 = node_moments1[iy];
+            arr_fetch1(F64vec8) node_moments11 = node_moments1[cy];
             node_moments00[iz] += cell_mom_first8[0]; // node_moments_first8[ix][iy][iz]
             node_moments00[cz] += cell_mom_first8[1]; // node_moments_first8[ix][iy][cz]
             node_moments01[iz] += cell_mom_first8[2]; // node_moments_first8[ix][cy][iz]
@@ -1109,15 +1110,15 @@ void EMfields3D::sumMoments_AoS_intr(
         for(int nx=1;nx<nxn;nx++)
         for(int ny=1;ny<nyn;ny++)
         {
-          array_fetch1<F64vec8> node_moments8_for_master
+          arr_fetch1(F64vec8) node_moments8_for_master
             = node_moments_first8_per_thr[0][nx][ny];
-          array_fetch2<double> node_moments2_for_master
+          arr_fetch2(double) node_moments2_for_master
             = node_moments_last2_per_thr[0][nx][ny];
           for(int thread_num=1;thread_num<num_threads;thread_num++)
           {
-            array_fetch1<F64vec8> node_moments8_for_thr
+            arr_fetch1(F64vec8) node_moments8_for_thr
               = node_moments_first8_per_thr[thread_num][nx][ny];
-            array_fetch2<double> node_moments2_for_thr
+            arr_fetch2(double) node_moments2_for_thr
               = node_moments_last2_per_thr[thread_num][nx][ny];
             for(int nz=1;nz<nzn;nz++)
             {
@@ -1134,20 +1135,20 @@ void EMfields3D::sumMoments_AoS_intr(
         for(int nx=1;nx<nxn;nx++)
         for(int ny=1;ny<nyn;ny++)
         {
-          array_fetch1<F64vec8> node_moments8_for_master
+          arr_fetch1(F64vec8) node_moments8_for_master
             = node_moments_first8_per_thr[0][nx][ny];
-          array_fetch2<double> node_moments2_for_master
+          arr_fetch2(double) node_moments2_for_master
             = node_moments_last2_per_thr[0][nx][ny];
-          array_fetch1<double> rho_sxy = rhons[is][nx][ny];
-          array_fetch1<double> Jx__sxy = Jxs  [is][nx][ny];
-          array_fetch1<double> Jy__sxy = Jys  [is][nx][ny];
-          array_fetch1<double> Jz__sxy = Jzs  [is][nx][ny];
-          array_fetch1<double> pXX_sxy = pXXsn[is][nx][ny];
-          array_fetch1<double> pXY_sxy = pXYsn[is][nx][ny];
-          array_fetch1<double> pXZ_sxy = pXZsn[is][nx][ny];
-          array_fetch1<double> pYY_sxy = pYYsn[is][nx][ny];
-          array_fetch1<double> pYZ_sxy = pYZsn[is][nx][ny];
-          array_fetch1<double> pZZ_sxy = pZZsn[is][nx][ny];
+          arr_fetch1(double) rho_sxy = rhons[is][nx][ny];
+          arr_fetch1(double) Jx__sxy = Jxs  [is][nx][ny];
+          arr_fetch1(double) Jy__sxy = Jys  [is][nx][ny];
+          arr_fetch1(double) Jz__sxy = Jzs  [is][nx][ny];
+          arr_fetch1(double) pXX_sxy = pXXsn[is][nx][ny];
+          arr_fetch1(double) pXY_sxy = pXYsn[is][nx][ny];
+          arr_fetch1(double) pXZ_sxy = pXZsn[is][nx][ny];
+          arr_fetch1(double) pYY_sxy = pYYsn[is][nx][ny];
+          arr_fetch1(double) pYZ_sxy = pYZsn[is][nx][ny];
+          arr_fetch1(double) pZZ_sxy = pZZsn[is][nx][ny];
           for(int nz=0;nz<nzn;nz++)
           {
             rho_sxy[nz] = invVOL*node_moments8_for_master[nz][0];
