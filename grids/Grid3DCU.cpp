@@ -104,9 +104,19 @@ Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct) {
 //  init_derived_parameters();
 //}
 
-// set derived convenience
+// set derived convenience parameters
 void Grid3DCU::init_derived_parameters()
 {
+  epsilon = (nxc+nyc+nzc)*1e-15;
+  nxc_minus_epsilon = nxc-epsilon;
+  nyc_minus_epsilon = nyc-epsilon;
+  nzc_minus_epsilon = nzc-epsilon;
+  assert_lt(int(floor(nxc_minus_epsilon)),nxc);
+  assert_lt(int(floor(nyc_minus_epsilon)),nyc);
+  assert_lt(int(floor(nzc_minus_epsilon)),nzc);
+  xStart_g = xStart - dx;
+  yStart_g = yStart - dy;
+  zStart_g = zStart - dz;
   // calculation conveniences
   //
   VOL = dx * dy * dz;

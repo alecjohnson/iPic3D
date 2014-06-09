@@ -192,6 +192,7 @@ private:
   //   nxc_r = number of x cells in "real"/"restricted"/proper subgrid
   //   
 private:
+  const static bool suppress_runaway_particle_instability = true;
   /** number of cells - X direction, including + 2 (guard cells) */
   int nxc;
   /** number of nodes - X direction, including + 2 extra nodes for guard cells */
@@ -245,6 +246,11 @@ private:
   double *center_zcoord;
   /** local grid boundaries coordinate of proper subdomain */
   double xStart, xEnd, yStart, yEnd, zStart, zEnd;
+  double xStart_g, yStart_g, zStart_g;
+  double epsilon;
+  double nxc_minus_epsilon;
+  double nyc_minus_epsilon;
+  double nzc_minus_epsilon;
 
 public: // accessors (inline)
   int getNXC()const{ return (nxc); }
@@ -349,6 +355,27 @@ public: // accessors (inline)
       cy = 1 + int(floor(cym1_pos));
       cz = 1 + int(floor(czm1_pos));
   }
+  void make_grid_position_safe(double& cx_pos, double& cy_pos, double& cz_pos)const
+  {
+    // if the position is outside the domain, then map
+    // it to the edge of the guarded subdomain
+    //
+    if (cx_pos < epsilon) cx_pos = epsilon;
+    if (cy_pos < epsilon) cy_pos = epsilon;
+    if (cz_pos < epsilon) cz_pos = epsilon;
+    if (cx_pos > nxc_minus_epsilon) cx_pos = nxc_minus_epsilon;
+    if (cy_pos > nyc_minus_epsilon) cy_pos = nyc_minus_epsilon;
+    if (cz_pos > nzc_minus_epsilon) cz_pos = nzc_minus_epsilon;
+  }
+  void assert_cell_coordinates_safe(int cx, int cy, int cz)const
+  {
+    assert(cx >= 0);
+    assert(cy >= 0);
+    assert(cz >= 0);
+    assert(cx < nxc);
+    assert(cy < nyc);
+    assert(cz < nzc);
+  }
   void make_cell_coordinates_safe(int& cx, int& cy, int& cz)const
   {
     // if the cell is outside the domain, then treat it as
@@ -373,30 +400,35 @@ public: // accessors (inline)
     int &cx, int& cy, int& cz,
     double weights[8])const
   {
-    //convert_xpos_to_cxpos(xpos,ypos,zpos,cxpos,cypos,czpos);
-    // xStart marks start of domain excluding ghosts
-    const double rel_xpos = xpos - xStart;
-    const double rel_ypos = ypos - yStart;
-    const double rel_zpos = zpos - zStart;
-    // cell position minus 1 (due to ghost cells)
-    const double cxm1_pos = rel_xpos * invdx;
-    const double cym1_pos = rel_ypos * invdy;
-    const double czm1_pos = rel_zpos * invdz;
+    //convert_xpos_to_cxpos(xpos,ypos,zpos,cx_pos,cy_pos,cz_pos);
+    // gxStart marks start of guarded domain (including ghosts)
+    const double rel_xpos = xpos - xStart_g;
+    const double rel_ypos = ypos - yStart_g;
+    const double rel_zpos = zpos - zStart_g;
+    // cell position (in guarded array)
+    double cx_pos = rel_xpos * invdx;
+    double cy_pos = rel_ypos * invdy;
+    double cz_pos = rel_zpos * invdz;
     //
-    cx = 1 + int(floor(cxm1_pos));
-    cy = 1 + int(floor(cym1_pos));
-    cz = 1 + int(floor(czm1_pos));
+    if(suppress_runaway_particle_instability)
+      make_grid_position_safe(cx_pos,cy_pos,cz_pos);
+    //
+    cx = int(floor(cx_pos));
+    cy = int(floor(cy_pos));
+    cz = int(floor(cz_pos));
+    // this was the old algorithm.
+    if(!suppress_runaway_particle_instability)
+      make_cell_coordinates_safe(cx,cy,cz);
+    assert_cell_coordinates_safe(cx,cy,cz);
   
-    make_cell_coordinates_safe(cx,cy,cz);
-  
-    // fraction of the distance from the right of the cell
-    const double w1x = cx - cxm1_pos;
-    const double w1y = cy - cym1_pos;
-    const double w1z = cz - czm1_pos;
     // fraction of distance from the left
-    const double w0x = 1.-w1x;
-    const double w0y = 1.-w1y;
-    const double w0z = 1.-w1z;
+    const double w0x = cx_pos - cx;
+    const double w0y = cy_pos - cy;
+    const double w0z = cz_pos - cz;
+    // fraction of the distance from the right of the cell
+    const double w1x = 1.-w0x;
+    const double w1y = 1.-w0y;
+    const double w1z = 1.-w0z;
 
     get_weights(weights, w0x, w0y, w0z, w1x, w1y, w1z);
   }
