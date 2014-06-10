@@ -33,10 +33,9 @@ namespace PSK {
     void write(const std::string & tag, long i_value);
     void write(const std::string & tag, const Dimens dimens, const int *i_array);
     void write(const std::string & tag, const Dimens dimens, const long *i_array);
+    void write(const std::string & tag, const Dimens dimens, const longid *i_array);
 
     void write(const std::string & tag, const Dimens dimens, const std::vector < int >&i_array);
-
-    void write(const std::string & tag, const Dimens dimens, const std::vector < long >&i_array);
 
     void write(const std::string & objname, const Dimens dimens, const int ***i_array);
 

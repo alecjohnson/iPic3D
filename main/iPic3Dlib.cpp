@@ -9,7 +9,32 @@
 #include "Moments.h" // for debugging
 
 using namespace iPic3D;
-MPIdata* iPic3D::c_Solver::mpi=0;
+//MPIdata* iPic3D::c_Solver::mpi=0;
+
+c_Solver::~c_Solver()
+{
+  delete col; // configuration parameters ("collectiveIO")
+  delete vct; // process topology
+  delete grid; // grid
+  delete EMf; // field
+
+  // delete particles
+  //
+  if(part)
+  {
+    for (int i = 0; i < ns; i++)
+    {
+      // placement delete
+      part[i].~Particles3D();
+    }
+    free(part);
+  }
+
+  delete [] Ke;
+  delete [] momentum;
+  delete [] Qremoved;
+  delete my_clock;
+}
 
 int c_Solver::Init(int argc, char **argv) {
   // get MPI data
@@ -21,7 +46,7 @@ int c_Solver::Init(int argc, char **argv) {
   // nprocs = number of processors
   // myrank = rank of tha process*/
   Parameters::init_parameters();
-  mpi = &MPIdata::instance();
+  //mpi = &MPIdata::instance();
   nprocs = MPIdata::get_nprocs();
   myrank = MPIdata::get_rank();
 
@@ -39,7 +64,7 @@ int c_Solver::Init(int argc, char **argv) {
   if (nprocs != vct->getNprocs()) {
     if (myrank == 0) {
       cerr << "Error: " << nprocs << " processes cant be mapped into " << vct->getXLEN() << "x" << vct->getYLEN() << "x" << vct->getZLEN() << " matrix: Change XLEN,YLEN, ZLEN in method VCtopology3D.init()" << endl;
-      mpi->finalize_mpi();
+      MPIdata::instance().finalize_mpi();
       return (1);
     }
   }
@@ -52,12 +77,9 @@ int c_Solver::Init(int argc, char **argv) {
   col->setGlobalStartIndex(vct);
 #endif
 
-  nx0 = col->getNxc() / vct->getXLEN(); // get the number of cells in x for each processor
-  ny0 = col->getNyc() / vct->getYLEN(); // get the number of cells in y for each processor
-  nz0 = col->getNzc() / vct->getZLEN(); // get the number of cells in z for each processor
   // Print the initial settings to stdout and a file
   if (myrank == 0) {
-    mpi->Print();
+    MPIdata::instance().Print();
     vct->Print();
     col->Print();
     col->save();
@@ -95,26 +117,34 @@ int c_Solver::Init(int argc, char **argv) {
   EMf->updateInfoFields(grid,vct,col);
 
   // Allocation of particles
-  part = new Particles3D[ns];
+  // part = new Particles3D[ns];
+  part = (Particles3D*) malloc(sizeof(Particles3D)*ns);
   for (int i = 0; i < ns; i++)
-    part[i].allocate(i, col, vct, grid);
+  {
+    new(&part[i]) Particles3D(i,col,vct,grid);
+    //part[i] = new Particles3D(i, col, vct, grid);
+    //part[i].allocate(i, col, vct, grid);
+  }
 
   // Initial Condition for PARTICLES if you are not starting from RESTART
   if (restart == 0) {
     // wave = new Planewave(col, EMf, grid, vct);
     // wave->Wave_Rotated(part); // Single Plane Wave
     for (int i = 0; i < ns; i++)
-      if      (col->getCase()=="ForceFree") part[i].force_free(grid,EMf,vct);
+    {
+      if      (col->getCase()=="ForceFree") part[i].force_free(EMf);
 #ifdef BATSRUS
-      else if (col->getCase()=="BATSRUS")   part[i].MaxwellianFromFluid(grid,EMf,vct,col,i);
+      else if (col->getCase()=="BATSRUS")   part[i].MaxwellianFromFluid(EMf,col,i);
 #endif
-      else                                  part[i].maxwellian(grid, EMf, vct);
+      else                                  part[i].maxwellian(EMf);
+      part[i].reserve_remaining_particle_IDs();
+    }
   }
 
   // Initialize the output (simulation results and restart file)
   // PSK::OutputManager < PSK::OutputAdaptor > output_mgr; // Create an Output Manager
   // myOutputAgent < PSK::HDF5OutputAdaptor > hdf5_agent; // Create an Output Agent for HDF5 output
-  hdf5_agent.set_simulation_pointers(EMf, grid, vct, mpi, col);
+  hdf5_agent.set_simulation_pointers(EMf, grid, vct, col);
   for (int i = 0; i < ns; ++i)
     hdf5_agent.set_simulation_pointers_part(&part[i]);
   output_mgr.push_back(&hdf5_agent);  // Add the HDF5 output agent to the Output Manager's list
@@ -159,6 +189,9 @@ int c_Solver::Init(int argc, char **argv) {
   // if(myrank==0)
   ofstream my_file(cqsat.c_str(), fstream::binary);
   nsat = 3;
+  const int nx0 = grid->get_nxc_r();
+  const int ny0 = grid->get_nyc_r();
+  const int nz0 = grid->get_nzc_r();
   for (int isat = 0; isat < nsat; isat++) {
     for (int jsat = 0; jsat < nsat; jsat++) {
       for (int ksat = 0; ksat < nsat; ksat++) {
@@ -179,7 +212,7 @@ int c_Solver::Init(int argc, char **argv) {
 void c_Solver::sortParticles() {
   timeTasks_begin_task(TimeTasks::MOMENT_PCL_SORTING);
   for(int species_idx=0; species_idx<ns; species_idx++)
-    part[species_idx].sort_particles_serial(grid,vct);
+    part[species_idx].sort_particles_serial();
   timeTasks_end_task(TimeTasks::MOMENT_PCL_SORTING);
 }
 
@@ -187,8 +220,7 @@ void c_Solver::CalculateMoments() {
 
   timeTasks_set_main_task(TimeTasks::MOMENTS);
 
-  // why is this being done here?
-  EMf->updateInfoFields(grid,vct,col);
+  pad_particle_capacities();
 
   // vectorized assumes that particles are sorted by mesh cell
   if(Parameters::get_VECTORIZE_MOMENTS())
@@ -255,6 +287,9 @@ void c_Solver::CalculateMoments() {
   EMf->interpDensitiesN2C(vct, grid);       // calculate densities on centers from nodes
   EMf->calculateHatFunctions(grid, vct);    // calculate the hat quantities for the implicit method
   former_MPI_Barrier(MPI_COMM_WORLD);
+
+  // why is this being done here?
+  EMf->updateInfoFields(grid,vct,col);
 }
 
 //! MAXWELL SOLVER for Efield
@@ -273,13 +308,16 @@ void c_Solver::CalculateB() {
 /*  -------------- */
 /*!  Particle mover */
 /*  -------------- */
-bool c_Solver::ParticlesMover() {
-
+bool c_Solver::ParticlesMover()
+{
   // move all species of particles
   {
     timeTasks_set_main_task(TimeTasks::PARTICLES);
     // Should change this to add background field
     EMf->set_fieldForPcls();
+
+    pad_particle_capacities();
+
     #pragma omp parallel
     {
     for (int i = 0; i < ns; i++)  // move each species
@@ -291,41 +329,36 @@ bool c_Solver::ParticlesMover() {
       switch(Parameters::get_MOVER_TYPE())
       {
         case Parameters::SoA:
-          part[i].mover_PC(grid, vct, EMf);
+          part[i].mover_PC(EMf);
           break;
-        case Parameters::SoA_vec_resort:
-          part[i].mover_PC_vectorized(grid, vct, EMf);
-          break;
+        //case Parameters::SoA_vec_resort:
+        //  part[i].mover_PC_vectorized(EMf);
+        //  break;
         case Parameters::AoS:
-          part[i].mover_PC_AoS(grid, vct, EMf);
+          part[i].mover_PC_AoS(EMf);
           break;
         case Parameters::AoSintr:
-          part[i].mover_PC_AoS_vec_intr(grid, vct, EMf);
+          part[i].mover_PC_AoS_vec_intr(EMf);
           break;
         case Parameters::AoSvec:
-          part[i].mover_PC_AoS_vec(grid, vct, EMf);
+          part[i].mover_PC_AoS_vec(EMf);
           break;
-        case Parameters::AoS_vec_onesort:
-          part[i].mover_PC_AoS_vec_onesort(grid, vct, EMf);
-          break;
+        //case Parameters::AoS_vec_onesort:
+        //  part[i].mover_PC_AoS_vec_onesort(EMf);
+        //  break;
         default:
           unsupported_value_error(Parameters::get_MOVER_TYPE());
       }
+      // overlap initial communication of electrons with moving of ions
+      #pragma omp master
+      part[i].separate_and_send_particles();
     }
     }
     for (int i = 0; i < ns; i++)  // communicate each species
     {
-      mem_avail = part[i].communicate_particles(vct);
+      //part[i].communicate_particles();
+      part[i].recommunicate_particles_until_done(1);
     }
-  }
-
-  if (mem_avail < 0) {          // not enough memory space allocated for particles: stop the simulation
-    if (myrank == 0) {
-      cout << "*************************************************************" << endl;
-      cout << "Simulation stopped. Not enough memory allocated for particles" << endl;
-      cout << "*************************************************************" << endl;
-    }
-    return (true);              // exit from the time loop
   }
 
   /* -------------------------------------- */
@@ -334,16 +367,7 @@ bool c_Solver::ParticlesMover() {
 
   for (int i=0; i < ns; i++) {
     if (col->getRHOinject(i)>0.0)
-      mem_avail = part[i].particle_repopulator(grid,vct,EMf);
-  }
-
-  if (mem_avail < 0) {          // not enough memory space allocated for particles: stop the simulation
-    if (myrank == 0) {
-      cout << "*************************************************************" << endl;
-      cout << "Simulation stopped. Not enough memory allocated for particles" << endl;
-      cout << "*************************************************************" << endl;
-    }
-    return (true);              // exit from the time loop
+      part[i].repopulate_particles();
   }
 
   /* --------------------------------------- */
@@ -357,15 +381,21 @@ bool c_Solver::ParticlesMover() {
   return (false);
 }
 
-void c_Solver::WriteRestart(int cycle) {
+void c_Solver::WriteRestart(int cycle)
+{
+  bool do_WriteRestart = (cycle % restart_cycle == 0 && cycle != first_cycle);
+  if(!do_WriteRestart)
+    return;
+
+  convertParticlesToSynched(); // hack
   // write the RESTART file
-  if (cycle % restart_cycle == 0 && cycle != first_cycle)
-    writeRESTART(RestartDirName, myrank, cycle, ns, mpi, vct, col, grid, EMf, part, 0); // without ,0 add to restart file
+  writeRESTART(RestartDirName, myrank, cycle, ns, vct, col, grid, EMf, part, 0); // without ,0 add to restart file
 }
 
+// write the conserved quantities
 void c_Solver::WriteConserved(int cycle) {
-  // write the conserved quantities
-  if (cycle % col->getDiagnosticsOutputCycle() == 0) {
+  if(cycle % col->getDiagnosticsOutputCycle() == 0)
+  {
     Eenergy = EMf->getEenergy();
     Benergy = EMf->getBenergy();
     TOTenergy = 0.0;
@@ -381,7 +411,14 @@ void c_Solver::WriteConserved(int cycle) {
       my_file << cycle << "\t" << "\t" << (Eenergy + Benergy + TOTenergy) << "\t" << TOTmomentum << "\t" << Eenergy << "\t" << Benergy << "\t" << TOTenergy << endl;
       my_file.close();
     }
-    // Velocity distribution
+  }
+}
+
+void c_Solver::WriteVelocityDistribution(int cycle)
+{
+  // Velocity distribution
+  //if(cycle % col->getVelocityDistributionOutputCycle() == 0)
+  {
     for (int is = 0; is < ns; is++) {
       double maxVel = part[is].getMaxVelocity();
       long long *VelocityDist = part[is].getVelocityDistribution(nDistributionBins, maxVel);
@@ -398,72 +435,119 @@ void c_Solver::WriteConserved(int cycle) {
   }
 }
 
-void c_Solver::WriteOutput(int cycle) {
+// This seems to record values at a grid of sample points
+//
+void c_Solver::WriteVirtualSatelliteTraces()
+{
+  if(ns <= 2) return;
+  assert_eq(ns,4);
 
-  bool write_fields = (cycle % (col->getFieldOutputCycle()) == 0 || cycle == first_cycle);
+  ofstream my_file(cqsat.c_str(), fstream::app);
+  const int nx0 = grid->get_nxc_r();
+  const int ny0 = grid->get_nyc_r();
+  const int nz0 = grid->get_nzc_r();
+  for (int isat = 0; isat < nsat; isat++) {
+    for (int jsat = 0; jsat < nsat; jsat++) {
+      for (int ksat = 0; ksat < nsat; ksat++) {
+        int index1 = 1 + isat * nx0 / nsat + nx0 / nsat / 2;
+        int index2 = 1 + jsat * ny0 / nsat + ny0 / nsat / 2;
+        int index3 = 1 + ksat * nz0 / nsat + nz0 / nsat / 2;
+        my_file << EMf->getBx(index1, index2, index3) << "\t" << EMf->getBy(index1, index2, index3) << "\t" << EMf->getBz(index1, index2, index3) << "\t";
+        my_file << EMf->getEx(index1, index2, index3) << "\t" << EMf->getEy(index1, index2, index3) << "\t" << EMf->getEz(index1, index2, index3) << "\t";
+        my_file << EMf->getJxs(index1, index2, index3, 0) + EMf->getJxs(index1, index2, index3, 2) << "\t" << EMf->getJys(index1, index2, index3, 0) + EMf->getJys(index1, index2, index3, 2) << "\t" << EMf->getJzs(index1, index2, index3, 0) + EMf->getJzs(index1, index2, index3, 2) << "\t";
+        my_file << EMf->getJxs(index1, index2, index3, 1) + EMf->getJxs(index1, index2, index3, 3) << "\t" << EMf->getJys(index1, index2, index3, 1) + EMf->getJys(index1, index2, index3, 3) << "\t" << EMf->getJzs(index1, index2, index3, 1) + EMf->getJzs(index1, index2, index3, 3) << "\t";
+        my_file << EMf->getRHOns(index1, index2, index3, 0) + EMf->getRHOns(index1, index2, index3, 2) << "\t";
+        my_file << EMf->getRHOns(index1, index2, index3, 1) + EMf->getRHOns(index1, index2, index3, 3) << "\t";
+      }}}
+  my_file << endl;
+  my_file.close();
+}
 
-  bool write_particles = (cycle % (col->getParticlesOutputCycle()) == 0
-                         && col->getParticlesOutputCycle() != 1);
-
-  if(write_particles){ convertParticlesToSoA(); }
-
-  if (col->getWriteMethod() == "Parallel") {
-    if (write_fields) {
-      WriteOutputParallel(grid, EMf, col, vct, cycle);
-    }
-  }
-  else
+void c_Solver::WriteFields(int cycle) {
+  if(cycle % (col->getFieldOutputCycle()) == 0 || cycle == first_cycle)
   {
-    // OUTPUT to large file, called proc**
-    if (write_fields) {
-      hdf5_agent.open_append(SaveDirName + "/proc" + num_proc.str() + ".hdf");
-      output_mgr.output("Eall + Ball + rhos + Jsall + pressure", cycle);
-      // Pressure tensor is available
-      hdf5_agent.close();
+    if (col->getWriteMethod() == "Parallel") {
+        WriteOutputParallel(grid, EMf, col, vct, cycle);
     }
-    if (write_particles) {
-      hdf5_agent.open_append(SaveDirName + "/proc" + num_proc.str() + ".hdf");
-      output_mgr.output("position + velocity + q ", cycle, 1);
-      hdf5_agent.close();
-    }
-    // write the virtual satellite traces
-
-    if (ns > 2) {
-      ofstream my_file(cqsat.c_str(), fstream::app);
-      for (int isat = 0; isat < nsat; isat++) {
-        for (int jsat = 0; jsat < nsat; jsat++) {
-          for (int ksat = 0; ksat < nsat; ksat++) {
-            int index1 = 1 + isat * nx0 / nsat + nx0 / nsat / 2;
-            int index2 = 1 + jsat * ny0 / nsat + ny0 / nsat / 2;
-            int index3 = 1 + ksat * nz0 / nsat + nz0 / nsat / 2;
-            my_file << EMf->getBx(index1, index2, index3) << "\t" << EMf->getBy(index1, index2, index3) << "\t" << EMf->getBz(index1, index2, index3) << "\t";
-            my_file << EMf->getEx(index1, index2, index3) << "\t" << EMf->getEy(index1, index2, index3) << "\t" << EMf->getEz(index1, index2, index3) << "\t";
-            my_file << EMf->getJxs(index1, index2, index3, 0) + EMf->getJxs(index1, index2, index3, 2) << "\t" << EMf->getJys(index1, index2, index3, 0) + EMf->getJys(index1, index2, index3, 2) << "\t" << EMf->getJzs(index1, index2, index3, 0) + EMf->getJzs(index1, index2, index3, 2) << "\t";
-            my_file << EMf->getJxs(index1, index2, index3, 1) + EMf->getJxs(index1, index2, index3, 3) << "\t" << EMf->getJys(index1, index2, index3, 1) + EMf->getJys(index1, index2, index3, 3) << "\t" << EMf->getJzs(index1, index2, index3, 1) + EMf->getJzs(index1, index2, index3, 3) << "\t";
-            my_file << EMf->getRHOns(index1, index2, index3, 0) + EMf->getRHOns(index1, index2, index3, 2) << "\t";
-            my_file << EMf->getRHOns(index1, index2, index3, 1) + EMf->getRHOns(index1, index2, index3, 3) << "\t";
-          }}}
-      my_file << endl;
-      my_file.close();
+    else // OUTPUT to large file, called proc**
+    {
+        hdf5_agent.open_append(SaveDirName + "/proc" + num_proc.str() + ".hdf");
+        output_mgr.output("Eall + Ball + rhos + Jsall + pressure", cycle);
+        // Pressure tensor is available
+        hdf5_agent.close();
     }
   }
 }
 
-void c_Solver::Finalize() {
-  if (mem_avail == 0 // write the restart only if the simulation finished successfully
-   && col->getCallFinalize())
+void c_Solver::WriteParticles(int cycle)
+{
+  const bool do_WriteParticles
+    = (cycle % (col->getParticlesOutputCycle()) == 0
+       && col->getParticlesOutputCycle() != 1);
+  if(!do_WriteParticles)
+    return;
+
+  // this is a hack
+  convertParticlesToSynched();
+
+  if (col->getWriteMethod() == "Parallel")
   {
-    writeRESTART(RestartDirName, myrank, (col->getNcycles() + first_cycle) - 1, ns, mpi, vct, col, grid, EMf, part, 0);
+    dprintf("pretending to write particles (not yet implemented)");
+  }
+  else
+  {
+    hdf5_agent.open_append(SaveDirName + "/proc" + num_proc.str() + ".hdf");
+    output_mgr.output("position + velocity + q ", cycle, 1);
+    hdf5_agent.close();
+  }
+}
+
+// This needs to be separated into methods that save particles
+// and methods that save field data
+//
+void c_Solver::WriteOutput(int cycle) {
+  // write fields-related data
+  WriteFields(cycle);
+  if (col->getWriteMethod() != "Parallel")
+  {
+    // This should be invoked by user if desired
+    // by means of a callback mechanism.
+    WriteVirtualSatelliteTraces();
+  }
+
+  // write particles-related data
+  //
+  // this also writes field data...
+  WriteRestart(cycle);
+  WriteParticles(cycle);
+  //
+  // This should be invoked by user if desired
+  // by means of a callback mechanism.
+  //WriteVelocityDistribution(cycle);
+  WriteConserved(cycle);
+}
+
+void c_Solver::Finalize() {
+  if (col->getCallFinalize())
+  {
+    convertParticlesToSynched();
+    writeRESTART(RestartDirName, myrank, (col->getNcycles() + first_cycle) - 1, ns, vct, col, grid, EMf, part, 0);
   }
 
   // stop profiling
   my_clock->stopTiming();
+}
 
-  // deallocate
-  delete[]Ke;
-  delete[]momentum;
-  // close MPI
-  mpi->finalize_mpi();
+//void c_Solver::copyParticlesToSoA()
+//{
+//  for (int i = 0; i < ns; i++)
+//    part[i].copyParticlesToSoA();
+//}
+
+void c_Solver::pad_particle_capacities()
+{
+  for (int i = 0; i < ns; i++)
+    part[i].pad_capacities();
 }
 
 // convert particle to struct of arrays (assumed by I/O)
@@ -478,4 +562,11 @@ void c_Solver::convertParticlesToAoS()
 {
   for (int i = 0; i < ns; i++)
     part[i].convertParticlesToAoS();
+}
+
+// convert particle to array of structs (used in computing)
+void c_Solver::convertParticlesToSynched()
+{
+  for (int i = 0; i < ns; i++)
+    part[i].convertParticlesToSynched();
 }

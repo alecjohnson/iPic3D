@@ -21,6 +21,7 @@ developers: D. Burgess, June/July 2006
 #include "Collective.h"
 #include "VCtopology3D.h"
 #include "MPIdata.h"
+#include "ipicdefs.h"
 
 using std::string;
 using std::stringstream;
@@ -106,61 +107,45 @@ namespace PSK {
     } virtual void open(const std::string & outf) {
       eprintf("Function not implemented");
       eprintf("Function not implemented");
-      //throw OutputException("Function not implemented", "PSK::OutputAdaptor::open");
     }
     virtual void close(void) {
       eprintf("Function not implemented");
-      //throw OutputException("Function not implemented", "PSK::OutputAdaptor::close");
     }
 
     // write int functions
     virtual void write(const std::string & objname, int i) {
       eprintf("Function not implemented");
-      //throw OutputException("Function not implemented", "PSK::OutputAdaptor::write(int)");
     }
     virtual void write(const std::string & objname, const Dimens dimens, const int *i_array) {
       eprintf("Function not implemented");
-      //throw OutputException("Function not implemented", "PSK::OutputAdaptor::write(int* array)");
     }
-    virtual void write(const std::string & objname, const Dimens dimens, const long *i_array) {
+    virtual void write(const std::string & objname, const Dimens dimens, const longid *i_array) {
       eprintf("Function not implemented");
-      //throw OutputException("Function not implemented", "PSK::OutputAdaptor::write(long* array)");
     }
     virtual void write(const std::string & objname, const Dimens dimens, const std::vector < int >&i_array) {
       eprintf("Function not implemented");
-      //throw OutputException("Function not implemented", "PSK::OutputAdaptor::write(vector<int> array)");
     }
 
-    virtual void write(const std::string & objname, const Dimens dimens, const std::vector < long >&i_array) {
-      eprintf("Function not implemented");
-      //throw OutputException("Function not implemented", "PSK::OutputAdaptor::write(vector<long> array)");
-    }
     // write float functions
     virtual void write(const std::string & objname, float f) {
       eprintf("Function not implemented");
-      //throw OutputException("Function not implemented", "PSK::OutputAdaptor::write(float)");
     }
     virtual void write(const std::string & objname, const Dimens dimens, const float *f_array) {
       eprintf("Function not implemented");
-      //throw OutputException("Function not implemented", "PSK::OutputAdaptor::write(float* array)");
     }
     virtual void write(const std::string & objname, const Dimens dimens, const std::vector < float >&f_array) {
       eprintf("Function not implemented");
-      //throw OutputException("Function not implemented", "PSK::OutputAdaptor::write(vector<float> array)");
     }
 
     // write double functions
     virtual void write(const std::string & objname, double d) {
       eprintf("Function not implemented");
-      //throw OutputException("Function not implemented", "PSK::OutputAdaptor::write(double)");
     }
     virtual void write(const std::string & objname, const Dimens dimens, const double *d_array) {
       eprintf("Function not implemented");
-      //throw OutputException("Function not implemented", "PSK::OutputAdaptor::write(double* array)");
     }
     virtual void write(const std::string & objname, const Dimens dimens, const std::vector < double >&d_array) {
       eprintf("Function not implemented");
-      //throw OutputException("Function not implemented", "PSK::OutputAdaptor::write(vector<double> array)");
     }
 
   };
@@ -296,7 +281,6 @@ template < class Toa > class myOutputAgent:public PSK::OutputAgent < Toa > {
   Field *_field;
   Grid *_grid;
   VCtopology3D *_vct;
-  MPIdata *_mpi;
   Collective *_col;
   int ns;
   // std::vector<Particles1DX*> _part;
@@ -306,11 +290,10 @@ public:
   myOutputAgent(void) {;
   }
 
-  void set_simulation_pointers(Field * field, Grid * grid, VCtopology3D * vct, MPIdata * mpi, Collective * col) {
+  void set_simulation_pointers(Field * field, Grid * grid, VCtopology3D * vct, Collective * col) {
     _field = field;
     _grid = grid;
     _vct = vct;
-    _mpi = mpi;
     _col = col;
   }
 
@@ -350,7 +333,7 @@ public:
     stringstream ss;
     stringstream cc;
     stringstream ii;
-    ss << _mpi->get_rank();
+    ss << MPIdata::instance().get_rank();
     cc << cycle;
     const int ns = _col->getNs();
     if (tag.find("last_cycle", 0) != string::npos)
@@ -406,11 +389,9 @@ public:
       for (int i = 0; i < ns; ++i) {
         stringstream ii;
         ii << i;
-        this->output_adaptor.write("/collective/species_" + ii.str() + "/Np", _col->getNp(i));
         this->output_adaptor.write("/collective/species_" + ii.str() + "/Npcelx", _col->getNpcelx(i));
         this->output_adaptor.write("/collective/species_" + ii.str() + "/Npcely", _col->getNpcely(i));
         this->output_adaptor.write("/collective/species_" + ii.str() + "/Npcelz", _col->getNpcelz(i));
-        this->output_adaptor.write("/collective/species_" + ii.str() + "/NpMax", _col->getNpMax(i));
         this->output_adaptor.write("/collective/species_" + ii.str() + "/qom", _col->getQOM(i));
         this->output_adaptor.write("/collective/species_" + ii.str() + "/uth", _col->getUth(i));
         this->output_adaptor.write("/collective/species_" + ii.str() + "/vth", _col->getVth(i));
@@ -627,7 +608,7 @@ public:
   void output(const string & tag, int cycle, int sample) {
     stringstream ss;
     stringstream cc;
-    ss << _mpi->get_rank();
+    ss << MPIdata::instance().get_rank();
     cc << cycle;
     const int ns = _col->getNs();
 
@@ -642,17 +623,10 @@ public:
       }
     }
     else if (tag.find("x", 0) != string::npos & sample == 0) {
-      std::vector < double >X;
       for (int i = 0; i < ns; ++i) {
         stringstream ii;
         ii << i;
-        for (int n = 0; n < _part[i]->getNOP(); n += sample) {
-          X.push_back(_part[i]->getX(n));
-        }
-        this->output_adaptor.write("/particles/species_" + ii.str() + "/x/cycle_" + cc.str(), PSK::Dimens(X.size()), X);
-
-        X.clear();
-
+        this->output_adaptor.write("/particles/species_" + ii.str() + "/x/cycle_" + cc.str(), PSK::Dimens(_part[i]->getNOP()), _part[i]->getXall());
       }
     }
     else if (tag.find("x", 0) != string::npos & sample != 0) {
@@ -660,13 +634,12 @@ public:
       for (int i = 0; i < ns; ++i) {
         stringstream ii;
         ii << i;
+        const int num_samples = _part[i]->getNOP()/sample;
+        X.reserve(num_samples);
         for (int n = 0; n < _part[i]->getNOP(); n += sample) {
           X.push_back(_part[i]->getX(n));
         }
         this->output_adaptor.write("/particles/species_" + ii.str() + "/x/cycle_" + cc.str(), PSK::Dimens(X.size()), X);
-
-        X.clear();
-
       }
     }
     else if (tag.find("position", 0) != string::npos & sample != 0) {
@@ -674,6 +647,10 @@ public:
       for (int i = 0; i < ns; ++i) {
         stringstream ii;
         ii << i;
+        const int num_samples = _part[i]->getNOP()/sample;
+        X.reserve(num_samples);
+        Y.reserve(num_samples);
+        Z.reserve(num_samples);
         for (int n = 0; n < _part[i]->getNOP(); n += sample) {
           X.push_back(_part[i]->getX(n));
           Y.push_back(_part[i]->getY(n));
@@ -682,10 +659,6 @@ public:
         this->output_adaptor.write("/particles/species_" + ii.str() + "/x/cycle_" + cc.str(), PSK::Dimens(X.size()), X);
         this->output_adaptor.write("/particles/species_" + ii.str() + "/y/cycle_" + cc.str(), PSK::Dimens(Y.size()), Y);
         this->output_adaptor.write("/particles/species_" + ii.str() + "/z/cycle_" + cc.str(), PSK::Dimens(Z.size()), Z);
-        X.clear();
-        Y.clear();
-        Z.clear();
-
       }
     }
 
@@ -701,17 +674,10 @@ public:
       }
     }
     else if (tag.find("u", 0) != string::npos & sample == 0) {
-      std::vector < double >U;
       for (int i = 0; i < ns; ++i) {
         stringstream ii;
         ii << i;
-        for (int n = 0; n < _part[i]->getNOP(); n += sample) {
-          U.push_back(_part[i]->getU(n));
-        }
-        this->output_adaptor.write("/particles/species_" + ii.str() + "/u/cycle_" + cc.str(), PSK::Dimens(U.size()), U);
-
-        U.clear();
-
+        this->output_adaptor.write("/particles/species_" + ii.str() + "/u/cycle_" + cc.str(), PSK::Dimens(_part[i]->getNOP()), _part[i]->getUall());
       }
     }
     else if (tag.find("u", 0) != string::npos & sample != 0) {
@@ -719,13 +685,12 @@ public:
       for (int i = 0; i < ns; ++i) {
         stringstream ii;
         ii << i;
+        const int num_samples = _part[i]->getNOP()/sample;
+        U.reserve(num_samples);
         for (int n = 0; n < _part[i]->getNOP(); n += sample) {
           U.push_back(_part[i]->getU(n));
         }
         this->output_adaptor.write("/particles/species_" + ii.str() + "/u/cycle_" + cc.str(), PSK::Dimens(U.size()), U);
-
-        U.clear();
-
       }
     }
     else if (tag.find("velocity", 0) != string::npos & sample != 0) {
@@ -733,6 +698,10 @@ public:
       for (int i = 0; i < ns; ++i) {
         stringstream ii;
         ii << i;
+        const int num_samples = _part[i]->getNOP()/sample;
+        U.reserve(num_samples);
+        V.reserve(num_samples);
+        W.reserve(num_samples);
         for (int n = 0; n < _part[i]->getNOP(); n += sample) {
           U.push_back(_part[i]->getU(n));
           V.push_back(_part[i]->getV(n));
@@ -741,10 +710,6 @@ public:
         this->output_adaptor.write("/particles/species_" + ii.str() + "/u/cycle_" + cc.str(), PSK::Dimens(U.size()), U);
         this->output_adaptor.write("/particles/species_" + ii.str() + "/v/cycle_" + cc.str(), PSK::Dimens(V.size()), V);
         this->output_adaptor.write("/particles/species_" + ii.str() + "/w/cycle_" + cc.str(), PSK::Dimens(W.size()), W);
-        U.clear();
-        V.clear();
-        W.clear();
-
       }
     }
     // Particle charge
@@ -760,23 +725,26 @@ public:
       for (int i = 0; i < ns; ++i) {
         stringstream ii;
         ii << i;
+        const int num_samples = _part[i]->getNOP()/sample;
+        Q.reserve(num_samples);
         for (int n = 0; n < _part[i]->getNOP(); n += sample) {
           Q.push_back(_part[i]->getQ(n));
         }
         this->output_adaptor.write("/particles/species_" + ii.str() + "/q/cycle_" + cc.str(), PSK::Dimens(Q.size()), Q);
-        Q.clear();
       }
     }
 
 
     // Particle ID
+    //
+    // (why was this using "long")?
 
     if (tag.find("ID", 0) != string::npos & sample == 0) {
       for (int i = 0; i < ns; ++i) {
         stringstream ii;
         ii << i;
         if (_col->getTrackParticleID(i) == true)
-          this->output_adaptor.write("/particles/species_" + ii.str() + "/ID/cycle_" + cc.str(), PSK::Dimens(_part[i]->getNOP()), (long *) _part[i]->getParticleIDall());
+          this->output_adaptor.write("/particles/species_" + ii.str() + "/ID/cycle_" + cc.str(), PSK::Dimens(_part[i]->getNOP()), _part[i]->getParticleIDall());
 
         else if (_vct->getCartesian_rank() == 0)
           cout << "Can't write particle ID for species " + ii.str() + " because TrackParticleID is = false " << endl;
@@ -784,15 +752,17 @@ public:
     }
 
     else if (tag.find("ID", 0) != string::npos & sample != 0) {
-
+      std::vector <longid>ID;
       for (int i = 0; i < ns; ++i) {
-        std::vector < long >ID;
         stringstream ii;
         ii << i;
+        const longid* pclID = _part[i]->getParticleIDall();
+        const int num_samples = _part[i]->getNOP()/sample;
+        ID.reserve(num_samples);
         if (_col->getTrackParticleID(i) == true) {
           for (int n = 0; n < _part[i]->getNOP(); n += sample)
-            ID.push_back((long) _part[i]->getParticleID(n));
-          this->output_adaptor.write("/particles/species_" + ii.str() + "/ID/cycle_" + cc.str(), PSK::Dimens(ID.size()), ID);
+            ID.push_back(pclID[n]);
+          this->output_adaptor.write("/particles/species_" + ii.str() + "/ID/cycle_" + cc.str(), PSK::Dimens(ID.size()), &ID[0]);
         }
         else if (_vct->getCartesian_rank() == 0)
           cout << "Can't write particle ID for species " + ii.str() + " because TrackParticleID is = false " << endl;

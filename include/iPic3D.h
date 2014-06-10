@@ -33,27 +33,48 @@ namespace iPic3D {
   class c_Solver {
 
   public:
+    ~c_Solver();
+    c_Solver():
+      col(0),
+      vct(0),
+      grid(0),
+      EMf(0),
+      part(0),
+      Ke(0),
+      momentum(0),
+      Qremoved(0),
+      my_clock(0)
+    {}
     int Init(int argc, char **argv);
     void CalculateMoments();
     void CalculateField(); //! calculate Efield
     bool ParticlesMover();
     void CalculateB();
-    void WriteOutput(int cycle);
-    void WriteConserved(int cycle);
+    //
+    // output methods
+    //
     void WriteRestart(int cycle);
+    void WriteConserved(int cycle);
+    void WriteVelocityDistribution(int cycle);
+    void WriteVirtualSatelliteTraces();
+    void WriteFields(int cycle);
+    void WriteParticles(int cycle);
+    void WriteOutput(int cycle);
     void Finalize();
 
     inline int FirstCycle();
     inline int LastCycle();
     inline int get_myrank();
 
+  private:
+    void pad_particle_capacities();
     void convertParticlesToSoA();
     void convertParticlesToAoS();
-  private:
+    void convertParticlesToSynched();
     void sortParticles();
 
   private:
-    static MPIdata * mpi;
+    //static MPIdata * mpi;
     Collective    *col;
     VCtopology3D  *vct;
     Grid3DCU      *grid;
@@ -80,11 +101,7 @@ namespace iPic3D {
     int ns;
     int nprocs;
     int myrank;
-    int mem_avail;
     int nsat;
-    int nx0;
-    int ny0;
-    int nz0;
     int nDistributionBins;
     double Eenergy;
     double Benergy;

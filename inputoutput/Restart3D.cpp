@@ -2,12 +2,12 @@
 #include "Restart3D.h"
 
 /** write the restart file at any RESTART_CYCLE, useful for reading intermediate results */
-void writeRESTART(string SaveDirName, int myrank, int cycle, int ns, MPIdata * mpi, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part) {
+void writeRESTART(const string& SaveDirName, int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part) {
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
   // Create an Output Agent for HDF5 output
   myOutputAgent < PSK::HDF5OutputAdaptor > hdf5_agent;
-  hdf5_agent.set_simulation_pointers(field, grid, vct, mpi, col);
+  hdf5_agent.set_simulation_pointers(field, grid, vct, col);
   for (int i = 0; i < ns; ++i)
     hdf5_agent.set_simulation_pointers_part(&part[i]);
 
@@ -28,12 +28,12 @@ void writeRESTART(string SaveDirName, int myrank, int cycle, int ns, MPIdata * m
 }
 
 /** this restart function writes the last restart with the last cycle */
-void writeRESTART(string SaveDirName, int myrank, int cycle, int ns, MPIdata * mpi, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part, bool fool) {
+void writeRESTART(const string& SaveDirName, int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part, bool fool) {
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
   // Create an Output Agent for HDF5 output
   myOutputAgent < PSK::HDF5OutputAdaptor > hdf5_agent;
-  hdf5_agent.set_simulation_pointers(field, grid, vct, mpi, col);
+  hdf5_agent.set_simulation_pointers(field, grid, vct, col);
   for (int i = 0; i < ns; ++i)
     hdf5_agent.set_simulation_pointers_part(&part[i]);
 
@@ -53,12 +53,12 @@ void writeRESTART(string SaveDirName, int myrank, int cycle, int ns, MPIdata * m
 
 
 /** write the restart file at any RESTART_CYCLE, useful for reading intermediate results */
-void writeRESTART_ES(string SaveDirName, int myrank, int cycle, int ns, MPIdata * mpi, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles * part) {
+void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles * part) {
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
   // Create an Output Agent for HDF5 output
   myOutputAgent < PSK::HDF5OutputAdaptor > hdf5_agent;
-  hdf5_agent.set_simulation_pointers(field, grid, vct, mpi, col);
+  hdf5_agent.set_simulation_pointers(field, grid, vct, col);
   for (int i = 0; i < ns; ++i)
     hdf5_agent.set_simulation_pointers_part(&part[i]);
 
@@ -79,12 +79,12 @@ void writeRESTART_ES(string SaveDirName, int myrank, int cycle, int ns, MPIdata 
 }
 
 /** this restart function writes the last restart with the last cycle */
-void writeRESTART_ES(string SaveDirName, int myrank, int cycle, int ns, MPIdata * mpi, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles * part, bool fool) {
+void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles * part, bool fool) {
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
   // Create an Output Agent for HDF5 output
   myOutputAgent < PSK::HDF5OutputAdaptor > hdf5_agent;
-  hdf5_agent.set_simulation_pointers(field, grid, vct, mpi, col);
+  hdf5_agent.set_simulation_pointers(field, grid, vct, col);
   for (int i = 0; i < ns; ++i)
     hdf5_agent.set_simulation_pointers_part(&part[i]);
 

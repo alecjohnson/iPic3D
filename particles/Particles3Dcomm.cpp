@@ -9,7 +9,7 @@ developers: Stefano Markidis, Giovanni Lapenta.
 #include <math.h>
 #include <limits.h>
 #include "asserts.h"
-#include <algorithm> // for swap
+#include <algorithm> // for swap, std::max
 #include "VirtualTopology3D.h"
 #include "VCtopology3D.h"
 #include "CollectiveIO.h"
@@ -24,24 +24,21 @@ developers: Stefano Markidis, Giovanni Lapenta.
 #include "MPIdata.h"
 #include "ompdefs.h"
 #include "ipicmath.h"
+#include "ipicdefs.h"
 
 #include "Particle.h"
 #include "Particles3Dcomm.h"
 #include "Parameters.h"
 
 #include "hdf5.h"
-#include <vector>
-#include <complex>
+//#include <vector>
+//#include <complex>
 #include "debug.h"
 #include "TimeTasks.h"
 
 using std::cout;
-using std::cerr;
 using std::endl;
 
-#define min(a,b) (((a)<(b))?(a):(b));
-#define max(a,b) (((a)>(b))?(a):(b));
-#define MIN_VAL   1E-32
 /**
  * 
  * Class for particles of the same species, in a 2D space and 3component velocity
@@ -51,72 +48,118 @@ using std::endl;
  *
  */
 
-/** constructor */
-Particles3Dcomm::Particles3Dcomm(){
-  // see allocate(int species, CollectiveIO* col, VirtualTopology3D* vct, Grid* grid)
-
+static void print_pcl(SpeciesParticle& pcl, int ns)
+{
+  dprintf("--- pcl spec %d ---", ns);
+  dprintf("u = %+6.4f", pcl.get_u());
+  dprintf("v = %+6.4f", pcl.get_v());
+  dprintf("w = %+6.4f", pcl.get_w());
+  dprintf("q = %+6.4f", pcl.get_q());
+  dprintf("x = %+6.4f", pcl.get_x());
+  dprintf("y = %+6.4f", pcl.get_y());
+  dprintf("z = %+6.4f", pcl.get_z());
+  dprintf("t = %5.0f", pcl.get_t());
 }
+
+static void print_pcls(vector_SpeciesParticle& pcls, int start, int ns)
+{
+  for(int pidx=start; pidx<pcls.size();pidx++)
+  {
+    dprintf("--- particle %d.%d ---", ns,pidx);
+    dprintf("u[%d] = %+6.4f", pidx, pcls[pidx].get_u());
+    dprintf("v[%d] = %+6.4f", pidx, pcls[pidx].get_v());
+    dprintf("w[%d] = %+6.4f", pidx, pcls[pidx].get_w());
+    dprintf("q[%d] = %+6.4f", pidx, pcls[pidx].get_q());
+    dprintf("x[%d] = %+6.4f", pidx, pcls[pidx].get_x());
+    dprintf("y[%d] = %+6.4f", pidx, pcls[pidx].get_y());
+    dprintf("z[%d] = %+6.4f", pidx, pcls[pidx].get_z());
+    dprintf("t[%d] = %5.0f", pidx, pcls[pidx].get_t());
+  }
+}
+void print_pcls(vector_SpeciesParticle& pcls, int ns, longid* id_list, int num_ids)
+{
+  dprintf("=== species %d, with %d pcls ===", ns, pcls.size());
+  for(int pidx=0; pidx<pcls.size();pidx++)
+  for(int i=0;i<num_ids;i++)
+  if(pcls[pidx].get_ID()==id_list[i])
+  {
+    dprintf("--- particle %d.%d ---", ns,pidx);
+    dprintf("u[%d] = %+6.4f", pidx, pcls[pidx].get_u());
+    dprintf("v[%d] = %+6.4f", pidx, pcls[pidx].get_v());
+    dprintf("w[%d] = %+6.4f", pidx, pcls[pidx].get_w());
+    dprintf("q[%d] = %+6.4f", pidx, pcls[pidx].get_q());
+    dprintf("x[%d] = %+6.4f", pidx, pcls[pidx].get_x());
+    dprintf("y[%d] = %+6.4f", pidx, pcls[pidx].get_y());
+    dprintf("z[%d] = %+6.4f", pidx, pcls[pidx].get_z());
+    dprintf("t[%d] = %5.0f", pidx, pcls[pidx].get_t());
+  }
+}
+
 /** deallocate particles */
 Particles3Dcomm::~Particles3Dcomm() {
-  delete[]x;
-  delete[]y;
-  delete[]z;
-  delete[]u;
-  delete[]v;
-  delete[]w;
-  delete[]q;
-  delete[]ParticleID;
-  // AoS representation
-  AlignedFree(_pcls);
-  // average position used in particle advance
-  delete[]_xavg;
-  delete[]_yavg;
-  delete[]_zavg;
-  // deallocate alternate storage
-  delete[]_xtmp;
-  delete[]_ytmp;
-  delete[]_ztmp;
-  delete[]_utmp;
-  delete[]_vtmp;
-  delete[]_wtmp;
-  delete[]_qtmp;
-  delete[]_ParticleIDtmp;
-  AlignedFree(_pclstmp);
   // extra xavg for sort
-  delete[]_xavgtmp;
-  delete[]_yavgtmp;
-  delete[]_zavgtmp;
-  // deallocate buffers
-  delete[]b_X_RIGHT;
-  delete[]b_X_LEFT;
-  delete[]b_Y_RIGHT;
-  delete[]b_Y_LEFT;
-  delete[]b_Z_RIGHT;
-  delete[]b_Z_LEFT;
+  MPI_Comm_free(&mpi_comm);
   delete numpcls_in_bucket;
   delete numpcls_in_bucket_now;
   delete bucket_offset;
 }
-/** constructors fo a single species*/
-void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3D * vct, Grid * grid) {
+/** constructor for a single species*/
+// was Particles3Dcomm::allocate()
+Particles3Dcomm::Particles3Dcomm(
+  int species_number,
+  CollectiveIO * col,
+  VirtualTopology3D * vct_,
+  Grid * grid_)
+ :
+  ns(species_number),
+  vct(vct_),
+  grid(grid_),
+  pclIDgenerator(),
+  particleType(ParticleType::AoS)
+{
+  // communicators for particles
+  //
+  MPI_Comm_dup(MPI_COMM_WORLD, &mpi_comm);
+  //
+  // define connections
+  using namespace Direction;
+  //
+  sendXleft.init(Connection::null2self(vct->getXleft(),XDN,XDN,mpi_comm));
+  sendXrght.init(Connection::null2self(vct->getXrght(),XUP,XUP,mpi_comm));
+  recvXleft.init(Connection::null2self(vct->getXleft(),XUP,XDN,mpi_comm));
+  recvXrght.init(Connection::null2self(vct->getXrght(),XDN,XUP,mpi_comm));
+
+  sendYleft.init(Connection::null2self(vct->getYleft(),YDN,YDN,mpi_comm));
+  sendYrght.init(Connection::null2self(vct->getYrght(),YUP,YUP,mpi_comm));
+  recvYleft.init(Connection::null2self(vct->getYleft(),YUP,YDN,mpi_comm));
+  recvYrght.init(Connection::null2self(vct->getYrght(),YDN,YUP,mpi_comm));
+
+  sendZleft.init(Connection::null2self(vct->getZleft(),ZDN,ZDN,mpi_comm));
+  sendZrght.init(Connection::null2self(vct->getZrght(),ZUP,ZUP,mpi_comm));
+  recvZleft.init(Connection::null2self(vct->getZleft(),ZUP,ZDN,mpi_comm));
+  recvZrght.init(Connection::null2self(vct->getZrght(),ZDN,ZUP,mpi_comm));
+
+  recvXleft.post_recvs();
+  recvXrght.post_recvs();
+  recvYleft.post_recvs();
+  recvYrght.post_recvs();
+  recvZleft.post_recvs();
+  recvZrght.post_recvs();
+
   // info from collectiveIO
-  ns = species;
-  npcel = col->getNpcel(species);
-  npcelx = col->getNpcelx(species);
-  npcely = col->getNpcely(species);
-  npcelz = col->getNpcelz(species);
-  nop = col->getNp(species) / (vct->getNprocs());
-  np_tot = col->getNp(species);
-  npmax = col->getNpMax(species) / (vct->getNprocs());
-  // ensure that npmax is a multiple of AoS_PCLS_AT_A_TIME
-  npmax = roundup_to_multiple(npmax,AoS_PCLS_AT_A_TIME);
-  qom = col->getQOM(species);
-  uth = col->getUth(species);
-  vth = col->getVth(species);
-  wth = col->getWth(species);
-  u0 = col->getU0(species);
-  v0 = col->getV0(species);
-  w0 = col->getW0(species);
+  //
+  npcel = col->getNpcel(get_species_num());
+  npcelx = col->getNpcelx(get_species_num());
+  npcely = col->getNpcely(get_species_num());
+  npcelz = col->getNpcelz(get_species_num());
+  //
+  qom = col->getQOM(get_species_num());
+  uth = col->getUth(get_species_num());
+  vth = col->getVth(get_species_num());
+  wth = col->getWth(get_species_num());
+  u0 = col->getU0(get_species_num());
+  v0 = col->getV0(get_species_num());
+  w0 = col->getW0(get_species_num());
   dt = col->getDt();
   Lx = col->getLx();
   Ly = col->getLy();
@@ -125,28 +168,39 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
   dy = grid->getDY();
   dz = grid->getDZ();
   delta = col->getDelta();
-  TrackParticleID = col->getTrackParticleID(species);
+  TrackParticleID = col->getTrackParticleID(get_species_num());
   c = col->getC();
   // info for mover
   NiterMover = col->getNiterMover();
   // velocity of the injection from the wall
   Vinj = col->getVinj();
-  Ninj = col->getRHOinject(species);
+  Ninj = col->getRHOinject(get_species_num());
+  //
+  // boundary condition for particles
+  //
+  bcPfaceXright = col->getBcPfaceXright();
+  bcPfaceXleft = col->getBcPfaceXleft();
+  bcPfaceYright = col->getBcPfaceYright();
+  bcPfaceYleft = col->getBcPfaceYleft();
+  bcPfaceZright = col->getBcPfaceZright();
+  bcPfaceZleft = col->getBcPfaceZleft();
+
   // info from Grid
+  //
   xstart = grid->getXstart();
   xend = grid->getXend();
   ystart = grid->getYstart();
   yend = grid->getYend();
   zstart = grid->getZstart();
   zend = grid->getZend();
-
+  //
   dx = grid->getDX();
   dy = grid->getDY();
   dz = grid->getDZ();
   inv_dx = 1/dx;
   inv_dy = 1/dy;
   inv_dz = 1/dz;
-
+  //
   nxn = grid->getNXN();
   nyn = grid->getNYN();
   nzn = grid->getNZN();
@@ -157,159 +211,65 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
   assert_eq(nyc,nyn-1);
   assert_eq(nzc,nzn-1);
   invVOL = grid->getInvVOL();
+
   // info from VirtualTopology3D
+  //
   cVERBOSE = vct->getcVERBOSE();
 
-  // boundary condition for particles
-  bcPfaceXright = col->getBcPfaceXright();
-  bcPfaceXleft = col->getBcPfaceXleft();
-  bcPfaceYright = col->getBcPfaceYright();
-  bcPfaceYleft = col->getBcPfaceYleft();
-  bcPfaceXright = col->getBcPfaceXright();
-  bcPfaceXleft = col->getBcPfaceXleft();
-  bcPfaceYright = col->getBcPfaceYright();
-  bcPfaceYleft = col->getBcPfaceYleft();
-  bcPfaceZright = col->getBcPfaceZright();
-  bcPfaceZleft = col->getBcPfaceZleft();
+  /////////////////////////////////
+  // preallocate space in arrays //
+  /////////////////////////////////
+  //
+  // determine number of particles to preallocate for this process.
+  //
+  // determine number of cells in this process
+  //
+  // we calculate in double precision to guard against overflow
+  double dNp = double(grid->get_num_cells_rr())*col->getNpcel(species_number);
+  double dNpmax = dNp * col->getNpMaxNpRatio();
+  // ensure that particle index will not overflow 32-bit
+  // representation as long as dmaxnop is respected.
+  assert_le(dNpmax,double(INT_MAX));
+  const int nop = dNp;
+  // initialize particle ID generator based on number of particles
+  // that will initially be produced.
+  pclIDgenerator.reserve_num_particles(nop);
+  // initialize each process with capacity for some extra particles
+  const int initial_capacity = roundup_to_multiple(nop*1.2,DVECWIDTH);
+  //
+  // SoA particle representation
+  //
+  // velocities
+  u.reserve(initial_capacity);
+  v.reserve(initial_capacity);
+  w.reserve(initial_capacity);
+  // charge
+  q.reserve(initial_capacity);
+  // positions
+  x.reserve(initial_capacity);
+  y.reserve(initial_capacity);
+  z.reserve(initial_capacity);
+  // subcycle time
+  t.reserve(initial_capacity);
+  //
+  // AoS particle representation
+  //
+  _pcls.reserve(initial_capacity);
+  particleType = ParticleType::AoS; // canonical representation
+
   //
   // allocate arrays for sorting particles
   //
   numpcls_in_bucket = new array3_int(nxc,nyc,nzc);
   numpcls_in_bucket_now = new array3_int(nxc,nyc,nzc);
   bucket_offset = new array3_int(nxc,nyc,nzc);
-  //num_threads = omp_get_max_threads();
-  //numpcls_in_bucket_thr = (arr3_int*)malloc(sizeof(void*)*num_threads);
-  //for(int i=0; i<num_threads; i++)
-  //{
-  //  numpcls_in_bucket_thr[i] = new array3_int(nxc,nyc,nzc);
-  //}
   
-  //
-  // //////////////////////////////////////////////////////////////
-  // ////////////// ALLOCATE ARRAYS /////////////////////////
-  // //////////////////////////////////////////////////////////////
-  //
-  // SoA particle representation
-  //
-  // positions
-  particleType = ParticleType::SoA;
-  x = new double[npmax];
-  y = new double[npmax];
-  z = new double[npmax];
-  // velocities
-  u = new double[npmax];
-  v = new double[npmax];
-  w = new double[npmax];
-  // charge
-  q = new double[npmax];
-  // average positions, used in iterative particle advance
-  _xavg = 0;
-  _yavg = 0;
-  _zavg = 0;
-  //if(Parameters::get_USING_XAVG())
-  //{
-  //  xavg = new double[npmax];
-  //  yavg = new double[npmax];
-  //  zavg = new double[npmax];
-  //}
-  _xtmp = 0;
-  _ytmp = 0;
-  _ztmp = 0;
-  _utmp = 0;
-  _vtmp = 0;
-  _wtmp = 0;
-  _qtmp = 0;
-  _xavgtmp = 0;
-  _yavgtmp = 0;
-  _zavgtmp = 0;
-  _pcls = 0;
-  _pclstmp = 0;
-  _ParticleIDtmp = 0;
-  // accessors for data that should be allocated only if needed
-  //
-  if(Parameters::get_USING_XAVG())
-  {
-    _xavg=new double[npmax];
-    _yavg=new double[npmax];
-    _zavg=new double[npmax];
-  }
-  if(Parameters::get_SORTING_SOA())
-  {
-    _xtmp=new double[npmax];
-    _ytmp=new double[npmax];
-    _ztmp=new double[npmax];
-    _utmp=new double[npmax];
-    _vtmp=new double[npmax];
-    _wtmp=new double[npmax];
-    _qtmp=new double[npmax];
-    _xavgtmp=new double[npmax];
-    _yavgtmp=new double[npmax];
-    _zavgtmp=new double[npmax];
-    if(TrackParticleID)
-    {
-      _ParticleIDtmp = new long long[npmax];
-    }
-  }
-  if(Parameters::get_USING_AOS())
-  {
-    assert_eq(sizeof(SpeciesParticle),64);
-    _pcls = AlignedAlloc(SpeciesParticle,npmax);
-    //_pcls = new SpeciesParticle[npmax];
-    if(Parameters::get_SORTING_PARTICLES())
-    {
-      _pclstmp = AlignedAlloc(SpeciesParticle,npmax);
-      //_pclstmp = new SpeciesParticle[npmax];
-    }
-    #ifdef __INTEL_COMPILER
-      assert_eq(sizeof(SpeciesParticle),64);
-      ALIGNED(_pcls);
-    #endif
-  }
-
-  ParticleID = 0;
-  // ID
-  if (TrackParticleID) {
-    ParticleID = new long long[npmax];
-    //if(Parameters::get_SORTING_PARTICLES())
-    //  _ParticleIDtmp = new long long[npmax];
-    BirthRank[0] = vct->getCartesian_rank();
-    if (vct->getNprocs() > 1)
-      BirthRank[1] = (int) ceil(log10((double) (vct->getNprocs())));  // Number of digits needed for # of process in ID
-    else
-      BirthRank[1] = 1;
-    if (BirthRank[1] + (int) ceil(log10((double) (npmax))) > 10 && BirthRank[0] == 0) {
-      cerr << "Error: can't Track particles in Particles3Dcomm::allocate" << endl;
-      cerr << "long long 'ParticleID' cannot store all the particles" << endl;
-      return;
-    }
-  }
-  // BUFFERS
-  // the buffer size should be decided depending on number of particles
-  // the buffer size should be decided depending on number of particles
-  if (TrackParticleID)
-    nVar = 8;
-  else
-    nVar = 7;
-  buffer_size = (int) (.05 * nop * nVar + 1); // max: 5% of the particles in the processors is going out
-  buffer_size_small = (int) (.01 * nop * nVar + 1); // max 1% not resizable 
-
-  b_X_RIGHT = new double[buffer_size];
-  b_X_RIGHT_ptr = b_X_RIGHT;    // alias to make the resize
-  b_X_LEFT = new double[buffer_size];
-  b_X_LEFT_ptr = b_X_LEFT;      // alias to make the resize
-  b_Y_RIGHT = new double[buffer_size];
-  b_Y_RIGHT_ptr = b_Y_RIGHT;    // alias to make the resize
-  b_Y_LEFT = new double[buffer_size];
-  b_Y_LEFT_ptr = b_Y_LEFT;      // alias to make the resize
-  b_Z_RIGHT = new double[buffer_size];
-  b_Z_RIGHT_ptr = b_Z_RIGHT;    // alias to make the resize
-  b_Z_LEFT = new double[buffer_size];
-  b_Z_LEFT_ptr = b_Z_LEFT;      // alias to make the resize
+  assert_eq(sizeof(SpeciesParticle),64);
 
   // if RESTART is true initialize the particle in allocate method
   restart = col->getRestart_status();
   if (restart != 0) {
-    if (vct->getCartesian_rank() == 0 && ns == 0)
+    if (vct->getCartesian_rank() == 0 && get_species_num() == 0)
       cout << "LOADING PARTICLES FROM RESTART FILE in " + col->getRestartDirName() + "/restart.hdf" << endl;
     stringstream ss;
     ss << vct->getCartesian_rank();
@@ -330,7 +290,7 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
     }
 
     stringstream species_name;
-    species_name << ns;
+    species_name << get_species_num();
     // the cycle of the last restart is set to 0
     string name_dataset = "/particles/species_" + species_name.str() + "/x/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
@@ -341,615 +301,1250 @@ void Particles3Dcomm::allocate(int species, CollectiveIO * col, VirtualTopology3
 
     // get how many particles there are on this processor for this species
     status_n = H5Sget_simple_extent_dims(dataspace, dims_out, NULL);
-    nop = dims_out[0];          // this the number of particles on the processor!
+    const int nop = dims_out[0]; // number of particles in this process
+    // prepare arrays to receive particles
+    particleType = ParticleType::SoA;
+    resize_SoA(nop);
     // get x
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, x);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &x[0]);
     // close the data set
     status = H5Dclose(dataset_id);
 
     // get y
     name_dataset = "/particles/species_" + species_name.str() + "/y/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, y);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &y[0]);
     status = H5Dclose(dataset_id);
 
     // get z
     name_dataset = "/particles/species_" + species_name.str() + "/z/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, z);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &z[0]);
     status = H5Dclose(dataset_id);
 
     // get u
     name_dataset = "/particles/species_" + species_name.str() + "/u/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, u);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &u[0]);
     status = H5Dclose(dataset_id);
     // get v
     name_dataset = "/particles/species_" + species_name.str() + "/v/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, v);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &v[0]);
     status = H5Dclose(dataset_id);
     // get w
     name_dataset = "/particles/species_" + species_name.str() + "/w/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, w);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &w[0]);
     status = H5Dclose(dataset_id);
     // get q
     name_dataset = "/particles/species_" + species_name.str() + "/q/cycle_0";
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, q);
+    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &q[0]);
     status = H5Dclose(dataset_id);
     // ID 
-    if (TrackParticleID) {
-      // herr_t (*old_func)(void*); // HDF 1.6
-      H5E_auto2_t old_func;      // HDF 1.8.8
-      void *old_client_data;
-      H5Eget_auto2(H5E_DEFAULT, &old_func, &old_client_data);  // HDF 1.8.8
-      /* Turn off error handling */
-      // H5Eset_auto(NULL, NULL); // HDF 1.6
-      H5Eset_auto2(H5E_DEFAULT, 0, 0); // HDF 1.8
-      name_dataset = "/particles/species_" + species_name.str() + "/ID/cycle_0";
-      dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-
-      // H5Eset_auto(old_func, old_client_data); // HDF 1.6
-      H5Eset_auto2(H5E_DEFAULT, old_func, old_client_data);
-      if (dataset_id > 0)
-        status = H5Dread(dataset_id, H5T_NATIVE_ULONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, ParticleID);
-      else {
-        for (int counter = 0; counter < nop; counter++)
-          ParticleID[counter] = counter * (long long) pow(10.0, BirthRank[1]) + BirthRank[0];
-      }
-    }
+    //if (TrackParticleID) {
+    //  // herr_t (*old_func)(void*); // HDF 1.6
+    //  H5E_auto2_t old_func;      // HDF 1.8.8
+    //  void *old_client_data;
+    //  H5Eget_auto2(H5E_DEFAULT, &old_func, &old_client_data);  // HDF 1.8.8
+    //  /* Turn off error handling */
+    //  // H5Eset_auto(NULL, NULL); // HDF 1.6
+    //  H5Eset_auto2(H5E_DEFAULT, 0, 0); // HDF 1.8
+    //  name_dataset = "/particles/species_" + species_name.str() + "/ID/cycle_0";
+    //  dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
+    //
+    //  // H5Eset_auto(old_func, old_client_data); // HDF 1.6
+    //  H5Eset_auto2(H5E_DEFAULT, old_func, old_client_data);
+    //  if (dataset_id > 0)
+    //    status = H5Dread(dataset_id, H5T_NATIVE_ULONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, ParticleID);
+    //  //else {
+    //  //  for (int counter = 0; counter < nop; counter++)
+    //  //    fetch_ParticleID(counter) = particleIDgenerator.get_ID();
+    //  //}
+    //}
     // close the hdf file
     status = H5Fclose(file_id);
+    convertParticlesToAoS();
   }
-
 }
 
+// pad capacities so that aligned vectorization
+// does not result in an array overrun.
+//
+// this should usually be cheap (a no-op)
+//
+void Particles3Dcomm::pad_capacities()
+{
+  _pcls.reserve(roundup_to_multiple(_pcls.size(),DVECWIDTH));
+  u.reserve(roundup_to_multiple(u.size(),DVECWIDTH));
+  v.reserve(roundup_to_multiple(v.size(),DVECWIDTH));
+  w.reserve(roundup_to_multiple(w.size(),DVECWIDTH));
+  q.reserve(roundup_to_multiple(q.size(),DVECWIDTH));
+  x.reserve(roundup_to_multiple(x.size(),DVECWIDTH));
+  y.reserve(roundup_to_multiple(y.size(),DVECWIDTH));
+  z.reserve(roundup_to_multiple(z.size(),DVECWIDTH));
+  t.reserve(roundup_to_multiple(t.size(),DVECWIDTH));
+}
 
+void Particles3Dcomm::resize_AoS(int nop)
+{
+  const int padded_nop = roundup_to_multiple(nop,DVECWIDTH);
+  _pcls.reserve(padded_nop);
+  _pcls.resize(nop);
+}
+
+void Particles3Dcomm::resize_SoA(int nop)
+{
+  //
+  // allocate space for particles including padding
+  //
+  const int padded_nop = roundup_to_multiple(nop,DVECWIDTH);
+  u.reserve(padded_nop);
+  v.reserve(padded_nop);
+  w.reserve(padded_nop);
+  q.reserve(padded_nop);
+  x.reserve(padded_nop);
+  y.reserve(padded_nop);
+  z.reserve(padded_nop);
+  t.reserve(padded_nop);
+  //
+  // define size of particle data
+  //
+  u.resize(nop);
+  v.resize(nop);
+  w.resize(nop);
+  q.resize(nop);
+  x.resize(nop);
+  y.resize(nop);
+  z.resize(nop);
+  t.resize(nop);
+}
 // A much faster version of this is at EMfields3D::sumMoments
 //
-void Particles3Dcomm::interpP2G(Field * EMf, Grid * grid, VirtualTopology3D * vct) {
-  const double inv_dx = 1.0 / dx;
-  const double inv_dy = 1.0 / dy;
-  const double inv_dz = 1.0 / dz;
-  const double nxn = grid->getNXN();
-  const double nyn = grid->getNYN();
-  const double nzn = grid->getNZN();
-  // assert_le(nop,(long long)INT_MAX); // else would need to use long long
-  // to make memory use scale to a large number of threads we
-  // could first apply an efficient parallel sorting algorithm
-  // to the particles and then accumulate moments in smaller
-  // subarrays.
+//void Particles3Dcomm::interpP2G(Field * EMf)
+//{
+//  const double inv_dx = 1.0 / dx;
+//  const double inv_dy = 1.0 / dy;
+//  const double inv_dz = 1.0 / dz;
+//  const double nxn = grid->getNXN();
+//  const double nyn = grid->getNYN();
+//  const double nzn = grid->getNZN();
+//  // assert_le(nop,(long long)INT_MAX); // else would need to use long long
+//  // to make memory use scale to a large number of threads we
+//  // could first apply an efficient parallel sorting algorithm
+//  // to the particles and then accumulate moments in smaller
+//  // subarrays.
+//  {
+//    for (int i = 0; i < nop; i++)
+//    {
+//      const int ix = 2 + int (floor((x[i] - xstart) * inv_dx));
+//      const int iy = 2 + int (floor((y[i] - ystart) * inv_dy));
+//      const int iz = 2 + int (floor((z[i] - zstart) * inv_dz));
+//      double temp[2][2][2];
+//      double xi[2], eta[2], zeta[2];
+//      xi[0] = x[i] - grid->getXN(ix - 1, iy, iz);
+//      eta[0] = y[i] - grid->getYN(ix, iy - 1, iz);
+//      zeta[0] = z[i] - grid->getZN(ix, iy, iz - 1);
+//      xi[1] = grid->getXN(ix, iy, iz) - x[i];
+//      eta[1] = grid->getYN(ix, iy, iz) - y[i];
+//      zeta[1] = grid->getZN(ix, iy, iz) - z[i];
+//      double weight[2][2][2];
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++) {
+//            weight[ii][jj][kk] = q[i] * xi[ii] * eta[jj] * zeta[kk] * invVOL;
+//          }
+//      // add charge density
+//      EMf->addRho(weight, ix, iy, iz, ns);
+//      // add current density - X
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = u[i] * weight[ii][jj][kk];
+//      EMf->addJx(temp, ix, iy, iz, ns);
+//      // add current density - Y
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = v[i] * weight[ii][jj][kk];
+//      EMf->addJy(temp, ix, iy, iz, ns);
+//      // add current density - Z
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = w[i] * weight[ii][jj][kk];
+//      EMf->addJz(temp, ix, iy, iz, ns);
+//      // Pxx - add pressure tensor
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = u[i] * u[i] * weight[ii][jj][kk];
+//      EMf->addPxx(temp, ix, iy, iz, ns);
+//      // Pxy - add pressure tensor
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = u[i] * v[i] * weight[ii][jj][kk];
+//      EMf->addPxy(temp, ix, iy, iz, ns);
+//      // Pxz - add pressure tensor
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = u[i] * w[i] * weight[ii][jj][kk];
+//      EMf->addPxz(temp, ix, iy, iz, ns);
+//      // Pyy - add pressure tensor
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = v[i] * v[i] * weight[ii][jj][kk];
+//      EMf->addPyy(temp, ix, iy, iz, ns);
+//      // Pyz - add pressure tensor
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = v[i] * w[i] * weight[ii][jj][kk];
+//      EMf->addPyz(temp, ix, iy, iz, ns);
+//      // Pzz - add pressure tensor
+//      for (int ii = 0; ii < 2; ii++)
+//        for (int jj = 0; jj < 2; jj++)
+//          for (int kk = 0; kk < 2; kk++)
+//            temp[ii][jj][kk] = w[i] * w[i] * weight[ii][jj][kk];
+//      EMf->addPzz(temp, ix, iy, iz, ns);
+//    }
+//  }
+//  // communicate contribution from ghost cells 
+//  EMf->communicateGhostP2G(ns, 0, 0, 0, 0, vct);
+//}
+
+// returns true if particle was sent
+//
+// should vectorize this by comparing position vectors
+//
+inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
+  SpeciesParticle& pcl, int count[6])
+{
+  int was_sent = true;
+  // put particle in appropriate communication buffer if exiting
+  if(pcl.get_x() < xstart)
   {
-    for (int i = 0; i < nop; i++)
-    {
-      const int ix = 2 + int (floor((x[i] - xstart) * inv_dx));
-      const int iy = 2 + int (floor((y[i] - ystart) * inv_dy));
-      const int iz = 2 + int (floor((z[i] - zstart) * inv_dz));
-      double temp[2][2][2];
-      double xi[2], eta[2], zeta[2];
-      xi[0] = x[i] - grid->getXN(ix - 1, iy, iz);
-      eta[0] = y[i] - grid->getYN(ix, iy - 1, iz);
-      zeta[0] = z[i] - grid->getZN(ix, iy, iz - 1);
-      xi[1] = grid->getXN(ix, iy, iz) - x[i];
-      eta[1] = grid->getYN(ix, iy, iz) - y[i];
-      zeta[1] = grid->getZN(ix, iy, iz) - z[i];
-      double weight[2][2][2];
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++) {
-            weight[ii][jj][kk] = q[i] * xi[ii] * eta[jj] * zeta[kk] * invVOL;
-          }
-      // add charge density
-      EMf->addRho(weight, ix, iy, iz, ns);
-      // add current density - X
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = u[i] * weight[ii][jj][kk];
-      EMf->addJx(temp, ix, iy, iz, ns);
-      // add current density - Y
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = v[i] * weight[ii][jj][kk];
-      EMf->addJy(temp, ix, iy, iz, ns);
-      // add current density - Z
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = w[i] * weight[ii][jj][kk];
-      EMf->addJz(temp, ix, iy, iz, ns);
-      // Pxx - add pressure tensor
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = u[i] * u[i] * weight[ii][jj][kk];
-      EMf->addPxx(temp, ix, iy, iz, ns);
-      // Pxy - add pressure tensor
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = u[i] * v[i] * weight[ii][jj][kk];
-      EMf->addPxy(temp, ix, iy, iz, ns);
-      // Pxz - add pressure tensor
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = u[i] * w[i] * weight[ii][jj][kk];
-      EMf->addPxz(temp, ix, iy, iz, ns);
-      // Pyy - add pressure tensor
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = v[i] * v[i] * weight[ii][jj][kk];
-      EMf->addPyy(temp, ix, iy, iz, ns);
-      // Pyz - add pressure tensor
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = v[i] * w[i] * weight[ii][jj][kk];
-      EMf->addPyz(temp, ix, iy, iz, ns);
-      // Pzz - add pressure tensor
-      for (int ii = 0; ii < 2; ii++)
-        for (int jj = 0; jj < 2; jj++)
-          for (int kk = 0; kk < 2; kk++)
-            temp[ii][jj][kk] = w[i] * w[i] * weight[ii][jj][kk];
-      EMf->addPzz(temp, ix, iy, iz, ns);
-    }
+    sendXleft.send(pcl);
+    count[0]++;
   }
-  // communicate contribution from ghost cells 
-  EMf->communicateGhostP2G(ns, 0, 0, 0, 0, vct);
+  else if(pcl.get_x() > xend)
+  {
+    sendXrght.send(pcl);
+    count[1]++;
+  }
+  else if(pcl.get_y() < ystart)
+  {
+    sendYleft.send(pcl);
+    count[2]++;
+  }
+  else if(pcl.get_y() > yend)
+  {
+    sendYrght.send(pcl);
+    count[3]++;
+  }
+  else if(pcl.get_z() < zstart)
+  {
+    sendZleft.send(pcl);
+    count[4]++;
+  }
+  else if(pcl.get_z() > zend)
+  {
+    sendZrght.send(pcl);
+    count[5]++;
+  }
+  else was_sent = false;
+
+  return was_sent;
 }
 
-/** communicate buffers */
-int Particles3Dcomm::communicate(VirtualTopology3D * ptVCT) {
-  // allocate buffers
-  MPI_Status status;
-  int new_buffer_size;
-  int npExitingMax;
-  // variable for memory availability of space for new particles
-  int avail, availALL, avail1, avail2, avail3, avail4, avail5, avail6;
-  for (int i = 0; i < buffer_size; i++) {
-    b_X_RIGHT[i] = MIN_VAL;
-    b_X_LEFT[i] = MIN_VAL;
-    b_Y_RIGHT[i] = MIN_VAL;
-    b_Y_LEFT[i] = MIN_VAL;
-    b_Z_RIGHT[i] = MIN_VAL;
-    b_Z_LEFT[i] = MIN_VAL;
+// flush sending particles.
+//
+void Particles3Dcomm::flush_send()
+{
+  sendXleft.send_complete();
+  sendXrght.send_complete();
+  sendYleft.send_complete();
+  sendYrght.send_complete();
+  sendZleft.send_complete();
+  sendZrght.send_complete();
+}
+
+void Particles3Dcomm::apply_periodic_BC_global(
+  vector_SpeciesParticle& pcl_list, int pstart)
+{
+  const double Lxinv = 1/Lx;
+  const double Lyinv = 1/Ly;
+  const double Lzinv = 1/Lz;
+  // apply shift to all periodic directions
+  for(int pidx=pstart;pidx<pcl_list.size();pidx++)
+  {
+    SpeciesParticle& pcl = pcl_list[pidx];
+    if(vct->getPERIODICX())
+    {
+      double& x = pcl.fetch_x();
+      x = modulo(x, Lx, Lxinv);
+    }
+    if(vct->getPERIODICY())
+    {
+      double& y = pcl.fetch_y();
+      y = modulo(y, Ly, Lyinv);
+    }
+    if(vct->getPERIODICZ())
+    {
+      double& z = pcl.fetch_z();
+      z = modulo(z, Lz, Lzinv);
+    }
   }
-  npExitXright = 0, npExitXleft = 0, npExitYright = 0, npExitYleft = 0, npExitZright = 0, npExitZleft = 0, npExit = 0, rightDomain = 0;
-  int np_current = 0, nplast = nop - 1;
+}
 
-  while (np_current < nplast+1){
+// routines for sorting list of particles
+//
+// sort_pcls: macro to put all particles that satisfy a condition
+// at the end of an array of given size.  It has been written so
+// that it could be replaced with a generic routine that takes
+// the "condition" method as a callback function (and if the
+// optimizer is good, the performance in this case would actually
+// be just as good, so maybe we should just make this change).
+//
+// pcls: SpeciesParticle* or vector_SpeciesParticle
+// size_in: number of elements in pcls list
+// start_in: starting index of list to be sorted
+// start_out: returns starting index of particles
+//    for which the condition is true.
+// condition: a (probably inline) function of SpeciesParticle
+//   that returns true if the particle should go at the end of the list
+//
+#define sort_pcls(pcls, start_in, start_out, condition) \
+{ \
+  int start = (start_in); \
+  assert(0<=start); \
+  start_out = pcls.size(); \
+  /* pidx traverses the array */ \
+  for(int pidx=pcls.size()-1;pidx>=start;pidx--) \
+  { \
+    assert(pidx<start_out); \
+    /* if condition is true, put the particle at the end of the list */ \
+    if(condition(pcls[pidx])) \
+    { \
+      --start_out; \
+      SpeciesParticle tmp_pcl = pcls[pidx]; \
+      pcls[pidx] = pcls[start_out]; \
+      pcls[start_out] = tmp_pcl; \
+    } \
+  } \
+}
+//  /* pidx increases and start_out decreases until they meet */ \
+//  for(int pidx=start;pidx<start_out;) \
+//  { \
+//    /* if condition is true, put the particle at the end of the list */ \
+//    if(condition(pcls[pidx])) \
+//    { \
+//      --start_out; \
+//      SpeciesParticle tmp_pcl = pcls[pidx]; \
+//      pcls[pidx] = pcls[start_out]; \
+//      pcls[start_out] = tmp_pcl; \
+//    } \
+//    else \
+//    { \
+//      pidx++; \
+//    } \
+//  } \
 
-    // BC on particles
-    if (x[np_current] < 0 && ptVCT->getXleft_neighbor_P() == MPI_PROC_NULL)
-      BCpart(&x[np_current],&u[np_current],&v[np_current],&w[np_current],Lx,uth,vth,wth,bcPfaceXright,bcPfaceXleft);
-    else if (x[np_current] > Lx && ptVCT->getXright_neighbor_P() == MPI_PROC_NULL)
-      BCpart(&x[np_current],&u[np_current],&v[np_current],&w[np_current],Lx,uth,vth,wth,bcPfaceXright,bcPfaceXleft); 
-    if (y[np_current] < 0 && ptVCT->getYleft_neighbor_P() == MPI_PROC_NULL)  // check it here
-      BCpart(&y[np_current],&v[np_current],&u[np_current],&w[np_current],Ly,vth,uth,wth,bcPfaceYright,bcPfaceYleft);
-    else if (y[np_current] > Ly && ptVCT->getYright_neighbor_P() == MPI_PROC_NULL) //check it here
-      BCpart(&y[np_current],&v[np_current],&u[np_current],&w[np_current],Ly,vth,uth,wth,bcPfaceYright,bcPfaceYleft); 
-    if (z[np_current] < 0 && ptVCT->getZleft_neighbor_P() == MPI_PROC_NULL)  // check it here
-      BCpart(&z[np_current],&w[np_current],&u[np_current],&v[np_current],Lz,wth,uth,vth,bcPfaceZright,bcPfaceZleft);
-    else if (z[np_current] > Lz && ptVCT->getZright_neighbor_P() == MPI_PROC_NULL) //check it here
-      BCpart(&z[np_current],&w[np_current],&u[np_current],&v[np_current],Lz,wth,uth,vth,bcPfaceZright,bcPfaceZleft);
+// condition methods to use in sorting particles
+inline bool Particles3Dcomm::test_outside_domain(const SpeciesParticle& pcl)const
+{
+  // This could be vectorized
+  bool is_outside_domain=(
+       pcl.get_x() < 0. || pcl.get_y() < 0. || pcl.get_z() < 0.
+    || pcl.get_x() > Lx || pcl.get_y() > Ly || pcl.get_z() > Lz );
+  return is_outside_domain;
+}
+inline bool Particles3Dcomm::test_outside_nonperiodic_domain(const SpeciesParticle& pcl)const
+{
+  // This could be vectorized
+  bool is_outside_nonperiodic_domain =
+     (!vct->getPERIODICX() && (pcl.get_x() < 0. || pcl.get_x() > Lx)) ||
+     (!vct->getPERIODICY() && (pcl.get_y() < 0. || pcl.get_y() > Ly)) ||
+     (!vct->getPERIODICZ() && (pcl.get_z() < 0. || pcl.get_z() > Lz));
+  return is_outside_nonperiodic_domain;
+  // bool is_in_nonperiodic_domain =
+  //    (vct->getPERIODICX() || (pcl.get_x() >= 0. && pcl.get_x() <= Lx)) &&
+  //    (vct->getPERIODICY() || (pcl.get_y() >= 0. && pcl.get_y() <= Ly)) &&
+  //    (vct->getPERIODICZ() || (pcl.get_z() >= 0. && pcl.get_z() <= Lz));
+  // return !is_in_nonperiodic_domain;
+}
 
-    // if the particle exits, apply the boundary conditions add the particle to communication buffer
-    if (x[np_current] < xstart || x[np_current] >xend){
-      // communicate if they don't belong to the domain
-      if (x[np_current] < xstart && ptVCT->getXleft_neighbor_P() != MPI_PROC_NULL){
-        // check if there is enough space in the buffer before putting in the particle
-        if(((npExitXleft+1)*nVar)>=buffer_size){
-          resize_buffers((int) (buffer_size*2)); 
-        }
-        // put it in the communication buffer
-        bufferXleft(b_X_LEFT,np_current,ptVCT);
-        // delete the particle and pack the particle array, the value of nplast changes
-        del_pack(np_current,&nplast);
-        npExitXleft++;
-      } 
-      else if (x[np_current] < xstart && ptVCT->getXleft_neighbor_P() == MPI_PROC_NULL){
-        del_pack(np_current,&nplast);
-        npExitXleft++;
-      } 
-      else if (x[np_current] > xend && ptVCT->getXright_neighbor_P() != MPI_PROC_NULL){
-        // check if there is enough space in the buffer before putting in the particle
-        if(((npExitXright+1)*nVar)>=buffer_size){
-          resize_buffers((int) (buffer_size*2)); 
-        }
-        // put it in the communication buffer
-        bufferXright(b_X_RIGHT,np_current,ptVCT);
-        // delete the particle and pack the particle array, the value of nplast changes
-        del_pack(np_current,&nplast);
-        npExitXright++;
-      }
-      else if (x[np_current] > xend && ptVCT->getXright_neighbor_P() == MPI_PROC_NULL){
-        del_pack(np_current,&nplast);
-        npExitXright++;
-      }
+// apply user-supplied boundary conditions
+//
+void Particles3Dcomm::apply_nonperiodic_BCs_global(
+  vector_SpeciesParticle& pcl_list, int pstart)
+{
+  int lstart;
+  int lsize;
+  if(!vct->getPERIODICX())
+  {
+    // separate out particles that need Xleft boundary conditions applied
+    sort_pcls(pcl_list, pstart, lstart, test_Xleft_of_domain);
+    // apply boundary conditions
+    apply_Xleft_BC(pcl_list, lstart);
+    // separate out particles that need Xrght boundary conditions applied
+    sort_pcls(pcl_list, pstart, lstart, test_Xrght_of_domain);
+    // apply boundary conditions
+    apply_Xrght_BC(pcl_list, lstart);
+  }
+  if(!vct->getPERIODICY())
+  {
+    // separate out particles that need Yleft boundary conditions applied
+    sort_pcls(pcl_list, pstart, lstart, test_Yleft_of_domain);
+    // apply boundary conditions
+    apply_Yleft_BC(pcl_list, lstart);
+    // separate out particles that need Yrght boundary conditions applied
+    sort_pcls(pcl_list, pstart, lstart, test_Yrght_of_domain);
+    // apply boundary conditions
+    apply_Yrght_BC(pcl_list, lstart);
+  }
+  if(!vct->getPERIODICZ())
+  {
+    // separate out particles that need Zleft boundary conditions applied
+    sort_pcls(pcl_list, pstart, lstart, test_Zleft_of_domain);
+    // apply boundary conditions
+    apply_Zleft_BC(pcl_list, lstart);
+    // separate out particles that need Zrght boundary conditions applied
+    sort_pcls(pcl_list, pstart, lstart, test_Zrght_of_domain);
+    // apply boundary conditions
+    apply_Zrght_BC(pcl_list, lsize);
+  }
+}
 
-    } else  if (y[np_current] < ystart || y[np_current] >yend){
-      // communicate if they don't belong to the domain
-      if (y[np_current] < ystart && ptVCT->getYleft_neighbor_P() != MPI_PROC_NULL){
-        // check if there is enough space in the buffer before putting in the particle
-        if(((npExitYleft+1)*nVar)>=buffer_size){
-          resize_buffers((int) (buffer_size*2)); 
-        }
-        // put it in the communication buffer
-        bufferYleft(b_Y_LEFT,np_current,ptVCT);
-        // delete the particle and pack the particle array, the value of nplast changes
-        del_pack(np_current,&nplast);
-        npExitYleft++;
-      }
-      else if (y[np_current] < ystart && ptVCT->getYleft_neighbor_P() == MPI_PROC_NULL){
-        // delete the particle and pack the particle array, the value of nplast changes
-        del_pack(np_current,&nplast);
-        npExitYleft++;
-      }
-      else if (y[np_current] > yend && ptVCT->getYright_neighbor_P() != MPI_PROC_NULL){
-        // check if there is enough space in the buffer before putting in the particle
-        if(((npExitYright+1)*nVar)>=buffer_size){
-          resize_buffers((int) (buffer_size*2)); 
-        }
-        // put it in the communication buffer
-        bufferYright(b_Y_RIGHT,np_current,ptVCT);
-        // delete the particle and pack the particle array, the value of nplast changes
-        del_pack(np_current,&nplast);
-        npExitYright++;
-      }
-      else if (y[np_current] > yend && ptVCT->getYright_neighbor_P() == MPI_PROC_NULL){
-        // delete the particle and pack the particle array, the value of nplast changes
-        del_pack(np_current,&nplast);
-        npExitYright++;
-      }
-    } else  if (z[np_current] < zstart || z[np_current] >zend){
-      // communicate if they don't belong to the domain
-      if (z[np_current] < zstart && ptVCT->getZleft_neighbor_P() != MPI_PROC_NULL){
-        // check if there is enough space in the buffer before putting in the particle
-        if(((npExitZleft+1)*nVar)>=buffer_size){
-          resize_buffers((int) (buffer_size*2)); 
-        }
-        // put it in the communication buffer
-        bufferZleft(b_Z_LEFT,np_current,ptVCT);
-        // delete the particle and pack the particle array, the value of nplast changes
-        del_pack(np_current,&nplast);
+bool Particles3Dcomm::test_pcls_are_in_nonperiodic_domain(const vector_SpeciesParticle& pcls)const
+{
+  const int size = pcls.size();
+  for(int pidx=0;pidx<size;pidx++)
+  {
+    const SpeciesParticle& pcl = pcls[pidx];
+    // should vectorize these comparisons
+    bool not_in_domain = test_outside_nonperiodic_domain(pcl);
+    if(__builtin_expect(not_in_domain, false)) return false;
+  }
+  return true; // all pcls are in domain
+}
+bool Particles3Dcomm::test_pcls_are_in_domain(const vector_SpeciesParticle& pcls)const
+{
+  const int size = pcls.size();
+  for(int pidx=0;pidx<size;pidx++)
+  {
+    const SpeciesParticle& pcl = pcls[pidx];
+    // should vectorize these comparisons
+    bool not_in_domain = test_outside_domain(pcl);
+    if(__builtin_expect(not_in_domain, false)) return false;
+  }
+  return true; // all pcls are in domain
+}
+bool Particles3Dcomm::test_all_pcls_are_in_subdomain()
+{
+  const int size = _pcls.size();
+  for(int pidx=0;pidx<size;pidx++)
+  {
+    SpeciesParticle& pcl = _pcls[pidx];
+    // should vectorize these comparisons
+    bool not_in_subdomain = 
+         pcl.get_x() < xstart || pcl.get_y() < ystart || pcl.get_z() < zstart
+      || pcl.get_x() > xend   || pcl.get_y() > yend   || pcl.get_z() > yend;
+    if(__builtin_expect(not_in_subdomain, false)) return false;
+  }
+  return true; // all pcls are in processor subdomain
+}
 
-        npExitZleft++;
-      } 
-      else if (z[np_current] < zstart && ptVCT->getZleft_neighbor_P() == MPI_PROC_NULL){
-        del_pack(np_current,&nplast);
-        npExitZleft++;
-      }
-      else if (z[np_current] > zend && ptVCT->getZright_neighbor_P() != MPI_PROC_NULL){
-        // check if there is enough space in the buffer before putting in the particle
-        if(((npExitZright+1)*nVar)>=buffer_size){
-          resize_buffers((int) (buffer_size*2)); 
-        }
-        // put it in the communication buffer
-        bufferZright(b_Z_RIGHT,np_current,ptVCT);
-        // delete the particle and pack the particle array, the value of nplast changes
-        del_pack(np_current,&nplast);
+// If do_apply_periodic_BC_global is false, then we may need to
+// communicate particles as many as 2*(XLEN+YLEN+ZLEN) times
+// after the call to handle_received_particles(true), because it
+// is conceivable that a particle will be communicated the full
+// length of a periodic domain, then have its position remapped
+// to the proper position, and then traverse the full domain
+// again.
+//
+// If do_apply_periodic_BC_global is true, then we can
+// guarantee that all particles will be communicated within
+// at most (XLEN+YLEN+ZLEN) communications, but on the other
+// hand, a particle that would have been communicated in only
+// two iterations by being wrapped around a periodic boundary
+// will instead be communicated almost the full length of that
+// dimension.
+static bool do_apply_periodic_BC_global = false;
+// apply boundary conditions to a list of particles globally
+// (i.e. without regard to their current location in memory)
+void Particles3Dcomm::apply_BCs_globally(vector_SpeciesParticle& pcl_list)
+{
+  // apply boundary conditions to every
+  // particle until every particle lies in the domain.
+  //
+  //const int pend = pcl_list.size();
+  const double Lxinv = 1/Lx;
+  const double Lyinv = 1/Ly;
+  const double Lzinv = 1/Lz;
 
-        npExitZright++;
+  // put the particles outside the domain at the end of the list
+  //
+  // index of first particle that is unfinished
+  int pstart = 0;
+  // sort particles outside of the domain to the end of the list
+  sort_pcls(pcl_list, 0, pstart, test_outside_domain);
+
+  for(int i=0; pstart < pcl_list.size(); i++)
+  {
+    if(do_apply_periodic_BC_global)
+    {
+      apply_periodic_BC_global(pcl_list, pstart);
+      // apply user-supplied boundary conditions
+      apply_nonperiodic_BCs_global(pcl_list, pstart);
+      // put particles outside of the domain at the end of the list
+      sort_pcls(pcl_list, pstart, pstart, test_outside_domain);
+    }
+    else
+    {
+      apply_nonperiodic_BCs_global(pcl_list, pstart);
+      sort_pcls(pcl_list, pstart, pstart, test_outside_nonperiodic_domain);
+    }
+
+    // if this fails, something has surely gone wrong
+    // (e.g. we have a runaway particle).
+    if(i>=100)
+    {
+      print_pcls(pcl_list,pstart, ns);
+      dprint(pstart);
+      dprint(pcl_list.size());
+      eprintf("something went wrong.")
+    }
+  }
+  if(do_apply_periodic_BC_global)
+  {
+    assert(test_pcls_are_in_domain(pcl_list));
+  }
+  else
+  {
+    assert(test_pcls_are_in_nonperiodic_domain(pcl_list));
+  }
+  // compute how many communications will be needed to communicate
+  // the particles in the list to their appropriate locations
+  //if(do_apply_periodic_BC_global)
+  //{
+  //  for(int pidx=0; pidx < pcl_list.size(); pidx++)
+  //  {
+  //    SpeciesParticle& pcl = pcl_list[pidx];
+  //    // compute the processor subdomain coordinates of this particle
+  //    ...
+  //    // compute the distance from the current processor subdomain coordinates
+  //    ...
+  //  }
+  //}
+  //else
+  //{
+  //  for(int pidx=0; pidx < pcl_list.size(); pidx++)
+  //  {
+  //    SpeciesParticle& pcl = pcl_list[pidx];
+  //    ...
+  //  }
+  //}
+}
+
+// direction: direction that list of particles is coming from
+void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
+  int direction, bool apply_shift, bool do_apply_BCs)
+{
+  using namespace Direction;
+  // if appropriate apply periodicity shift for this block
+  //
+  // could change from modulo to simple shift.
+  //
+  const double Lxinv = 1/Lx;
+  const double Lyinv = 1/Ly;
+  const double Lzinv = 1/Lz;
+  if(apply_shift)
+  {
+    switch(direction)
+    {
+      default:
+        invalid_value_error(direction);
+      case XDN:
+      case XUP:
+        for(int pidx=0;pidx<pcl_list.size();pidx++)
+        {
+          SpeciesParticle& pcl = pcl_list[pidx];
+          double& x = pcl.fetch_x();
+          //const double x_old = x;
+          x = modulo(x, Lx, Lxinv);
+          //dprintf("recved pcl#%g: remapped x=%g outside [0,%g] to x=%g", pcl.get_t(), x_old, Lx, x);
+          // if(direction==XDN) x -= Lx; else x += Lx;
+        }
+        break;
+      case YDN:
+      case YUP:
+        for(int pidx=0;pidx<pcl_list.size();pidx++)
+        {
+          double& y = pcl_list[pidx].fetch_y();
+          y = modulo(y, Ly, Lyinv);
+          // if(direction==YDN) y -= Ly; else y += Ly;
+        }
+        break;
+      case ZDN:
+      case ZUP:
+        for(int pidx=0;pidx<pcl_list.size();pidx++)
+        {
+          double& z = pcl_list[pidx].fetch_z();
+          z = modulo(z, Lz, Lzinv);
+          // if(direction==ZDN) z -= Lz; else z += Lz;
+        }
+        break;
+    }
+  }
+  // if appropriate then apply boundary conditions to this block
+  else if(do_apply_BCs)
+  {
+    int size = pcl_list.size();
+    switch(direction)
+    {
+      default:
+        invalid_value_error(direction);
+      case XDN: assert(vct->noXlowerNeighbor());
+        apply_Xleft_BC(pcl_list);
+        break;
+      case XUP: assert(vct->noXupperNeighbor());
+        apply_Xrght_BC(pcl_list);
+        break;
+      case YDN: assert(vct->noYlowerNeighbor());
+        apply_Yleft_BC(pcl_list);
+        break;
+      case YUP: assert(vct->noYupperNeighbor());
+        apply_Yrght_BC(pcl_list);
+        break;
+      case ZDN: assert(vct->noZlowerNeighbor());
+        apply_Zleft_BC(pcl_list);
+        break;
+      case ZUP: assert(vct->noZupperNeighbor());
+        apply_Zrght_BC(pcl_list);
+        break;
+    }
+    pcl_list.resize(size);
+  }
+}
+
+namespace PclCommMode
+{
+  enum Enum
+  {
+    do_apply_BCs_globally=1,
+    print_sent_pcls=2,
+  };
+}
+// receive, sort, and, as appropriate, resend incoming particles
+//
+// assumes that flush_send() has been called
+//
+// returns number of particles that were resent
+//
+int Particles3Dcomm::handle_received_particles(int pclCommMode)
+{
+  using namespace PclCommMode;
+  // we expect to receive at least one block from every
+  // communicator, so make sure that all receive buffers are
+  // clear and waiting
+  //
+  recvXleft.recv_start(); recvXrght.recv_start();
+  recvYleft.recv_start(); recvYrght.recv_start();
+  recvZleft.recv_start(); recvZrght.recv_start();
+
+  // make sure that current block in each sender is ready for sending
+  //
+  sendXleft.send_start(); sendXrght.send_start();
+  sendYleft.send_start(); sendYrght.send_start();
+  sendZleft.send_start(); sendZrght.send_start();
+
+  const int num_recv_buffers = 6;
+
+  int recv_count[6]={0,0,0,0,0,0};
+  int send_count[6]={0,0,0,0,0,0};
+  int num_pcls_recved = 0;
+  int num_pcls_resent = 0;
+  //const int direction_map[6]={
+  //  Connection::XDN,Connection::XUP,
+  //  Connection::YDN,Connection::YUP,
+  //  Connection::ZDN,Connection::ZUP};
+  // receive incoming particles, 
+  // immediately resending any exiting particles
+  //
+  MPI_Request recv_requests[num_recv_buffers] = 
+  {
+    recvXleft.get_curr_request(), recvXrght.get_curr_request(),
+    recvYleft.get_curr_request(), recvYrght.get_curr_request(),
+    recvZleft.get_curr_request(), recvZrght.get_curr_request()
+  };
+  BlockCommunicator<SpeciesParticle>* recvBuffArr[num_recv_buffers] =
+  {
+    &recvXleft, &recvXrght,
+    &recvYleft, &recvYrght,
+    &recvZleft, &recvZrght
+  };
+
+  assert(!recvXleft.comm_finished());
+  assert(!recvXrght.comm_finished());
+  assert(!recvYleft.comm_finished());
+  assert(!recvYrght.comm_finished());
+  assert(!recvZleft.comm_finished());
+  assert(!recvZrght.comm_finished());
+
+  // determine the periodicity shift for each incoming buffer
+  const bool apply_shift[num_recv_buffers] =
+  {
+    vct->isPeriodicXlower(), vct->isPeriodicXupper(),
+    vct->isPeriodicYlower(), vct->isPeriodicYupper(),
+    vct->isPeriodicZlower(), vct->isPeriodicZupper()
+  };
+  const bool do_apply_BCs[num_recv_buffers] =
+  {
+    vct->noXlowerNeighbor(), vct->noXupperNeighbor(),
+    vct->noYlowerNeighbor(), vct->noYupperNeighbor(),
+    vct->noZlowerNeighbor(), vct->noZupperNeighbor()
+  };
+  const int direction[num_recv_buffers] =
+  {
+    Direction::XDN, Direction::XUP,
+    Direction::YDN, Direction::YUP,
+    Direction::ZDN, Direction::ZUP
+  };
+  // The documentation in the input file says that boundary conditions
+  // are simply ignored in the periodic case, so I omit this check.
+  //for(int i=0;i<6;i++)assert(!(apply_shift[i]&&do_apply_BCs[i]));
+  // while there are still incoming particles
+  // put them in the appropriate buffer
+  //
+  while(!(
+    recvXleft.comm_finished() && recvXrght.comm_finished() &&
+    recvYleft.comm_finished() && recvYrght.comm_finished() &&
+    recvZleft.comm_finished() && recvZrght.comm_finished()))
+  {
+    int recv_index;
+    MPI_Status recv_status;
+    MPI_Waitany(num_recv_buffers, recv_requests, &recv_index, &recv_status);
+    if(recv_index==MPI_UNDEFINED)
+      eprintf("recv_requests contains no active handles");
+    assert_ge(recv_index,0);
+    assert_lt(recv_index,num_recv_buffers);
+    //
+    // grab the received block of particles and process it
+    //
+    BlockCommunicator<SpeciesParticle>* recvBuff = recvBuffArr[recv_index];
+    Block<SpeciesParticle>& recv_block
+      = recvBuff->fetch_received_block(recv_status);
+    vector_SpeciesParticle& pcl_list = recv_block.fetch_block();
+
+    if(pclCommMode&do_apply_BCs_globally)
+    {
+      apply_BCs_globally(pcl_list);
+    }
+    else
+    {
+      apply_BCs_locally(pcl_list, direction[recv_index],
+        apply_shift[recv_index], do_apply_BCs[recv_index]);
+    }
+
+    recv_count[recv_index]+=recv_block.size();
+    num_pcls_recved += recv_block.size();
+    // process each particle in the received block.
+    {
+      for(int pidx=0;pidx<recv_block.size();pidx++)
+      {
+        SpeciesParticle& pcl = recv_block[pidx];
+        bool was_sent = send_pcl_to_appropriate_buffer(pcl, send_count);
+
+        if(__builtin_expect(was_sent,false))
+        {
+          num_pcls_resent++;
+          if(pclCommMode&print_sent_pcls)
+          {
+            print_pcl(pcl,ns);
+          }
+        }
+        else
+        {
+          // The particle belongs here, so put it in the
+          // appropriate place. For now, all particles are in a
+          // single list, so we append to the list.
+          _pcls.push_back(pcl);
+        }
       }
-      else if (z[np_current] > zend && ptVCT->getZright_neighbor_P() == MPI_PROC_NULL){
-        del_pack(np_current,&nplast);
-        npExitZright++;
+    }
+    // release the block and update the receive request
+    recvBuff->release_received_block();
+    recv_requests[recv_index] = recvBuff->get_curr_request();
+  }
+
+  dprintf("spec %d recved_count: %d+%d+%d+%d+%d+%d=%d", ns,
+    recv_count[0], recv_count[1], recv_count[2],
+    recv_count[3], recv_count[4], recv_count[5], num_pcls_recved);
+  dprintf("spec %d resent_count: %d+%d+%d+%d+%d+%d=%d", ns,
+    send_count[0], send_count[1], send_count[2],
+    send_count[3], send_count[4], send_count[5], num_pcls_resent);
+  // return the number of particles that were resent
+
+  return num_pcls_resent;
+}
+
+static long long mpi_global_sum(int in)
+{
+  long long total;
+  long long long_in = in;
+  //dprintf("calling MPI_Allreduce(%d,&total,1, ...)", long_in);
+  MPI_Allreduce(&long_in, &total, 1, MPI_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
+  return total;
+}
+
+// these methods should be made virtual
+// so that the user can override boundary conditions.
+//
+void Particles3Dcomm::apply_Xleft_BC(vector_SpeciesParticle& pcls, int start)
+{
+  int size = pcls.size();
+  assert_le(0,start);
+  switch(bcPfaceXleft)
+  {
+    default:
+      unsupported_value_error(bcPfaceXleft);
+    case BCparticles::PERFECT_MIRROR:
+      for(int p=start;p<size;p++)
+      {
+        pcls[p].fetch_x() *= -1;
+        pcls[p].fetch_u() *= -1;
       }
-    }  else {
-      // particle is still in the domain, procede with the next particle
+      break;
+    case BCparticles::REEMISSION:
+      // in this case it might be faster to convert to and
+      // from SoA format, if calls to rand() can vectorize.
+      for(int p=start;p<size;p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        pcl.fetch_x() *= -1;
+        double u[3];
+        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
+        u[0] = fabs(u[0]);
+        pcl.set_u(u);
+      }
+      break;
+    case BCparticles::EXIT:
+      // clear the remainder of the list
+      pcls.resize(start);
+      break;
+  }
+}
+void Particles3Dcomm::apply_Yleft_BC(vector_SpeciesParticle& pcls, int start)
+{
+  int size = pcls.size();
+  assert_le(0,start);
+  switch(bcPfaceYleft)
+  {
+    default:
+      unsupported_value_error(bcPfaceYleft);
+    case BCparticles::PERFECT_MIRROR:
+      for(int p=start;p<size;p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        const double y_old = pcl.fetch_y();
+        const double v_old = pcl.fetch_v();
+        pcl.fetch_y() *= -1;
+        pcl.fetch_v() *= -1;
+        const double y_new = pcl.fetch_y();
+        const double v_new = pcl.fetch_v();
+        //dprintf("mirrored pcl#%g: y: %g->%g, v: %g->%g",
+        //  pcl.get_t(), y_old, y_new, v_old, v_new);
+      }
+      break;
+    case BCparticles::REEMISSION:
+      // in this case it might be faster to convert to and
+      // from SoA format, if calls to rand() can vectorize.
+      for(int p=start;p<size;p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        pcl.fetch_y() *= -1;
+        double u[3];
+        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
+        u[1] = fabs(u[1]);
+        pcl.set_u(u);
+      }
+      break;
+    case BCparticles::EXIT:
+      pcls.resize(start);
+      break;
+  }
+}
+void Particles3Dcomm::apply_Zleft_BC(vector_SpeciesParticle& pcls, int start)
+{
+  int size = pcls.size();
+  assert_le(0,start);
+  switch(bcPfaceZleft)
+  {
+    default:
+      unsupported_value_error(bcPfaceZleft);
+    case BCparticles::PERFECT_MIRROR:
+      for(int p=start;p<size;p++)
+      {
+        pcls[p].fetch_z() *= -1;
+        pcls[p].fetch_w() *= -1;
+      }
+      break;
+    case BCparticles::REEMISSION:
+      // in this case it might be faster to convert to and
+      // from SoA format, if calls to rand() can vectorize.
+      for(int p=start;p<size;p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        pcl.fetch_z() *= -1;
+        double u[3];
+        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
+        u[2] = fabs(u[2]);
+        pcl.set_u(u);
+      }
+      break;
+    case BCparticles::EXIT:
+      pcls.resize(start);
+      break;
+  }
+}
+void Particles3Dcomm::apply_Xrght_BC(vector_SpeciesParticle& pcls, int start)
+{
+  int size = pcls.size();
+  assert_le(0,start);
+  switch(bcPfaceXright)
+  {
+    default:
+      unsupported_value_error(bcPfaceXright);
+    case BCparticles::PERFECT_MIRROR:
+      for(int p=start;p<size;p++)
+      {
+        double& x = pcls[p].fetch_x();
+        x = 2*Lx - x;
+        pcls[p].fetch_u() *= -1;
+      }
+      break;
+    case BCparticles::REEMISSION:
+      // in this case it might be faster to convert to and
+      // from SoA format, if calls to rand() can vectorize.
+      for(int p=start;p<size;p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        double& x = pcl.fetch_x();
+        x = 2*Lx - x;
+        double u[3];
+        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
+        u[0] = -fabs(u[0]);
+        pcl.set_u(u);
+      }
+      break;
+    case BCparticles::EXIT:
+      pcls.resize(start);
+      break;
+  }
+}
+void Particles3Dcomm::apply_Yrght_BC(vector_SpeciesParticle& pcls, int start)
+{
+  int size = pcls.size();
+  assert_le(0,start);
+  switch(bcPfaceYright)
+  {
+    default:
+      unsupported_value_error(bcPfaceYright);
+    case BCparticles::PERFECT_MIRROR:
+      for(int p=start;p<size;p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        double& y = pcl.fetch_y();
+        const double y_old = y;
+        const double v_old = pcl.fetch_v();
+        y = 2*Ly - y;
+        pcl.fetch_v() *= -1;
+        const double y_new = pcl.fetch_y();
+        const double v_new = pcl.fetch_v();
+        //dprintf("mirrored pcl#%g: y: %g->%g, v: %g->%g",
+        //  pcl.get_t(), y_old, y_new, v_old, v_new);
+      }
+      break;
+    case BCparticles::REEMISSION:
+      for(int p=start;p<size;p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        double& y = pcl.fetch_y();
+        y = 2*Ly - y;
+        double u[3];
+        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
+        v[0] = -fabs(v[0]);
+        pcl.set_u(u);
+      }
+      break;
+    case BCparticles::EXIT:
+      pcls.resize(start);
+      break;
+  }
+}
+void Particles3Dcomm::apply_Zrght_BC(vector_SpeciesParticle& pcls, int start)
+{
+  int size = pcls.size();
+  assert_le(0,start);
+  switch(bcPfaceZright)
+  {
+    default:
+      unsupported_value_error(bcPfaceZright);
+    case BCparticles::PERFECT_MIRROR:
+      for(int p=start;p<size;p++)
+      {
+        double& z = pcls[p].fetch_z();
+        z = 2*Lz - z;
+        pcls[p].fetch_w() *= -1;
+      }
+      break;
+    case BCparticles::REEMISSION:
+      for(int p=start;p<size;p++)
+      {
+        SpeciesParticle& pcl = pcls[p];
+        double& z = pcl.fetch_z();
+        z = 2*Lz - z;
+        double u[3];
+        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
+        w[0] = -fabs(w[0]);
+        pcl.set_u(u);
+      }
+      break;
+    case BCparticles::EXIT:
+      pcls.resize(start);
+      break;
+  }
+}
+
+// return number of particles sent
+int Particles3Dcomm::separate_and_send_particles()
+{
+  // why does it happen that multiple particles have an ID of 0?
+  const int num_ids = 1;
+  longid id_list[num_ids] = {0};
+  print_pcls(_pcls,ns,id_list, num_ids);
+  timeTasks_set_communicating(); // communicating until end of scope
+
+  convertParticlesToAoS();
+
+  // activate receiving
+  //
+  recvXleft.recv_start(); recvXrght.recv_start();
+  recvYleft.recv_start(); recvYrght.recv_start();
+  recvZleft.recv_start(); recvZrght.recv_start();
+
+  // make sure that current block in each sender is ready for sending
+  //
+  sendXleft.send_start(); sendXrght.send_start();
+  sendYleft.send_start(); sendYrght.send_start();
+  sendZleft.send_start(); sendZrght.send_start();
+
+  int send_count[6]={0,0,0,0,0,0};
+  const int num_pcls_initially = _pcls.size();
+  int np_current = 0;
+  while(np_current < _pcls.size())
+  {
+    SpeciesParticle& pcl = _pcls[np_current];
+    // if the particle is exiting, put it in the appropriate send bin;
+    // this could be done at conclusion of push after particles are
+    // converted to AoS format in order to overlap communication
+    // with computation.
+    bool was_sent = send_pcl_to_appropriate_buffer(pcl,send_count);
+
+    // fill in hole; for the sake of data pipelining could change
+    // this to make a list of holes and then go back and fill
+    // them in, but will builtin_expect also allow efficient
+    // pipelining?  Or does the compiler generate instructions
+    // that automatically adjust pipelining based on
+    // accumulated statistical branching behavior?
+    //
+    // optimizer should assume that most particles are not sent
+    if(__builtin_expect(was_sent,false))
+    {
+      //dprintf("sent particle %d", np_current);
+      delete_particle(np_current);
+    }
+    else
+    {
       np_current++;
     }
+  }
+  assert_eq(_pcls.size(),np_current);
+  const int num_pcls_unsent = getNOP();
+  const int num_pcls_sent = num_pcls_initially - num_pcls_unsent;
+  //dprint(num_pcls_sent);
+  dprintf("spec %d send_count: %d+%d+%d+%d+%d+%d=%d",ns,
+    send_count[0], send_count[1], send_count[2],
+    send_count[3], send_count[4], send_count[5],num_pcls_sent);
+  return num_pcls_sent;
+}
 
+// communicate particles and apply boundary conditions
+// until every particle is in the process of its subdomain.
+//
+// At the end of this method, the position of every particle in
+// this process must lie in this process's proper subdomain,
+// for two reasons: (1) sumMoments assumes that all particles
+// lie in the proper subdomain of the process, and if this
+// assumption is violated memory corruption can result, and
+// (2) the extrapolation algorithm used by the mover is unstable,
+// which could cause the velocity of particles not in the proper
+// subdomain to blow up.
+//
+// The algorithm proceeds in three steps:
+// (1) for min_num_iterations, receive particles from neighbor
+// processes, apply boundary conditions locally (i.e. only if
+// this is a boundary process), and resend any particles that
+// still do not belong in this subdomain,
+// (2) apply boundary conditions globally (i.e. independent of
+// whether this is a boundary process), and resend any particles
+// not in this subdomain, and
+// (3) communicate particles (as many as XLEN+YLEN+ZLEN times)
+// until every particle is in its appropriate subdomain.
+//
+// This communication algorithm is perhaps more sophisticated
+// than is justified by the mover, which does not properly
+// resolve fast-moving particles.
+//
+// min_num_iterations: number of iterations that this process
+//   applies boundary conditions locally.
+//   This method then applies boundary conditions globally to each
+//   incoming particle until the particle resides in the domain.
+//   forces
+//   
+void Particles3Dcomm::recommunicate_particles_until_done(int min_num_iterations)
+{
+  timeTasks_set_communicating(); // communicating until end of scope
+  assert_gt(min_num_iterations,0);
+  // most likely exactly three particle communications
+  // will be needed, one for each dimension of space,
+  // so we begin with three receives and thereafter
+  // before each receive we do an all-reduce to check
+  // if more particles actually need to be received.
+  //
+  // alternatively, we could monitor how many iterations
+  // are needed and adjust the initial number of iterations
+  // accordingly.  The goals to balance would be
+  // * to minimize the number of all-reduce calls and
+  // * to minimize unnecessary sends,
+  // with the overall goal of minimizing time spent in communication
+  //
+  int num_pcls_sent;
+  for(int i=0;i<min_num_iterations;i++)
+  {
+    flush_send(); // flush sending of particles
+    num_pcls_sent = handle_received_particles();
+    //dprintf("spec %d #pcls sent = %d", ns, num_pcls_sent);
   }
 
-  nop = nplast + 1;
-  npExitingMax = 0;
-  // calculate the maximum number of particles exiting from this domain
-  // use this value to check if communication is needed
-  // and to resize the buffer
-  npExitingMax = maxNpExiting();
-  // broadcast the maximum number of particles exiting for sizing the buffer and to check if communication is really needed
-  npExitingMax = reduceMaxNpExiting(npExitingMax);
+  // apply boundary conditions to incoming particles
+  // until they are in the domain
+  flush_send(); // flush sending of particles
+  num_pcls_sent = handle_received_particles(PclCommMode::do_apply_BCs_globally);
 
-  /*****************************************************/
-  /* SEND AND RECEIVE MESSAGES */
-  /*****************************************************/
+  //if(do_apply_periodic_BC_global)
+  //  assert(test_pcls_are_in_domain(_pcls));
+  //else
+  //  assert(test_pcls_are_in_nonperiodic_domain(_pcls));
 
-  new_buffer_size = npExitingMax * nVar + 1;
+  // compute how many times particles must be communicated
+  // globally before every particle is in the correct subdomain
+  // (would need to modify handle_received_particles so that it
+  // returns num_comm_needed)
+  //const int global_num_comm_needed = mpi_global_max(num_comm_needed);
+  // once I see that this is anticipating the number of communications
+  // correctly, I will eliminate the total_num_pcls_sent check below
+  //dprint(global_num_comm_needed);
 
-  if (new_buffer_size > buffer_size) {
-    cout << "resizing the receiving buffer" << endl;
-    resize_buffers(new_buffer_size);
-  }
+  // continue receiving and resending incoming particles until
+  // global all-reduce of num_pcls_resent is zero, indicating
+  // that there are no more particles to be received.
+  //
+  long long total_num_pcls_sent = mpi_global_sum(num_pcls_sent);
+  dprintf("spec %d pcls sent: %d, %d",
+    ns, num_pcls_sent, total_num_pcls_sent);
 
-  if (npExitingMax > 0) {
-    communicateParticles(new_buffer_size, b_X_LEFT, b_X_RIGHT, b_Y_LEFT, b_Y_RIGHT, b_Z_LEFT, b_Z_RIGHT, ptVCT);
-
-    // UNBUFFERING
-    // message from XLEFT
-    avail1 = unbuffer(b_X_RIGHT);
-    avail2 = unbuffer(b_X_LEFT);
-    avail3 = unbuffer(b_Y_RIGHT);
-    avail4 = unbuffer(b_Y_LEFT);
-    avail5 = unbuffer(b_Z_RIGHT);
-    avail6 = unbuffer(b_Z_LEFT);
-    // if one of these numbers is negative than there is not enough space for particles
-    avail = avail1 + avail2 + avail3 + avail4 + avail5 + avail6;
-    availALL = reduceNumberParticles(avail);
-    if (availALL < 0)
-      return (-1);              // too many particles coming, save data nad stop simulation
-  }
-
-  return (0);                   // everything was fine
-
-
-}
-/** resize the buffers */
-void Particles3Dcomm::resize_buffers(int new_buffer_size) {
-  cout << "RESIZING FROM " << buffer_size << " TO " << new_buffer_size << endl;
-  // resize b_X_LEFT
-  double *temp = new double[buffer_size];
-
-  for (int i = 0; i < buffer_size; i++)
-    temp[i] = b_X_LEFT_ptr[i];
-  // delete[] b_X_LEFT_ptr;
-  delete[]b_X_LEFT;
-  b_X_LEFT = new double[new_buffer_size];
-  for (int i = 0; i < buffer_size; i++)
-    b_X_LEFT[i] = temp[i];
-  for (int i = buffer_size; i < new_buffer_size; i++)
-    b_X_LEFT[i] = MIN_VAL;
-
-  // resize b_X_RIGHT 
-  for (int i = 0; i < buffer_size; i++)
-    temp[i] = b_X_RIGHT_ptr[i];
-  // delete[] b_X_RIGHT_ptr;
-  delete[]b_X_RIGHT;
-  b_X_RIGHT = new double[new_buffer_size];
-  for (int i = 0; i < buffer_size; i++)
-    b_X_RIGHT[i] = temp[i];
-  for (int i = buffer_size; i < new_buffer_size; i++)
-    b_X_RIGHT[i] = MIN_VAL;
-
-  // resize b_Y_RIGHT
-  for (int i = 0; i < buffer_size; i++)
-    temp[i] = b_Y_RIGHT_ptr[i];
-  // delete[] b_Y_RIGHT_ptr;
-  delete[]b_Y_RIGHT;
-  b_Y_RIGHT = new double[new_buffer_size];
-  for (int i = 0; i < buffer_size; i++)
-    b_Y_RIGHT[i] = temp[i];
-  for (int i = buffer_size; i < new_buffer_size; i++)
-    b_Y_RIGHT[i] = MIN_VAL;
-
-  // resize b_Y_LEFT
-  for (int i = 0; i < buffer_size; i++)
-    temp[i] = b_Y_LEFT_ptr[i];
-  // delete[] b_Y_LEFT_ptr;
-  delete[]b_Y_LEFT;
-  b_Y_LEFT = new double[new_buffer_size];
-  for (int i = 0; i < buffer_size; i++)
-    b_Y_LEFT[i] = temp[i];
-  for (int i = buffer_size; i < new_buffer_size; i++)
-    b_Y_LEFT[i] = MIN_VAL;
-
-  // resize b_Z_RIGHT
-  for (int i = 0; i < buffer_size; i++)
-    temp[i] = b_Z_RIGHT_ptr[i];
-  // delete[] b_Z_RIGHT_ptr;
-  delete[]b_Z_RIGHT;
-  b_Z_RIGHT = new double[new_buffer_size];
-  for (int i = 0; i < buffer_size; i++)
-    b_Z_RIGHT[i] = temp[i];
-  for (int i = buffer_size; i < new_buffer_size; i++)
-    b_Z_RIGHT[i] = MIN_VAL;
-
-  // resize b_Z_LEFT
-  for (int i = 0; i < buffer_size; i++)
-    temp[i] = b_Z_LEFT_ptr[i];
-  // delete[] b_Z_LEFT_ptr;
-  delete[]b_Z_LEFT;
-  b_Z_LEFT = new double[new_buffer_size];
-  for (int i = 0; i < buffer_size; i++)
-    b_Z_LEFT[i] = temp[i];
-  for (int i = buffer_size; i < new_buffer_size; i++)
-    b_Z_LEFT[i] = MIN_VAL;
-
-  delete[]temp;
-
-  b_X_RIGHT_ptr = b_X_RIGHT;
-  b_Y_RIGHT_ptr = b_Y_RIGHT;
-  b_Z_RIGHT_ptr = b_Z_RIGHT;
-  b_Y_LEFT_ptr = b_Y_LEFT;
-  b_X_LEFT_ptr = b_X_LEFT;
-  b_Z_LEFT_ptr = b_Z_LEFT;
-
-  buffer_size = new_buffer_size;
-}
-/** put a particle exiting to X-LEFT in the bufferXLEFT for communication and check if you're sending the particle to the right subdomain*/
-void Particles3Dcomm::bufferXleft(double *b_, int np_current, VirtualTopology3D * vct) {
-  if (x[np_current] < 0)
-    b_[npExitXleft * nVar] = x[np_current] + Lx;  // this applies to the the leftmost processor
-  else
-    b_[npExitXleft * nVar] = x[np_current];
-  b_[npExitXleft * nVar + 1] = y[np_current];
-  b_[npExitXleft * nVar + 2] = z[np_current];
-  b_[npExitXleft * nVar + 3] = u[np_current];
-  b_[npExitXleft * nVar + 4] = v[np_current];
-  b_[npExitXleft * nVar + 5] = w[np_current];
-  b_[npExitXleft * nVar + 6] = q[np_current];
-  if (TrackParticleID)
-    b_[npExitXleft * nVar + 7] = ParticleID[np_current];
-}
-/** put a particle exiting to X-RIGHT in the bufferXRIGHT for communication and check if you're sending the particle to the right subdomain*/
-void Particles3Dcomm::bufferXright(double *b_, int np_current, VirtualTopology3D * vct) {
-  if (x[np_current] > Lx)
-    b_[npExitXright * nVar] = x[np_current] - Lx; // this applies to the right most processor
-  else
-    b_[npExitXright * nVar] = x[np_current];
-  b_[npExitXright * nVar + 1] = y[np_current];
-  b_[npExitXright * nVar + 2] = z[np_current];
-  b_[npExitXright * nVar + 3] = u[np_current];
-  b_[npExitXright * nVar + 4] = v[np_current];
-  b_[npExitXright * nVar + 5] = w[np_current];
-  b_[npExitXright * nVar + 6] = q[np_current];
-  if (TrackParticleID)
-    b_[npExitXright * nVar + 7] = ParticleID[np_current];
-}
-/** put a particle exiting to Y-LEFT in the bufferYLEFT for communication and check if you're sending the particle to the right subdomain*/
-inline void Particles3Dcomm::bufferYleft(double *b_, int np_current, VirtualTopology3D * vct) {
-  b_[npExitYleft * nVar] = x[np_current];
-  if (y[np_current] < 0)
-    b_[npExitYleft * nVar + 1] = y[np_current] + Ly;
-  else
-    b_[npExitYleft * nVar + 1] = y[np_current];
-  b_[npExitYleft * nVar + 2] = z[np_current];
-  b_[npExitYleft * nVar + 3] = u[np_current];
-  b_[npExitYleft * nVar + 4] = v[np_current];
-  b_[npExitYleft * nVar + 5] = w[np_current];
-  b_[npExitYleft * nVar + 6] = q[np_current];
-  if (TrackParticleID)
-    b_[npExitYleft * nVar + 7] = ParticleID[np_current];
-}
-/** put a particle exiting to Y-RIGHT in the bufferYRIGHT for communication and check if you're sending the particle to the right subdomain*/
-inline void Particles3Dcomm::bufferYright(double *b_, int np_current, VirtualTopology3D * vct) {
-  b_[npExitYright * nVar] = x[np_current];
-  if (y[np_current] > Ly)
-    b_[npExitYright * nVar + 1] = y[np_current] - Ly;
-  else
-    b_[npExitYright * nVar + 1] = y[np_current];
-  b_[npExitYright * nVar + 2] = z[np_current];
-  b_[npExitYright * nVar + 3] = u[np_current];
-  b_[npExitYright * nVar + 4] = v[np_current];
-  b_[npExitYright * nVar + 5] = w[np_current];
-  b_[npExitYright * nVar + 6] = q[np_current];
-  if (TrackParticleID)
-    b_[npExitYright * nVar + 7] = ParticleID[np_current];
-}
-/** put a particle exiting to Z-LEFT in the bufferZLEFT for communication and check if you're sending the particle to the right subdomain*/
-inline void Particles3Dcomm::bufferZleft(double *b_, int np_current, VirtualTopology3D * vct) {
-  b_[npExitZleft * nVar] = x[np_current];
-  b_[npExitZleft * nVar + 1] = y[np_current];
-  if (z[np_current] < 0)
-    b_[npExitZleft * nVar + 2] = z[np_current] + Lz;
-  else
-    b_[npExitZleft * nVar + 2] = z[np_current];
-  b_[npExitZleft * nVar + 3] = u[np_current];
-  b_[npExitZleft * nVar + 4] = v[np_current];
-  b_[npExitZleft * nVar + 5] = w[np_current];
-  b_[npExitZleft * nVar + 6] = q[np_current];
-  if (TrackParticleID)
-    b_[npExitZleft * nVar + 7] = ParticleID[np_current];
-}
-/** put a particle exiting to Z-RIGHT in the bufferZRIGHT for communication and check if you're sending the particle to the right subdomain*/
-inline void Particles3Dcomm::bufferZright(double *b_, int np_current, VirtualTopology3D * vct) {
-  b_[npExitZright * nVar] = x[np_current];
-  b_[npExitZright * nVar + 1] = y[np_current];
-  if (z[np_current] > Lz)
-    b_[npExitZright * nVar + 2] = z[np_current] - Lz;
-  else
-    b_[npExitZright * nVar + 2] = z[np_current];
-  b_[npExitZright * nVar + 3] = u[np_current];
-  b_[npExitZright * nVar + 4] = v[np_current];
-  b_[npExitZright * nVar + 5] = w[np_current];
-  b_[npExitZright * nVar + 6] = q[np_current];
-  if (TrackParticleID)
-    b_[npExitZright * nVar + 7] = ParticleID[np_current];
-}
-/** This unbuffer the last communication */
-int Particles3Dcomm::unbuffer(double *b_) {
-  int np_current = 0;
-  // put the new particles at the end of the array, and update the number of particles
-  while (b_[np_current * nVar] != MIN_VAL) {
-    x[nop] = b_[nVar * np_current];
-    y[nop] = b_[nVar * np_current + 1];
-    z[nop] = b_[nVar * np_current + 2];
-    u[nop] = b_[nVar * np_current + 3];
-    v[nop] = b_[nVar * np_current + 4];
-    w[nop] = b_[nVar * np_current + 5];
-    q[nop] = b_[nVar * np_current + 6];
-    if (TrackParticleID)
-      ParticleID[nop] = (long long) b_[nVar * np_current + 7];
-    np_current++;
-    // these particles need further communication
-    if (x[nop] < xstart || x[nop] > xend || y[nop] < ystart || y[nop] > yend || z[nop] < zstart || z[nop] > zend)
-      rightDomain++;            // the particle is not in the domain
-    nop++;
-    if (nop > npmax) {
-      cout << "Number of particles in the domain " << nop << " and maxpart = " << npmax << endl;
-      MPI_Abort(MPI_COMM_WORLD, -1);
-      return (-1);              // end the simulation because you dont have enough space on the array
+  // the maximum number of neighbor communications that would
+  // be needed to put a particle in the correct mesh cell
+  int comm_max_times = vct->getXLEN()+vct->getYLEN()+vct->getZLEN();
+  if(!do_apply_periodic_BC_global) comm_max_times*=2;
+  int comm_count=0;
+  while(total_num_pcls_sent)
+  {
+    if(comm_count>=(comm_max_times))
+    {
+      dprintf("particles still uncommunicated:");
+      flush_send();
+      num_pcls_sent = handle_received_particles(PclCommMode::print_sent_pcls);
+      eprintf("failed to finish up particle communication"
+        " within %d communications", comm_max_times);
     }
-  }
-  return (0);                   // everything was fine
-}
-/** Delete the a particle from the array and pack the the array, update the number of 
- * particles that are exiting
- * For deleting the particle from the array take the last particle and put it
- * in the position of the particle you want to delete
- * @param np = the index of the particle that must be deleted
- * @param nplast = the index of the last particle in the array
- */
-void Particles3Dcomm::del_pack(int np_current, int *nplast) {
-  x[np_current] = x[*nplast];
-  y[np_current] = y[*nplast];
-  z[np_current] = z[*nplast];
-  u[np_current] = u[*nplast];
-  v[np_current] = v[*nplast];
-  w[np_current] = w[*nplast];
-  q[np_current] = q[*nplast];
-  if (TrackParticleID)
-    ParticleID[np_current] = ParticleID[*nplast];
-  npExit++;
-  (*nplast)--;
-}
-/** method to calculate how many particles are out of right domain */
-int Particles3Dcomm::isMessagingDone(VirtualTopology3D * ptVCT) {
-  int result = 0;
-  result = reduceNumberParticles(rightDomain);
-  if (result > 0 && cVERBOSE && ptVCT->getCartesian_rank() == 0)
-    cout << "Further Comunication: " << result << " particles not in the right domain" << endl;
-  return (result);
 
+    // flush sending of particles
+    flush_send();
+    num_pcls_sent = handle_received_particles();
+
+    total_num_pcls_sent = mpi_global_sum(num_pcls_sent);
+    dprint(total_num_pcls_sent);
+    comm_count++;
+  }
 }
-/** calculate the maximum number exiting from this domain */
-int Particles3Dcomm::maxNpExiting() {
-  int maxNp = 0;
-  if (npExitXright > maxNp)
-    maxNp = npExitXright;
-  if (npExitXleft > maxNp)
-    maxNp = npExitXleft;
-  if (npExitYright > maxNp)
-    maxNp = npExitYright;
-  if (npExitYleft > maxNp)
-    maxNp = npExitYleft;
-  if (npExitZright > maxNp)
-    maxNp = npExitZright;
-  if (npExitZleft > maxNp)
-    maxNp = npExitZleft;
-  return (maxNp);
+
+// exchange particles with neighboring processors
+//
+// sent particles are deleted from _pcls.
+// holes are filled with particles from end.
+// then received particles are appended to end.
+//
+void Particles3Dcomm::communicate_particles()
+{
+  timeTasks_set_communicating(); // communicating until end of scope
+
+  separate_and_send_particles();
+
+  recommunicate_particles_until_done(1);
 }
 
 /** return the Kinetic energy */
 double Particles3Dcomm::getKe() {
   double localKe = 0.0;
   double totalKe = 0.0;
-  for (register int i = 0; i < nop; i++)
-    localKe += .5 * (q[i] / qom) * (u[i] * u[i] + v[i] * v[i] + w[i] * w[i]);
+  for (register int i = 0; i < _pcls.size(); i++)
+  {
+    SpeciesParticle& pcl = _pcls[i];
+    const double u = pcl.get_u();
+    const double v = pcl.get_v();
+    const double w = pcl.get_w();
+    const double q = pcl.get_q();
+    localKe += .5*(q/qom)*(u*u + v*v + w*w);
+  }
   MPI_Allreduce(&localKe, &totalKe, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return (totalKe);
 }
+
 /** return the total momentum */
+//
+// This is the sum over all particles of the magnitude of the
+// momentum, which has no physical meaning that I can see.
+// we should be summing each component of the momentum. -eaj
+//
 double Particles3Dcomm::getP() {
   double localP = 0.0;
   double totalP = 0.0;
-  for (register int i = 0; i < nop; i++)
-    localP += (q[i] / qom) * sqrt(u[i] * u[i] + v[i] * v[i] + w[i] * w[i]);
+  for (register int i = 0; i < _pcls.size(); i++)
+  {
+    SpeciesParticle& pcl = _pcls[i];
+    const double u = pcl.get_u();
+    const double v = pcl.get_v();
+    const double w = pcl.get_w();
+    const double q = pcl.get_q();
+    localP += (q/qom)*sqrt(u*u + v*v + w*w);
+  }
   MPI_Allreduce(&localP, &totalP, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return (totalP);
 }
@@ -958,14 +1553,23 @@ double Particles3Dcomm::getP() {
 double Particles3Dcomm::getMaxVelocity() {
   double localVel = 0.0;
   double maxVel = 0.0;
-  for (int i = 0; i < nop; i++)
-    localVel = max(localVel, sqrt(u[i] * u[i] + v[i] * v[i] + w[i] * w[i]));
+  for (int i = 0; i < _pcls.size(); i++)
+  {
+    SpeciesParticle& pcl = _pcls[i];
+    const double u = pcl.get_u();
+    const double v = pcl.get_v();
+    const double w = pcl.get_w();
+    localVel = std::max(localVel, sqrt(u*u + v*v + w*w));
+  }
   MPI_Allreduce(&localVel, &maxVel, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
   return (maxVel);
 }
 
 
 /** get energy spectrum */
+//
+// this ignores the weight of the charges. -eaj
+//
 long long *Particles3Dcomm::getVelocityDistribution(int nBins, double maxVel) {
   long long *f = new long long[nBins];
   for (int i = 0; i < nBins; i++)
@@ -973,8 +1577,12 @@ long long *Particles3Dcomm::getVelocityDistribution(int nBins, double maxVel) {
   double Vel = 0.0;
   double dv = maxVel / nBins;
   int bin = 0;
-  for (int i = 0; i < nop; i++) {
-    Vel = sqrt(u[i] * u[i] + v[i] * v[i] + w[i] * w[i]);
+  for (int i = 0; i < _pcls.size(); i++) {
+    SpeciesParticle& pcl = _pcls[i];
+    const double u = pcl.get_u();
+    const double v = pcl.get_v();
+    const double w = pcl.get_w();
+    Vel = sqrt(u*u + v*v + w*w);
     bin = int (floor(Vel / dv));
     if (bin >= nBins)
       f[nBins - 1] += 1;
@@ -997,37 +1605,51 @@ long long *Particles3Dcomm::getVelocityDistribution(int nBins, double maxVel) {
 
 
 /** print particles info */
-void Particles3Dcomm::Print(VirtualTopology3D * ptVCT) const {
+void Particles3Dcomm::Print() const
+{
   cout << endl;
-  cout << "Number of Particles: " << nop << endl;
-  cout << "Subgrid (" << ptVCT->getCoordinates(0) << "," << ptVCT->getCoordinates(1) << "," << ptVCT->getCoordinates(2) << ")" << endl;
+  cout << "Number of Particles: " << _pcls.size() << endl;
+  cout << "Subgrid (" << vct->getCoordinates(0) << "," << vct->getCoordinates(1) << "," << vct->getCoordinates(2) << ")" << endl;
   cout << "Xin = " << xstart << "; Xfin = " << xend << endl;
   cout << "Yin = " << ystart << "; Yfin = " << yend << endl;
   cout << "Zin = " << zstart << "; Zfin = " << zend << endl;
-  cout << "Number of species = " << ns << endl;
-  for (int i = 0; i < nop; i++)
-    cout << "Particles #" << i << " x=" << x[i] << " y=" << y[i] << " z=" << z[i] << " u=" << u[i] << " v=" << v[i] << " w=" << w[i] << endl;
+  cout << "Number of species = " << get_species_num() << endl;
+  for (int i = 0; i < _pcls.size(); i++)
+  {
+    const SpeciesParticle& pcl = _pcls[i];
+    cout << "Particle #" << i << ":"
+      << " x=" << pcl.get_x()
+      << " y=" << pcl.get_y()
+      << " z=" << pcl.get_z()
+      << " u=" << pcl.get_u()
+      << " v=" << pcl.get_v()
+      << " w=" << pcl.get_w()
+      << endl;
+  }
   cout << endl;
 }
 /** print just the number of particles */
-void Particles3Dcomm::PrintNp(VirtualTopology3D * ptVCT)  const {
+void Particles3Dcomm::PrintNp()  const
+{
   cout << endl;
-  cout << "Number of Particles of species " << ns << ": " << nop << endl;
-  cout << "Subgrid (" << ptVCT->getCoordinates(0) << "," << ptVCT->getCoordinates(1) << "," << ptVCT->getCoordinates(2) << ")" << endl;
+  cout << "Number of Particles of species " << get_species_num() << ": " << getNOP() << endl;
+  cout << "Subgrid (" << vct->getCoordinates(0) << "," << vct->getCoordinates(1) << "," << vct->getCoordinates(2) << ")" << endl;
   cout << endl;
 }
 
 /***** particle sorting routines *****/
 
-void Particles3Dcomm::sort_particles_serial(Grid * grid, VirtualTopology3D * vct)
+void Particles3Dcomm::sort_particles_serial()
 {
   switch(particleType)
   {
     case ParticleType::AoS:
-      sort_particles_serial_AoS(grid,vct);
+      sort_particles_serial_AoS();
       break;
     case ParticleType::SoA:
-      sort_particles_serial_SoA(grid,vct);
+      convertParticlesToAoS();
+      sort_particles_serial_AoS();
+      convertParticlesToSynched();
       break;
     default:
       unsupported_value_error(particleType);
@@ -1035,15 +1657,15 @@ void Particles3Dcomm::sort_particles_serial(Grid * grid, VirtualTopology3D * vct
 }
 
 // need to sort and communicate particles after each iteration
-void Particles3Dcomm::sort_particles_serial_AoS(
-  Grid * grid, VirtualTopology3D * vct)
+void Particles3Dcomm::sort_particles_serial_AoS()
 {
-  SpeciesParticle* pcls = fetch_pcls();
-  SpeciesParticle* pclstmp = fetch_pclstmp();
+  convertParticlesToAoS();
+
+  _pclstmp.reserve(_pcls.size());
   {
     numpcls_in_bucket->setall(0);
     // iterate through particles and count where they will go
-    for (int pidx = 0; pidx < nop; pidx++)
+    for (int pidx = 0; pidx < _pcls.size(); pidx++)
     {
       const SpeciesParticle& pcl = get_pcl(pidx);
       // get the cell indices of the particle
@@ -1065,10 +1687,11 @@ void Particles3Dcomm::sort_particles_serial_AoS(
       (*bucket_offset)[cx][cy][cz] = accpcls;
       accpcls += (*numpcls_in_bucket)[cx][cy][cz];
     }
-    assert_eq(accpcls,nop);
+    assert_eq(accpcls,getNOP());
 
     numpcls_in_bucket_now->setall(0);
     // put the particles where they are supposed to go
+    const int nop = getNOP();
     for (int pidx = 0; pidx < nop; pidx++)
     {
       const SpeciesParticle& pcl = get_pcl(pidx);
@@ -1086,11 +1709,15 @@ void Particles3Dcomm::sort_particles_serial_AoS(
 
       // copy particle data to new location
       //
-      pclstmp[outpidx] = pcl;
+      _pclstmp[outpidx] = pcl;
     }
     // swap the tmp particle memory with the official particle memory
     {
-      swap(_pclstmp,_pcls);
+      // if using accessors rather than transposition,
+      // here I would need not only to swap the pointers but also
+      // to swap all the accessors.
+      //
+      _pcls.swap(_pclstmp);
     }
 
     // check if the particles were sorted incorrectly
@@ -1104,325 +1731,8 @@ void Particles3Dcomm::sort_particles_serial_AoS(
       }
     }
   }
-}
-
-// need to sort and communicate particles after each iteration
-void Particles3Dcomm::sort_particles_serial_SoA(
-  Grid * grid, VirtualTopology3D * vct)
-{
-  double * xtmp = fetch_xtmp();
-  double * ytmp = fetch_ytmp();
-  double * ztmp = fetch_ztmp();
-  double * utmp = fetch_utmp();
-  double * vtmp = fetch_vtmp();
-  double * wtmp = fetch_wtmp();
-  double * qtmp = fetch_qtmp();
-
-  long long* ParticleIDtmp = 0;
-  if (TrackParticleID)
-  {
-    assert(ParticleID);
-    ParticleIDtmp = fetch_ParticleIDtmp();
-    assert(fetch_ParticleIDtmp());
-    assert(ParticleIDtmp);
-  }
-
-  // sort the particles
-  {
-    numpcls_in_bucket->setall(0);
-    // iterate through particles and count where they will go
-    for (int pidx = 0; pidx < nop; pidx++)
-    {
-      // get the cell indices of the particle
-      //
-      int cx,cy,cz;
-      grid->get_safe_cell_coordinates(cx,cy,cz,x[pidx],y[pidx],z[pidx]);
-      //
-      // is it better just to recompute this?
-      //
-      //xcell[pidx]=cx;
-      //ycell[pidx]=cy;
-      //zcell[pidx]=cz;
-
-      // increment the number of particles in bucket of this particle
-      (*numpcls_in_bucket)[cx][cy][cz]++;
-    }
-
-    // compute prefix sum to determine initial position
-    // of each bucket (could parallelize this)
-    //
-    int accpcls=0;
-    for(int cx=0;cx<nxc;cx++)
-    for(int cy=0;cy<nyc;cy++)
-    for(int cz=0;cz<nzc;cz++)
-    {
-      (*bucket_offset)[cx][cy][cz] = accpcls;
-      accpcls += (*numpcls_in_bucket)[cx][cy][cz];
-    }
-    assert_eq(accpcls,nop);
-
-    numpcls_in_bucket_now->setall(0);
-
-    // put the particles where they are supposed to go
-    for (int pidx = 0; pidx < nop; pidx++)
-    {
-      // get the cell indices of the particle
-      //
-      int cx,cy,cz;
-      grid->get_safe_cell_coordinates(cx,cy,cz,x[pidx],y[pidx],z[pidx]);
-      //
-      //cx = xcell[pidx];
-      //cy = ycell[pidx];
-      //cz = zcell[pidx];
-
-      // compute where the data should go
-      const int numpcls_now = (*numpcls_in_bucket_now)[cx][cy][cz]++;
-      const int outpidx = (*bucket_offset)[cx][cy][cz] + numpcls_now;
-      assert_lt(outpidx, nop);
-      assert_ge(outpidx, 0);
-      assert_lt(pidx, nop);
-      assert_ge(pidx, 0);
-
-      // copy particle data to new location
-      //
-      xtmp[outpidx] = x[pidx];
-      ytmp[outpidx] = y[pidx];
-      ztmp[outpidx] = z[pidx];
-      utmp[outpidx] = u[pidx];
-      vtmp[outpidx] = v[pidx];
-      wtmp[outpidx] = w[pidx];
-      qtmp[outpidx] = q[pidx];
-      if (TrackParticleID)
-      {
-        ParticleIDtmp[outpidx] = ParticleID[pidx];
-      }
-    }
-    // swap the tmp particle memory with the official particle memory
-    {
-      swap(_xtmp,x);
-      swap(_ytmp,y);
-      swap(_ztmp,z);
-      swap(_utmp,u);
-      swap(_vtmp,v);
-      swap(_wtmp,w);
-      swap(_qtmp,q);
-      swap(_ParticleIDtmp,ParticleID);
-    }
-
-    // check that the number of bins was correct
-    //
-    if(true)
-    {
-      for(int cx=0;cx<nxc;cx++)
-      for(int cy=0;cy<nyc;cy++)
-      for(int cz=0;cz<nzc;cz++)
-      {
-        assert_eq((*numpcls_in_bucket_now)[cx][cy][cz], (*numpcls_in_bucket)[cx][cy][cz]);
-      }
-    }
-    // confirm that the particles were sorted correctly
-    if(false)
-    {
-      for(int cx=0;cx<nxc;cx++)
-      for(int cy=0;cy<nyc;cy++)
-      for(int cz=0;cz<nzc;cz++)
-      {
-        const int numpcls_in_cell = get_numpcls_in_bucket(cx,cy,cz);
-        const int bucket_offset = get_bucket_offset(cx,cy,cz);
-        const int bucket_end = bucket_offset+numpcls_in_cell;
-        for(int pidx=bucket_offset; pidx<bucket_end; pidx++)
-        {
-          // confirm that particle is in correct cell
-          {
-            int cx_,cy_,cz_;
-            grid->get_safe_cell_coordinates(cx_,cy_,cz_,x[pidx],y[pidx],z[pidx]);
-            if((cx_!=cx)
-             ||(cy_!=cy)
-             ||(cz_!=cz))
-            {
-              dprintf("\n\t cx =%d, cy =%d, cz =%d"
-                      "\n\t cx_=%d, cy_=%d, cz_=%d"
-                      "\n\t cxf=%f, cyf=%f, czf=%f",
-                      cx,cy,cz,
-                      cx_,cy_,cz_,
-                      1.+(x[pidx]-xstart)*inv_dx,
-                      1.+(y[pidx]-ystart)*inv_dy,
-                      1.+(z[pidx]-zstart)*inv_dz);
-            }
-            assert_eq(cx_,cx);
-            assert_eq(cy_,cy);
-            assert_eq(cz_,cz);
-          }
-        }
-      }
-    }
-  }
-}
-
-// need to sort and communicate particles after each iteration
-void Particles3Dcomm::sort_particles_serial_SoA_by_xavg(
-  Grid * grid, VirtualTopology3D * vct)
-{
-  double * xtmp = fetch_xtmp();
-  double * ytmp = fetch_ytmp();
-  double * ztmp = fetch_ztmp();
-  double * utmp = fetch_utmp();
-  double * vtmp = fetch_vtmp();
-  double * wtmp = fetch_wtmp();
-  double * qtmp = fetch_qtmp();
-  double* xavg = fetch_xavg();
-  double* yavg = fetch_yavg();
-  double* zavg = fetch_zavg();
-  double* xavgtmp = fetch_xavgtmp();
-  double* yavgtmp = fetch_yavgtmp();
-  double* zavgtmp = fetch_zavgtmp();
-
-  long long* ParticleIDtmp = 0;
-  if (TrackParticleID) ParticleIDtmp = fetch_ParticleIDtmp();
-
-  // sort the particles
-  {
-    numpcls_in_bucket->setall(0);
-    // iterate through particles and count where they will go
-    for (int pidx = 0; pidx < nop; pidx++)
-    {
-      // get the cell indices of the particle
-      //
-      int cx,cy,cz;
-      grid->get_safe_cell_coordinates(cx,cy,cz,xavg[pidx],yavg[pidx],zavg[pidx]);
-      //
-      // is it better just to recompute this?
-      //
-      //xcell[pidx]=cx;
-      //ycell[pidx]=cy;
-      //zcell[pidx]=cz;
-
-      // increment the number of particles in bucket of this particle
-      (*numpcls_in_bucket)[cx][cy][cz]++;
-    }
-
-    // compute prefix sum to determine initial position
-    // of each bucket (could parallelize this)
-    //
-    int accpcls=0;
-    for(int cx=0;cx<nxc;cx++)
-    for(int cy=0;cy<nyc;cy++)
-    for(int cz=0;cz<nzc;cz++)
-    {
-      (*bucket_offset)[cx][cy][cz] = accpcls;
-      accpcls += (*numpcls_in_bucket)[cx][cy][cz];
-    }
-    assert_eq(accpcls,nop);
-
-    numpcls_in_bucket_now->setall(0);
-
-    // put the particles where they are supposed to go
-    for (int pidx = 0; pidx < nop; pidx++)
-    {
-      // get the cell indices of the particle
-      //
-      int cx,cy,cz;
-      grid->get_safe_cell_coordinates(cx,cy,cz,xavg[pidx],yavg[pidx],zavg[pidx]);
-      //
-      //cx = xcell[pidx];
-      //cy = ycell[pidx];
-      //cz = zcell[pidx];
-
-      // compute where the data should go
-      const int numpcls_now = (*numpcls_in_bucket_now)[cx][cy][cz]++;
-      const int outpidx = (*bucket_offset)[cx][cy][cz] + numpcls_now;
-      assert_lt(outpidx, nop);
-      assert_ge(outpidx, 0);
-      assert_lt(pidx, nop);
-      assert_ge(pidx, 0);
-
-      // copy particle data to new location
-      //
-      xtmp[outpidx] = x[pidx];
-      ytmp[outpidx] = y[pidx];
-      ztmp[outpidx] = z[pidx];
-      utmp[outpidx] = u[pidx];
-      vtmp[outpidx] = v[pidx];
-      wtmp[outpidx] = w[pidx];
-      qtmp[outpidx] = q[pidx];
-      xavgtmp[outpidx] = xavg[pidx];
-      yavgtmp[outpidx] = yavg[pidx];
-      zavgtmp[outpidx] = zavg[pidx];
-      if (TrackParticleID)
-      {
-        ParticleIDtmp[outpidx] = ParticleID[pidx];
-      }
-    }
-    // swap the tmp particle memory with the official particle memory
-    {
-      swap(_xtmp,x);
-      swap(_ytmp,y);
-      swap(_ztmp,z);
-      swap(_utmp,u);
-      swap(_vtmp,v);
-      swap(_wtmp,w);
-      swap(_qtmp,q);
-      swap(_ParticleIDtmp,ParticleID);
-      swap(_xavgtmp,_xavg);
-      swap(_yavgtmp,_yavg);
-      swap(_zavgtmp,_zavg);
-    }
-    xavg = _xavg;
-    yavg = _yavg;
-    zavg = _zavg;
-
-    // check that the number of bins was correct
-    //
-    if(true)
-    {
-      for(int cx=0;cx<nxc;cx++)
-      for(int cy=0;cy<nyc;cy++)
-      for(int cz=0;cz<nzc;cz++)
-      {
-        assert_eq((*numpcls_in_bucket_now)[cx][cy][cz], (*numpcls_in_bucket)[cx][cy][cz]);
-      }
-    }
-    int serial_pidx=0;
-    // confirm that the particles were sorted correctly
-    for(int cx=0;cx<nxc;cx++)
-    for(int cy=0;cy<nyc;cy++)
-    for(int cz=0;cz<nzc;cz++)
-    {
-      const int numpcls_in_cell = get_numpcls_in_bucket(cx,cy,cz);
-      const int bucket_offset = get_bucket_offset(cx,cy,cz);
-      const int bucket_end = bucket_offset+numpcls_in_cell;
-      for(int pidx=bucket_offset; pidx<bucket_end; pidx++)
-      {
-        // serial case: check that pidx is correct
-        assert_eq(pidx,serial_pidx);
-        serial_pidx++;
-        // confirm that particle is in correct cell
-        if(true)
-        {
-          int cx_,cy_,cz_;
-          grid->get_safe_cell_coordinates(cx_,cy_,cz_,xavg[pidx],yavg[pidx],zavg[pidx]);
-          if((cx_!=cx)
-           ||(cy_!=cy)
-           ||(cz_!=cz))
-          {
-            dprint(cx)
-            dprintf("\n\t cx =%d, cy =%d, cz =%d"
-                    "\n\t cx_=%d, cy_=%d, cz_=%d"
-                    "\n\t cxf=%f, cyf=%f, czf=%f",
-                    cx,cy,cz,
-                    cx_,cy_,cz_,
-                    1.+(xavg[pidx]-xstart)*inv_dx,
-                    1.+(yavg[pidx]-ystart)*inv_dy,
-                    1.+(zavg[pidx]-zstart)*inv_dz);
-            dprint(serial_pidx);
-          }
-          assert_eq(cx_,cx);
-          assert_eq(cy_,cy);
-          assert_eq(cz_,cz);
-        }
-      }
-    }
-  }
+  // SoA particle representation is no longer valid
+  particleType = ParticleType::AoS;
 }
 
 //void Particles3Dcomm::sort_particles_parallel(
@@ -1560,68 +1870,143 @@ void Particles3Dcomm::copyParticlesToSoA()
 {
   timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_SOA);
   dprintf("copying to struct of arrays");
-  SpeciesParticle const*const pcls = fetch_pcls();
+  const int nop = _pcls.size();
+  // create memory for SoA representation
+  resize_SoA(nop);
+ #ifndef __MIC__
   #pragma omp for
   for(int pidx=0; pidx<nop; pidx++)
   {
-    const SpeciesParticle& pcl = pcls[pidx];
-    u[pidx] = pcl.get_u(0);
-    v[pidx] = pcl.get_u(1);
-    w[pidx] = pcl.get_u(2);
+    const SpeciesParticle& pcl = _pcls[pidx];
+    u[pidx] = pcl.get_u();
+    v[pidx] = pcl.get_v();
+    w[pidx] = pcl.get_w();
     q[pidx] = pcl.get_q();
-    x[pidx] = pcl.get_x(0);
-    y[pidx] = pcl.get_x(1);
-    z[pidx] = pcl.get_x(2);
-    if(ParticleID) ParticleID[pidx] = pcl.get_ID();
+    x[pidx] = pcl.get_x();
+    y[pidx] = pcl.get_y();
+    z[pidx] = pcl.get_z();
+    t[pidx] = pcl.get_t();
   }
+ #else // __MIC__
+  // rather than doing stride-8 scatter,
+  // copy and transpose data 8 particles at a time
+  assert_divides(8,u.capacity());
+  for(int pidx=0; pidx<nop; pidx+=8)
+  {
+    (F64vec8*) SoAdata[8] = {&u[pidx],&v[pidx],&w[pidx],&q[pidx],
+                             &x[pidx],&y[pidx],&z[pidx],&t[pidx]};
+    F64vec8 (&AoSdata)[8] = *reinterpret_cast<double (*)F64vec8[8]>(&pcls[pidx]);
+    transpose_8x8_double(AoSdata,SoAdata);
+  }
+ #endif // __MIC__
+  particleType = ParticleType::synched;
 }
 
 void Particles3Dcomm::copyParticlesToAoS()
 {
-  SpeciesParticle * pcls = fetch_pcls();
   timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_AOS);
+  const int nop = u.size();
+  resize_AoS(nop);
   dprintf("copying to array of structs");
-  assert(pcls);
-  if(TrackParticleID)
+ #ifndef __MIC__
+  // use a simple stride-8 gather
+  #pragma omp for
+  for(int pidx=0; pidx<nop; pidx++)
   {
-    assert(ParticleID);
-    #pragma omp for
-    for(int pidx=0; pidx<nop; pidx++)
-    {
-      pcls[pidx].set(
-        u[pidx],v[pidx],w[pidx], q[pidx],
-        x[pidx],y[pidx],z[pidx], (double)ParticleID[pidx]);
-    }
+    _pcls[pidx].set(
+      u[pidx],v[pidx],w[pidx], q[pidx],
+      x[pidx],y[pidx],z[pidx], t[pidx]);
   }
-  else
+ #else // __MIC__
+  // for efficiency, copy data 8 particles at a time,
+  // transposing each block of particles
+  assert_divides(8,_pcls.capacity());
+  for(int pidx=0; pidx<nop; pidx+=8);
   {
-    #pragma omp for
-    for(int pidx=0; pidx<nop; pidx++)
-    {
-      pcls[pidx].set( 
-        u[pidx],v[pidx],w[pidx], q[pidx],
-        x[pidx],y[pidx],z[pidx], (double)0);
-    }
+    //double (&matrix)[8][8] = *(double (*)[8][8])(_pcls[pidx]);
+    //double (&matrix)[8][8] = *reinterpret_cast<double (*)[8][8]>(&_pcls[pidx]);
+    F64vec8 (AoSdata&) [8] = *reinterpret_cast<F64vec8(*)[8]>(&_pcls[pidx]);
+    (F64vec8*) SoAdata[8] = {&u[pidx],&v[pidx],&w[pidx],&q[pidx],
+                             &x[pidx],&y[pidx],&z[pidx],&t[pidx]};
+    transpose_8x8_double(SoAdata, AoSdata);
   }
+ #endif
+  particleType = ParticleType::synched;
 }
 
+// synched AoS and SoA conceptually implies a write-lock
+//
+void Particles3Dcomm::convertParticlesToSynched()
+{
+  switch(particleType)
+  {
+    default:
+      unsupported_value_error(particleType);
+    case ParticleType::SoA:
+      copyParticlesToAoS();
+      break;
+    case ParticleType::AoS:
+      copyParticlesToSoA();
+      break;
+    case ParticleType::synched:
+      break;
+  }
+  // this state conceptually implies a write-lock
+  particleType = ParticleType::synched;
+}
+
+// defines AoS to be the authority
+// (conceptually releasing any write-lock)
+//
 void Particles3Dcomm::convertParticlesToAoS()
 {
-  if(particleType!=ParticleType::AoS)
+  switch(particleType)
   {
-    assert_eq(particleType,ParticleType::SoA);
-    copyParticlesToAoS();
-    particleType = ParticleType::AoS;
+    default:
+      unsupported_value_error(particleType);
+    case ParticleType::SoA:
+      copyParticlesToAoS();
+      break;
+    case ParticleType::AoS:
+    case ParticleType::synched:
+      break;
   }
+  particleType = ParticleType::AoS;
 }
 
+// check whether particles are SoA
+bool Particles3Dcomm::particlesAreSoA()const
+{
+  switch(particleType)
+  {
+    default:
+      unsupported_value_error(particleType);
+    case ParticleType::AoS:
+      return false;
+      break;
+    case ParticleType::SoA:
+    case ParticleType::synched:
+      break;
+  }
+  return true;
+}
+
+// defines SoA to be the authority
+// (conceptually releasing any write-lock)
+//
 void Particles3Dcomm::convertParticlesToSoA()
 {
-  if(particleType != ParticleType::SoA)
+  switch(particleType)
   {
-    assert_eq(particleType,ParticleType::AoS);
-    copyParticlesToSoA();
-    particleType = ParticleType::SoA;
+    default:
+      unsupported_value_error(particleType);
+    case ParticleType::AoS:
+      copyParticlesToSoA();
+      break;
+    case ParticleType::SoA:
+    case ParticleType::synched:
+      break;
   }
+  particleType = ParticleType::SoA;
 }
 

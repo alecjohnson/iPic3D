@@ -14,7 +14,7 @@ developers           : Stefano Markidis, Giovanni Lapenta
 #ifndef VCtopology3D_H
 #define VCtopology3D_H
 
-#include "VirtualTopology3D.h"
+#include "mpi.h"
 
 /**
  *  
@@ -29,7 +29,8 @@ developers           : Stefano Markidis, Giovanni Lapenta
 
 class Collective;
 
-class VCtopology3D:public VirtualTopology3D {
+class VCtopology3D //:public VirtualTopology3D
+{
 public:
   /** constructor: Define topology parameters: dimension, domain decomposition,... */
   VCtopology3D(const Collective& col);
@@ -42,38 +43,74 @@ public:
   /** Print the mapping of topology */
   void PrintMapping();
 
-  int getXLEN() { return (XLEN); }
-  int getYLEN() { return (YLEN); }
-  int getZLEN() { return (ZLEN); }
-  int getNprocs() { return (nprocs); }
-  bool getPERIODICX() { return (PERIODICX); }
-  bool getPERIODICY() { return (PERIODICY); }
-  bool getPERIODICZ() { return (PERIODICZ); }
-  int getCartesian_rank() { return (cartesian_rank); }
-  int getXleft_neighbor() { return (xleft_neighbor); }
-  int getXright_neighbor() { return (xright_neighbor); }
-  int getYleft_neighbor() { return (yleft_neighbor); }
-  int getYright_neighbor() { return (yright_neighbor); }
-  int getZleft_neighbor() { return (zleft_neighbor); }
-  int getZright_neighbor() { return (zright_neighbor); }
-  int getXleft_neighbor_P() { return (xleft_neighbor_P); }
-  int getXright_neighbor_P() { return (xright_neighbor_P); }
-  int getYleft_neighbor_P() { return (yleft_neighbor_P); }
-  int getYright_neighbor_P() { return (yright_neighbor_P); }
-  int getZleft_neighbor_P() { return (zleft_neighbor_P); }
-  int getZright_neighbor_P() { return (zright_neighbor_P); }
-  bool getcVERBOSE() { return (cVERBOSE); }
-  int getCoordinates(int dir) { return (coordinates[dir]); }
-  int *getCoordinates() { return (coordinates); }
-  int getPeriods(int dir) { return (periods[dir]); }
-  MPI_Comm getComm(){ return (CART_COMM); }
+  int getXLEN()const{ return (XLEN); }
+  int getYLEN()const{ return (YLEN); }
+  int getZLEN()const{ return (ZLEN); }
+  int getNprocs()const{ return (nprocs); }
+  bool getPERIODICX()const{ return (PERIODICX); }
+  bool getPERIODICY()const{ return (PERIODICY); }
+  bool getPERIODICZ()const{ return (PERIODICZ); }
+
+  // legacy names
+  //
+  int getCartesian_rank()const{ return (cartesian_rank); }
+  int getXleft_neighbor()const{ return (xleft_neighbor); }
+  int getXright_neighbor()const{ return (xright_neighbor); }
+  int getYleft_neighbor()const{ return (yleft_neighbor); }
+  int getYright_neighbor()const{ return (yright_neighbor); }
+  int getZleft_neighbor()const{ return (zleft_neighbor); }
+  int getZright_neighbor()const{ return (zright_neighbor); }
+  int getXleft_neighbor_P()const{ return (xleft_neighbor); }
+  int getXright_neighbor_P()const{ return (xright_neighbor); }
+  int getYleft_neighbor_P()const{ return (yleft_neighbor); }
+  int getYright_neighbor_P()const{ return (yright_neighbor); }
+  int getZleft_neighbor_P()const{ return (zleft_neighbor); }
+  int getZright_neighbor_P()const{ return (zright_neighbor); }
+
+  // new interface
+  //
+  int getXleft()const{ return (xleft_neighbor); }
+  int getXrght()const{ return (xright_neighbor); }
+  int getYleft()const{ return (yleft_neighbor); }
+  int getYrght()const{ return (yright_neighbor); }
+  int getZleft()const{ return (zleft_neighbor); }
+  int getZrght()const{ return (zright_neighbor); }
+
+  bool isPeriodicXlower()const{ return _isPeriodicXlower; }
+  bool isPeriodicXupper()const{ return _isPeriodicXupper; }
+  bool isPeriodicYlower()const{ return _isPeriodicYlower; }
+  bool isPeriodicYupper()const{ return _isPeriodicYupper; }
+  bool isPeriodicZlower()const{ return _isPeriodicZlower; }
+  bool isPeriodicZupper()const{ return _isPeriodicZupper; }
+
+  bool noXlowerNeighbor()const{ return _noXlowerNeighbor; }
+  bool noXupperNeighbor()const{ return _noXupperNeighbor; }
+  bool noYlowerNeighbor()const{ return _noYlowerNeighbor; }
+  bool noYupperNeighbor()const{ return _noYupperNeighbor; }
+  bool noZlowerNeighbor()const{ return _noZlowerNeighbor; }
+  bool noZupperNeighbor()const{ return _noZupperNeighbor; }
+
+  bool isBoundaryProcess()const{ return _isBoundaryProcess; }
+
+  bool isXlower()const{ return coordinates[0]==0; }
+  bool isYlower()const{ return coordinates[1]==0; }
+  bool isZlower()const{ return coordinates[2]==0; }
+  bool isXupper()const{ return coordinates[0]==dims[0]-1; }
+  bool isYupper()const{ return coordinates[1]==dims[1]-1; }
+  bool isZupper()const{ return coordinates[2]==dims[2]-1; }
+
+  bool getcVERBOSE()const{ return (cVERBOSE); }
+  int getCoordinates(int dir)const{ return (coordinates[dir]); }
+  const int *getCoordinates()const{ return (coordinates); }
+  int getPeriods(int dir)const{ return (periods[dir]); }
+  MPI_Comm getComm()const{ return (CART_COMM); }
 
 
 private:
   /** New communicator with virtual cartesian topology */
   MPI_Comm CART_COMM;
   /** New communicator with virtual cartesian topology for Particles*/
-  MPI_Comm CART_COMM_P;
+  //MPI_Comm CART_COMM_P;
   /** MPI status during sending and receiving communication */
   MPI_Status status;
   /** Direction X for shift MPI_Cart_Shift*/
@@ -103,18 +140,18 @@ private:
   /** periodicity on boundaries - DIRECTION Z*/
   bool PERIODICZ;
   /** periodicity on boundaries - DIRECTION X*/
-  bool PERIODICX_P;
+  //bool PERIODICX_P;
   /** periodicity on boundaries - DIRECTION Y*/
-  bool PERIODICY_P;
+  //bool PERIODICY_P;
   /** periodicity on boundaries - DIRECTION Z*/
-  bool PERIODICZ_P;
+  //bool PERIODICZ_P;
   /** rank may be reordered     */
   int reorder;
   /** arrays for Create_Cart_create  */
-  int divisions[3];
+  int dims[3];
   /** periodicity */
   int periods[3];
-  int periods_P[3];
+  //int periods_P[3];
   /** coordinates on processors grid */
   int coordinates[3];
   /** cartesian rank */
@@ -132,20 +169,40 @@ private:
   /** cartesian rank of ZLEFT neighbor */
   int zright_neighbor;
   /** cartesian rank of XLEFT neighbor */
-  int xleft_neighbor_P;
+  //int xleft_neighbor_P;
   /** cartesian rank of XRIGHT neighbor */
-  int xright_neighbor_P;
+  //int xright_neighbor_P;
   /** cartesian rank of YLEFT neighbor */
-  int yleft_neighbor_P;
+  //int yleft_neighbor_P;
   /** cartesian rank of YRIGHT neighbor */
-  int yright_neighbor_P;
+  //int yright_neighbor_P;
   /** cartesian rank of ZRIGHT neighbor */
-  int zleft_neighbor_P;
+  //int zleft_neighbor_P;
   /** cartesian rank of ZLEFT neighbor */
-  int zright_neighbor_P;
+  //int zright_neighbor_P;
+  
+  /** indicators of whether this is a periodic boundary */
+  bool _isPeriodicXlower;
+  bool _isPeriodicXupper;
+  bool _isPeriodicYlower;
+  bool _isPeriodicYupper;
+  bool _isPeriodicZlower;
+  bool _isPeriodicZupper;
+
+  /** indicators of whether this lacks a neighbor */
+  bool _noXupperNeighbor;
+  bool _noXlowerNeighbor;
+  bool _noYupperNeighbor;
+  bool _noYlowerNeighbor;
+  bool _noZupperNeighbor;
+  bool _noZlowerNeighbor;
+
+  int _isBoundaryProcess;
 
   /** if cVERBOSE == true, print to the screen all the comunication */
   bool cVERBOSE;
 };
+
+typedef VCtopology3D VirtualTopology3D;
 
 #endif

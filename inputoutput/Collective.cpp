@@ -211,6 +211,8 @@ void Collective::ReadInput(string inputfile) {
     v0 = new double[ns];
     w0 = new double[ns];
 
+    //nop_rs = new int[ns];
+
     array_int npcelx0 = config.read < array_int > ("npcelx");
     array_int npcely0 = config.read < array_int > ("npcely");
     array_int npcelz0 = config.read < array_int > ("npcelz");
@@ -636,8 +638,12 @@ Collective::Collective(int argc, char **argv) {
       return;
     }
   }
-
   ReadInput(inputfile);
+  init_derived_parameters();
+}
+
+void Collective::init_derived_parameters()
+{
   /*! fourpi = 4 greek pi */
   fourpi = 16.0 * atan(1.0);
   /*! dx = space step - X direction */
@@ -649,30 +655,58 @@ Collective::Collective(int argc, char **argv) {
   /*! npcel = number of particles per cell */
   npcel = new int[ns];
   /*! np = number of particles of different species */
-  np = new int[ns];
+  //np = new int[ns];
   /*! npMax = maximum number of particles of different species */
-  npMax = new int[ns];
+  //npMax = new int[ns];
 
-  for (int i = 0; i < ns; i++) {
-    npcel[i] = npcelx[i] * npcely[i] * npcelz[i];
-    np[i] = npcel[i] * nxc * nyc * nzc;
-    double npMaxi = (NpMaxNpRatio * np[i]);
-    // INT_MAX is about 2 billions, surely enough
-    // to index the particles in a single MPI process
-    assert_le(npMaxi, double(INT_MAX));
-    npMax[i] = (int) npMaxi;
+  /* quantities per process */
+
+  // check that procs divides grid
+  // (this restriction should be removed).
+  //
+  if(0==MPIdata::get_rank())
+  {
+    fflush(stdout);
+    bool xerror = false;
+    bool yerror = false;
+    bool zerror = false;
+    if(nxc % XLEN) xerror=true;
+    if(nyc % YLEN) yerror=true;
+    if(nzc % ZLEN) zerror=true;
+    if(xerror) printf("!!!ERROR: XLEN=%d does not divide nxc=%d\n", XLEN,nxc);
+    if(yerror) printf("!!!ERROR: YLEN=%d does not divide nyc=%d\n", YLEN,nyc);
+    if(zerror) printf("!!!ERROR: ZLEN=%d does not divide nzc=%d\n", ZLEN,nzc);
+    fflush(stdout);
+    bool error = xerror||yerror||zerror;
+    if(error) exit(1);
   }
 
+  int num_cells_r = nxc*nyc*nzc;
+  //num_procs = XLEN*YLEN*ZLEN;
+  //ncells_rs = nxc_rs*nyc_rs*nzc_rs;
+
+  for (int i = 0; i < ns; i++)
+  {
+    npcel[i] = npcelx[i] * npcely[i] * npcelz[i];
+    //np[i] = npcel[i] * num_cells;
+    //nop_rs[i] = npcel[i] * ncells_rs;
+    //maxnop_rs[i] = NpMaxNpRatio * nop_rs[i];
+    // INT_MAX is about 2 billion, surely enough
+    // to index the particles in a single MPI process:
+    //assert_le(NpMaxNpRatio * npcel[i] * ncells_proper_per_proc , double(INT_MAX));
+    //double npMaxi = (NpMaxNpRatio * np[i]);
+    //npMax[i] = (int) npMaxi;
+  }
 }
 
 /*! destructor */
 Collective::~Collective() {
-  delete[]np;
+  //delete[]np;
   delete[]npcel;
   delete[]npcelx;
   delete[]npcely;
   delete[]npcelz;
-  delete[]npMax;
+  //delete[]npMax;
   delete[]qom;
 
   delete[]uth;
@@ -696,7 +730,7 @@ void Collective::Print() {
   cout << "---------------------" << endl;
   cout << "Number of species    = " << ns << endl;
   for (int i = 0; i < ns; i++)
-    cout << "Number of particles of species " << i << " = " << np[i] << "\t (MAX = " << npMax[i] << ")" << "  QOM = " << qom[i] << endl;
+    cout << "qom[" << i << "] = " << qom[i] << endl;
   cout << "x-Length                 = " << Lx << endl;
   cout << "y-Length                 = " << Ly << endl;
   cout << "z-Length                 = " << Lz << endl;
@@ -733,7 +767,7 @@ void Collective::Print() {
     if (uth[is] * dt / dx > .1)
       cout << "OK u_th*dt/dx (species " << is << ") = " << uth[is] * dt / dx << " > .1" << endl;
     else
-      cout << "WARNING.  u_th*dt/dx (species " << is << ") = " << uth[is] * dt / dx << " < .1" << endl;
+      cout << "WARNING. u_th*dt/dx (species " << is << ") = " << uth[is] * dt / dx << " < .1" << endl;
 
     if (vth[is] * dt / dy > .1)
       cout << "OK v_th*dt/dy (species " << is << ") = " << vth[is] * dt / dy << " > .1" << endl;
@@ -755,7 +789,7 @@ void Collective::save() {
 
   my_file << "Number of species    = " << ns << endl;
   for (int i = 0; i < ns; i++)
-    my_file << "Number of particles of species " << i << " = " << np[i] << "\t (MAX = " << npMax[i] << ")" << "  QOM = " << qom[i] << endl;
+    my_file << "qom[%d] = " << qom[i] << endl;
   my_file << "---------------------------" << endl;
   my_file << "x-Length                 = " << Lx << endl;
   my_file << "y-Length                 = " << Ly << endl;

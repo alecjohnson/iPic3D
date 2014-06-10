@@ -8,16 +8,14 @@ developers: Stefano Markidis, Giovanni Lapenta
 #define Part3DCOMM_H
 
 //#include "CollectiveIO.h"
-// taken from #include "ipicfwd.h" on merge2amaya
-class Collective;
-typedef Collective CollectiveIO;
+#include "ipicfwd.h"
 #include "Alloc.h"
 #include "Particle.h" // for ParticleType
-class Grid3DCU;
-typedef Grid3DCU Grid;
-class EMfields3D;
-typedef EMfields3D Field;
-class VirtualTopology3D;
+// unfortunately this includes mpi.h, which includes 35000 lines:
+#include "BlockCommunicator.h"
+#include "aligned_vector.h"
+#include "Larray.h"
+#include "IDgenerator.h"
 /**
  * 
  * class for particles of the same species with communications methods
@@ -30,77 +28,111 @@ class Particles3Dcomm // :public Particles
 {
 public:
   /** constructor */
-  Particles3Dcomm();
+  Particles3Dcomm(int species, CollectiveIO * col,
+    VirtualTopology3D * vct, Grid * grid);
   /** destructor */
   ~Particles3Dcomm();
-  /** allocate particles */
-  void allocate(int species, CollectiveIO * col, VirtualTopology3D * vct, Grid * grid);
 
-  /** calculate the weights given the position of particles */
-  //void calculateWeights(double weight[][2][2], double xp, double yp, double zp, int ix, int iy, int iz, Grid * grid);
   /** interpolation method GRID->PARTICLE order 1: CIC */
-  void interpP2G(Field * EMf, Grid * grid, VirtualTopology3D * vct);
-  /** method for communicating exiting particles to X-RIGHT, X-LEFT, Y-RIGHT, Y-LEFT, Z-RIGHT, Z-LEFT processes */
-  int communicate(VirtualTopology3D * ptVCT);
-  /** put a particle exiting to X-LEFT in the bufferXLEFT for communication and check if you're sending the particle to the right subdomain*/
-  void bufferXleft(double *b_, int np, VirtualTopology3D * vct);
-  /** put a particle exiting to X-RIGHT in the bufferXRIGHT for communication and check if you're sending the particle to the right subdomain*/
-  void bufferXright(double *b_, int np, VirtualTopology3D * vct);
-  /** put a particle exiting to Y-LEFT in the bufferYLEFT for communication and check if you're sending the particle to the right subdomain*/
-  void bufferYleft(double *b_, int np, VirtualTopology3D * vct);
-  /** put a particle exiting to Y-RIGHT in the bufferYRIGHT for communication and check if you're sending the particle to the right subdomain*/
-  void bufferYright(double *b_, int np, VirtualTopology3D * vct);
-  /** put a particle exiting to Z-LEFT in the bufferZLEFT for communication and check if you're sending the particle to the right subdomain*/
-  void bufferZleft(double *b_, int np, VirtualTopology3D * vct);
-  /** put a particle exiting to Z-RIGHT in the bufferZRIGHT for communication and check if you're sending the particle to the right subdomain*/
-  void bufferZright(double *b_, int np, VirtualTopology3D * vct);
-  /** Delete the a particle from a list(array) and pack the list(array) */
-  void del_pack(int np, int *nplast);
+  // This does not belong in this class and is no longer in use.
+  void interpP2G(Field * EMf);
 
-  /** method to debuild the buffer received */
-  int unbuffer(double *b_);
-
-  /** resize the receiving buffer */
-  void resize_buffers(int new_buffer_size);
-  /** a method to compute how many particles are not in the right domain */
-  int isMessagingDone(VirtualTopology3D * ptVCT);
-  /** calculate the maximum number exiting from this domain */
-  int maxNpExiting();
-  /** calculate the weights given the position of particles */
-  // void calculateWeights(double*** weight, double xp, double yp, double zp,int ix, int iy, int iz, Grid* grid);
-
+ public: // handle boundary conditions
+  // apply boundary conditions to all particles at the
+  // end of a list of particles starting with index start
+  // 
+  // these are virtual so user can override these
+  // to provide arbitrary custom boundary conditions
+  virtual void apply_Xleft_BC(vector_SpeciesParticle& pcls, int start=0);
+  virtual void apply_Yleft_BC(vector_SpeciesParticle& pcls, int start=0);
+  virtual void apply_Zleft_BC(vector_SpeciesParticle& pcls, int start=0);
+  virtual void apply_Xrght_BC(vector_SpeciesParticle& pcls, int start=0);
+  virtual void apply_Yrght_BC(vector_SpeciesParticle& pcls, int start=0);
+  virtual void apply_Zrght_BC(vector_SpeciesParticle& pcls, int start=0);
+ private: // handle boundary conditions
+  void apply_periodic_BC_global(vector_SpeciesParticle& pcl_list, int pstart);
+  bool test_pcls_are_in_nonperiodic_domain(const vector_SpeciesParticle& pcls)const;
+  bool test_pcls_are_in_domain(const vector_SpeciesParticle& pcls)const;
+  bool test_outside_domain(const SpeciesParticle& pcl)const;
+  bool test_outside_nonperiodic_domain(const SpeciesParticle& pcl)const;
+  bool test_Xleft_of_domain(const SpeciesParticle& pcl)
+  { return pcl.get_x() < 0.; }
+  bool test_Xrght_of_domain(const SpeciesParticle& pcl)
+  { return pcl.get_x() > Lx; }
+  bool test_Yleft_of_domain(const SpeciesParticle& pcl)
+  { return pcl.get_y() < 0.; }
+  bool test_Yrght_of_domain(const SpeciesParticle& pcl)
+  { return pcl.get_y() > Ly; }
+  bool test_Zleft_of_domain(const SpeciesParticle& pcl)
+  { return pcl.get_z() < 0.; }
+  bool test_Zrght_of_domain(const SpeciesParticle& pcl)
+  { return pcl.get_z() > Lz; }
+  void apply_nonperiodic_BCs_global(vector_SpeciesParticle&, int pstart);
+  bool test_all_pcls_are_in_subdomain();
+  void apply_BCs_globally(vector_SpeciesParticle& pcl_list);
+  void apply_BCs_locally(vector_SpeciesParticle& pcl_list,
+    int direction, bool apply_shift, bool do_apply_BCs);
+ private: // communicate particles between processes
+  void flush_send();
+  bool send_pcl_to_appropriate_buffer(SpeciesParticle& pcl, int count[6]);
+  int handle_received_particles(int pclCommMode=0);
+ public:
+  int separate_and_send_particles();
+  void recommunicate_particles_until_done(int min_num_iterations=3);
+  void communicate_particles();
+  void pad_capacities();
  private:
+  void resize_AoS(int nop);
+  void resize_SoA(int nop);
   void copyParticlesToAoS();
   void copyParticlesToSoA();
 
  public:
+  void convertParticlesToSynched();
   void convertParticlesToAoS();
   void convertParticlesToSoA();
+  bool particlesAreSoA()const;
 
   /*! sort particles for vectorized push (needs to be parallelized) */
-  void sort_particles_serial_SoA_by_xavg(Grid * grid, VirtualTopology3D * vct);
-  void sort_particles_serial(Grid * grid, VirtualTopology3D * vct);
-  void sort_particles_serial_AoS(Grid * grid, VirtualTopology3D * vct);
-  void sort_particles_serial_SoA(Grid * grid, VirtualTopology3D * vct);
+  //void sort_particles_serial_SoA_by_xavg();
+  void sort_particles_serial();
+  void sort_particles_serial_AoS();
+  //void sort_particles_serial_SoA();
 
   // get accessors for optional arrays
   //
-  SpeciesParticle *fetch_pcls(){ return _pcls; }
-  SpeciesParticle *fetch_pclstmp(){ return _pclstmp; }
-  double * fetch_xavg() { return _xavg; }
-  double * fetch_yavg() { return _yavg; }
-  double * fetch_zavg() { return _zavg; }
-  double * fetch_xtmp() { return _xtmp; }
-  double * fetch_ytmp() { return _ytmp; }
-  double * fetch_ztmp() { return _ztmp; }
-  double * fetch_utmp() { return _utmp; }
-  double * fetch_vtmp() { return _vtmp; }
-  double * fetch_wtmp() { return _wtmp; }
-  double * fetch_qtmp() { return _qtmp; }
-  double * fetch_xavgtmp() { return _xavgtmp; }
-  double * fetch_yavgtmp() { return _yavgtmp; }
-  double * fetch_zavgtmp() { return _zavgtmp; }
-  long long *fetch_ParticleIDtmp(){ return _ParticleIDtmp; }
+  //Larray<SpeciesParticle>& fetch_pcls(){ return _pcls; }
+  //Larray<SpeciesParticle>& fetch_pclstmp(){ return _pclstmp; }
+
+  // particle creation methods
+  //
+  void reserve_remaining_particle_IDs()
+  {
+    // reserve remaining particle IDs starting from getNOP()
+    pclIDgenerator.reserve_particles_in_range(getNOP());
+  }
+  // create new particle
+  void create_new_particle(
+    double u, double v, double w, double q,
+    double x, double y, double z)
+  {
+    const double t = pclIDgenerator.generateID();
+    _pcls.push_back(SpeciesParticle(u,v,w,q,x,y,z,t));
+  }
+  // add particle to the list
+  void add_new_particle(
+    double u, double v, double w, double q,
+    double x, double y, double z, double t)
+  {
+    _pcls.push_back(SpeciesParticle(u,v,w,q,x,y,z,t));
+  }
+
+  void delete_particle(int pidx)
+  {
+    _pcls[pidx]=_pcls.back();
+    _pcls.pop_back();
+    //_pcls.delete_element(pidx);
+  }
 
   // inline get accessors
   //
@@ -115,26 +147,63 @@ public:
   double get_zstart(){return zstart;}
   ParticleType::Type get_particleType()const { return particleType; }
   const SpeciesParticle& get_pcl(int pidx)const{ return _pcls[pidx]; }
-  double *getXall()  const { return (x); }
-  double *getYall()  const { return (y); }
-  double *getZall()  const { return (z); }
-  double *getUall()  const { return (u); }
-  double *getVall()  const { return (v); }
-  double *getWall()  const { return (w); }
-  long long *getParticleIDall()  const { return (ParticleID); }
-  double *getQall()  const { return (q); }
+  const double *getUall()  const { assert(particlesAreSoA()); return &u[0]; }
+  const double *getVall()  const { assert(particlesAreSoA()); return &v[0]; }
+  const double *getWall()  const { assert(particlesAreSoA()); return &w[0]; }
+  const double *getQall()  const { assert(particlesAreSoA()); return &q[0]; }
+  const double *getXall()  const { assert(particlesAreSoA()); return &x[0]; }
+  const double *getYall()  const { assert(particlesAreSoA()); return &y[0]; }
+  const double *getZall()  const { assert(particlesAreSoA()); return &z[0]; }
+  static ID_field::Enum id_field()
+  {
+    return ID_field::Q; // q
+    return ID_field::T; // t
+  }
+  const longid*getParticleIDall() const
+  {
+    longid* ret;
+    switch(id_field())
+    {
+      default:
+        invalid_value_error(id_field());
+      case ID_field::Q:
+        ret = (longid*) &q[0];
+      case ID_field::T:
+        ret = (longid*) &t[0];
+    }
+    return ret;
+  }
   // accessors for particle with index indexPart
-  double getX(int indexPart)  const { return (x[indexPart]); }
-  double getY(int indexPart)  const { return (y[indexPart]); }
-  double getZ(int indexPart)  const { return (z[indexPart]); }
-  double getU(int indexPart)  const { return (u[indexPart]); }
-  double getV(int indexPart)  const { return (v[indexPart]); }
-  double getW(int indexPart)  const { return (w[indexPart]); }
-  long long getParticleID(int indexPart)  const
-    { return (ParticleID[indexPart]); }
-  double getQ(int indexPart)  const { return (q[indexPart]); }
-  int getNOP()  const { return (nop); }
-  int get_npmax() const {return npmax;}
+  //
+  int getNOP()  const { return _pcls.size(); }
+  // set particle components
+  void setU(int i, double in){_pcls[i].set_u(in);}
+  void setV(int i, double in){_pcls[i].set_v(in);}
+  void setW(int i, double in){_pcls[i].set_w(in);}
+  void setQ(int i, double in){_pcls[i].set_q(in);}
+  void setX(int i, double in){_pcls[i].set_x(in);}
+  void setY(int i, double in){_pcls[i].set_y(in);}
+  void setZ(int i, double in){_pcls[i].set_z(in);}
+  void setT(int i, double in){_pcls[i].set_t(in);}
+  // fetch particle components
+  double& fetchU(int i){return _pcls[i].fetch_u();}
+  double& fetchV(int i){return _pcls[i].fetch_v();}
+  double& fetchW(int i){return _pcls[i].fetch_w();}
+  double& fetchQ(int i){return _pcls[i].fetch_q();}
+  double& fetchX(int i){return _pcls[i].fetch_x();}
+  double& fetchY(int i){return _pcls[i].fetch_y();}
+  double& fetchZ(int i){return _pcls[i].fetch_z();}
+  double& fetchT(int i){return _pcls[i].fetch_t();}
+  // get particle components
+  double getU(int i)const{return _pcls[i].get_u();}
+  double getV(int i)const{return _pcls[i].get_v();}
+  double getW(int i)const{return _pcls[i].get_w();}
+  double getQ(int i)const{return _pcls[i].get_q();}
+  double getX(int i)const{return _pcls[i].get_x();}
+  double getY(int i)const{return _pcls[i].get_y();}
+  double getZ(int i)const{return _pcls[i].get_z();}
+  double getT(int i)const{return _pcls[i].get_t();}
+  //int get_npmax() const {return npmax;}
 
   // computed get access
   //
@@ -147,27 +216,35 @@ public:
   /** return the momentum */
   double getP();
   /** Print particles info: positions, velocities */
-  void Print(VirtualTopology3D * ptVCT) const;
+  void Print() const;
   /** Print the number of particles of this subdomain */
-  void PrintNp(VirtualTopology3D * ptVCT) const;
+  void PrintNp() const;
 
 public:
   // accessors
-  int get_ns()const{return ns;}
+  //int get_ns()const{return ns;}
+  // return number of this species
+  int get_species_num()const{return ns;}
   int get_numpcls_in_bucket(int cx, int cy, int cz)const
   { return (*numpcls_in_bucket)[cx][cy][cz]; }
   int get_bucket_offset(int cx, int cy, int cz)const
   { return (*bucket_offset)[cx][cy][cz]; }
 
 protected:
+  // pointers to topology and grid information
+  // (should be const)
+  //
+  const VirtualTopology3D * vct;
+  const Grid * grid;
+  //
   /** number of this species */
   int ns;
   /** maximum number of particles of this species on this domain. used for memory allocation */
-  int npmax;
+  //int npmax;
   /** number of particles of this species on this domain */
-  int nop;
+  //int nop; // see getNOP();
   /** total number of particles */
-  long long np_tot;
+  //long long np_tot;
   /** number of particles per cell */
   int npcel;
   /** number of particles per cell - X direction */
@@ -192,75 +269,54 @@ protected:
   double v0;
   /** w0 Drift velocity - Direction Z */
   double w0;
+  // used to generate unique particle IDs
+  doubleIDgenerator pclIDgenerator;
 
   ParticleType::Type particleType;
+  //
+  // AoS representation
+  //
+  //Larray<SpeciesParticle> _pcls;
+  vector_SpeciesParticle _pcls;
+  //
   // particles data
   //
   // SoA representation
   //
-  /** Positions array - X component */
-  double *x;
-  /** Positions array - Y component */
-  double *y;
-  /** Positions array - Z component */
-  double *z;
-  /** Velocities array - X component */
-  double *u;
-  /** Velocities array - Y component */
-  double *v;
-  /** Velocities array - Z component */
-  double *w;
-  /** Charge array */
-  double *q;
-  /** TrackParticleID */
+  // velocity components
+  vector_double u;
+  vector_double v;
+  vector_double w;
+  // charge
+  vector_double q;
+  // position
+  vector_double x;
+  vector_double y;
+  vector_double z;
+  // subcycle time
+  vector_double t;
+  // indicates whether this class is for tracking particles
   bool TrackParticleID;
-  /** ParticleID */
-  long long *ParticleID;
-  //
-  // AoS representation
-  //
-  SpeciesParticle *_pcls;
 
   // structures for sorting particles
   //
   /** Average position data (used during particle push) **/
   //
-  double *_xavg;
-  double *_yavg;
-  double *_zavg;
+  //Larray<double>& _xavg;
+  //Larray<double>& _yavg;
+  //Larray<double>& _zavg;
   //
   // alternate temporary storage for sorting particles
   //
-  long long *_ParticleIDtmp;
-  double *_xtmp;
-  double *_ytmp;
-  double *_ztmp;
-  double *_utmp;
-  double *_vtmp;
-  double *_wtmp;
-  double *_qtmp;
-  SpeciesParticle *_pclstmp;
-  double *_xavgtmp;
-  double *_yavgtmp;
-  double *_zavgtmp;
+  //Larray<SpeciesParticle> _pclstmp;
+  vector_SpeciesParticle _pclstmp;
   //
-  // references for buckets
+  // references for buckets for serial sort.
   //
   array3_int* numpcls_in_bucket;
   array3_int* numpcls_in_bucket_now; // accumulator used during sorting
   //array3_int* bucket_size; // maximum number of particles in bucket
   array3_int* bucket_offset;
-  // 
-  // bucket totals per thread
-  //
-  //int num_threads;
-  //array3_int* numpcls_in_bucket_thr;
-  //arr3_int fetch_numpcls_in_bucket_thr(int i)
-  //{
-  //  assert_le(0,i);
-  //  assert_lt(i,num_threads);
-  //  return *(numpcls_in_bucket_thr[i]);
-  //};
 
   /** rank of processor in which particle is created (for ID) */
   int BirthRank[2];
@@ -293,52 +349,26 @@ protected:
   // Communication variables
   //
   /** buffers for communication */
-  /** size of sending buffers for exiting particles, DEFINED IN METHOD "COMMUNICATE" */
-  int buffer_size;
-  /** smaller buffer size */
-  int buffer_size_small;
-  /** buffer with particles going to the right processor - Direction X */
-  double *b_X_RIGHT;
-  /** pointer to the buffer for resizing */
-  double *b_X_RIGHT_ptr;
-  /** buffer with particles going to the left processor - Direction X */
-  double *b_X_LEFT;
-  /** pointer to the buffer for resizing */
-  double *b_X_LEFT_ptr;
-  /** buffer with particles going to the right processor - Direction Y */
-  double *b_Y_RIGHT;
-  /** pointer to the buffer for resizing */
-  double *b_Y_RIGHT_ptr;
-  /** buffer with particles going to the left processor - Direction Y */
-  double *b_Y_LEFT;
-  /** pointer to the buffer for resizing */
-  double *b_Y_LEFT_ptr;
-  /** buffer with particles going to the right processor - Direction Z */
-  double *b_Z_RIGHT;
-  /** pointer to the buffer for resizing */
-  double *b_Z_RIGHT_ptr;
-  /** buffer with particles going to the left processor - Direction Z */
-  double *b_Z_LEFT;
-  /** pointer to the buffer for resizing */
-  double *b_Z_LEFT_ptr;
-
-  /** number of particles exiting per cycle*/
-  int npExitXright;
-  /** number of particles exiting to X-LEFT per cycle*/
-  int npExitXleft;
-  /** number of particles exiting to Y-RIGHT per cycle*/
-  int npExitYright;
-  /** number of particles exiting to Y-LEFT per cycle*/
-  int npExitYleft;
-  /** number of particles exiting to Z-RIGHT per cycle*/
-  int npExitZright;
-  /** number of particles exiting to Z-LEFT per cycle*/
-  int npExitZleft;
-  /** total number of particles exiting per cycle */
-  int npExit;
-  /** number of particles not in the right domain   */
-  int rightDomain;
-
+  //
+  // communicator for this species (duplicated from MPI_COMM_WORLD)
+  MPI_Comm mpi_comm;
+  // send buffers
+  //
+  BlockCommunicator<SpeciesParticle> sendXleft;
+  BlockCommunicator<SpeciesParticle> sendXrght;
+  BlockCommunicator<SpeciesParticle> sendYleft;
+  BlockCommunicator<SpeciesParticle> sendYrght;
+  BlockCommunicator<SpeciesParticle> sendZleft;
+  BlockCommunicator<SpeciesParticle> sendZrght;
+  //
+  // recv buffers
+  //
+  BlockCommunicator<SpeciesParticle> recvXleft;
+  BlockCommunicator<SpeciesParticle> recvXrght;
+  BlockCommunicator<SpeciesParticle> recvYleft;
+  BlockCommunicator<SpeciesParticle> recvYrght;
+  BlockCommunicator<SpeciesParticle> recvZleft;
+  BlockCommunicator<SpeciesParticle> recvZrght;
 
   /** bool for communication verbose */
   bool cVERBOSE;
@@ -377,7 +407,15 @@ protected:
   double Q_removed;
   /** density of the injection of the particles */
   double Ninj;
+ private:
+  // sending is complete if this is zero.
+  // if sending is not complete, send buffers must
+  // be flushed and particles must be received.
+  //long long tot_num_pcls_sent;
 };
+
+// find the particles with particular IDs and print them
+void print_pcls(vector_SpeciesParticle& pcls, int ns, longid* id_list, int num_ids);
 
 typedef Particles3Dcomm Particles;
 

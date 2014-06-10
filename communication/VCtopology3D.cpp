@@ -18,14 +18,10 @@ VCtopology3D::VCtopology3D(const Collective& col) {
   YLEN = col.getYLEN();
   ZLEN = col.getZLEN();
   nprocs = XLEN * YLEN * ZLEN;
-  // here you have to set the topology for the fields
+  // here you have to set the topology
   PERIODICX = col.getPERIODICX();
   PERIODICY = col.getPERIODICY();
   PERIODICZ = col.getPERIODICZ();
-  // here you have to set the topology for the Particles
-  PERIODICX_P = col.getPERIODICX();
-  PERIODICY_P = col.getPERIODICY();
-  PERIODICZ_P = col.getPERIODICZ();
   // *******************************************
   // *******************************************
   XDIR = 0;
@@ -36,18 +32,13 @@ VCtopology3D::VCtopology3D(const Collective& col) {
 
   reorder = 1;
 
-  divisions[0] = XLEN;
-  divisions[1] = YLEN;
-  divisions[2] = ZLEN;
+  dims[0] = XLEN;
+  dims[1] = YLEN;
+  dims[2] = ZLEN;
 
   periods[0] = PERIODICX;
   periods[1] = PERIODICY;
   periods[2] = PERIODICZ;
-
-  periods_P[0] = PERIODICX_P;
-  periods_P[1] = PERIODICY_P;
-  periods_P[2] = PERIODICZ_P;
-
 
   cVERBOSE = false;             // communication verbose ?
 
@@ -61,14 +52,14 @@ VCtopology3D::VCtopology3D(const Collective& col) {
   and their neighbors  */
 void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
   // create a matrix with ranks, and neighbours for fields
-  MPI_Cart_create(old_comm, 3, divisions, periods, reorder, &CART_COMM);
+  MPI_Cart_create(old_comm, 3, dims, periods, reorder, &CART_COMM);
   // create a matrix with ranks, and neighbours for Particles
-  MPI_Cart_create(old_comm, 3, divisions, periods_P, reorder, &CART_COMM_P);
+  //MPI_Cart_create(old_comm, 3, dims, periods_P, reorder, &CART_COMM_P);
   // Why not the following line instead of the previous?  Was
   // this written in anticipation that a different number of MPI
   // processes would be used for fields versus for particles?
   // But the code has not been consistently written this way...
-  //MPI_Cart_create(CART_COMM, 3, divisions, periods_P, 0, &CART_COMM_P);
+  //MPI_Cart_create(CART_COMM, 3, dims, periods_P, 0, &CART_COMM_P);
   // field Communicator
   if (CART_COMM != MPI_COMM_NULL) {
     MPI_Comm_rank(CART_COMM, &cartesian_rank);
@@ -83,30 +74,51 @@ void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
     eprintf("A process is thrown away from the new topology for fields.");
   }
   // Particles Communicator
-  if (CART_COMM_P != MPI_COMM_NULL) {
-    int pcl_coordinates[3];
-    int pcl_cartesian_rank;
-    MPI_Comm_rank(CART_COMM_P, &pcl_cartesian_rank);
-    MPI_Cart_coords(CART_COMM_P, pcl_cartesian_rank, 3, pcl_coordinates);
-    
-    // This seems to be assumed elsewhere in the code.
-    assert_eq(cartesian_rank, MPIdata::get_rank());
-    // should agree
-    assert_eq(cartesian_rank,pcl_cartesian_rank);
-    for(int dim=0;dim<3;dim++)
-    {
-      assert_eq(coordinates[dim],pcl_coordinates[dim]);
-    }
+  //if (CART_COMM_P != MPI_COMM_NULL) {
+  //  int pcl_coordinates[3];
+  //  int pcl_cartesian_rank;
+  //  MPI_Comm_rank(CART_COMM_P, &pcl_cartesian_rank);
+  //  MPI_Cart_coords(CART_COMM_P, pcl_cartesian_rank, 3, pcl_coordinates);
+  //  
+  //  // This seems to be assumed elsewhere in the code.
+  //  assert_eq(cartesian_rank, MPIdata::get_rank());
+  //  // should agree
+  //  assert_eq(cartesian_rank,pcl_cartesian_rank);
+  //  for(int dim=0;dim<3;dim++)
+  //  {
+  //    assert_eq(coordinates[dim],pcl_coordinates[dim]);
+  //  }
+  //
+  //  MPI_Cart_shift(CART_COMM_P, XDIR, RIGHT, &xleft_neighbor_P, &xright_neighbor_P);
+  //  MPI_Cart_shift(CART_COMM_P, YDIR, RIGHT, &yleft_neighbor_P, &yright_neighbor_P);
+  //  MPI_Cart_shift(CART_COMM_P, ZDIR, RIGHT, &zleft_neighbor_P, &zright_neighbor_P);
+  //}
+  //else {
+  //  // previous check that nprocs = XLEN*YLEN*ZLEN should prevent reaching this line.
+  //  eprintf("A process is thrown away from the new topology for Particles.");
+  //}
 
-    MPI_Cart_shift(CART_COMM_P, XDIR, RIGHT, &xleft_neighbor_P, &xright_neighbor_P);
-    MPI_Cart_shift(CART_COMM_P, YDIR, RIGHT, &yleft_neighbor_P, &yright_neighbor_P);
-    MPI_Cart_shift(CART_COMM_P, ZDIR, RIGHT, &zleft_neighbor_P, &zright_neighbor_P);
-  }
-  else {
-    // previous check that nprocs = XLEN*YLEN*ZLEN should prevent reaching this line.
-    eprintf("A process is thrown away from the new topology for Particles.");
-  }
+  _isPeriodicXlower = PERIODICX && isXlower();
+  _isPeriodicXupper = PERIODICX && isXupper();
+  _isPeriodicYlower = PERIODICY && isYlower();
+  _isPeriodicYupper = PERIODICY && isYupper();
+  _isPeriodicZlower = PERIODICZ && isZlower();
+  _isPeriodicZupper = PERIODICZ && isZupper();
 
+  _noXlowerNeighbor = (getXleft() == MPI_PROC_NULL);
+  _noXupperNeighbor = (getXrght() == MPI_PROC_NULL);
+  _noYlowerNeighbor = (getYleft() == MPI_PROC_NULL);
+  _noYupperNeighbor = (getYrght() == MPI_PROC_NULL);
+  _noZlowerNeighbor = (getZleft() == MPI_PROC_NULL);
+  _noZupperNeighbor = (getZrght() == MPI_PROC_NULL);
+
+  _isBoundaryProcess = 
+    _noXlowerNeighbor ||
+    _noXupperNeighbor ||
+    _noYlowerNeighbor ||
+    _noYupperNeighbor ||
+    _noZlowerNeighbor ||
+    _noZupperNeighbor;
 }
 /** destructor */
 VCtopology3D::~VCtopology3D() {
@@ -118,12 +130,9 @@ void VCtopology3D::Print() {
   cout << "Virtual Cartesian Processors Topology" << endl;
   cout << "-------------------------------------" << endl;
   cout << "Processors grid: " << XLEN << "x" << YLEN << "x" << ZLEN << endl;
-  cout << "Periodicity Field X: " << periods[0] << endl;
-  cout << "Periodicity Field Y: " << periods[1] << endl;
-  cout << "Periodicity Field z: " << periods[2] << endl;
-  cout << "Periodicity Particles X: " << periods_P[0] << endl;
-  cout << "Periodicity Particles Y: " << periods_P[1] << endl;
-  cout << "Periodicity Particles z: " << periods_P[2] << endl;
+  cout << "Periodicity X: " << periods[0] << endl;
+  cout << "Periodicity Y: " << periods[1] << endl;
+  cout << "Periodicity Z: " << periods[2] << endl;
   cout << endl;
 }
 /** print cartesian rank of neighbors and coordinate of process */

@@ -11,7 +11,6 @@
 #include "ipicfwd.h"
 #include "math.h" // for floor
 
-class VirtualTopology3D;
 /**
  * Uniform cartesian local grid 3D
  *
@@ -114,6 +113,83 @@ private:
   void init_derived_parameters();
 
   // /////////// PRIVATE VARIABLES //////////////
+  //
+  // Grid conventions:
+  //
+  //   [The purpose of this note is not so much to teach as
+  //   to establish a consistent vocabulary and set of naming
+  //   conventions for grid parameters.]
+  //
+  //   The purpose of iPic3D is to solve a Vlasov-Maxwell
+  //   plasma problem.  Each problem is solved on a box-shaped
+  //   domain and is defined by initial conditions and boundary
+  //   conditions.
+  //
+  //   Conceptually, the full problem domain is solved on
+  //   a "guarded" global grid.  The guarded global grid
+  //   consists of proper grid cells (that partition the domain)
+  //   surrounded by a layer of "guard" or "ghost" cells that are
+  //   used to handle boundary conditions.  At the beginning of
+  //   each cycle of the algorithm, the guard cells are populated
+  //   with data based on the choice of boundary conditions of
+  //   the problem.  Refer to the layer of proper cells just
+  //   inside the guard cells as "(proper) boundary cells".
+  //   Guard cell data is generally populated with data from
+  //   boundary cells.  For periodic boundary conditions, guard
+  //   cell data is simply copied from the appropriate boundary
+  //   cell.  For conducting wall and outflow boundaries, each
+  //   guard cell is populated based on the data from the
+  //   neighboring boundary cell, probably with reflection of
+  //   location and often with negation of some values, depending
+  //   on the type of boundaries involved.
+  //
+  //   The corners of the mesh cells are referred to as
+  //   "nodes".  In iPic3D, electromagnetic field quantities are
+  //   canonically represented as sample values at the nodes, and
+  //   the value of the electromagnetic field in the interior of
+  //   a grid cell is determined by bilinear interpolation of
+  //   the field values at the nodes.  Bilinear interpolation
+  //   is also used when converting between a representation as
+  //   cell-average quantities and a representation as nodal
+  //   samples.  This maintains second-order accuracy in space.
+  //
+  //   To parallelize with MPI, the full domain of the problem
+  //   is partitioned into "(proper) subdomains", one for
+  //   each process, such that the global grid partitions the
+  //   subdomains.  Refer to the grid cells within a subdomain
+  //   as its "(proper) subgrid".  Refer to the outer layer of
+  //   cells within each subgrid as "boundary cells".  The grid
+  //   defined in each process is a "guarded subgrid", which
+  //   consists of the proper subgrid surrounded by a layer of
+  //   guard cells corresponding either to the boundary cells of
+  //   the neighboring subdomain or to ghost cells of the guarded
+  //   global grid.
+  //
+  //   The guard cells thus lie outside the proper physical
+  //   subdomain for which the process is responsible.  Guard
+  //   cells are used to handle boundary conditions and
+  //   interprocess communication.  At the beginning of each
+  //   cycle of the algorithm, the guard cells are repopulated.
+  //   Guard cells outside the problem domain are populated using
+  //   boundary conditions.  Any guard cell inside the problem
+  //   domain is populated from the appropriate boundary cell of
+  //   the appropriate process.
+  //
+  // Conventions for naming of grid quantities:
+  //
+  //   n = number
+  //   x = x-direction
+  //   y = y-direction
+  //   z = z-direction
+  //   c = cell of grid
+  //   n = node of grid
+  //   
+  //   nxc = number of x cells (in guarded grid)
+  //   nxn = number of x nodes (in guarded grid)
+  //
+  //   nxc_g = number of x cells in guarded/"greater"/padded subgrid
+  //   nxc_r = number of x cells in "real"/"restricted"/proper subgrid
+  //   
 private:
   /** number of cells - X direction, including + 2 (guard cells) */
   int nxc;
@@ -139,6 +215,8 @@ private:
   double invdy;
   /** invdz = 1/dz */
   double invdz;
+  /** volume of mesh cell*/
+  double VOL;
   /** invol = inverse of volume*/
   double invVOL;
   /** index of last cell including ghost cells */
@@ -146,6 +224,13 @@ private:
   int cxlast; // nxc-1;
   int cylast; // nyc-1;
   int czlast; // nzc-1;
+  // number of cells excluding guard cells
+  // (i.e. restricted to proper subdomain)
+  int nxc_r;
+  int nyc_r;
+  int nzc_r;
+  // number of subdomain cells in a regular (untruncated) subdomain grid
+  int num_cells_rr;
   /** node coordinate */
   pfloat *pfloat_node_xcoord;
   pfloat *pfloat_node_ycoord;
@@ -157,22 +242,26 @@ private:
   double *center_xcoord;
   double *center_ycoord;
   double *center_zcoord;
-  /** local grid boundaries coordinate  */
+  /** local grid boundaries coordinate of proper subdomain */
   double xStart, xEnd, yStart, yEnd, zStart, zEnd;
 
 public: // accessors (inline)
-  int getNXC() { return (nxc); }
-  int getNXN() { return (nxn); }
-  int getNYC() { return (nyc); }
-  int getNYN() { return (nyn); }
-  int getNZC() { return (nzc); }
-  int getNZN() { return (nzn); }
-  double getDX() { return (dx); }
-  double getDY() { return (dy); }
-  double getDZ() { return (dz); }
-  double get_invdx() { return (invdx); }
-  double get_invdy() { return (invdy); }
-  double get_invdz() { return (invdz); }
+  int getNXC()const{ return (nxc); }
+  int getNXN()const{ return (nxn); }
+  int getNYC()const{ return (nyc); }
+  int getNYN()const{ return (nyn); }
+  int getNZC()const{ return (nzc); }
+  int getNZN()const{ return (nzn); }
+  int get_nxc_r()const{return nxc_r;}
+  int get_nyc_r()const{return nyc_r;}
+  int get_nzc_r()const{return nzc_r;}
+  int get_num_cells_rr()const{return num_cells_rr;}
+  double getDX()const{ return (dx); }
+  double getDY()const{ return (dy); }
+  double getDZ()const{ return (dz); }
+  double get_invdx()const{ return (invdx); }
+  double get_invdy()const{ return (invdy); }
+  double get_invdz()const{ return (invdz); }
   //
   // coordinate accessors
   //
@@ -180,9 +269,9 @@ public: // accessors (inline)
   double calcXN(int X)const{ return xStart+(X-1)*dx;}
   double calcYN(int Y)const{ return yStart+(Y-1)*dy;}
   double calcZN(int Z)const{ return zStart+(Z-1)*dz;}
-  const pfloat &get_pfloat_XN(int X)const{ return pfloat_node_xcoord[X];}
-  const pfloat &get_pfloat_YN(int Y)const{ return pfloat_node_ycoord[Y];}
-  const pfloat &get_pfloat_ZN(int Z)const{ return pfloat_node_zcoord[Z];}
+  //const pfloat &get_pfloat_XN(int X)const{ return pfloat_node_xcoord[X];}
+  //const pfloat &get_pfloat_YN(int Y)const{ return pfloat_node_ycoord[Y];}
+  //const pfloat &get_pfloat_ZN(int Z)const{ return pfloat_node_zcoord[Z];}
   const double &getXN(int X)const{ return node_xcoord[X];}
   const double &getYN(int Y)const{ return node_ycoord[Y];}
   const double &getZN(int Z)const{ return node_zcoord[Z];}
@@ -194,20 +283,21 @@ public: // accessors (inline)
   // unless we truly anticipate generalizing to a deformed
   // logically cartesian mesh.  See issue #40.
   //
-  const double &getXN(int X, int Y, int Z) { return node_xcoord[X];}
-  const double &getYN(int X, int Y, int Z) { return node_ycoord[Y];}
-  const double &getZN(int X, int Y, int Z) { return node_zcoord[Z];}
-  const double &getXC(int X, int Y, int Z) { return center_xcoord[X];}
-  const double &getYC(int X, int Y, int Z) { return center_ycoord[Y];}
-  const double &getZC(int X, int Y, int Z) { return center_zcoord[Z];}
+  const double &getXN(int X, int Y, int Z)const{ return node_xcoord[X];}
+  const double &getYN(int X, int Y, int Z)const{ return node_ycoord[Y];}
+  const double &getZN(int X, int Y, int Z)const{ return node_zcoord[Z];}
+  const double &getXC(int X, int Y, int Z)const{ return center_xcoord[X];}
+  const double &getYC(int X, int Y, int Z)const{ return center_ycoord[Y];}
+  const double &getZC(int X, int Y, int Z)const{ return center_zcoord[Z];}
   //
-  double getXstart() { return (xStart); }
-  double getXend() { return (xEnd); }
-  double getYstart() { return (yStart); }
-  double getYend() { return (yEnd); } 
-  double getZstart() { return (zStart); }
-  double getZend() { return (zEnd); }
-  double getInvVOL() { return (invVOL); }
+  double getXstart()const{ return (xStart); }
+  double getXend()const{ return (xEnd); }
+  double getYstart()const{ return (yStart); }
+  double getYend()const{ return (yEnd); } 
+  double getZstart()const{ return (zStart); }
+  double getZend()const{ return (zEnd); }
+  double getVOL()const{ return (VOL); }
+  double getInvVOL()const{ return (invVOL); }
 
   // inline methods to calculate mesh cell and weights.
   static void get_weights(double weights[8],
@@ -244,7 +334,7 @@ public: // accessors (inline)
   }
   void get_cell_coordinates(
     int& cx, int& cy, int& cz,
-    double xpos, double ypos, double zpos)
+    double xpos, double ypos, double zpos)const
   {
       // xStart marks start of domain excluding ghosts
       const double rel_xpos = xpos - xStart;
@@ -258,7 +348,7 @@ public: // accessors (inline)
       cy = 1 + int(floor(cym1_pos));
       cz = 1 + int(floor(czm1_pos));
   }
-  void make_cell_coordinates_safe(int& cx, int& cy, int& cz)
+  void make_cell_coordinates_safe(int& cx, int& cy, int& cz)const
   {
     // if the cell is outside the domain, then treat it as
     // in the nearest ghost cell.
@@ -272,7 +362,7 @@ public: // accessors (inline)
   }
   void get_safe_cell_coordinates(
     int& cx, int& cy, int& cz,
-    double x, double y, double z)
+    double x, double y, double z)const
   {
     get_cell_coordinates(cx,cy,cz,x,y,z);
     make_cell_coordinates_safe(cx,cy,cz);
@@ -280,7 +370,7 @@ public: // accessors (inline)
   void get_safe_cell_and_weights(
     double xpos, double ypos, double zpos,
     int &cx, int& cy, int& cz,
-    double weights[8])
+    double weights[8])const
   {
     //convert_xpos_to_cxpos(xpos,ypos,zpos,cxpos,cypos,czpos);
     // xStart marks start of domain excluding ghosts
@@ -309,7 +399,7 @@ public: // accessors (inline)
 
     get_weights(weights, w0x, w0y, w0z, w1x, w1y, w1z);
   }
-  void get_safe_cell_and_weights(double xpos[3], int cx[3], double weights[8])
+  void get_safe_cell_and_weights(double xpos[3], int cx[3], double weights[8])const
   {
     get_safe_cell_and_weights(xpos[0],xpos[1],xpos[2],cx[0],cx[1],cx[2],weights);
   }
