@@ -10,9 +10,6 @@ email                : markidis@lanl.gov, lapenta@lanl.gov
 #ifndef MPIDATA_H
 #define MPIDATA_H
 
-#ifndef NO_MPI
-#include <mpi.h>
-#endif
 /**
  * MPI Data Structure. This class contains:
  *

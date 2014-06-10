@@ -4,6 +4,9 @@
 //#include <stdio.h>
 #include <assert.h>
 #include "MPIdata.h"
+#ifndef NO_MPI
+#include <mpi.h>
+#endif
 #include "ompdefs.h" // for omp_get_max_threads
 
 // code to check that init() is called before instance()
