@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <assert.h>
+#include <stdint.h> // for uint64_t
 
 // icpc testv.cpp -mmic -fopenmp -vec-report6 -o test.mic
 // icpc testv.cpp -fopenmp -vec-report6 -o test
