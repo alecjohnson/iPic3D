@@ -19,6 +19,7 @@ void fprintf_fileLine(FILE * fptr, const char *type, const char *func,
 void printvar_fileLine(const char*,const char*,int,const char*,type);
 
 declare_dprintvar_fileLine(int);
+declare_dprintvar_fileLine(long long);
 declare_dprintvar_fileLine(double);
 declare_dprintvar_fileLine(const char *);
 declare_dprintvar_fileLine(const void *);

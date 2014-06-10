@@ -14,6 +14,7 @@
 
 implement_dprintvar_fileLine("%s", const char *);
 implement_dprintvar_fileLine("%d", int);
+implement_dprintvar_fileLine("%lld", long long);
 implement_dprintvar_fileLine("%e", double);
 implement_dprintvar_fileLine("%p", const void *);
 
