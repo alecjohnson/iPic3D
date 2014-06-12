@@ -290,14 +290,12 @@ void c_Solver::CalculateMoments() {
   EMf->interpDensitiesN2C(vct, grid);       // calculate densities on centers from nodes
   EMf->calculateHatFunctions(grid, vct);    // calculate the hat quantities for the implicit method
   former_MPI_Barrier(MPI_COMM_WORLD);
-
-  // why is this being done here?
-  EMf->updateInfoFields(grid,vct,col);
 }
 
 //! MAXWELL SOLVER for Efield
 void c_Solver::CalculateField() {
   timeTasks_set_main_task(TimeTasks::FIELDS);
+  EMf->updateInfoFields(grid,vct,col);
   EMf->calculateE(grid, vct, col);               // calculate the E field
 }
 
