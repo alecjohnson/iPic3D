@@ -509,7 +509,8 @@ void Particles3D::mover_PC_AoS(Field * EMf)
 void Particles3D::mover_PC_AoS_vec_intr(Field * EMf)
 {
  #ifndef __MIC__
-  eprintf("not implemented");
+  //eprintf("not implemented");
+  mover_PC_AoS(EMf);
  #else
   convertParticlesToAoS();
   // Here and below x stands for all 3 physical position coordinates
