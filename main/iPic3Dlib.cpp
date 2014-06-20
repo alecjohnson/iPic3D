@@ -5,6 +5,7 @@
 #include "debug.h"
 #include "Parameters.h"
 #include "ompdefs.h"
+#include "ParallelIO.h"
 
 #include "Moments.h" // for debugging
 
@@ -507,21 +508,33 @@ void c_Solver::WriteParticles(int cycle)
 // and methods that save field data
 //
 void c_Solver::WriteOutput(int cycle) {
-  // write fields-related data
-  WriteFields(cycle);
-  if (col->getWriteMethod() != "Parallel")
+
+  if (col->getWriteMethod() == "Parallel")
   {
+    /* -------------------------------------------- */
+    /* Parallel HDF5 output using the H5hut library */
+    /* -------------------------------------------- */
+
+    if (cycle%(col->getFieldOutputCycle())==0)
+      WriteFieldsH5hut(ns, grid, EMf, col, vct, cycle);
+    if (cycle%(col->getParticlesOutputCycle())==0)
+      WritePartclH5hut(ns, grid, part, col, vct, cycle);
+  }
+  else
+  {
+    // write fields-related data
+    WriteFields(cycle);
     // This should be invoked by user if desired
     // by means of a callback mechanism.
     WriteVirtualSatelliteTraces();
+
+    // write particles-related data
+    //
+    // this also writes field data...
+    WriteRestart(cycle);
+    WriteParticles(cycle);
   }
 
-  // write particles-related data
-  //
-  // this also writes field data...
-  WriteRestart(cycle);
-  WriteParticles(cycle);
-  //
   // This should be invoked by user if desired
   // by means of a callback mechanism.
   //WriteVelocityDistribution(cycle);
