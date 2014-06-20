@@ -111,6 +111,10 @@ def construct_run_command(args,mpirun):
         micnum = 0
         hostname = hostname + '-mic' + str(micnum)
 
+    # now that the default mpirun has been determined,
+    # allow $MPIRUN to override it
+    mpirun = os.getenv('MPIRUN',mpirun);
+
     num_threads_is_given_by_user = 0
     try:
       opts, args = getopt.getopt(args, 'i:o:s:t:h:', \
@@ -163,7 +167,7 @@ def construct_run_command(args,mpirun):
       # rounding down is the correct behavior
       num_max_threads = int(num_threads_per_proc)
 
-    arguments = ['exec/iPic3D', inputfile];
+    arguments = ['./iPic3D', inputfile];
     options = ['-n', str(num_procs)]
     if hostname!="":
         options.extend(['-host', hostname])
@@ -195,7 +199,36 @@ def ipic_make_data():
     create_data_command = '''mkdir -p data''';
     issue_shell_command(create_data_command)
 
+def get_cmake_options(args):
+
+    global system
+    parhdf5 = 0
+
+    try:
+      # args is what is left over after extracting the options
+      opts, args = getopt.getopt(list(args), 'ps:', ['parhdf5', 'system='])
+    except getopt.GetoptError, e:
+      if e.opt == 's' and 'requires argument' in e.msg:
+        print 'ERROR: -s requires system name (e.g. "mic" or "xeon")'
+      else:
+        usage()
+        sys.exit(-1)
+
+    for o, a in opts:
+        if o in ("-p", "--parhdf5"):
+          parhdf5=1
+        elif o in ("-s", "--system"):
+          system = a
+        else:
+          assert False, "unhandled option"
+
+    args = deque(args)
+    return system, parhdf5, args
+
 def ipic_cmake(args):
+
+    # extract the values of any options from args
+    system, parhdf5, args = get_cmake_options(args)
 
     # make src a link to the code
     numargs = len(args)
@@ -214,15 +247,34 @@ def ipic_cmake(args):
       issue_command(ln_command)
 
     ipic_make_data();
+
     # invoke cmake 
     cmake_command = ['cmake'];
+
+    # add arguments particular to system
     if system == 'general':
       0
     elif system == 'mic':
-      cmake_command.extend(['-DCMAKE_TOOLCHAIN_FILE=src/cmake/cmake_template.cmake.XeonPhi'])
+      0
+      #cmake_command.extend(['-DCMAKE_TOOLCHAIN_FILE=src/cmake/cmake_template.cmake.XeonPhi'])
+      #cmake_command.extend(['-DIPIC_XEONPHI=ON'])
+      #cmake_command.extend(['-Dmic=on'])
     else:
         print "--system", system, "is not supported"
         sys.exit(-1)
+
+    # add arguments particular to use of parallel HDF5
+    if parhdf5 == 1:
+      0
+      #cmake_command.extend(['-DH5HUT_HOME='+os.getenv()+'install-mic'])
+    elif parhdf5 == 0:
+      0
+    else:
+      invalid_value_error("parhdf5 must be 0 or 1, not", parhdf5)
+
+    # add arguments particular to intel
+    #cmake_command.extend(['-DCMAKE_CXX_FLAGS=-DMPICH_IGNORE_CXX_SEEK'])
+
     # issue the command
     cmake_command.extend(['src'])
     issue_command(cmake_command)
@@ -447,6 +499,20 @@ def ipic_help(args):
         print "ipic help", command, "is not supported"
         sys.exit(-1)
 
+def lprint(message):
+    theline = inspect.currentframe().f_back.f_lineno
+    print ' line', str(theline), ': ', message
+
+def invalid_value_error(message, value):
+    theline = inspect.currentframe().f_back.f_lineno
+    print 'ERROR, line', str(theline), ':', message, value
+    sys.exit(-1)
+
+def error(message):
+    theline = inspect.currentframe().f_back.f_lineno
+    print 'ERROR, line', str(theline), ':', message
+    sys.exit(-1)
+
 def usage():
     theline = inspect.currentframe().f_back.f_lineno
     print '  usage() called from ipic.py line ', str(theline)
@@ -485,21 +551,21 @@ def ipic_command(argv1):
     for o, a in opts:
         if o in ("-h", "--help"):
           usage()
-          sys.exit()
+          #sys.exit()
         elif o in ("-s", "--system"):
           system = a
         #else:
         #  assert False, "unhandled option"
+
+    #print "type(args)", type(args)
 
     numargs = len(args)
     if numargs==0:
       usage()
       sys.exit()
 
-    #print args
     args = deque(args)
     command = deque.popleft(args)
-    #print list(args)
 
     if command == "help":
         ipic_help(args)
