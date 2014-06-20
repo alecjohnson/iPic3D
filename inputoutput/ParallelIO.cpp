@@ -140,7 +140,7 @@ void WriteFieldsH5hut(int nspec, Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *
 
   file.SetNameCycle(filename, cycle);
 
-  file.OpenFieldsFile("Node", nspec, col->getNxc()+1, col->getNyc()+1, col->getNzc()+1, vct->getCoordinates(), vct->getDivisions(), vct->getComm());
+  file.OpenFieldsFile("Node", nspec, col->getNxc()+1, col->getNyc()+1, col->getNzc()+1, vct->getCoordinates(), vct->getDims(), vct->getComm());
 
   file.WriteFields(EMf->getEx(), "Ex", grid->getNXN(), grid->getNYN(), grid->getNZN());
   file.WriteFields(EMf->getEy(), "Ey", grid->getNXN(), grid->getNYN(), grid->getNZN());
@@ -160,7 +160,7 @@ void WriteFieldsH5hut(int nspec, Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *
 
 //--- SAVE FIELDS IN THE CELLS:
 //
-//  file.OpenFieldsFile("Cell", nspec, col->getNxc(), col->getNyc(), col->getNzc(), vct->getCoordinates(), vct->getDivisions(), vct->getComm());
+//  file.OpenFieldsFile("Cell", nspec, col->getNxc(), col->getNyc(), col->getNzc(), vct->getCoordinates(), vct->getDims(), vct->getComm());
 //
 //  file.WriteFields(EMf->getExc(), "Exc", grid->getNXC(), grid->getNYC(), grid->getNZC());
 //  file.WriteFields(EMf->getEyc(), "Eyc", grid->getNXC(), grid->getNYC(), grid->getNZC());
@@ -225,6 +225,7 @@ void WritePartclH5hut(int nspec, Grid3DCU *grid, Particles3Dcomm *part, Collecti
 
 }
 
+#if 0
 void ReadPartclH5hut(int nspec, Particles3Dcomm *part, Collective *col, VCtopology3D *vct, Grid3DCU *grid){
 #ifdef USEH5HUT
 
@@ -234,7 +235,7 @@ void ReadPartclH5hut(int nspec, Particles3Dcomm *part, Collective *col, VCtopolo
   infile.SetNameCycle(col->getinitfile(), col->getLast_cycle());
   infile.OpenPartclFile(nspec);
 
-  infile.ReadParticles(vct->getCartesian_rank(), vct->getNproc(), vct->getDivisions(), L, vct->getComm());
+  infile.ReadParticles(vct->getCartesian_rank(), vct->getNproc(), vct->getDims(), L, vct->getComm());
 
   for (int s = 0; s < nspec; s++){
     part[s].allocate(s, infile.GetNp(s), col, vct, grid);
@@ -268,7 +269,9 @@ void ReadPartclH5hut(int nspec, Particles3Dcomm *part, Collective *col, VCtopolo
 
 #endif
 }
+#endif
 
+#if 0
 void ReadFieldsH5hut(int nspec, EMfields3D *EMf, Collective *col, VCtopology3D *vct, Grid3DCU *grid){
 #ifdef USEH5HUT
 
@@ -280,7 +283,7 @@ void ReadFieldsH5hut(int nspec, EMfields3D *EMf, Collective *col, VCtopology3D *
                                        col->getNyc()+1,
                                        col->getNzc()+1,
                                        vct->getCoordinates(),
-                                       vct->getDivisions(),
+                                       vct->getDims(),
                                        vct->getComm());
 
   infile.ReadFields(EMf->getEx(), "Ex", grid->getNXN(), grid->getNYN(), grid->getNZN());
@@ -330,7 +333,7 @@ void ReadFieldsH5hut(int nspec, EMfields3D *EMf, Collective *col, VCtopology3D *
 //                                       col->getNyc(),
 //                                       col->getNzc(),
 //                                       vct->getCoordinates(),
-//                                       vct->getDivisions(),
+//                                       vct->getDims(),
 //                                       vct->getComm());
 //
 //  infile.ReadFields(EMf->getExc(), "Exc", grid->getNXC(), grid->getNYC(), grid->getNZC());
@@ -361,3 +364,4 @@ void ReadFieldsH5hut(int nspec, EMfields3D *EMf, Collective *col, VCtopology3D *
 
 #endif
 }
+#endif

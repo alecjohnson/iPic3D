@@ -225,6 +225,7 @@ class EMfields3D                // :public Field
     //
     double getRHOcs(int X,int Y,int Z,int is)const{return rhocs.get(is,X,Y,Z);}
     double getRHOns(int X,int Y,int Z,int is)const{return rhons.get(is,X,Y,Z);}
+    double*** getRHOns(int is){return &rhons[is][0];}
     arr4_double getRHOns(){return rhons;}
     /* density on cells without ghost cells */
     arr3_double getRHOcs(Grid3DCU *grid, int is);

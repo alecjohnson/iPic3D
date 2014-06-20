@@ -102,6 +102,8 @@ public:
   bool getcVERBOSE()const{ return (cVERBOSE); }
   int getCoordinates(int dir)const{ return (coordinates[dir]); }
   const int *getCoordinates()const{ return (coordinates); }
+  const int *getDims()const{ return dims; }
+  //const int *getDivisions()const{ return getDims(); } // old name
   int getPeriods(int dir)const{ return (periods[dir]); }
   MPI_Comm getComm()const{ return (CART_COMM); }
 
@@ -148,7 +150,7 @@ private:
   /** rank may be reordered     */
   int reorder;
   /** arrays for Create_Cart_create  */
-  int dims[3];
+  int dims[3]; // i.e. divisions
   /** periodicity */
   int periods[3];
   //int periods_P[3];
