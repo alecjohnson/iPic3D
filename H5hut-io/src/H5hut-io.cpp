@@ -64,7 +64,7 @@ void H5output::SetNameCycle(std::string name, int c){
   cycle    = c;
 }
 
-void H5output::OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, int ntz, int *coord, int *dimns, MPI_Comm CART_COMM){
+void H5output::OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, int ntz, const int *coord, const int *dimns, MPI_Comm CART_COMM){
 
   std::stringstream filenmbr;
   std::string       filename;
@@ -173,7 +173,7 @@ void H5output::ClosePartclFile(){
   H5CloseFile(partfile);
 }
 
-void H5output::WriteParticles(int ispec, long long np, double *q, double *x, double *y, double *z, double *u, double *v, double *w, MPI_Comm CART_COMM){
+void H5output::WriteParticles(int ispec, long long np, const double *q, const double *x, const double *y, const double *z, const double *u, const double *v, const double *w, MPI_Comm CART_COMM){
 
   /* --------------------------------------------------------------------- */
   /* Find out the total number of particles of species i in all the domain */
@@ -247,7 +247,7 @@ void H5input::SetNameCycle(std::string name, int rc){
   recycle  = rc;
 }
 
-void H5input::OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, int ntz, int *coord, int *dimns, MPI_Comm CART_COMM){
+void H5input::OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, int ntz, const int *coord, const int *dimns, MPI_Comm CART_COMM){
 
   int file_nspec;
 
@@ -392,7 +392,7 @@ void H5input::OpenPartclFile(int ns){
   part = new H5hutpart[nspec];
 }
 
-void H5input::ReadParticles(int rank, int nproc, int *dimns, double *L, MPI_Comm CART_COMM){
+void H5input::ReadParticles(int rank, int nproc, const int *dimns, double *L, MPI_Comm CART_COMM){
   int ndim = 3; // By default 2D is considered as a 'flat' 3D
   LoadParticles(ndim, rank, nproc, dimns, L, CART_COMM);
   InitParticles(ndim, rank, CART_COMM);
@@ -430,7 +430,7 @@ void H5input::LoadLocalParticles(long long *np,
   }
 }
 
-void H5input::FindLocalParticles(int nproc, int ndim, h5_int64_t *h5npart, long long nop, int *dimns, double *L, MPI_Comm CART_COMM,
+void H5input::FindLocalParticles(int nproc, int ndim, h5_int64_t *h5npart, long long nop, const int *dimns, double *L, MPI_Comm CART_COMM,
                         double *q,
                         double *x, double *y, double *z,
                         double *u, double *v, double *w){
@@ -639,7 +639,7 @@ void H5input::InitParticles(int ndim, int rank, MPI_Comm CART_COMM){
 
 }
 
-void H5input::LoadParticles(int ndim, int rank, int nproc, int *dimns, double *L, MPI_Comm CART_COMM){
+void H5input::LoadParticles(int ndim, int rank, int nproc, const int *dimns, double *L, MPI_Comm CART_COMM){
 
   int        h5nspec;
   int        ranks_rdr[1] = {0};

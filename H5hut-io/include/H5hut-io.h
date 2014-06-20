@@ -78,12 +78,12 @@ class H5output{
   public:
     void SetNameCycle(std::string name, int c);
 
-    void OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, int ntz, int *coord, int *dimns, MPI_Comm CART_COMM);
+    void OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, int ntz, const int *coord, const int *dimns, MPI_Comm CART_COMM);
     void WriteFields(double ***field, std::string fname, int nx, int ny, int nz, int rank=-1);
     void CloseFieldsFile();
 
     void OpenPartclFile(int nspec, MPI_Comm CART_COMM);
-    void WriteParticles(int ispec, long long np, double *q, double *x, double *y, double *z, double *u, double *v, double *w, MPI_Comm CART_COMM);
+    void WriteParticles(int ispec, long long np, const double *q, const double *x, const double *y, const double *z, const double *u, const double *v, const double *w, MPI_Comm CART_COMM);
     void ClosePartclFile();
     
   private:
@@ -97,12 +97,12 @@ class H5input{
   public:
     void SetNameCycle(std::string name, int rc);
 
-    void OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, int ntz, int *coord, int *dimns, MPI_Comm CART_COMM);
+    void OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, int ntz, const int *coord, const int *dimns, MPI_Comm CART_COMM);
     void ReadFields(double ***field, std::string fname, int nx, int ny, int nz, int rank=-1);
     void CloseFieldsFile();
 
     void OpenPartclFile(int ns);
-    void ReadParticles(int rank, int nproc, int *dimns, double *L, MPI_Comm CART_COMM);
+    void ReadParticles(int rank, int nproc, const int *dimns, double *L, MPI_Comm CART_COMM);
     long long GetNp(int s) {return part[s].getNP();};
     void DumpPartclX(double *& tgt, int s);
     void DumpPartclY(double *& tgt, int s);
@@ -121,7 +121,7 @@ class H5input{
     h5_file_t   *partfile;
     h5_file_t   *fldsfile;
 
-    void LoadParticles(int ndim, int rank, int nproc, int *dimns, double *L, MPI_Comm CART_COMM);
+    void LoadParticles(int ndim, int rank, int nproc, const int *dimns, double *L, MPI_Comm CART_COMM);
     void InitParticles(int ndim, int rank, MPI_Comm CART_COMM);
 
     void LoadLocalParticles(long long *np,
@@ -133,7 +133,7 @@ class H5input{
          double *v_loc,
          double *w_loc);
     
-    void FindLocalParticles(int nproc, int ndim, h5_int64_t *h5npart, long long nop, int *dimns, double *L, MPI_Comm CART_COMM,
+    void FindLocalParticles(int nproc, int ndim, h5_int64_t *h5npart, long long nop, const int *dimns, double *L, MPI_Comm CART_COMM,
          double *q,
          double *x, double *y, double *z,
          double *u, double *v, double *w);
