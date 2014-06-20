@@ -1,0 +1,20 @@
+#%Module1.0
+
+proc ModulesHelp { } {
+global version
+
+puts stderr "****************************************************"
+puts stderr " set environment to compile and run iPic3D"
+puts stderr "****************************************************"
+}
+
+module-whatis "set environment for iPic3D"
+
+module load hdf5/1.8.10-patch1-parallel
+module load impi
+module load intel
+setenv CXX mpiicpc
+setenv CC mpiicc
+setenv FC mpiifort
+setenv H5HUT_DIR $env(HOME)/install
+
