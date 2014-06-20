@@ -58,7 +58,7 @@ file(
         ${IPIC_HOME}/processtopology/*.cpp
         ${IPIC_HOME}/solvers/*.cpp
         ${IPIC_HOME}/utility/*.cpp
-        ${IPIC_HOME}/main/iPic3Dlib.cpp
+        ${IPIC_HOME}/main/*.cpp
 )
 
 #
