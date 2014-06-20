@@ -9,17 +9,30 @@
 export CFLAGS="-mmic"
 export FFLAGS="-mmic"
 export CXXFLAGS="-mmic"
-module unload hdf5
-module load knc/hdf5/1.8.10-patch1-mic-parallel
-module load impi #/4.1.0.030
-module load intel
-export PATH="$PATH:/opt/hdf5/1.8.10-patch1-mic-parallel"
-#export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/intel/composer_xe_2013_sp1.1.106/compiler/lib/mic"
-export H5HUT_DIR=$HOME/install-mic
 
-# Jorge's lines:
+# These modules are apparently broken ...
+#module unload hdf5
+#module load knc/hdf5/1.8.10-patch1-mic-parallel
+#module load impi #/4.1.0.030
+#module load intel
+# ... so instead we do things by hand with Jorge's lines:
 export HDF5_ROOT=/opt/hdf5/1.8.10-patch1-mic-parallel
 export PATH=/opt/intel/composer_xe_2013_sp1.1.106/bin/intel64_mic:/opt/intel/impi/4.1.3/mic/bin:/opt/intel/composer_xe_2013_sp1.1.106/mpirt/bin/mic:$HDF5_ROOT:$PATH
-export LD_LIBRARY_PATH=/opt/intel/composer_xe_2013_sp1.1.106/compiler/lib/mic
 export CC=icc
 export CXX=icpc
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/intel/composer_xe_2013_sp1.1.106/compiler/lib/mic"
+export I_MPI_CC=$CC
+# ... done.
+
+# we also need:
+export H5HUT_DIR=$HOME/install-mic
+
+# This is needed in order to find the appropriate mpiexec.hydra,
+# but then the build is wrong,
+#export PATH=/opt/intel/impi/4.1.2.040/intel64/bin:$PATH
+# So I resort to an environment variable used by my "ipic mpirun" script:
+#export MPIRUN="/opt/intel/impi/4.1.2.040/intel64/bin/mpiexec.hydra"
+#alias mpirun=$MPIRUN
+
+# This is needed in order to run "mpiexec.hydra", but then will it compile?:
+# module load intel
