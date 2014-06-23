@@ -131,8 +131,7 @@ def construct_run_command(args,mpirun):
       elif e.opt == 's' and 'requires argument' in e.msg:
         print 'ERROR: -s requires system name (e.g. "mic" or "xeon")'
       else:
-        usage()
-        sys.exit(-1)
+        usage_error()
 
     for o, a in opts:
         if o in ("-h", "--host"):
@@ -152,7 +151,7 @@ def construct_run_command(args,mpirun):
         #  assert False, "unhandled option"
 
     if len(args)!=0:
-      usage();
+      usage_error()
 
     # determine num_procs
     dims = getdims(inputfile)
@@ -180,6 +179,8 @@ def construct_run_command(args,mpirun):
     command = [mpirun]
     command.extend(options)
     command.extend(arguments)
+    # add any additional arguments given by user
+    #command.extend(args)
     return command
 
 def ipic_run(args):
@@ -199,46 +200,43 @@ def ipic_make_data():
     create_data_command = '''mkdir -p data''';
     issue_shell_command(create_data_command)
 
-def get_cmake_options(args):
-
-    global system
-    parhdf5 = 0
-
-    try:
-      # args is what is left over after extracting the options
-      opts, args = getopt.getopt(list(args), 'ps:', ['parhdf5', 'system='])
-    except getopt.GetoptError, e:
-      if e.opt == 's' and 'requires argument' in e.msg:
-        print 'ERROR: -s requires system name (e.g. "mic" or "xeon")'
-      else:
-        usage()
-        sys.exit(-1)
-
-    for o, a in opts:
-        if o in ("-p", "--parhdf5"):
-          parhdf5=1
-        elif o in ("-s", "--system"):
-          system = a
-        else:
-          assert False, "unhandled option"
-
-    args = deque(args)
-    return system, parhdf5, args
+#def get_cmake_options(args):
+#
+#    global system
+#    parhdf5 = 0
+#
+#    try:
+#      # args is what is left over after extracting the options
+#      opts, args = getopt.getopt(list(args), 'ps:', ['parhdf5', 'system='])
+#    except getopt.GetoptError, e:
+#      if e.opt == 's' and 'requires argument' in e.msg:
+#        print 'ERROR: -s requires system name (e.g. "mic" or "xeon")'
+#      else:
+#        usage_error()
+#        sys.exit(-1)
+#
+#    for o, a in opts:
+#        if o in ("-p", "--parhdf5"):
+#          parhdf5=1
+#        elif o in ("-s", "--system"):
+#          system = a
+#        else:
+#          assert False, "unhandled option"
+#
+#    args = deque(args)
+#    return system, parhdf5, args
 
 def ipic_cmake(args):
 
     # extract the values of any options from args
-    system, parhdf5, args = get_cmake_options(args)
+    #system, parhdf5, args = get_cmake_options(args)
 
     # make src a link to the code
     numargs = len(args)
     if numargs==0:
       sourcedir = '..'
-    elif numargs==1:
-      sourcedir = deque.popleft(args)
     else:
-      usage()
-      sys.exit()
+      sourcedir = deque.popleft(args)
 
     if sourcedir!='src':
       rm_command = ['rm', '-f', 'src'];
@@ -251,41 +249,20 @@ def ipic_cmake(args):
     # invoke cmake 
     cmake_command = ['cmake'];
 
-    # add arguments particular to system
-    if system == 'general':
-      0
-    elif system == 'mic':
-      0
-      #cmake_command.extend(['-DCMAKE_TOOLCHAIN_FILE=src/cmake/cmake_template.cmake.XeonPhi'])
-      #cmake_command.extend(['-DIPIC_XEONPHI=ON'])
-      #cmake_command.extend(['-Dmic=on'])
-    else:
-        print "--system", system, "is not supported"
-        sys.exit(-1)
-
-    # add arguments particular to use of parallel HDF5
-    if parhdf5 == 1:
-      0
-      #cmake_command.extend(['-DH5HUT_HOME='+os.getenv()+'install-mic'])
-    elif parhdf5 == 0:
-      0
-    else:
-      invalid_value_error("parhdf5 must be 0 or 1, not", parhdf5)
-
     # add arguments particular to intel
     #cmake_command.extend(['-DCMAKE_CXX_FLAGS=-DMPICH_IGNORE_CXX_SEEK'])
 
+    # add rest of args to end of cmake command
+
     # issue the command
     cmake_command.extend(['src'])
-    issue_command(cmake_command)
-
-def ipic_findcpph(args):
-    # create tags file using ctags
-    command = '''find . -name '*.cpp' -or -name '*.h' | grep -v unused | grep -v postprocessing_tools'''
-    if(show):
-      print command
-    else:
-      os.system(command)
+    cmake_command.extend(args)
+    # a string is a list of individual characters,
+    # so we append rather than extend the list
+    cmake_command.append(os.getenv('IPIC_CMAKE_ARGS',''))
+    # by spawning a subshell we allow the content of
+    # IPIC_CMAKE_ARGS to be interpreted by shell
+    issue_shell_command(' '.join(cmake_command))
 
 def ipic_ctags(args):
     # create tags file using ctags
@@ -295,22 +272,6 @@ def ipic_ctags(args):
     # sort tags file
     sort_tags_command = '''LC_ALL=C sort -u tags -o tags'''
     issue_shell_command(sort_tags_command)
-
-def ipic_show(args):
-    if len(args) == 0:
-      ipic_help_show(args)
-      sys.exit()
-    
-    command = deque.popleft(args)
-    if command == "run":
-      ipic_show_run(args)
-    #elif command == "cmake":
-    #  ipic_show_cmake(args)
-    #elif command == "ctags":
-    #  ipic_show_ctags(args)
-    else:
-        print "ipic show", command, "is not supported"
-        sys.exit(-1)
 
 def ipic_basic_help():
     print '''
@@ -353,7 +314,7 @@ def ipic_help_run(args):
     run iPic3D with appropriate arguments.
 
     options:
-    -t <num_max_threads>: set maximum number of threads
+    -t <num_max_threads>: set maximum number of threads per process
        (default is 1 unless -s <mic|xeon> is set)
     -i <inputfile>: set input file (default is "src/inputfiles/GEM.inp")
     -o <outputdir>: set output directory (default is "data")
@@ -513,10 +474,7 @@ def error(message):
     print 'ERROR, line', str(theline), ':', message
     sys.exit(-1)
 
-def usage():
-    theline = inspect.currentframe().f_back.f_lineno
-    print '  usage() called from ipic.py line ', str(theline)
-
+def usage_message():
     print '''
   usage: ''', progname, ''' [show] <command>
 
@@ -524,8 +482,14 @@ def usage():
     ''', progname, '''help
     ''', progname, '''show
     ''', progname, '''cmake
-    ''', progname, '''ctags
+    ''', progname, '''run
       '''
+
+def usage_error():
+  theline = inspect.currentframe().f_back.f_lineno
+  print '  usage_error() called from ipic.py line ', str(theline)
+  usage_message()
+  sys.exit(-1)
 
 def ipic_command(argv1):
 
@@ -545,13 +509,11 @@ def ipic_command(argv1):
       if e.opt == 's' and 'requires argument' in e.msg:
         print 'ERROR: -s requires system name (e.g. "mic" or "xeon")'
       else:
-        usage()
-        sys.exit(-1)
+        usage_error()
 
     for o, a in opts:
         if o in ("-h", "--help"):
-          usage()
-          #sys.exit()
+          usage_error()
         elif o in ("-s", "--system"):
           system = a
         #else:
@@ -561,16 +523,13 @@ def ipic_command(argv1):
 
     numargs = len(args)
     if numargs==0:
-      usage()
-      sys.exit()
+      usage_error()
 
     args = deque(args)
     command = deque.popleft(args)
 
     if command == "help":
         ipic_help(args)
-    # elif command == "show":
-    #     ipic_show(args)
     elif command == "ctags":
         ipic_ctags(args)
     elif command == "cmake":
@@ -579,10 +538,8 @@ def ipic_command(argv1):
         ipic_run(args)
     elif command == "exec":
         ipic_exec(args)
-    elif command == "findcpph":
-        ipic_findcpph(args)
     else:
-        print progname, command, "is not supported"
+        print progname, command, "is not supported. Try: ipic help"
         sys.exit(-1)
 
     #print os.path.basename(__file__)
@@ -599,7 +556,8 @@ def main():
 
     argv1 = sys.argv[1:]
     if len(argv1)==0:
-      usage()
+      usage_message()
+      sys.exit()
 
     if argv1[0]=='show':
       show=1
