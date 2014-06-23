@@ -205,6 +205,8 @@ void WritePartclH5hut(int nspec, Grid3DCU *grid, Particles3Dcomm *part, Collecti
 
   file.OpenPartclFile(nspec, vct->getComm());
   for (int i=0; i<nspec; i++){
+    // this is a hack
+    part[i].convertParticlesToSynched();
     file.WriteParticles(i, part[i].getNOP(),
                            part[i].getQall(),
                            part[i].getXall(),
