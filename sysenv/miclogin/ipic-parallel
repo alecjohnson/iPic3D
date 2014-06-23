@@ -43,4 +43,5 @@ setenv CXX mpiicpc
 setenv CC mpiicc
 setenv FC mpiifort
 setenv H5HUT_DIR $env(HOME)/install
+setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report' -DIPIC_H5HUT_OUTPUT=ON"
 

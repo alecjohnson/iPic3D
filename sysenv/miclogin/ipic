@@ -16,4 +16,5 @@ module load intel
 setenv CXX mpiicpc
 setenv CC mpiicc
 setenv FC mpiifort
+setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report' -DIPIC_H5HUT_OUTPUT=OFF"
 
