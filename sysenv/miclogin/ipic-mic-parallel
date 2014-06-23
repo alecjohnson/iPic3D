@@ -5,11 +5,11 @@
 ##  My new module that sets my personal environment
 ##
 proc ModulesHelp { } {
-        puts stderr "\tset environment to compile and run iPic3D on MIC"
+        puts stderr "\tset environment to compile and run iPic3D on MIC with parallel hdf5"
 }
 
 ## Create a whatis file.  Not necessary but cool.
 module-whatis   "set environment to run iPic3D on MIC"
 
-setenv HDF5_ROOT "/opt/hdf5/1.8.10-patch1-mic"
+setenv HDF5_ROOT "/opt/hdf5/1.8.10-patch1-mic-parallel"
 module load ipic-mic-base
