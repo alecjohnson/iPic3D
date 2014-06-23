@@ -13,8 +13,16 @@ module-whatis "set environment for iPic3D"
 module load hdf5/1.8.10-patch1
 module load impi
 module load intel
-setenv CXX mpiicpc
-setenv CC mpiicc
-setenv FC mpiifort
-setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report' -DIPIC_H5HUT_OUTPUT=OFF"
+# prefixing with mpi results in link error:
+# ld: MPIR_Thread: TLS definition in /opt/intel/impi/4.1.2.040/intel64/lib/libmpi_mt.so section .tbss mismatches non-TLS definition in /opt/intel/impi/4.1.2.040/        +intel64/lib/libmpi.so section .bss
+# /opt/intel/impi/4.1.2.040/intel64/lib/libmpi_mt.so: could not read symbols: Bad value
+# 
+#setenv CXX mpiicpc
+#setenv CC mpiicc
+#setenv FC mpiifort
+setenv CXX icpc
+setenv CC icc
+setenv FC ifort
+setenv I_MPI_FABRICS shm:tcp
+setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report'"
 

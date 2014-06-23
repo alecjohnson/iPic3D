@@ -39,9 +39,10 @@ module-whatis "set environment for iPic3D"
 module load hdf5/1.8.10-patch1-parallel
 module load impi
 module load intel
-setenv CXX mpiicpc
-setenv CC mpiicc
-setenv FC mpiifort
+# prefixing these with mpi results in link errors
+setenv CXX icpc
+setenv CC icc
+setenv FC ifort
 setenv H5HUT_DIR $env(HOME)/install
 setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report' -DIPIC_H5HUT_OUTPUT=ON"
 
