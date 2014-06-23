@@ -65,7 +65,7 @@ file(
 # Compilation options
 #
 
-option(IPIC_H5HUT_OUTPUT "Output is done using Parallel HDF5 with the H5hut library" on)
+option(IPIC_H5HUT_OUTPUT "Output is done using Parallel HDF5 with the H5hut library" off)
 
 if(IPIC_H5HUT_OUTPUT)
   set(H5HUT_HOME $ENV{H5HUT_DIR} CACHE STRING "H5hut home directory")
