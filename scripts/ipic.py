@@ -323,21 +323,52 @@ def ipic_help_run(args):
 
 def ipic_help_mic(args):
     print '''
-  See "ipic help".  Modifications are as follows.
+  Commands to run the code on miclogin:
 
-  On the Xeon host processor, use:
-  
-    ipic -s xeon [command]
-  
-  On the MIC, use
+    ssh miclogin
+    # check out the code
+    git clone https://github.com/alecjohnson/iPic3D.git ipic3d
 
-    ipic -s mic [command]
+    # put the following lines in your .bashrc:
+    #
+    export IPIC_HOME=$HOME/ipic3d
+    alias ipic="$IPIC_HOME/scripts/ipic"                                          
+    module use $IPIC_HOME/sysenv/miclogin                                         
+
+    # log into the (confusingly named) Xeon host processor:
+    ssh knc1 # or ssh knc2
+
+    # compile for and run on xeon
+    #
+    module purge
+    # use parallel HDF5 for I/O
+    module load ipic-parallel
+    # use non-parallel HDF5 for I/O
+    #module load ipic
+    rm -rf build; mkdir build; cd build
+    ipic cmake $IPIC_HOME
+    make -j VERBOSE=1
+    ipic run
+
+    # compile for and run on MIC
+    #
+    module purge
+    # use parallel HDF5 for I/O
+    module load ipic-mic-parallel
+    # use non-parallel HDF5 for I/O
+    #module load ipic-mic
+    rm -rf build.mic; mkdir build.mic; cd build.mic
+    ipic cmake $IPIC_HOME
+    make -j VERBOSE=1
+    # The -s mic flag should eventually be eliminated...
+    ipic -s mic run
 
   To show what a command will do, use e.g.:
 
-    ipic show -s mic [command]
+    ipic show [command]
   
   See also:
+    ''', progname, '''help
     ''', progname, '''help deep
     '''
 
