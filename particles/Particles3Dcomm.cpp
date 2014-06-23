@@ -1883,7 +1883,7 @@ void Particles3Dcomm::copyParticlesToSoA()
   const int nop = _pcls.size();
   // create memory for SoA representation
   resize_SoA(nop);
- #ifndef __MIC__
+ #ifndef __MIC__stub // replace with __MIC__ when this has been debugged
   #pragma omp for
   for(int pidx=0; pidx<nop; pidx++)
   {
