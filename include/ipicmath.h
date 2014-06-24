@@ -115,7 +115,7 @@ inline void sample_maxwellian(double& u, double& v, double& w,
   w *= wt;
 }
 
-inline double sample_maxwellian(
+inline void sample_maxwellian(
   double& u, double& v, double& w,
   double ut, double vt, double wt,
   double u0, double v0, double w0)
