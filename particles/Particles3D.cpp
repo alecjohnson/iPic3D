@@ -217,6 +217,8 @@ void Particles3D::maxwellian(Field * EMf)
 /** Force Free initialization (JxB=0) for particles */
 void Particles3D::force_free(Field * EMf)
 {
+  eprintf("this function was not properly implemented and needs to be revised.");
+#if 0
   /* initialize random generator */
   srand(vct->getCartesian_rank() + 1 + ns);
   for (int i = 1; i < grid->getNXC() - 1; i++)
@@ -235,6 +237,7 @@ void Particles3D::force_free(Field * EMf)
       double shaperx = tanh((y - Ly / 2) / delta) / cosh((y - Ly / 2) / delta) / delta;
       double shaperz = 1.0 / (cosh((y - Ly / 2) / delta) * cosh((y - Ly / 2) / delta)) / delta;
       eprintf("shapery needs to be initialized.");
+      eprintf("flvx etc. need to be initialized.");
       double shapery;
       // new drift velocity to satisfy JxB=0
       const double flvx = u0 * flvx * shaperx;
@@ -253,6 +256,7 @@ void Particles3D::force_free(Field * EMf)
       create_new_particle(u,v,w,q,x,y,z);
     }
   }
+#endif
 }
 
 /**Add a periodic perturbation in J exp i(kx - \omega t); deltaBoB is the ratio (Delta B / B0) **/
