@@ -719,7 +719,7 @@ void Particles3Dcomm::apply_nonperiodic_BCs_global(
     // separate out particles that need Zrght boundary conditions applied
     sort_pcls(pcl_list, pstart, lstart, test_Zrght_of_domain);
     // apply boundary conditions
-    apply_Zrght_BC(pcl_list, lsize);
+    apply_Zrght_BC(pcl_list, lstart);
   }
 }
 
