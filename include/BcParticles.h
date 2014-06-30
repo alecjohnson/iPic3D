@@ -10,11 +10,11 @@ email                : markidis@lanl.gov, lapenta@lanl.gov
 #ifndef BcParticles_H
 #define BcParticles_H
 
-#include <ipicmath.h>
+//#include <ipicmath.h>
 
-#include "VirtualTopology3D.h"
-#include "Basic.h"
-#include "errors.h"
+//#include "VirtualTopology3D.h"
+//#include "Basic.h"
+//#include "errors.h"
 
 namespace BCparticles
 {
@@ -26,46 +26,46 @@ namespace BCparticles
   };
 }
 
-inline void BCpclLeft(double& x, double& u, double& v, double& w, double Lx, double ut, double vt, double wt, int bcFaceXleft)
-{
-  assert_lt(x, 0.);
-  switch (bcFaceXleft)
-  {
-    default:
-      unsupported_value_error(bcFaceXleft);
-    case BCparticles::PERFECT_MIRROR:
-      x = -x;
-      u = -u;
-      break;
-    case BCparticles::REEMISSION:
-      x = -x;
-      sample_maxwellian(u,v,w, ut,vt,wt);
-      u = fabs(u);
-      break;
-    case BCparticles::EXIT:
-      break;
-  }
-}
-inline void BCpclRight(double& x, double& u, double& v, double& w, double Lx, double ut, double vt, double wt, int bcFaceXright)
-{
-  assert_gt(x, Lx);
-  switch (bcFaceXright)
-  {
-    default:
-      unsupported_value_error(bcFaceXright);
-    case BCparticles::PERFECT_MIRROR:
-      x = 2 * Lx - x;
-      u = -u;
-      break;
-    case BCparticles::REEMISSION:
-      x = 2 * Lx - x;
-      sample_maxwellian(u,v,w, ut,vt,wt);
-      u = -fabs(u);
-      break;
-    case BCparticles::EXIT:
-      break;
-  }
-}
+//inline void BCpclLeft(double& x, double& u, double& v, double& w, double Lx, double ut, double vt, double wt, int bcFaceXleft)
+//{
+//  assert_lt(x, 0.);
+//  switch (bcFaceXleft)
+//  {
+//    default:
+//      unsupported_value_error(bcFaceXleft);
+//    case BCparticles::PERFECT_MIRROR:
+//      x = -x;
+//      u = -u;
+//      break;
+//    case BCparticles::REEMISSION:
+//      x = -x;
+//      sample_maxwellian(u,v,w, ut,vt,wt);
+//      u = fabs(u);
+//      break;
+//    case BCparticles::EXIT:
+//      break;
+//  }
+//}
+//inline void BCpclRight(double& x, double& u, double& v, double& w, double Lx, double ut, double vt, double wt, int bcFaceXright)
+//{
+//  assert_gt(x, Lx);
+//  switch (bcFaceXright)
+//  {
+//    default:
+//      unsupported_value_error(bcFaceXright);
+//    case BCparticles::PERFECT_MIRROR:
+//      x = 2 * Lx - x;
+//      u = -u;
+//      break;
+//    case BCparticles::REEMISSION:
+//      x = 2 * Lx - x;
+//      sample_maxwellian(u,v,w, ut,vt,wt);
+//      u = -fabs(u);
+//      break;
+//    case BCparticles::EXIT:
+//      break;
+//  }
+//}
 
 ///** set the boundary condition for a particle */
 //void BCpclLeft(double *x, double *u, double Lx, double ut, int bcFaceXleft)
