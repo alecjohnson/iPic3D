@@ -6,7 +6,7 @@
 #include "errors.h"
 
 /** method to calculate the parallel dot product with vect1, vect2 having the ghost cells*/
-double dotP(double *vect1, double *vect2, int n) {
+double dotP(const double *vect1, const double *vect2, int n) {
   double result = 0;
   double local_result = 0;
   for (register int i = 0; i < n; i++)
@@ -16,14 +16,14 @@ double dotP(double *vect1, double *vect2, int n) {
 
 }
 /** method to calculate dot product */
-double dot(double *vect1, double *vect2, int n) {
+double dot(const double *vect1, const double *vect2, int n) {
   double result = 0;
   for (int i = 0; i < n; i++)
     result += vect1[i] * vect2[i];
   return (result);
 }
 /** method to calculate the square norm of a vector */
-double norm2(double **vect, int nx, int ny) {
+double norm2(const double *const*vect, int nx, int ny) {
   double result = 0;
   for (int i = 0; i < nx; i++)
     for (int j = 0; j < ny; j++)
@@ -39,7 +39,7 @@ double norm2(const arr3_double vect, int nx, int ny) {
   return (result);
 }
 /** method to calculate the square norm of a vector */
-double norm2(double *vect, int nx) {
+double norm2(const double *vect, int nx) {
   double result = 0;
   for (int i = 0; i < nx; i++)
     result += vect[i] * vect[i];
@@ -61,7 +61,7 @@ double norm2P(const arr3_double vect, int nx, int ny, int nz) {
   return (result);
 }
 /** method to calculate the parallel norm of a vector on different processors with the ghost cell */
-double norm2P(double *vect, int n) {
+double norm2P(const double *vect, int n) {
   double result = 0;
   double local_result = 0;
   for (int i = 0; i < n; i++)
@@ -70,7 +70,7 @@ double norm2P(double *vect, int n) {
   return (result);
 }
 /** method to calculate the parallel norm of a vector on different processors with the gost cell*/
-double normP(double *vect, int n) {
+double normP(const double *vect, int n) {
   double result = 0.0;
   double local_result = 0.0;
   for (register int i = 0; i < n; i++)
@@ -83,12 +83,12 @@ double normP(double *vect, int n) {
 
 }
 /** method to calculate the difference of two vectors*/
-void sub(double *res, double *vect1, double *vect2, int n) {
+void sub(double *res, const double *vect1, const double *vect2, int n) {
   for (register int i = 0; i < n; i++)
     res[i] = vect1[i] - vect2[i];
 }
 /** method to calculate the sum of two vectors vector1 = vector1 + vector2*/
-void sum(double *vect1, double *vect2, int n) {
+void sum(double *vect1, const double *vect2, int n) {
   for (register int i = 0; i < n; i++)
     vect1[i] += vect2[i];
 
@@ -184,7 +184,7 @@ void scale(arr3_double vect1, const arr3_double vect2, double alfa, int nx, int 
 }
 
 /** method to calculate the scalar-vector product */
-void scale(double *vect1, double *vect2, double alfa, int n) {
+void scale(double *vect1, const double *vect2, double alfa, int n) {
   for (register int i = 0; i < n; i++)
     vect1[i] = vect2[i] * alfa;
 }
@@ -211,13 +211,13 @@ void addscale(double alfa, arr3_double vect1, const arr3_double vect2, int nx, i
       vect1.fetch(i,j,0) += alfa * vect2.get(i,j,0);
 }
 /** method to calculate vector1 = vector1 + alfa*vector2   */
-void addscale(double alfa, double *vect1, double *vect2, int n) {
+void addscale(double alfa, double *vect1, const double *vect2, int n) {
   for (register int i = 0; i < n; i++)
     vect1[i] += alfa * vect2[i];
 
 }
 /** method to calculate vector1 = beta*vector1 + alfa*vector2   */
-void addscale(double alfa, double beta, double *vect1, double *vect2, int n) {
+void addscale(double alfa, double beta, double *vect1, const double *vect2, int n) {
   for (register int i = 0; i < n; i++)
     vect1[i] = vect1[i] * beta + alfa * vect2[i];
 

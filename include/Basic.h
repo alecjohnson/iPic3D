@@ -30,25 +30,25 @@ developers: Stefano Markidis, Giovanni Lapenta
 
 
 /** method to calculate the parallel dot product with vect1, vect2 having the ghost cells*/
-double dotP(double *vect1, double *vect2, int n);
+double dotP(const double *vect1, const double *vect2, int n);
 /** method to calculate dot product */
-double dot(double *vect1, double *vect2, int n);
+double dot(const double *vect1, const double *vect2, int n);
 /** method to calculate the square norm of a vector */
-double norm2(double **vect, int nx, int ny);
+double norm2(const double *const*vect, int nx, int ny);
 /** method to calculate the square norm of a vector */
 double norm2(const arr3_double vect, int nx, int ny);
 /** method to calculate the square norm of a vector */
-double norm2(double *vect, int nx);
+double norm2(const double *vect, int nx);
 /** method to calculate the parallel dot product */
 double norm2P(const arr3_double vect, int nx, int ny, int nz);
 /** method to calculate the parallel norm of a vector on different processors with the ghost cell */
-double norm2P(double *vect, int n);
+double norm2P(const double *vect, int n);
 /** method to calculate the parallel norm of a vector on different processors with the gost cell*/
-double normP(double *vect, int n);
+double normP(const double *vect, int n);
 /** method to calculate the difference of two vectors*/
-void sub(double *res, double *vect1, double *vect2, int n);
+void sub(double *res, const double *vect1, const double *vect2, int n);
 /** method to calculate the sum of two vectors vector1 = vector1 + vector2*/
-void sum(double *vect1, double *vect2, int n);
+void sum(double *vect1, const double *vect2, int n);
 /** method to calculate the sum of two vectors vector1 = vector1 + vector2*/
 void sum(arr3_double vect1, const arr3_double vect2, int nx, int ny, int nz);
 /** method to calculate the sum of two vectors vector1 = vector1 + vector2*/
@@ -81,7 +81,7 @@ void scale(arr3_double vect1, const arr3_double vect2, double alfa, int nx, int 
 /** method to calculate the scalar-vector product */
 void scale(arr3_double vect1, const arr3_double vect2, double alfa, int nx, int ny);
 /** method to calculate the scalar-vector product */
-void scale(double *vect1, double *vect2, double alfa, int n);
+void scale(double *vect1, const double *vect2, double alfa, int n);
 /** method to calculate vector1 = vector1 + alfa*vector2   */
 void addscale(double alfa, arr3_double vect1, const arr3_double vect2, int nx, int ny, int nz);
 /** add scale for weights */
@@ -89,9 +89,9 @@ void addscale(double alfa, double vect1[][2][2], double vect2[][2][2], int nx, i
 /** method to calculate vector1 = vector1 + alfa*vector2   */
 void addscale(double alfa, arr3_double vect1, const arr3_double vect2, int nx, int ny);
 /** method to calculate vector1 = vector1 + alfa*vector2   */
-void addscale(double alfa, double *vect1, double *vect2, int n);
+void addscale(double alfa, double *vect1, const double *vect2, int n);
 /** method to calculate vector1 = beta*vector1 + alfa*vector2   */
-void addscale(double alfa, double beta, double *vect1, double *vect2, int n);
+void addscale(double alfa, double beta, double *vect1, const double *vect2, int n);
 /** method to calculate vector1 = beta*vector1 + alfa*vector2 */
 void addscale(double alfa, double beta, arr3_double vect1, const arr3_double vect2, int nx, int ny, int nz);
 /** method to calculate vector1 = beta*vector1 + alfa*vector2 */

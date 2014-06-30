@@ -1,15 +1,16 @@
 
 #include <mpi.h>
 #include "GMRES.h"
+#include "debug.h"
 
-void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, double *b, int m, int max_iter, double tol, Grid * grid, VirtualTopology3D * vct, Field * field) {
+void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const double *b, int m, int max_iter, double tol, Grid * grid, VirtualTopology3D * vct, Field * field) {
   if (m > xkrylovlen) {
     if (vct->getCartesian_rank() == 0)
       cerr << "In GMRES the dimension of Krylov space(m) can't be > (length of krylov vector)/(# processors)" << endl;
     return;
   }
   bool GMRESVERBOSE = false;
-  double initial_error, normb, rho_tol, av, mu, htmp, tmp, delta = 0.001;
+  double initial_error, rho_tol, av, mu, htmp, tmp, delta = 0.001;
   double *r = new double[xkrylovlen];
   double *im = new double[xkrylovlen];
   double *v = new double[xkrylovlen];
@@ -47,15 +48,16 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, double *b
     cout << endl;
   }
 
+  double normb = normP(b, xkrylovlen);
+  if (normb == 0.0)
+    normb = 1.0;
+
   for (register int itr = 0; itr < max_iter; itr++) {
 
     // r = b - A*x
     (field->*FunctionImage) (im, xkrylov, grid, vct);
     sub(r, b, im, xkrylovlen);
     initial_error = normP(r, xkrylovlen);
-    normb = normP(b, xkrylovlen);
-    if (normb == 0.0)
-      normb = 1.0;
 
     if (itr == 0) {
       if (vct->getCartesian_rank() == 0)
