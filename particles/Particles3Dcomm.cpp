@@ -1879,7 +1879,6 @@ void Particles3Dcomm::sort_particles_serial_AoS()
 void Particles3Dcomm::copyParticlesToSoA()
 {
   timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_SOA);
-  dprintf("copying to struct of arrays");
   const int nop = _pcls.size();
   // create memory for SoA representation
   resize_SoA(nop);
