@@ -34,6 +34,8 @@ class TimeTasks
     MOVER_PCL_MOVING,
     TRANSPOSE_PCLS_TO_AOS,
     TRANSPOSE_PCLS_TO_SOA,
+    WRITE_FIELDS,
+    WRITE_PARTICLES,
     NUMBER_OF_TASKS // this line should be last
   };
 

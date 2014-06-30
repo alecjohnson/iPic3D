@@ -3,6 +3,7 @@
 
 #include "ParallelIO.h"
 #include "MPIdata.h"
+#include "TimeTasks.h"
 
 /*! Function used to write the EM fields using the parallel HDF5 library */
 void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, Particles3Dcomm *part, CollectiveIO *col, VCtopology3D *vct, int cycle){
@@ -126,8 +127,8 @@ void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, Particles3Dcomm *part,
 
 /*! Function to write the EM fields using the H5hut library. */
 void WriteFieldsH5hut(int nspec, Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCtopology3D *vct, int cycle){
-
 #ifdef USEH5HUT
+  timeTasks_set_task(TimeTasks::WRITE_FIELDS);
 
   H5output file;
 
@@ -192,6 +193,7 @@ void WriteFieldsH5hut(int nspec, Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *
 void WritePartclH5hut(int nspec, Grid3DCU *grid, Particles3Dcomm *part, CollectiveIO *col, VCtopology3D *vct, int cycle){
 
 #ifdef USEH5HUT
+  timeTasks_set_task(TimeTasks::WRITE_PARTICLES);
 
   H5output file;
 

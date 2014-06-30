@@ -468,6 +468,7 @@ void c_Solver::WriteVirtualSatelliteTraces()
 void c_Solver::WriteFields(int cycle) {
   if(cycle % (col->getFieldOutputCycle()) == 0 || cycle == first_cycle)
   {
+    timeTasks_set_task(TimeTasks::WRITE_FIELDS);
     if (col->getWriteMethod() == "Parallel") {
         WriteOutputParallel(grid, EMf, col, vct, cycle);
     }
@@ -488,6 +489,8 @@ void c_Solver::WriteParticles(int cycle)
        && col->getParticlesOutputCycle() != 1);
   if(!do_WriteParticles)
     return;
+
+  timeTasks_set_task(TimeTasks::WRITE_PARTICLES);
 
   // this is a hack
   convertParticlesToSynched();

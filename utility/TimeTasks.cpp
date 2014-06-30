@@ -26,6 +26,8 @@ static const char *taskNames[] = // order must agree with Tasks in TimeTasks.h
   "mover_pcl_moving",
   "transpose_pcls_to_AoS",
   "transpose_pcls_to_SoA",
+  "write_fields",
+  "write_particles",
   "number_of_tasks"
 };
 
