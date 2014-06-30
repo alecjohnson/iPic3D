@@ -73,7 +73,7 @@ def construct_run_command(args,mpirun):
     global system
     if system == 'xeon' or system == 'mic':
       if system == 'xeon':
-        mpirun = 'mpirun.hydra' # is this line needed?
+        mpirun = 'mpiexec.hydra' # is this line needed?
         # calculate number of threads per process
         # + could extract this stuff from /proc/cpuinfo
         #   via commands such as:
