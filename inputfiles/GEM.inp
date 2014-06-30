@@ -13,7 +13,7 @@ NpMaxNpRatio = 3.0
 Case              = GEM       # Select the case
 PoissonCorrection = yes       # Poisson correction
 WriteMethod       = default   # Output method [ default | Parallel ]
-SimulationName    = GEMchllg  # Simulation name for the output
+SimulationName    = GEM       # Simulation name for the output
 
 #  %%%%%%%%%%%%%%%%%%% Magnetic Reconnection %%%%%%%%%%%%%%%%%%
 B0x = 0.0097
