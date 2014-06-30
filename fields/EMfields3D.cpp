@@ -1982,6 +1982,34 @@ void EMfields3D::MaxwellSource(double *bkrylov, Grid * grid, VirtualTopology3D *
 
 }
 /*! Mapping of Maxwell image to give to solver */
+//
+// In the field solver, there is one layer of ghost cells.  The
+// nodes on the ghost cells define two layers of "ghost nodes": the
+// outer ghost nodes are clearly in the interior of the neighboring
+// subdomain, but the inner layer is on the boundary between
+// subdomains and thus does not clearly belong to any one process.
+// 
+// In the krylov solver, we make no attempt to use or to
+// update the outer ghost nodes, and we assume (presumably
+// correctly) that the inner ghost nodes are updated consistently
+// between the processes that share them.  As a consequence,
+// in order to compute the laplacian, we must communicate the
+// gradient values that lie on the boundary of the processor
+// subdomain.  Computing the divergence requires that this
+// boundary communication first complete.
+//
+// An alternative way would be to communicate outer ghost node
+// values after each update of Eth.  In this case, there would
+// be no need for the three boundary communications in the body
+// of MaxwellImage() entailed in the calls to lapN2N and the
+// fourth call needed prior to the call to gradN2C.  Of course,
+// we would then need to communicate the three components of the
+// electric field for the outer ghost nodes prior to each call to
+// MaxwellImage().
+//
+// Is there much difference in the potential
+// of these two methods to hide latancy?
+// 
 void EMfields3D::MaxwellImage(double *im, double *vector, Grid * grid, VirtualTopology3D * vct) {
   eqValue(0.0, im, 3 * (nxn - 2) * (nyn - 2) * (nzn - 2));
   eqValue(0.0, imageX, nxn, nyn, nzn);
