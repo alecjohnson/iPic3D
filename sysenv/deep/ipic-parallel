@@ -1,0 +1,30 @@
+#%Module1.0
+
+proc ModulesHelp { } {
+global version
+
+puts stderr "****************************************************"
+puts stderr " set environment to compile and run iPic3D without parallel IO"
+puts stderr "****************************************************"
+}
+
+module-whatis "set environment for iPic3D"
+
+module load ipic
+
+# use H5hut
+module load hdf5
+setenv H5HUT_DIR $env(HOME)/install
+# -DPARALLEL_IO must be used when compiling to correct for a bug in H5hut
+setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report -DPARALLEL_IO'"
+# turn on H5hut output
+setenv IPIC_CMAKE_ARGS "$env(IPIC_CMAKE_ARGS) -DIPIC_H5HUT_OUTPUT=ON"
+# for linking, cmake will produce -lhdf5_hl -lhdf5
+# which ought to be sufficient but that alone fails to find
+# H5Pset_fapl_mpiposix, H5Pset_fapl_mpio, and H5Pset_dxpl_mpio,
+# maybe because of system config defect, so we must append
+# -DCMAKE_EXE_LINKER_FLAGS=-L/usr/local/hdf5/1.8.11-parallel/lib
+setenv IPIC_CMAKE_ARGS "$env(IPIC_CMAKE_ARGS) -DCMAKE_EXE_LINKER_FLAGS=-L/usr/local/hdf5/1.8.11-parallel/lib"
+# usage: "isession 4" starts an interactive session on 4 nodes
+set-alias isession {qsub -I -X -l nodes=$1:ppn=16,walltime=1:00:00}
+
