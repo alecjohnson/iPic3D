@@ -46,9 +46,9 @@ setenv CXX icpc
 setenv I_MPI_CC icc
 setenv H5HUT_DIR $env(HOME)/install-mic
 
-prepend-path PATH /opt/intel/composer_xe_2013_sp1.1.106/bin/intel64_mic:/opt/intel/impi/4.1.3/mic/bin:/opt/intel/composer_xe_2013_sp1.1.106/mpirt/bin/mic:$env(HDF5_ROOT)
+prepend-path PATH /opt/intel/composer_xe_2013_sp1.1.106/bin/intel64_mic:/opt/intel/impi/4.1.3/mic/bin:/opt/intel/composer_xe_2013_sp1.1.106/mpirt/bin/mic
 # can we change this to prepend-path? that is indeed what I have below
-append-path LD_LIBRARY_PATH /opt/intel/composer_xe_2013_sp1.1.106/compiler/lib/mic
+#append-path LD_LIBRARY_PATH /opt/intel/composer_xe_2013_sp1.1.106/compiler/lib/mic
 
 # set up mpiexec
 #
