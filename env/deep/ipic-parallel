@@ -29,8 +29,6 @@ setenv IPIC_CMAKE_ARGS "$env(IPIC_CMAKE_ARGS) -DIPIC_H5HUT_OUTPUT=ON"
 # maybe because of system config defect, so we must append
 # -DCMAKE_EXE_LINKER_FLAGS=-L/usr/local/hdf5/1.8.11-parallel/lib
 #setenv IPIC_CMAKE_ARGS "$env(IPIC_CMAKE_ARGS) -DCMAKE_EXE_LINKER_FLAGS=-L/usr/local/hdf5/1.8.11-parallel/lib"
-# usage: "isession 4" starts an interactive session on 4 nodes
-set-alias isession {qsub -I -X -l nodes=$1:ppn=16,walltime=1:00:00}
 
 # commands that I used to configure, compile, and install H5hut:
 #
