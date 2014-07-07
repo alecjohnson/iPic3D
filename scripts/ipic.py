@@ -247,7 +247,8 @@ def ipic_cmake(args):
     ipic_make_data();
 
     # invoke cmake 
-    cmake_command = ['cmake'];
+    cmake = os.getenv('IPIC_CMAKE','cmake');
+    cmake_command = [cmake];
 
     # add arguments particular to intel
     #cmake_command.extend(['-DCMAKE_CXX_FLAGS=-DMPICH_IGNORE_CXX_SEEK'])

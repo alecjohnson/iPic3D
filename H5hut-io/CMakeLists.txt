@@ -1,10 +1,5 @@
 cmake_minimum_required(VERSION 2.8.8)
 
-option(mic "compile for MIC" off)
-if(mic)
-  set(CMAKE_TOOLCHAIN_FILE src/cmake/cmake_template.cmake.XeonPhi)
-endif()
-
 #
 # Project declaration
 #

@@ -1,10 +1,5 @@
 cmake_minimum_required(VERSION 2.8.8)
 
-option(mic "compile for MIC" off)
-if(mic)
-  set(CMAKE_TOOLCHAIN_FILE src/cmake/cmake_template.cmake.XeonPhi)
-endif()
-
 #
 # Project declaration
 #
@@ -49,7 +44,6 @@ file(
         ${IPIC_HOME}/communication/*.cpp
         ${IPIC_HOME}/fields/*.cpp
         ${IPIC_HOME}/grids/*.cpp
-        ${IPIC_HOME}/iPIC3D.cpp/*.cpp
         ${IPIC_HOME}/inputoutput/*.cpp
         ${IPIC_HOME}/mathlib/*.cpp
         ${IPIC_HOME}/mpidata/*.cpp
@@ -65,11 +59,12 @@ file(
 # Compilation options
 #
 
-option(IPIC_H5HUT_OUTPUT "Output is done using Parallel HDF5 with the H5hut library" off)
-
+option(IPIC_H5HUT_OUTPUT "Output is done using Parallel HDF5 with the H5hut library")
 if(IPIC_H5HUT_OUTPUT)
   set(H5HUT_HOME $ENV{H5HUT_DIR} CACHE STRING "H5hut home directory")
   set(H5HUT_INCLUDE_DIRS ${H5HUT_HOME}/include)
+#  set(H5HUT_LIBRARY_DIRS ${H5HUT_HOME}/lib)
+#  set(H5HUT_LIBRARIES H5hut)
 
   set(H5HUTIO_HOME ${IPIC_HOME}/H5hut-io CACHE STRING "H5hut-io library home")
   set(H5HUTIO_INCLUDE_DIRS ${H5HUTIO_HOME}/include)
@@ -77,6 +72,7 @@ if(IPIC_H5HUT_OUTPUT)
   set(H5HUTIO_LIBRARIES H5hut-io)
 
   add_definitions(-DUSEH5HUT)
+  add_definitions(-DPARALLEL_IO)
 endif()
 
 option(IPIC_BATSRUS "Compile library with coupling code for BATS-R-US" OFF)
@@ -130,7 +126,11 @@ add_library(
 target_link_libraries(
          iPic3Dlib
          ${H5HUTIO_LIBRARIES}
-         ${HDF5_LIBRARIES}
+         #${HDF5_LIBRARIES}
+         #${HDF5_C_LIBRARIES_RELEASE}
+         #${HDF5_HL_LIBRARIES_RELEASE}
+         #${IPIC_HDF5_C_LIB}
+         #${IPIC_HDF5_HL_LIB}
          ${MPI_LIBRARIES}
          ${CMAKE_DL_LIBS}
 )

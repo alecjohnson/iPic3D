@@ -1,15 +1,10 @@
 cmake_minimum_required(VERSION 2.8.8)
 
-option(mic "compile for MIC" off)
-if(mic)
-  set(CMAKE_TOOLCHAIN_FILE src/cmake/cmake_template.cmake.XeonPhi)
-endif()
-
 #
 # Set project name
 #
 
-project(iPic3D-KUL)
+project(iPic3D)
 
 #
 # Find packages (already managed by CMake)
@@ -24,25 +19,6 @@ find_package(MPI REQUIRED)
 
 option(IPIC_TESTS "Set up the code tests" OFF)
 
-##
-## Set compiler flags per system
-##
-#if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "k1om") ## Xeon Phi
-#   option(IPIC_XEONPHI "ipic xeon phi standard compile flags" on)
-#   if(IPIC_XEONPHI) 
-#     set(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions -fp-model fast=2 -vec-report -mmic")
-#   else()
-#     set(CMAKE_CXX_FLAGS "-mmic")
-#   endif()
-#elseif (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64") ## Xeon
-#   set(CMAKE_CXX_FLAGS "-openmp -fno-exceptions -O3 -xHost -vec-report")
-#   # need to call cmake with: # CXX=icpc cmake src
-#else()
-#   #set(CMAKE_CXX_FLAGS "-O3")
-#endif()
-#
-##
-
 #
 # Include sub-directories
 #
@@ -50,6 +26,7 @@ option(IPIC_TESTS "Set up the code tests" OFF)
 add_subdirectory(main)
 if(IPIC_H5HUT_OUTPUT)
   add_subdirectory(H5hut-io)
+  set(H5HUTIO_LIBRARIES H5hut-io)
 endif()
 
 include_directories(
