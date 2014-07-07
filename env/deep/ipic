@@ -24,7 +24,7 @@ setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -v
 # definitions used to run ipic3d
 #
 # use mpiexec, not mpiexec.hydra or mpirun
-setenv MPIRUN mpiexec
+setenv IPIC_MPIRUN mpiexec
 setenv PSP_MALLOC 0
 
 # usage: "isession 4" starts an interactive session on 4 nodes

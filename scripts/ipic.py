@@ -112,8 +112,8 @@ def construct_run_command(args,mpirun):
         hostname = hostname + '-mic' + str(micnum)
 
     # now that the default mpirun has been determined,
-    # allow $MPIRUN to override it
-    mpirun = os.getenv('MPIRUN',mpirun);
+    # allow $IPIC_MPIRUN to override it
+    mpirun = os.getenv('IPIC_MPIRUN',mpirun);
 
     num_threads_is_given_by_user = 0
     try:
@@ -167,7 +167,7 @@ def construct_run_command(args,mpirun):
       num_max_threads = int(num_threads_per_proc)
 
     arguments = ['./iPic3D', inputfile];
-    options = ['-n', str(num_procs)]
+    options = ['-np', str(num_procs)]
     if hostname!="":
         options.extend(['-host', hostname])
 

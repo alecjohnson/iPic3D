@@ -56,11 +56,11 @@ prepend-path PATH /opt/intel/composer_xe_2013_sp1.1.106/bin/intel64_mic:/opt/int
 # but then the build is wrong ...
 #prepend-path PATH=/opt/intel/impi/4.1.2.040/intel64/bin:$PATH
 # ... so instead we directly access the binary:
-setenv MPIRUN /opt/intel/impi/4.1.2.040/intel64/bin/mpiexec.hydra
+setenv IPIC_MPIRUN /opt/intel/impi/4.1.2.040/intel64/bin/mpiexec.hydra
 # conveniences to override the bad guys
-set-alias "mpirun" $env(MPIRUN)
-set-alias "mpiexec" $env(MPIRUN)
-set-alias "mpiexec.hydra" $env(MPIRUN)
+set-alias "mpirun" $env(IPIC_MPIRUN)
+set-alias "mpiexec" $env(IPIC_MPIRUN)
+set-alias "mpiexec.hydra" $env(IPIC_MPIRUN)
 
 ### stuff needed to run ###
 
