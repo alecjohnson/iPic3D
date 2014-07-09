@@ -1,0 +1,34 @@
+#%Module1.0
+
+proc ModulesHelp { } {
+global version
+
+puts stderr "***************************************************************"
+puts stderr " set environment to compile and run iPic3D without parallel IO "
+puts stderr "***************************************************************"
+}
+
+module-whatis "set environment for iPic3D without parallel IO"
+
+module load ipic-base
+
+# for parallel hdf5
+module load hdf5/1.8.12
+setenv HDF5_ROOT /usr/local/hdf5/v1.8.12
+#module load hdf5/1.8.13_serial
+#setenv HDF5_ROOT /usr/local/hdf5/v1.8.13_serial
+setenv CXX icpc
+setenv CC icc
+setenv FC ifort
+setenv IPIC_CMAKE "/homeb/zam/alvarez/bin/cmake/3.0.0/bin/cmake"
+setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -O3 -xHost -vec-report'"
+
+# definitions used to run ipic3d
+#
+setenv IPIC_MPIRUN mpiexec
+
+# for documentation see 
+# http://www.fz-juelich.de/ias/jsc/EN/Expertise/Supercomputers/JUDGE/Userinfo/Quick_Introduction.html
+# judge has 12 physical cores and 24 virtual cores
+# (i.e. each core is a 2-way SMT (symmetric multi-thread)).
+set-alias isession {msub -I -l nodes=${1:-1}:ppn=${2:-12},walltime=0:30:00}
