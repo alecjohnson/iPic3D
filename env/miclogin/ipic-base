@@ -10,6 +10,8 @@ puts stderr "**************************************************"
 
 module-whatis "base environment for iPic3D"
 
+# compiling
+#
 module load impi
 module load intel
 # prefixing with mpi results in link error:
@@ -22,5 +24,9 @@ module load intel
 setenv CXX icpc
 setenv CC icc
 setenv FC ifort
+
+# running
+#
+setenv IPIC_MPIRUN mpiexec.hydra
 
 prepend-path PATH $env(IPIC_HOME)/scripts
