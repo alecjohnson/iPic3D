@@ -3,9 +3,9 @@
 proc ModulesHelp { } {
 global version
 
-puts stderr "****************************************************"
-puts stderr " set environment to compile and run iPic3D without parallel IO"
-puts stderr "****************************************************"
+puts stderr "***************************************************************"
+puts stderr " set environment to compile and run iPic3D without parallel IO "
+puts stderr "***************************************************************"
 }
 
 module-whatis "set environment for iPic3D"
@@ -29,8 +29,8 @@ setenv IPIC_CMAKE_ARGS "-DHDF5_imf_LIBRARY_RELEASE=/opt/apps/intel/13/composer_x
 # running
 #
 # normally we would define isession so that
-# "isession 4" would start an interactive session on 4 cores,
-# but stampede only allows interactive sessions on a single core.
+# "isession 4" would start an interactive session on 4 nodes,
+# but stampede only allows interactive sessions on a single node.
 # #
 # taken from slide 40 of
 # http://www.cac.cornell.edu/education/training/StampedeJune2013/Envi.pdf
