@@ -3,9 +3,9 @@
 proc ModulesHelp { } {
 global version
 
-puts stderr "****************************************************"
-puts stderr " set environment to compile and run iPic3D without parallel IO"
-puts stderr "****************************************************"
+puts stderr "***************************************************************"
+puts stderr " set environment to compile and run iPic3D without parallel IO "
+puts stderr "***************************************************************"
 }
 
 module-whatis "set environment for iPic3D"

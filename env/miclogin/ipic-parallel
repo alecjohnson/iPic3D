@@ -3,12 +3,19 @@
 proc ModulesHelp { } {
 global version
 
-puts stderr "****************************************************"
+puts stderr "*************************************************************"
 puts stderr " set environment to compile and run iPic3D with parallel I/O"
-puts stderr "****************************************************"
+puts stderr "*************************************************************"
 }
 
-module-whatis "set environment for iPic3D"
+module-whatis "set environment for iPic3D with parallel I/O"
+
+module load ipic-base
+
+module load hdf5/1.8.10-patch1-parallel
+# prefixing these with mpi results in link errors
+setenv H5HUT_DIR $env(HOME)/install
+setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report' -DIPIC_H5HUT_OUTPUT=ON"
 
 # commands to install H5hut on knc1:
 #
@@ -35,14 +42,4 @@ module-whatis "set environment for iPic3D"
 # export CC=mpiicc
 # export CXX=mpiicpc
 #  ./configure --enable-parallel --enable-large-indices --prefix=$HOME/install --with-hdf5=$HDF5_ROOT
-
-module load hdf5/1.8.10-patch1-parallel
-module load impi
-module load intel
-# prefixing these with mpi results in link errors
-setenv CXX icpc
-setenv CC icc
-setenv FC ifort
-setenv H5HUT_DIR $env(HOME)/install
-setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report' -DIPIC_H5HUT_OUTPUT=ON"
 

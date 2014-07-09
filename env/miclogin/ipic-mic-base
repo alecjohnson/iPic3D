@@ -11,31 +11,6 @@ proc ModulesHelp { } {
 ## Create a whatis file.  Not necessary but cool.
 module-whatis   "set environment to run iPic3D on MIC"
 
-# commands I used to compile H5hut on MIC:
-#
-#  cd ~
-#  export CC=mpiicc
-#  export FC=mpiifort
-#  export CXX=mpiicpc
-#  export CFLAGS="-mmic"
-#  export FFLAGS="-mmic"
-#  export CXXFLAGS="-mmic"
-#  module unload hdf5
-#  module load knc/hdf5/1.8.10-patch1-mic-parallel
-#  export PATH="$PATH:/opt/hdf5/1.8.10-patch1-mic-parallel"
-#  export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/intel/composer_xe_2013_sp1.1.106/compiler/lib/mic"
-#  
-#  mkdir install-mic
-#  cd H5hut-1.99.12
-#  ./configure --enable-parallel --enable-large-indices --prefix=$HOME/install-mic
-#  make
-#  make install
-#
-# Jorge used the equivalent of:
-#   CC=mpicc CXX=mpicxx CXXFLAGS=-mmic CFLAGS=-mmic \
-#      ./configure --enable-parallel --enable-large-indices --prefix=$HOME/install-mic --with-hdf5=$HDF5_ROOT
-# but I don't know what path he used for mpicc and mpicxx
-
 ### stuff needed to compile ###
 
 setenv CFLAGS "-mmic"
@@ -70,3 +45,29 @@ prepend-path LD_LIBRARY_PATH /opt/intel/composer_xe_2013_sp1.1.106/compiler/lib/
 setenv I_MPI_ROOT /opt/intel/impi/4.1.2.040
 setenv I_MPI_MIC 1
 
+# commands I used to compile H5hut on MIC:
+#
+#  cd ~
+#  export CC=mpiicc
+#  export FC=mpiifort
+#  export CXX=mpiicpc
+#  export CFLAGS="-mmic"
+#  export FFLAGS="-mmic"
+#  export CXXFLAGS="-mmic"
+#  module unload hdf5
+#  module load knc/hdf5/1.8.10-patch1-mic-parallel
+#  export PATH="$PATH:/opt/hdf5/1.8.10-patch1-mic-parallel"
+#  export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/intel/composer_xe_2013_sp1.1.106/compiler/lib/mic"
+#  
+#  mkdir install-mic
+#  cd H5hut-1.99.12
+#  ./configure --enable-parallel --enable-large-indices --prefix=$HOME/install-mic
+#  make
+#  make install
+#
+# Jorge used the equivalent of:
+#   CC=mpicc CXX=mpicxx CXXFLAGS=-mmic CFLAGS=-mmic \
+#      ./configure --enable-parallel --enable-large-indices --prefix=$HOME/install-mic --with-hdf5=$HDF5_ROOT
+# but I don't know what path he used for mpicc and mpicxx
+
+prepend-path PATH $env(IPIC_HOME)/scripts
