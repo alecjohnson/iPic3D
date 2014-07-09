@@ -10,7 +10,7 @@ puts stderr "************************************************************"
 
 module-whatis "set environment for iPic3D"
 
-module load ipic
+module load ipic-base
 
 # use H5hut
 module load hdf5/1.8.12
