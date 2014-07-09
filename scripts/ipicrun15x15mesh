@@ -18,4 +18,4 @@
   : print the command to be executed ; \
   echo "+ mpiexec -n $(($1*$2)) ./iPic3D GEM.inp | tee out.${1}x${2}.txt" ; \
   : execute the command ; \
-  mpiexec -n $(($1*$2)) ./iPic3D GEM.inp | tee out.${1}x${2}.txt
+  $IPIC_MPIRUN -n $(($1*$2)) ./iPic3D GEM.inp | tee out.${1}x${2}.txt
