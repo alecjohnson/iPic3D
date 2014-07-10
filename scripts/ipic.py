@@ -234,7 +234,7 @@ def ipic_cmake(args):
     # make src a link to the code
     numargs = len(args)
     if numargs==0:
-      sourcedir = '..'
+      sourcedir = os.getenv('IPIC_HOME','..');
     else:
       sourcedir = deque.popleft(args)
 
