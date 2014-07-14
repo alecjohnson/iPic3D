@@ -19,6 +19,7 @@ setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -O3 -xHost -vec-report'"
 # definitions used to run ipic3d
 #
 setenv IPIC_MPIRUN mpiexec
+setenv IPIC_ENV judge
 
 # for documentation see 
 # http://www.fz-juelich.de/ias/jsc/EN/Expertise/Supercomputers/JUDGE/Userinfo/Quick_Introduction.html

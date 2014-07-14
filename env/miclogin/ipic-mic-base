@@ -36,6 +36,7 @@ setenv IPIC_MPIRUN /opt/intel/impi/4.1.2.040/intel64/bin/mpiexec.hydra
 set-alias "mpirun" $env(IPIC_MPIRUN)
 set-alias "mpiexec" $env(IPIC_MPIRUN)
 set-alias "mpiexec.hydra" $env(IPIC_MPIRUN)
+setenv IPIC_ENV miclogin
 
 ### stuff needed to run ###
 

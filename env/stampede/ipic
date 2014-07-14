@@ -43,5 +43,6 @@ set-alias isession {srun --pty -n 16 -t 01:00:00 -p development /bin/bash -l}
 # ibrun -np 16 ./iPic3D GEM.inp
 # ibrun -n 16 -o 0 ./iPic3D GEM.inp
 setenv IPIC_MPIRUN ibrun
+setenv IPIC_ENV stampede
 
 prepend-path PATH $env(IPIC_HOME)/scripts

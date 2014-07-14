@@ -25,6 +25,8 @@ setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -v
 #
 # use mpiexec, not mpiexec.hydra or mpirun
 setenv IPIC_MPIRUN mpiexec
+setenv IPIC_ENV deep
+#
 setenv PSP_MALLOC 0
 
 # usage: "isession 4 8" starts an interactive session on 4 nodes with 8 processors per node
