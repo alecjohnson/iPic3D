@@ -1,0 +1,53 @@
+#!/bin/bash
+  : Parallel mode needs data to be empty ; \
+  rm -rf data/* ; \
+  XLEN=$1 ; \
+  YLEN=$2 ; \
+  PPN=8
+  NUM_PROCS=$(($XLEN*$YLEN))
+  NUM_NODES=$((($NUM_PROCS-1)/$PPN+1))
+  : the third argument provides dt
+  if test ${3:-undef} == undef;
+  then
+    : calculate safe value of dt
+    if test $XLEN -gt $YLEN ; then MAX=$XLEN ; else MAX=$YLEN ; fi
+    if test $MAX -ge 4
+    then
+      dt_string=".5*4/$MAX"
+      dt=$(echo $dt_string|bc -l)
+    else
+      : longer time step than this causes problems
+      dt=.5
+    fi
+  else
+    dt=$3
+  fi
+  echo dt=$dt ; \
+  : edit GEM.inp with modified parameters ; \
+  sed " \
+    s/^dt *=.*/dt = $dt/ ; \
+    s/^XLEN *=.*/XLEN = $1/ ; \
+    s/^YLEN *=.*/YLEN = $2/ ; \
+    s/^nxc *=.*/nxc = $((15*$1))/ ; \
+    s/^nyc *=.*/nyc = $((15*$2))/ ;" src/inputfiles/GEM.inp > GEM.inp ; \
+
+  : create job script from template
+  sed " \
+    s#nodes=[0-9][0-9]*#nodes=$NUM_NODES# ;
+    s#ppn=[0-9][0-9]*#ppn=$PPN# ;
+    s#MSUB -e .*#MSUB -e $PWD/error.${XLEN}x${YLEN}txt# ;
+    s#MSUB -o .*#MSUB -e $PWD/output.${XLEN}x${YLEN}.txt# ;
+    s#XLEN=.*#XLEN=$XLEN#
+    s#YLEN=.*#YLEN=$YLEN#
+    s#NUM_PROCS=.*#NUM_PROCS=$NUM_PROCS#
+  " $IPIC_HOME/env/$IPIC_ENV/job.sh > job.sh
+  echo Use:
+  echo
+  echo   vim job.sh GEM.inp
+  echo
+  echo to check that job script and input files are correct and then do:
+  echo
+  echo   msub job.sh
+  # echo "+ mpiexec -n $(($1*$2)) ./iPic3D GEM.inp | tee out.${1}x${2}.txt" ; \
+  # : execute the command ; \
+  # mpiexec -n $(($1*$2)) ./iPic3D GEM.inp | tee out.${1}x${2}.txt
