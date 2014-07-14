@@ -1,0 +1,43 @@
+#%Module1.0
+
+proc ModulesHelp { } {
+global version
+
+puts stderr "***************************************************************"
+puts stderr " set environment to compile and run iPic3D without parallel IO "
+puts stderr "***************************************************************"
+}
+
+module-whatis "set environment for iPic3D"
+
+module load ipic-base
+
+# compiling
+#
+module load phdf5/1.8.9
+# this gives me problems...
+#setenv HDF5_ROOT $env(TACC_HDF5_DIR)
+# ...so I do this instead:
+setenv HDF5_ROOT /opt/apps/intel13/mvapich2_1_9/phdf5/1.8.9
+
+setenv H5HUT_DIR $env(HOME)/install
+# -DPARALLEL_IO must be used when compiling to correct for a bug in H5hut
+setenv IPIC_CMAKE_ARGS "-DHDF5_imf_LIBRARY_RELEASE=/opt/apps/intel/13/composer_xe_2013.2.146/compiler/lib/intel64 -DCMAKE_CXX_FLAGS='-openmp -O3 -xHost -vec-report -DPARALLEL_IO' -DIPIC_H5HUT_OUTPUT=ON -DCMAKE_PREFIX_PATH=/opt/apps/intel13/mvapich2_1_9/phdf5/1.8.9"
+
+# commands that I used to configure, compile, and install H5hut:
+#
+# ssh stampede
+# mkdir -p install
+# module load phdf5
+# tar xvf H5hut-1.99.12.tar.bz2
+# cd H5hut-1.99.12
+# ./configure \
+#   --enable-parallel \
+#   --enable-large-indices \
+#   --prefix=$HOME/install \
+#   --with-hdf5=/opt/apps/intel13/mvapich2_1_9/phdf5/1.8.9
+# make
+# make install
+
+# note that to get the /opt/apps/intel13/mvapich2_1_9/phdf5/1.8.9 directory
+# using "module show phdf5"
