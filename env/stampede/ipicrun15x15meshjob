@@ -1,0 +1,23 @@
+#!/bin/bash
+
+  . $IPIC_HOME/scripts/ipicrun15x15meshGEMinp
+
+  PPN=16
+  NUM_PROCS=$(($XLEN*$YLEN))
+  NUM_NODES=$((($NUM_PROCS-1)/$PPN+1))
+
+  : create job script from template
+  sed " \
+    s@#SBATCH -N .*@#SBATCH -N $NUM_NODES@ ;
+    s@#SBATCH -n .*@#SBATCH -n $NUM_PROCS@ ;
+    s#XLEN=.*#XLEN=$XLEN#
+    s#YLEN=.*#YLEN=$YLEN#
+    s#NUM_PROCS=.*#NUM_PROCS=$NUM_PROCS#
+  " $IPIC_HOME/env/stampede/job.sh > job.sh
+  echo Use:
+  echo
+  echo   vim job.sh GEM.inp
+  echo
+  echo to check that job script and input files are correct and then do:
+  echo
+  echo   sbatch job.sh
