@@ -3,12 +3,13 @@
 # see http://www.fz-juelich.de/ias/jsc/EN/Expertise/Supercomputers/JUDGE/Userinfo/Quick_Introduction.html
 # judge uses moab, so start job as: msub job.sh
 #MSUB -l nodes=64:ppn=8
-#MSUB -l walltime=00:10:00
-#MSUB -e /homec/deep/deep38/judge/work/error.txt
-#MSUB -o /homec/deep/deep38/judge/work/output.txt
+# using a walltime of at most 5 minutes is supposed to give higher priority
+#MSUB -l walltime=00:05:00
+##MSUB -e /homec/deep/deep38/judge/work/error.txt
+##MSUB -o /homec/deep/deep38/judge/work/output.txt
 #MSUB -N ipic3d
 # combine standard error and standard output
-##MSUB -j oe
+#MSUB -j oe
 #MSUB -M Alec.Johnson@wis.kuleuven.be
 # when to send mail: a=abort,b=beginning,e=end; default: -m a
 #MSUB -m abe
@@ -24,4 +25,5 @@ export YLEN=16
 NUM_PROCS=$(($XLEN*$YLEN))
 echo "running on $NUM_PROCS cpus ..."
 
+rm -rf data/*
 mpiexec -np $NUM_PROCS ./iPic3D GEM.inp | tee out.${XLEN}x${YLEN}.txt
