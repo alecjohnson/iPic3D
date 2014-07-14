@@ -3,10 +3,22 @@
   rm -rf data/* ; \
   XLEN=$1 ; \
   YLEN=$2 ; \
-  : calculate safe value of dt ; \
-  if test $XLEN -gt $YLEN ; then MAX=$XLEN ; else MAX=$YLEN ; fi ; \
-  dt_string=".5*4/$MAX" ; \
-  dt=$(echo $dt_string|bc -l) ; \
+  : the third argument provides dt
+  if test ${3:-undef} == undef;
+  then
+    : calculate safe value of dt
+    if test $XLEN -gt $YLEN ; then MAX=$XLEN ; else MAX=$YLEN ; fi
+    if test $MAX -ge 4
+    then
+      dt_string=".5*4/$MAX"
+      dt=$(echo $dt_string|bc -l)
+    else
+      : longer time step than this causes problems
+      dt=.5
+    fi
+  else
+    dt=$3
+  fi
   echo dt=$dt ; \
   : edit GEM.inp with modified parameters ; \
   sed " \
