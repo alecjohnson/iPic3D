@@ -76,14 +76,10 @@ Then we can build:
   mkdir build.para
   cd build.para
   ipic cmake
+
+And then we can run:
+
   # change WriteMethod from default to Parallel
   vim src/inputfiles/GEM.inp
   # run the simulation; rm data/* is needed at start of each new run
   rm data/*; ipic run
-
-And then we can run:
-
-  ipic cmake
-  make
-  ipic run
-  
