@@ -1,5 +1,20 @@
 #!/bin/bash
 
+ME=${0##*/}
+function usage()
+{
+  echo "
+    $ME: prepare to run ipic3d job for supplied parameters
+  
+    usage: $ME <XLEN> <YLEN>
+    
+      <XLEN>: number of processors in X direction
+      <YLEN>: number of processors in Y direction
+  "
+}
+
+if [ $# -lt 2 ]; then usage; exit 1; fi
+
   . $IPIC_HOME/scripts/ipicrun15x15meshGEMinp
 
   PPN=8

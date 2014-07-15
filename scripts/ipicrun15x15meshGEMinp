@@ -1,6 +1,19 @@
 #!/bin/bash
-: usage: picrun15x15meshGEMinp XLEN YLEN
-: prepare the directory to run ipic3d for XLEN*YLEN procs
+
+ME=${0##*/}
+function usage()
+{
+  echo "
+    $ME: prepare to run ipic3d for supplied parameters
+  
+    usage: $ME <XLEN> <YLEN>
+    
+      <XLEN>: number of processors in X direction
+      <YLEN>: number of processors in Y direction
+  "
+}
+
+if [ $# -lt 2 ]; then usage; exit 1; fi
 
   : Parallel mode needs data to be empty ; \
   rm -rf data/* ; \
