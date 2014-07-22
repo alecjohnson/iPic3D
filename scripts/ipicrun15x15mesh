@@ -1,32 +1,23 @@
 #!/bin/bash
-  : Parallel mode needs data to be empty ; \
-  rm -rf data/* ; \
-  XLEN=$1 ; \
-  YLEN=$2 ; \
-  : the third argument provides dt
-  if test ${3:-undef} == undef;
-  then
-    : calculate safe value of dt
-    if test $XLEN -gt $YLEN ; then MAX=$XLEN ; else MAX=$YLEN ; fi
-    if test $MAX -ge 4
-    then
-      dt_string=".5*4/$MAX"
-      dt=$(echo $dt_string|bc -l)
-    else
-      : longer time step than this causes problems
-      dt=.5
-    fi
-  else
-    dt=$3
-  fi
-  echo dt=$dt ; \
-  : edit GEM.inp with modified parameters ; \
-  sed " \
-    s/^dt *=.*/dt = $dt/ ; \
-    s/^XLEN *=.*/XLEN = $1/ ; \
-    s/^YLEN *=.*/YLEN = $2/ ; \
-    s/^nxc *=.*/nxc = $((15*$1))/ ; \
-    s/^nyc *=.*/nyc = $((15*$2))/ ;" src/inputfiles/GEM.inp > GEM.inp ; \
+
+echo $#
+
+ME=${0##*/}
+function usage()
+{
+  echo "
+    $ME: run ipic3d for supplied parameters
+  
+    usage: $ME <XLEN> <YLEN>
+    
+      <XLEN>: number of processors in X direction
+      <YLEN>: number of processors in Y direction
+  "
+}
+
+if [ $# -lt 2 ]; then usage; exit 1; fi
+
+  . ipicrun15x15meshGEMinp
   : print the command to be executed ; \
   echo "+ mpiexec -n $(($1*$2)) ./iPic3D GEM.inp | tee out.${1}x${2}.txt" ; \
   : execute the command ; \
