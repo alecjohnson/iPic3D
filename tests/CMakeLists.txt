@@ -10,6 +10,7 @@ add_executable(
   testspawn.cpp)
 target_link_libraries(
     testspawn
-    ${CMAKE_DL_LIBS}
+    ${MPI_LIBRARIES}
+    #${CMAKE_DL_LIBS}
 )
 
