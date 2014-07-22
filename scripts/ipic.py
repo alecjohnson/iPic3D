@@ -68,11 +68,10 @@ def construct_run_command(args,mpirun):
     output = 'data'
     inputfile = 'src/inputfiles/GEM.inp'
     hostname = ''
-    # these parameters should be read out of a configuration file
-    # that is populated when you run "ipic [-s system] cmake <src>"
-    global system
-    if system == 'xeon' or system == 'mic':
-      if system == 'xeon':
+    # these parameters should be determined by content of ipic module
+    ipic_env = os.getenv('IPIC_ENV','default');
+    if ipic_env == 'miclogin.xeon' or ipic_env == 'miclogin.mic':
+      if ipic_env == 'miclogin.xeon':
         mpirun = 'mpiexec.hydra' # is this line needed?
         # calculate number of threads per process
         # + could extract this stuff from /proc/cpuinfo
@@ -92,7 +91,7 @@ def construct_run_command(args,mpirun):
           num_threads_per_core *
           num_cores_per_processor *
           num_processors_per_node)
-      elif system == 'mic':
+      elif ipic_env == 'miclogin.mic':
         mpirun = 'mpiexec.hydra'
         # calculate number of threads per process
         # - could use ssh to extract this stuff from /proc/cpuinfo
@@ -100,15 +99,24 @@ def construct_run_command(args,mpirun):
         #   ssh $hostname grep -m 1 cores /proc/cpuinfo | awk '{print $4}'61
         num_nodes = 1
         num_processors_per_node = 1
-        num_cores_per_processor = 57 # 57 on knc2, 60 on knc1
+        hostname = socket.gethostname()
+        num_cores_per_processor = 60
+        if hostname=='knc1':
+          num_cores_per_processor = 61
+          # 0,1,2,3 all exist
+          micnum = 3
+        elif hostname=='knc2':
+          num_cores_per_processor = 57
+          micnum = 0
+        else:
+          print 'hostname', hostname, 'not supported'
+          sys.exit(-1)
         num_threads_per_core = 4
         num_threads_per_node = (
           num_threads_per_core *
           num_cores_per_processor *
           num_processors_per_node)
         #
-        hostname = socket.gethostname()
-        micnum = 0
         hostname = hostname + '-mic' + str(micnum)
 
     # now that the default mpirun has been determined,
@@ -117,8 +125,8 @@ def construct_run_command(args,mpirun):
 
     num_threads_is_given_by_user = 0
     try:
-      opts, args = getopt.getopt(args, 'i:o:s:t:h:', \
-        ['input=', 'output=', 'system=', 'threads=', 'host='])
+      opts, args = getopt.getopt(args, 'i:o:t:h:', \
+        ['input=', 'output=', 'threads=', 'host='])
     except getopt.GetoptError, e:
       if e.opt == 'h' and 'requires argument' in e.msg:
         print 'ERROR: -h requires input filename'
@@ -128,8 +136,6 @@ def construct_run_command(args,mpirun):
         print 'ERROR: -o requires directory name'
       elif e.opt == 't' and 'requires argument' in e.msg:
         print 'ERROR: -t requires max number of threads'
-      elif e.opt == 's' and 'requires argument' in e.msg:
-        print 'ERROR: -s requires system name (e.g. "mic" or "xeon")'
       else:
         usage_error()
 
@@ -145,8 +151,6 @@ def construct_run_command(args,mpirun):
         elif o in ("-t", "--threads"):
           num_threads_is_given_by_user = 1
           num_max_threads = int(a)
-        elif o in ("-s", "--system"):
-          system = a
         #else:
         #  assert False, "unhandled option"
 
@@ -184,6 +188,9 @@ def construct_run_command(args,mpirun):
     return command
 
 def ipic_run(args):
+    # clear the data directory
+    # (currently by H5hut, i.e. when setting WriteMethod=Parallel)
+    issue_shell_command('rm -rf data/*')
     command = construct_run_command(args,'mpirun');
     issue_command(command)
 
@@ -202,7 +209,6 @@ def ipic_make_data():
 
 #def get_cmake_options(args):
 #
-#    global system
 #    parhdf5 = 0
 #
 #    try:
@@ -264,6 +270,14 @@ def ipic_cmake(args):
     # by spawning a subshell we allow the content of
     # IPIC_CMAKE_ARGS to be interpreted by shell
     issue_shell_command(' '.join(cmake_command))
+
+def ipic_make(args):
+
+    # invoke make 
+    make_command = ['make', 'VERBOSE=1'];
+    make_command.extend(args)
+    #issue_shell_command(' '.join(make_command))
+    issue_command(make_command)
 
 def ipic_ctags(args):
     # create tags file using ctags
@@ -390,7 +404,6 @@ def ipic_help_cmake(args):
   ''', progname, '''[-s mic] cmake [sourcedir]
 
      [sourcedir]: the source code directory; by default ".."
-     [-s mic]: cross-compile for the mic system
   '''
 
 def ipic_help_ctags(args):
@@ -525,9 +538,6 @@ def usage_error():
 
 def ipic_command(argv1):
 
-    global system
-    system = 'general'
-
     # it might be better to use the argparse module rather than getopt,
     # but unfortunately argparse is only available beginning with python 2.7
     # and most HPC platforms seem to have python 2.6 installed.
@@ -536,18 +546,13 @@ def ipic_command(argv1):
     # before giving up on backward compatibility.
     #
     try:
-      opts, args = getopt.getopt(argv1, 'hs:', ['help', 'system='])
+      opts, args = getopt.getopt(argv1, 'h', ['help'])
     except getopt.GetoptError, e:
-      if e.opt == 's' and 'requires argument' in e.msg:
-        print 'ERROR: -s requires system name (e.g. "mic" or "xeon")'
-      else:
-        usage_error()
+      usage_error()
 
     for o, a in opts:
         if o in ("-h", "--help"):
           usage_error()
-        elif o in ("-s", "--system"):
-          system = a
         #else:
         #  assert False, "unhandled option"
 
@@ -566,6 +571,8 @@ def ipic_command(argv1):
         ipic_ctags(args)
     elif command == "cmake":
         ipic_cmake(args)
+    elif command == "make":
+        ipic_make(args)
     elif command == "run":
         ipic_run(args)
     elif command == "exec":
