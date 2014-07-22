@@ -9,6 +9,19 @@
 //#include <ext/stdio_filebuf.h>
 using namespace std;
 
+// to run this program on deep:
+//
+//   module use $IPIC_HOME/env/deep
+//   module load ipic-offload
+//
+//   cd $IPIC_HOME/tests
+//   mkdir build; cd build
+//   cmake ..
+//   make
+//   isession
+//   mpiexec -np 2 -u 4 ./testspawn
+//
+
 //int MPIrank;
 //int MPInumprocs;
 
@@ -49,8 +62,9 @@ int barrier_ret_1()
 //ofstream outfile;
 //#define dout outfile;
 
-void test_spawn()
+void test_spawn(char**argv)
 {
+  const int nprocs = 2;
   // define communicator
   MPI_Comm comm;
   const int reorder = 1;
@@ -108,6 +122,31 @@ void test_spawn()
     criticalout dprint(recvbuff);
   }
 
+  // spawn more processes
+  if(1)
+  {
+    MPI_Comm intercomm;
+    MPI_Comm_get_parent(&intercomm);
+    const bool was_spawned =  (MPI_COMM_NULL == intercomm) ? false : true;
+    if(!was_spawned)
+    {
+      dprintf("hey, let's make some babies!");
+      MPI_Comm_spawn(
+        "./testspawn",
+        &argv[1],
+        nprocs,
+        MPI_INFO_NULL,
+        0,
+        MPI_COMM_WORLD,
+        &intercomm,
+        MPI_ERRCODES_IGNORE);
+    }
+    else
+    {
+      dprintf("waaaaa!");
+    }
+  }
+
   // probably MPI_Finalize takes care of this anyway...
   MPI_Comm_free(&comm);
 }
@@ -119,7 +158,7 @@ int main(int argc, char **argv)
   //MPI_Comm_rank(MPI_COMM_WORLD, &MPIrank);
   //MPI_Comm_size(MPI_COMM_WORLD, &MPInumprocs);
 
-  test_spawn();
+  test_spawn(argv);
 
   MPIdata::finalize_mpi();
   //MPI_Finalize();
