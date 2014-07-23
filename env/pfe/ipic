@@ -26,7 +26,7 @@ setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -v
 
 # definitions used by "ipic run"
 #
-setenv IPIC_MPIRUN mpiexec
+setenv IPIC_MPIRUN mpirun
 setenv IPIC_ENV pfe
 
 set-alias isession {qsub -I -l select=${1:-1}:ncpus=${2:-16},walltime=0:30:00}
