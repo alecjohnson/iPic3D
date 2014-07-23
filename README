@@ -24,11 +24,11 @@ To install and run iPic3D, you need to do the following:
   # modules so that others can benefit from your work!
   #
   # if you do not have the module command (e.g. if you are
-  # running on your own laptop) you need to define some
+  # running on your own laptop) then you need to define some
   # environment variables by hand, e.g.:
   #
-  # on a system with modules this would be revealed
-  # with module show hdf5-par
+  # on a system with modules the appropriate directory
+  # would be revealed with e.g. "module show hdf5-par":
   export HDF5_ROOT="/usr/local/hdf5-par"
   # give access to the ipic script
   export PATH=$IPIC_HOME/scripts:$PATH

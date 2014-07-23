@@ -304,14 +304,17 @@ def ipic_basic_help():
   If you prefer, use e.g. "ipic show run" to see the shell commands
   that will be executed and then execute them directly yourself.
   
-  Available subcommands:
+  Minor subcommands:
 
-    ''', progname, '''help show    # show what a command would do
-    ''', progname, '''help run     # execute iPic3D
-    ''', progname, '''help cmake   # execute cmake and create subdirectories
     ''', progname, '''help ctags   # create ctags file to navigate code
     ''', progname, '''help mic     # help for running on mic
     ''', progname, '''help deep    # help for running on deep
+
+  Major subcommands:
+
+    ''', progname, '''help show    # show what a command would do
+    ''', progname, '''help cmake   # execute cmake and create subdirectories
+    ''', progname, '''help run     # execute iPic3D
   '''
 
 def ipic_help_show(args):
@@ -324,7 +327,7 @@ def ipic_help_show(args):
 
 def ipic_help_run(args):
     print '''
- ''', progname, '''[-s <mic|xeon>] run [options]
+ ''', progname, '''run [options]
 
     run iPic3D with appropriate arguments.
 
@@ -375,8 +378,6 @@ def ipic_help_mic(args):
     rm -rf build.mic; mkdir build.mic; cd build.mic
     ipic cmake $IPIC_HOME
     make -j VERBOSE=1
-    # The -s mic flag should eventually be eliminated...
-    ipic -s mic run
 
   To show what a command will do, use e.g.:
 
@@ -389,21 +390,31 @@ def ipic_help_mic(args):
 
 def ipic_help_deep(args):
     print '''
-  DEEP needs the following modules:
+  # put the following lines in your ~/.bashrc:
+  #
+  export IPIC_HOME=$HOME/ipic3d
+  module use $IPIC_HOME/sysenv/deep
 
-    module load hdf5/1.8.10-patch1
-    module load knc/intel_mpi/4.1.0.030
-    module load knc/mic
+  # load the ipic module
+  module load ipic
 
-  For instructions on how to build and run, see
-    ''', progname, '''help mic
+  # compile and run
+  #
+  mkdir build; cd build
+  ipic cmake
+  ipic make
+  ipic run
+
+  # If you want to use parallel I/O,
+  # look at the notes in $IPIC_HOME/README
+  # and $IPIC_HOME/env/deep/ipic-parallel
     '''
 
 def ipic_help_cmake(args):
     print '''
-  ''', progname, '''[-s mic] cmake [sourcedir]
+  ''', progname, '''cmake [sourcedir]
 
-     [sourcedir]: the source code directory; by default ".."
+     [sourcedir]: the source code directory; by default ${IPIC_HOME:-..}
   '''
 
 def ipic_help_ctags(args):
@@ -412,6 +423,12 @@ def ipic_help_ctags(args):
   and then run
 
     ''', progname, '''ctags
+
+  This will generate, display, and execute a ctags command
+  that creates a file named "tags", usable by the vim editor:
+
+    vim -t main # open editor at definition of main
+    vim -c "help tag" # get help on using tag files.
     '''
 
 def ipic_help_git(args):
