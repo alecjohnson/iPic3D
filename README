@@ -51,8 +51,9 @@ To install and run iPic3D, you need to do the following:
 If you want to use the new output format, you need to obtain
 the H5hut code from Jorge Amaya.  To compile and install it:
 
-  # unfortunately H5hut does not work for version 1.8.13 or higher,
-  # so do e.g.:
+  # Unfortunately H5hut 1.99.12 does not work for HDF5 version
+  # 1.8.13 or higher, because the HDF5 committee removed an
+  # MPI-POSIX driver that they thought no one was using; so do e.g.:
   module load hdf5/1.8.12
   # define HDF5_ROOT (see above)
   # install in home directory
