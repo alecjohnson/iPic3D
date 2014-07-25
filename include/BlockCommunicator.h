@@ -86,7 +86,7 @@ class Connection
   int rank()const{return _rank;}
   int tag()const{return _tag;}
   MPI_Comm comm()const{return _comm;}
-  static char* tag_name(int tag)
+  static const char* tag_name(int tag)
   {
     switch(tag)
     {
