@@ -17,7 +17,7 @@ if [ $# -lt 2 ]; then usage; exit 1; fi
 
   . $IPIC_HOME/scripts/ipicrun15x15meshinp
 
-  PPN=8
+  PPN=16
   NUM_PROCS=$(($XLEN*$YLEN))
   NUM_NODES=$((($NUM_PROCS-1)/$PPN+1))
 
@@ -25,12 +25,12 @@ if [ $# -lt 2 ]; then usage; exit 1; fi
   sed " \
     s@nodes=[0-9][0-9]*@nodes=$NUM_NODES@ ;
     s@ppn=[0-9][0-9]*@ppn=$PPN@ ;
-    s@MSUB -e .*@MSUB -e $PWD/error.${XLEN}x${YLEN}txt@ ;
-    s@MSUB -o .*@MSUB -e $PWD/output.${XLEN}x${YLEN}.txt@ ;
+    s@PBS -e .*@PBS -e $PWD/error.${XLEN}x${YLEN}txt@ ;
+    s@PBS -o .*@PBS -e $PWD/output.${XLEN}x${YLEN}.txt@ ;
     s@XLEN=.*@XLEN=$XLEN@
     s@YLEN=.*@YLEN=$YLEN@
     s@NUM_PROCS=.*@NUM_PROCS=$NUM_PROCS@
-  " $IPIC_HOME/env/judge/job.sh > job.sh
+  " $IPIC_HOME/env/deep/job.sh > job.sh
 echo "
 Use:
 
