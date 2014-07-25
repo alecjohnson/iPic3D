@@ -208,10 +208,13 @@ void Particles3D::maxwellian(Field * EMf)
   }
   //dprintf("capacity=%d, size=%d", _pcls.capacity(), getNOP());
   }
-  dprintf("number of particles of species %d: %d", ns, getNOP());
-  const int num_ids = 1;
-  longid id_list[num_ids] = {0};
-  print_pcls(_pcls,ns,id_list, num_ids);
+  if(0)
+  {
+    dprintf("number of particles of species %d: %d", ns, getNOP());
+    const int num_ids = 1;
+    longid id_list[num_ids] = {0};
+    print_pcls(_pcls,ns,id_list, num_ids);
+  }
 }
 
 /** Force Free initialization (JxB=0) for particles */
