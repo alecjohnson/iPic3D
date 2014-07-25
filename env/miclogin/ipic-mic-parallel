@@ -11,7 +11,7 @@ proc ModulesHelp { } {
 ## Create a whatis file.  Not necessary but cool.
 module-whatis   "set environment to run iPic3D on MIC"
 
-module load ipic-mic-base2
+module load ipic-mic-base
 
 setenv H5HUT_DIR $env(HOME)/install-mic
 setenv HDF5_ROOT "/opt/hdf5/1.8.10-patch1-mic-parallel"
