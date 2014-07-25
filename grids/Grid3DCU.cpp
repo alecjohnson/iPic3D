@@ -177,9 +177,9 @@ void Grid3DCU::print(VirtualTopology3D * ptVCT) {
     nyc - 2,
     nzc - 2);
   printf(
-    "Xin = %d; Xfin = %d\n"
-    "Yin = %d; Yfin = %d\n"
-    "Zin = %d; Zfin = %d\n\n",
+    "Xin = %g; Xfin = %g\n"
+    "Yin = %g; Yfin = %g\n"
+    "Zin = %g; Zfin = %g\n\n",
     node_xcoord[1], node_xcoord[nxn - 2],
     node_ycoord[1], node_ycoord[nyn - 2],
     node_zcoord[1], node_zcoord[nzn - 2]);
