@@ -35,8 +35,8 @@ def getdims(inputfile):
                 dims[1] = int(val)
             elif var == 'ZLEN':
                 dims[2] = int(val)
-    return dims
     f.close()
+    return dims
 
 def lineno():
     """Returns the current line number in our program."""
@@ -66,7 +66,7 @@ def construct_run_command(args,mpirun):
     num_max_threads = 1
     num_threads_per_node = 1
     output = 'data'
-    inputfile = 'src/inputfiles/GEM.inp'
+    inputfile = 'GEM.inp'
     hostname = ''
     # these parameters should be determined by content of ipic module
     ipic_env = os.getenv('IPIC_ENV','default');
@@ -195,6 +195,7 @@ def ipic_run(args):
     issue_command(command)
 
 def ipic_exec(args):
+    issue_shell_command('rm -rf data/*')
     command = construct_run_command(args,'mpiexec');
     issue_command(command)
 
@@ -207,32 +208,38 @@ def ipic_make_data():
     create_data_command = '''mkdir -p data''';
     issue_shell_command(create_data_command)
 
-#def get_cmake_options(args):
-#
-#    parhdf5 = 0
-#
-#    try:
-#      # args is what is left over after extracting the options
-#      opts, args = getopt.getopt(list(args), 'ps:', ['parhdf5', 'system='])
-#    except getopt.GetoptError, e:
-#      if e.opt == 's' and 'requires argument' in e.msg:
-#        print 'ERROR: -s requires system name (e.g. "mic" or "xeon")'
-#      else:
-#        usage_error()
-#        sys.exit(-1)
-#
-#    for o, a in opts:
-#        if o in ("-p", "--parhdf5"):
-#          parhdf5=1
-#        elif o in ("-s", "--system"):
-#          system = a
-#        else:
-#          assert False, "unhandled option"
-#
-#    args = deque(args)
-#    return system, parhdf5, args
+def get_inputfile(args):
+    # convert from deque to list for getopts
+    args = list(args)
+    # set default inputfile
+    inputfile = 'src/inputfiles/GEM.inp'
+    try:
+      opts, args = getopt.getopt(args, 'i:', ['input='])
+    except getopt.GetoptError, e:
+      if e.opt == 'i' and 'requires argument' in e.msg:
+        print 'ERROR: -i requires input filename'
+      else:
+        usage_error()
+    #
+    for o, a in opts:
+        if o in ("-i", "--input"):
+          inputfile = a
+        #else:
+        #  assert False, "unhandled option"
+    #
+    if len(args)!=0:
+      usage_error()
+    return inputfile, args
+
+def copy_inp(inputfile):
+    # copy input file to current directory
+    command = ['cp', inputfile, '.']
+    issue_command(command)
 
 def ipic_cmake(args):
+
+    # get the input file
+    inputfile, args = get_inputfile(args)
 
     # extract the values of any options from args
     #system, parhdf5, args = get_cmake_options(args)
@@ -249,6 +256,9 @@ def ipic_cmake(args):
       issue_command(rm_command);
       ln_command = ['ln', '-s', str(sourcedir), 'src'];
       issue_command(ln_command)
+
+    # copy the input file into the local directory
+    copy_inp(inputfile)
 
     ipic_make_data();
 
