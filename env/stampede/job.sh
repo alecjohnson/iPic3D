@@ -39,4 +39,4 @@ NUM_PROCS=$(($XLEN*$YLEN))
 echo "running on $NUM_PROCS cpus ..."
 
 # use ibrun for MPI codes, not mpirun or srun
-ibrun -np $NUM_PROCS ./iPic3D GEM.inp | tee out.${XLEN}x${YLEN}.txt
+ibrun -np $NUM_PROCS ./iPic3D data/parameters.inp | tee out.${XLEN}x${YLEN}.txt
