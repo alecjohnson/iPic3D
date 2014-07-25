@@ -35,3 +35,4 @@ set-alias isession {qsub -I -X -l nodes=${1:-1}:ppn=${2:-16},walltime=0:30:00}
 
 # maybe put this in module named ipic-common
 prepend-path PATH $env(IPIC_HOME)/scripts
+prepend-path PATH $env(IPIC_HOME)/env/deep
