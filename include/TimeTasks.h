@@ -84,6 +84,12 @@ class TimeTasks
 
   // reporting
   //
+ private:
+  void print_cycle_times(int cycle, double*, double*, const char*);
+  void print_cycle_times_min(int cycle);
+  void print_cycle_times_max(int cycle);
+  void print_cycle_times_avg(int cycle);
+ public:
   void print_cycle_times(int cycle);
 
  private:
@@ -93,15 +99,15 @@ class TimeTasks
 
   // reporting
   //
-  double get_time(int arg) {
-    return task_duration[arg];
-  }
-  double get_communicate(int arg) {
-    return communicate[arg];
-  }
-  double get_compute(int arg) {
-    return get_time(arg) - get_communicate(arg);
-  }
+  //double get_time(int arg) {
+  //  return task_duration[arg];
+  //}
+  //double get_communicate(int arg) {
+  //  return communicate[arg];
+  //}
+  //double get_compute(int arg) {
+  //  return get_time(arg) - get_communicate(arg);
+  //}
   const char* get_taskname(int arg);
 
  private:

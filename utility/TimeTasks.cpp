@@ -6,6 +6,7 @@
 #include "MPIdata.h" // for get_rank
 #include "parallel.h"
 #include "debug.h"
+#include "Collective.h"
 
 /** implementation of declarations in utility/TimeTasks.h **/
 
@@ -52,7 +53,7 @@ void TimeTasks::resetCycle()
 }
 void TimeTasks::start_main_task(TimeTasks::Tasks taskid)
 {
-  if(!is_output_thread()) return;
+  assert(!omp_get_thread_num()); //if(omp_get_thread_num()) return;
   assert(is_exclusive(taskid));
   assert_ne(active_task, taskid);
   active_task = taskid;
@@ -61,7 +62,7 @@ void TimeTasks::start_main_task(TimeTasks::Tasks taskid)
 }
 void TimeTasks::start_task(TimeTasks::Tasks taskid)
 {
-  if(!is_output_thread()) return;
+  assert(!omp_get_thread_num()); //if(omp_get_thread_num()) return;
   assert(!is_exclusive(taskid));
   assert(!active[taskid]);
   active[taskid]=true;
@@ -69,7 +70,7 @@ void TimeTasks::start_task(TimeTasks::Tasks taskid)
 // have to manage the task stack explicitly
 void TimeTasks::start_task(TimeTasks::Tasks taskid, double start_time)
 {
-  if(!is_output_thread()) return;
+  assert(!omp_get_thread_num()); //if(omp_get_thread_num()) return;
   if(stack_depth[taskid]==0)
   {
     start_times[taskid]=start_time;
@@ -79,13 +80,13 @@ void TimeTasks::start_task(TimeTasks::Tasks taskid, double start_time)
 }
 void TimeTasks::end_main_task(TimeTasks::Tasks taskid, double start_time)
 {
-  if(!is_output_thread()) return;
+  assert(!omp_get_thread_num()); //if(omp_get_thread_num()) return;
   end_task(taskid, start_time);
   active_task = NONE;
 }
 void TimeTasks::end_task(TimeTasks::Tasks taskid, double start_time)
 {
-  if(!is_output_thread()) return;
+  assert(!omp_get_thread_num()); //if(omp_get_thread_num()) return;
   assert(active[taskid]);
   double now = MPI_Wtime();
   // compute time spent on task
@@ -95,7 +96,7 @@ void TimeTasks::end_task(TimeTasks::Tasks taskid, double start_time)
 // have to manage the task stack explicitly
 void TimeTasks::end_task(TimeTasks::Tasks taskid)
 {
-  if(!is_output_thread()) return;
+  assert(!omp_get_thread_num()); //if(omp_get_thread_num()) return;
   stack_depth[taskid]--;
   assert_ge(stack_depth[taskid],0);
   if(stack_depth[taskid]==0)
@@ -105,17 +106,23 @@ void TimeTasks::end_task(TimeTasks::Tasks taskid)
 }
 void TimeTasks::end_communicating(double start_time)
 {
-  if(!is_output_thread()) return;
+  assert(!omp_get_thread_num()); //if(omp_get_thread_num()) return;
   assert(active_task);
   assert(communicating);
   double additional_communication_time = MPI_Wtime()-start_time;
   communicate[active_task] += additional_communication_time;
   communicating=false;
 }
-#define TIMING_PREFIX "| "
-void TimeTasks::print_cycle_times(int cycle)
+
+void TimeTasks::print_cycle_times(int cycle,
+  double* reported_task_duration,
+  double* reported_communicate,
+  const char* timing_prefix)
 {
-  if(!is_output_thread()) return;
+
+  // restrict output to master process
+  //
+  if(MPIdata::get_rank()) return;
   FILE* file = stdout;
   // we could report average for all processes
   //if(!MPIdata::get_rank())
@@ -124,13 +131,14 @@ void TimeTasks::print_cycle_times(int cycle)
     fprintf(file,"=== times for cycle %d for rank %d === \n",
       cycle,
       MPIdata::get_rank());
-    fprintf(file, TIMING_PREFIX "total  comput commun task\n");
+    fprintf(file, "%stotal  comput commun task\n", timing_prefix);
     for(int e=NONE+1; e<LAST; e++)
     {
-      fprintf(file, TIMING_PREFIX "%6.3f %6.3f %6.3f %s\n",
-      get_time(e),
-      get_compute(e),
-      communicate[e],
+      fprintf(file, "%s%6.3f %6.3f %6.3f %s\n",
+      timing_prefix,
+      reported_task_duration[e], //get_time(e),
+      reported_task_duration[e]-reported_communicate[e], //get_compute(e),
+      reported_communicate[e], //communicate[e],
       get_taskname(e));
     }
 
@@ -149,28 +157,105 @@ void TimeTasks::print_cycle_times(int cycle)
       total_communicate += communicate[i];
     }
     const double total_computing_time = total_task_duration - total_communicate;
-    fprintf(file, TIMING_PREFIX "%6.3f %6.3f %6.3f %s\n",
+    fprintf(file, "%s%6.3f %6.3f %6.3f %s\n",
+      timing_prefix,
       total_task_duration,
       total_computing_time,
       total_communicate,
       "[total times]");
 
-    fprintf(file, TIMING_PREFIX "time   subtask\n");
+    fprintf(file, "%stime   subtask\n", timing_prefix);
     for(int e=LAST+1; e<NUMBER_OF_TASKS; e++)
     {
       // do not show tasks that are not executed
-      double elapsed_time = get_time(e);
+      double elapsed_time = reported_task_duration[e];
       if(!elapsed_time)
         continue;
 
       assert_eq(stack_depth[e],0);
-      fprintf(file, TIMING_PREFIX "%6.3f %s\n",
+      fprintf(file, "%s%6.3f %s\n",
+      timing_prefix,
       elapsed_time,
       get_taskname(e));
     }
     
     fflush(file);
   }
+}
+
+void TimeTasks::print_cycle_times_min(int cycle)
+{
+  // assume that only main thread is active
+  assert(!omp_get_thread_num());
+  // perform all-reduce to get max times for all processes
+  double reported_task_duration[NUMBER_OF_TASKS];
+  double reported_communicate[NUMBER_OF_TASKS];
+  {
+    MPI_Allreduce(task_duration,reported_task_duration,
+      NUMBER_OF_TASKS,MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
+    MPI_Allreduce(communicate,reported_communicate,
+      NUMBER_OF_TASKS,MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
+  }
+  print_cycle_times(cycle, reported_task_duration, reported_communicate, "min_| ");
+}
+
+void TimeTasks::print_cycle_times_max(int cycle)
+{
+  // assume that only main thread is active
+  assert(!omp_get_thread_num());
+  // perform all-reduce to get max times for all processes
+  double reported_task_duration[NUMBER_OF_TASKS];
+  double reported_communicate[NUMBER_OF_TASKS];
+  {
+    MPI_Allreduce(task_duration,reported_task_duration,
+      NUMBER_OF_TASKS,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+    MPI_Allreduce(communicate,reported_communicate,
+      NUMBER_OF_TASKS,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+  }
+  print_cycle_times(cycle, reported_task_duration, reported_communicate, "max_| ");
+}
+
+void TimeTasks::print_cycle_times_avg(int cycle)
+{
+  // assume that only main thread is active
+  assert(!omp_get_thread_num());
+  // perform all-reduce to average times for all processes
+  double reported_task_duration[NUMBER_OF_TASKS];
+  double reported_communicate[NUMBER_OF_TASKS];
+  {
+    double total_task_duration[NUMBER_OF_TASKS];
+    double total_communicate[NUMBER_OF_TASKS];
+    MPI_Allreduce(task_duration,total_task_duration,
+      NUMBER_OF_TASKS,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+    MPI_Allreduce(communicate,total_communicate,
+      NUMBER_OF_TASKS,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+    // compute averages.
+    const int nprocs = MPIdata::get_nprocs();
+    for(int i=0;i<NUMBER_OF_TASKS;i++)
+    {
+      reported_task_duration[i] = total_task_duration[i]/nprocs;
+      reported_communicate[i] = total_communicate[i]/nprocs;
+    }
+  }
+  print_cycle_times(cycle, reported_task_duration, reported_communicate, "avg_| ");
+}
+
+void TimeTasks::print_cycle_times(int cycle)
+{
+  assert(!omp_get_thread_num());
+
+  if(!MPIdata::get_rank())
+    printf("=== cycle times (main process) ===");
+  print_cycle_times(cycle, task_duration, communicate, "main| ");
+  if(!MPIdata::get_rank())
+    printf("=== cycle times (maximum over all processes) ===");
+  print_cycle_times_max(cycle);
+  if(!MPIdata::get_rank())
+    printf("=== cycle times (averaged over all processes) ===");
+  print_cycle_times_avg(cycle);
+  if(!MPIdata::get_rank())
+    printf("=== cycle times (minimum over all processes) ===");
+  print_cycle_times_min(cycle);
 }
 
 // The following three methods provide for a hack by which
@@ -219,25 +304,37 @@ TimeTasks_caller_to_set_main_task_for_scope::
 TimeTasks_caller_to_set_main_task_for_scope(TimeTasks::Tasks _task) :
   task(_task)
 {
-  if(!is_output_thread()) return;
+  //if(omp_get_thread_num()) return;
+  // assume that only one thread is active
+  assert(!omp_get_thread_num());
+  // Since we only report the time for the main process and
+  // main thread, we synchronize when measuring times.  A
+  // better solution would be to average the times for all
+  // processes and threads.
+  //MPI_Barrier(MPI_COMM_WORLD);
   start_time = MPI_Wtime();
   timeTasks.start_main_task(task);
 }
 TimeTasks_caller_to_set_main_task_for_scope::
 ~TimeTasks_caller_to_set_main_task_for_scope()
 {
-  if(!is_output_thread()) return;
+  //if(omp_get_thread_num()) return;
+  // assume that only one thread is active
+  assert(!omp_get_thread_num());
+
+  //MPI_Barrier(MPI_COMM_WORLD);
   timeTasks.end_main_task(task, start_time);
 }
 
 TimeTasks_caller_to_set_task_for_scope::
 TimeTasks_caller_to_set_task_for_scope(TimeTasks::Tasks _task)
 {
-  if(!is_output_thread()) return;
+  assert(!omp_get_thread_num()); // if(omp_get_thread_num()) return;
   task = _task;
   already_active = timeTasks.is_active(task);
   if(!already_active)
   {
+    //#pragma omp barrier
     start_time = MPI_Wtime();
     timeTasks.start_task(task);
   }
@@ -245,13 +342,14 @@ TimeTasks_caller_to_set_task_for_scope(TimeTasks::Tasks _task)
 TimeTasks_caller_to_set_task_for_scope::
 ~TimeTasks_caller_to_set_task_for_scope()
 {
-  if(!is_output_thread()) return;
+  assert(!omp_get_thread_num()); // if(omp_get_thread_num()) return;
   if(already_active)
   {
     assert(timeTasks.is_active(task));
   }
   else
   {
+    //#pragma omp barrier
     timeTasks.end_task(task, start_time);
   }
 }
@@ -259,7 +357,7 @@ TimeTasks_caller_to_set_task_for_scope::
 TimeTasks_caller_to_set_communication_mode_for_scope::
 TimeTasks_caller_to_set_communication_mode_for_scope()
 {
-  if(!is_output_thread()) return;
+  assert(!omp_get_thread_num()); // if(omp_get_thread_num()) return;
   already_communicating = timeTasks.get_communicating();
   if(!already_communicating)
   {
@@ -270,7 +368,7 @@ TimeTasks_caller_to_set_communication_mode_for_scope()
 TimeTasks_caller_to_set_communication_mode_for_scope::
 ~TimeTasks_caller_to_set_communication_mode_for_scope()
 {
-  if(!is_output_thread()) return;
+  assert(!omp_get_thread_num()); // if(omp_get_thread_num()) return;
   if(!already_communicating)
   {
     timeTasks.end_communicating(start_time);
