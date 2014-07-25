@@ -23,5 +23,4 @@ export YLEN=16
 NUM_PROCS=$(($XLEN*$YLEN))
 echo "running on $NUM_PROCS cpus ..."
 
-rm -rf data/*
 mpiexec -np $NUM_PROCS ./iPic3D data/parameters.inp | tee out.${XLEN}x${YLEN}.txt
