@@ -15,7 +15,7 @@ function usage()
 
 if [ $# -lt 2 ]; then usage; exit 1; fi
 
-  . $IPIC_HOME/scripts/ipicrun15x15meshGEMinp
+  . $IPIC_HOME/scripts/ipicrun15x15meshinp
 
   PPN=16
   NUM_PROCS=$(($XLEN*$YLEN))
@@ -29,10 +29,12 @@ if [ $# -lt 2 ]; then usage; exit 1; fi
     s#YLEN=.*#YLEN=$YLEN#
     s#NUM_PROCS=.*#NUM_PROCS=$NUM_PROCS#
   " $IPIC_HOME/env/stampede/job.sh > job.sh
-  echo Use:
-  echo
-  echo   vim job.sh GEM.inp
-  echo
-  echo to check that job script and input files are correct and then do:
-  echo
-  echo   sbatch job.sh
+echo "
+Use:
+
+   vim job.sh data/parameters.inp
+
+ to check that job script and input files are correct and then do:
+
+   sbatch job.sh
+"

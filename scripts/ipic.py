@@ -65,8 +65,8 @@ def construct_run_command(args,mpirun):
     num_nodes = 1
     num_max_threads = 1
     num_threads_per_node = 1
-    output = 'data'
-    inputfile = 'GEM.inp'
+    outputdir = 'data'
+    inputfile = 'parameters.inp'
     hostname = ''
     # these parameters should be determined by content of ipic module
     ipic_env = os.getenv('IPIC_ENV','default');
@@ -126,7 +126,7 @@ def construct_run_command(args,mpirun):
     num_threads_is_given_by_user = 0
     try:
       opts, args = getopt.getopt(args, 'i:o:t:h:', \
-        ['input=', 'output=', 'threads=', 'host='])
+        ['input=', 'outputdir=', 'threads=', 'host='])
     except getopt.GetoptError, e:
       if e.opt == 'h' and 'requires argument' in e.msg:
         print 'ERROR: -h requires input filename'
@@ -144,8 +144,8 @@ def construct_run_command(args,mpirun):
           hostname = a
         elif o in ("-i", "--input"):
           inputfile = a
-        elif o in ("-o", "--output"):
-          output = a
+        elif o in ("-o", "--outputdir"):
+          outputdir = a
           print 'ERROR: -o is not yet supported'
           sys.exit(1)
         elif o in ("-t", "--threads"):
@@ -170,7 +170,7 @@ def construct_run_command(args,mpirun):
       # rounding down is the correct behavior
       num_max_threads = int(num_threads_per_proc)
 
-    arguments = ['./iPic3D', inputfile];
+    arguments = ['./iPic3D', outputdir+"/parameters.inp"];
     options = ['-np', str(num_procs)]
     if hostname!="":
         options.extend(['-host', hostname])
@@ -185,23 +185,16 @@ def construct_run_command(args,mpirun):
     command.extend(arguments)
     # add any additional arguments given by user
     #command.extend(args)
-    return command
+    return outputdir, inputfile, command
 
-def ipic_run(args):
+def ipic_run(args,mpirun):
     # clear the data directory
     # (currently by H5hut, i.e. when setting WriteMethod=Parallel)
-    issue_shell_command('rm -rf data/*')
-    command = construct_run_command(args,'mpirun');
+    outputdir, inputfile, command = construct_run_command(args,mpirun)
+    issue_command(['rm', '-rf', outputdir])
+    issue_command(['mkdir', outputdir])
+    issue_command(['cp', inputfile, outputdir+"/parameters.inp"])
     issue_command(command)
-
-def ipic_exec(args):
-    issue_shell_command('rm -rf data/*')
-    command = construct_run_command(args,'mpiexec');
-    issue_command(command)
-
-def ipic_show_run(args):
-    command = construct_run_command(args);
-    print ' '.join(command);
 
 def ipic_make_data():
     # create data subdirectory
@@ -231,11 +224,6 @@ def get_inputfile(args):
       usage_error()
     return inputfile, args
 
-def copy_inp(inputfile):
-    # copy input file to current directory
-    command = ['cp', inputfile, '.']
-    issue_command(command)
-
 def ipic_cmake(args):
 
     # get the input file
@@ -257,8 +245,9 @@ def ipic_cmake(args):
       ln_command = ['ln', '-s', str(sourcedir), 'src'];
       issue_command(ln_command)
 
-    # copy the input file into the local directory
-    copy_inp(inputfile)
+    # copy input file to current directory
+    copy_input_file_command = ['cp', inputfile, './parameters.inp']
+    issue_command(copy_input_file_command)
 
     ipic_make_data();
 
@@ -601,9 +590,9 @@ def ipic_command(argv1):
     elif command == "make":
         ipic_make(args)
     elif command == "run":
-        ipic_run(args)
+        ipic_run(args, 'mpirun')
     elif command == "exec":
-        ipic_exec(args)
+        ipic_run(args, 'mpiexec')
     else:
         print progname, command, "is not supported. Try: ipic help"
         sys.exit(-1)
