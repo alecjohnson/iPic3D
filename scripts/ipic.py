@@ -68,10 +68,11 @@ def construct_run_command(args,mpirun):
     outputdir = 'data'
     inputfile = 'parameters.inp'
     hostname = ''
-    # these parameters should be determined by content of ipic module
+    # these parameters should be specified in ipic module
     ipic_env = os.getenv('IPIC_ENV','default');
-    if ipic_env == 'miclogin.xeon' or ipic_env == 'miclogin.mic':
-      if ipic_env == 'miclogin.xeon':
+    ipic_runenv = os.getenv('IPIC_RUNENV',ipic_env);
+    if ipic_runenv == 'miclogin.xeon' or ipic_runenv == 'miclogin.mic':
+      if ipic_runenv == 'miclogin.xeon':
         mpirun = 'mpiexec.hydra' # is this line needed?
         # calculate number of threads per process
         # + could extract this stuff from /proc/cpuinfo
@@ -91,7 +92,7 @@ def construct_run_command(args,mpirun):
           num_threads_per_core *
           num_cores_per_processor *
           num_processors_per_node)
-      elif ipic_env == 'miclogin.mic':
+      elif ipic_runenv == 'miclogin.mic':
         mpirun = 'mpiexec.hydra'
         # calculate number of threads per process
         # - could use ssh to extract this stuff from /proc/cpuinfo

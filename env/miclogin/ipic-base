@@ -31,4 +31,4 @@ setenv IPIC_MPIRUN mpiexec.hydra
 
 prepend-path PATH $env(IPIC_HOME)/scripts
 
-setenv IPIC_ENV miclogin.xeon
+setenv IPIC_RUNENV miclogin.xeon
