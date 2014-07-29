@@ -124,13 +124,11 @@ void TimeTasks::print_cycle_times(int cycle,
   //
   if(MPIdata::get_rank()) return;
   FILE* file = stdout;
-  // we could report average for all processes
-  //if(!MPIdata::get_rank())
   {
-    fflush(file);
-    fprintf(file,"=== times for cycle %d for rank %d === \n",
-      cycle,
-      MPIdata::get_rank());
+    //fflush(file);
+    //fprintf(file,"=== times for cycle %d for rank %d === \n",
+    //  cycle,
+    //  MPIdata::get_rank());
     fprintf(file, "%stotal  comput commun task\n", timing_prefix);
     for(int e=NONE+1; e<LAST; e++)
     {
@@ -245,16 +243,18 @@ void TimeTasks::print_cycle_times(int cycle)
   assert(!omp_get_thread_num());
 
   if(!MPIdata::get_rank())
-    printf("=== cycle times (main process) ===");
+    fflush(stdout);
+  if(!MPIdata::get_rank())
+    printf("=== times for cycle %d (main process) ===\n", cycle);
   print_cycle_times(cycle, task_duration, communicate, "main| ");
   if(!MPIdata::get_rank())
-    printf("=== cycle times (maximum over all processes) ===");
+    printf("=== times for cycle %d (maximum over all processes) ===\n", cycle);
   print_cycle_times_max(cycle);
   if(!MPIdata::get_rank())
-    printf("=== cycle times (averaged over all processes) ===");
+    printf("=== times for cycle %d (averaged over all processes) ===\n", cycle);
   print_cycle_times_avg(cycle);
   if(!MPIdata::get_rank())
-    printf("=== cycle times (minimum over all processes) ===");
+    printf("=== times for cycle %d (minimum over all processes) ===\n", cycle);
   print_cycle_times_min(cycle);
 }
 
