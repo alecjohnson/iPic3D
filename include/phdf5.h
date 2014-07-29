@@ -15,7 +15,7 @@ class PHDF5fileClass{
 
   public:
 
-    PHDF5fileClass(string filestr, int nd, int *coord, MPI_Comm mpicomm);
+    PHDF5fileClass(string filestr, int nd, const int *coord, MPI_Comm mpicomm);
     PHDF5fileClass(string filestr);
 
     void SetDefaultGroups(void);

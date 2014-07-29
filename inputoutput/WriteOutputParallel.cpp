@@ -42,81 +42,34 @@ void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCt
   /* Write the Electric field */
   /* ------------------------ */
 
-  array3_double arr3(nxc-2,nyc-2,nzc-2);
-
-  grpname = "Fields";
-  dtaname = "Ex";
-  EMf->getExc(arr3,grid);
-  outputfile.WritePHDF5dataset(grpname, dtaname, arr3, nxc-2, nyc-2, nzc-2);
-
-  grpname = "Fields";
-  dtaname = "Ey";
-  EMf->getEyc(arr3,grid);
-  outputfile.WritePHDF5dataset(grpname, dtaname, arr3, nxc-2, nyc-2, nzc-2);
-
-  grpname = "Fields";
-  dtaname = "Ez";
-  EMf->getEzc(arr3,grid);
-  outputfile.WritePHDF5dataset(grpname, dtaname, arr3, nxc-2, nyc-2, nzc-2);
+  outputfile.WritePHDF5dataset("Fields", "Ex", EMf->getExc(grid), nxc-2, nyc-2, nzc-2);
+  outputfile.WritePHDF5dataset("Fields", "Ey", EMf->getEyc(grid), nxc-2, nyc-2, nzc-2);
+  outputfile.WritePHDF5dataset("Fields", "Ez", EMf->getEzc(grid), nxc-2, nyc-2, nzc-2);
 
   /* ------------------------ */
   /* Write the Magnetic field */
   /* ------------------------ */
 
-  grpname = "Fields";
-  dtaname = "Bx";
-  EMf->getBxc(arr3);
-  outputfile.WritePHDF5dataset(grpname, dtaname, arr3, nxc-2, nyc-2, nzc-2);
-
-  grpname = "Fields";
-  dtaname = "By";
-  EMf->getByc(arr3);
-  outputfile.WritePHDF5dataset(grpname, dtaname, arr3, nxc-2, nyc-2, nzc-2);
-
-  grpname = "Fields";
-  dtaname = "Bz";
-  EMf->getBzc(arr3);
-  outputfile.WritePHDF5dataset(grpname, dtaname, arr3, nxc-2, nyc-2, nzc-2);
+  outputfile.WritePHDF5dataset("Fields", "Bx", EMf->getBxc(), nxc-2, nyc-2, nzc-2);
+  outputfile.WritePHDF5dataset("Fields", "By", EMf->getByc(), nxc-2, nyc-2, nzc-2);
+  outputfile.WritePHDF5dataset("Fields", "Bz", EMf->getBzc(), nxc-2, nyc-2, nzc-2);
 
   /* ----------------------------------------------- */
-  /* Write the Charge Density field for each species */
+  /* Write the moments for each species */
   /* ----------------------------------------------- */
 
   for (int is = 0; is < col->getNs(); is++)
   {
     stringstream snmbr;
     snmbr << is;
+    const string num = snmbr.str();
 
-    grpname = "Fields";
-    dtaname = "Rho_" + snmbr.str();
-    EMf->getRHOcs(arr3,grid, is);
-    EMf->getRHOcs(arr3, grid, is);
-    outputfile.WritePHDF5dataset(grpname, dtaname, arr3, nxc-2, nyc-2, nzc-2);
-  }
-
-  /* ---------------------------------------- */
-  /* Write the Current field for each species */
-  /* ---------------------------------------- */
-
-  for (int is = 0; is < col->getNs(); is++)
-  {
-    stringstream snmbr;
-    snmbr << is;
-
-    grpname = "Fields";
-    dtaname = "Jx_" + snmbr.str();
-    EMf->getJxsc(arr3, grid, is);
-    outputfile.WritePHDF5dataset(grpname, dtaname, arr3, nxc-2, nyc-2, nzc-2);
-
-    grpname = "Fields";
-    dtaname = "Jy_" + snmbr.str();
-    EMf->getJysc(arr3, grid, is);
-    outputfile.WritePHDF5dataset(grpname, dtaname, arr3, nxc-2, nyc-2, nzc-2);
-
-    grpname = "Fields";
-    dtaname = "Jz_" + snmbr.str();
-    EMf->getJzsc(arr3, grid, is);
-    outputfile.WritePHDF5dataset(grpname, dtaname, arr3, nxc-2, nyc-2, nzc-2);
+    // Charge Density
+    outputfile.WritePHDF5dataset("Fields", string("Rho_")+num , EMf->getRHOcs(grid,is), nxc-2, nyc-2, nzc-2);
+    // Current
+    outputfile.WritePHDF5dataset("Fields", string("Jx_")+num, EMf->getJxsc(grid, is), nxc-2, nyc-2, nzc-2);
+    outputfile.WritePHDF5dataset("Fields", string("Jy_")+num, EMf->getJysc(grid, is), nxc-2, nyc-2, nzc-2);
+    outputfile.WritePHDF5dataset("Fields", string("Jz_")+num, EMf->getJzsc(grid, is), nxc-2, nyc-2, nzc-2);
   }
 
   outputfile.ClosePHDF5file();

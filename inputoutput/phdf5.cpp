@@ -7,7 +7,7 @@
 
 #ifdef PHDF5
 
-PHDF5fileClass::PHDF5fileClass(string filestr, int nd, int *coord, MPI_Comm mpicomm){
+PHDF5fileClass::PHDF5fileClass(string filestr, int nd, const int *coord, MPI_Comm mpicomm){
 
   SetDefaultGroups();
 
@@ -114,7 +114,8 @@ void PHDF5fileClass::ClosePHDF5file(){
 
 }
 
-int PHDF5fileClass::WritePHDF5dataset(string grpname, string datasetname, const_arr3_double data, int nx, int ny, int nz){
+int PHDF5fileClass::WritePHDF5dataset(string grpname, string datasetname, const_arr3_double data, int nx, int ny, int nz)
+{
 
   /* -------------------------- */
   /* Local variables and arrays */
@@ -243,6 +244,7 @@ int PHDF5fileClass::WritePHDF5dataset(string grpname, string datasetname, const_
   delete [] block;
   delete [] offset;
 
+  return 0;
 }
 
 void PHDF5fileClass::ReadPHDF5param(){

@@ -71,7 +71,7 @@ if(IPIC_H5HUT_OUTPUT)
   set(H5HUTIO_LIBRARY_DIRS ${H5HUTIO_HOME}/lib)
   set(H5HUTIO_LIBRARIES H5hut-io)
 
-  add_definitions(-DUSEH5HUT)
+  add_definitions(-DPHDF5)
   add_definitions(-DPARALLEL_IO)
 endif()
 

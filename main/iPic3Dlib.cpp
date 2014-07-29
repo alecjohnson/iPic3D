@@ -514,7 +514,10 @@ void c_Solver::WriteParticles(int cycle)
 //
 void c_Solver::WriteOutput(int cycle) {
 
-  if (col->getWriteMethod() == "Parallel")
+  // once phdf5 is properly supported,
+  // let's change "Parallel" to mean "phdf5".
+  if (col->getWriteMethod() == "H5hut"
+   || col->getWriteMethod() == "Parallel")
   {
     /* -------------------------------------------- */
     /* Parallel HDF5 output using the H5hut library */
@@ -525,7 +528,21 @@ void c_Solver::WriteOutput(int cycle) {
     if (cycle%(col->getParticlesOutputCycle())==0)
       WritePartclH5hut(ns, grid, part, col, vct, cycle);
   }
-  else
+  else if (col->getWriteMethod() == "phdf5")
+  {
+    /* -------------------------------------------- */
+    /* Parallel output using basic hdf5 */
+    /* -------------------------------------------- */
+
+    if (cycle%(col->getFieldOutputCycle())==0)
+      WriteOutputParallel(grid, EMf, part, col, vct, cycle);
+    if (cycle%(col->getParticlesOutputCycle())==0)
+    {
+      warning_printf("WriteParticlesParallel() is not yet implemented.");
+      //WritePartclH5hut(ns, grid, part, col, vct, cycle);
+    }
+  }
+  else if (col->getWriteMethod() == "default")
   {
     // write fields-related data
     WriteFields(cycle);
@@ -538,6 +555,10 @@ void c_Solver::WriteOutput(int cycle) {
     // this also writes field data...
     WriteRestart(cycle);
     WriteParticles(cycle);
+  }
+  else
+  {
+    invalid_value_error(col->getWriteMethod().c_str());
   }
 
   // This should be invoked by user if desired

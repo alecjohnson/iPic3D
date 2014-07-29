@@ -12,7 +12,7 @@ NpMaxNpRatio = 3.0
 # New flags:
 Case              = GEM       # Select the case
 PoissonCorrection = yes       # Poisson correction
-WriteMethod       = default   # Output method [ default | Parallel ]
+WriteMethod       = default   # Output method [default, H5hut, phdf5]
 SimulationName    = GEM       # Simulation name for the output
 
 #  %%%%%%%%%%%%%%%%%%% Magnetic Reconnection %%%%%%%%%%%%%%%%%%
@@ -49,7 +49,7 @@ L_square =   .1
 
 nxc = 60                   # nxc = number of cells - x direction        
 nyc = 60                   # nyc = number of cells - y direction
-nzc =  1                   # nzc = number of cells - z direction        
+nzc = 12                   # nzc = number of cells - z direction        
 
 # %%%%%%%%%%%%%% MPI TOPOLOGY %%%%%%%%%%%%%%
 # number of MPI subdomains in each direction

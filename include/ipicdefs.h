@@ -8,7 +8,7 @@ typedef unsigned long long longid;
 #define USING_OMP
 
 // uncomment the following line to use parallel hdf5
-//#define USING_PARALLEL_HDF5
+#define USING_PARALLEL_HDF5
 
 // use precprocessor to remove former MPI_Barrier() calls.
 //#define MPI_Barrier(args...)

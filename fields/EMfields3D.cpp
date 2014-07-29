@@ -126,6 +126,7 @@ EMfields3D::EMfields3D(Collective * col, Grid * grid) :
   vectY (nxn, nyn, nzn),
   vectZ (nxn, nyn, nzn),
   divC  (nxc, nyc, nzc),
+  //arr (nxc,nyc,nzc),
   arr (nxc-2,nyc-2,nzc-2),
   // B_ext and J_ext should not be allocated unless used.
   Bx_ext(nxn,nyn,nzn),
