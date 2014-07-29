@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import os.path
 import sys
 import subprocess
 import socket # gethostname()
@@ -246,6 +247,15 @@ def ipic_cmake(args):
       ln_command = ['ln', '-s', str(sourcedir), 'src'];
       issue_command(ln_command)
 
+    ipic_env = os.getenv('IPIC_ENV','')
+    if ipic_env != '':
+      ipic_home = os.getenv('IPIC_HOME','')
+      if ipic_home != '':
+        jobscript_file = ipic_home+'/env/'+ipic_env+'/job.sh'
+        if os.path.isfile(jobscript_file):
+          command = ['cp', jobscript_file, '.'];
+          issue_command(command)
+      
     # copy input file to current directory
     copy_input_file_command = ['cp', inputfile, './parameters.inp']
     issue_command(copy_input_file_command)
