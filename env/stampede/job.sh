@@ -36,7 +36,7 @@ export YLEN=4
 # export OMP_NUM_THREADS=8
 # NUM_PROCS = nodes * ppn / OMP_NUM_THREADS
 NUM_PROCS=$(($XLEN*$YLEN))
-# echo "running on $NUM_PROCS cpus ..."
+DATA=data
 
 # use ibrun for MPI codes, not mpirun or srun
-ibrun -np $NUM_PROCS ./iPic3D data/parameters.inp | tee out.${XLEN}x${YLEN}.txt
+ibrun -np $NUM_PROCS ./iPic3D "$DATA"/parameters.inp | tee out.${XLEN}x${YLEN}.txt
