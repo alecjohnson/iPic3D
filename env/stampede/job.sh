@@ -15,28 +15,28 @@
 #
 # job name
 #SBATCH -J ipic3d
-#SBATCH -o ipic3d.%j.out
+##SBATCH -o ipic3d.%j.out
 ##SBATCH -e ipic3d.%j.err
-# queue
-#SBATCH -p development
+# queue (development or normal)
+#SBATCH -p normal
 # number of nodes, not cores (16 cores per node)
 #SBATCH -N 2
 # total number of MPI tasks (if omitted, n=N)
 #SBATCH -n 32
 # maximum time
-#SBATCH -t 00:05:00
-##SBATCH --mail-user=Alec.Johnson@wis.kuleuven.be
-##SBATCH --mail-type=ALL  
+#SBATCH -t 00:15:00
+#SBATCH --mail-user=Alec.Johnson@wis.kuleuven.be
+#SBATCH --mail-type=ALL  
 
-module load ipic
-module list
+#module load ipic
+#module list
 
 export XLEN=4
 export YLEN=4
 # export OMP_NUM_THREADS=8
 # NUM_PROCS = nodes * ppn / OMP_NUM_THREADS
 NUM_PROCS=$(($XLEN*$YLEN))
-echo "running on $NUM_PROCS cpus ..."
+# echo "running on $NUM_PROCS cpus ..."
 
 # use ibrun for MPI codes, not mpirun or srun
 ibrun -np $NUM_PROCS ./iPic3D data/parameters.inp | tee out.${XLEN}x${YLEN}.txt
