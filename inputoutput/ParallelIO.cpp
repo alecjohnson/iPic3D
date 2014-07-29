@@ -9,6 +9,8 @@
 void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, Particles3Dcomm *part, CollectiveIO *col, VCtopology3D *vct, int cycle){
 
 #ifdef PHDF5
+  timeTasks_set_task(TimeTasks::WRITE_FIELDS);
+
   string       grpname;
   string       dtaname;
 
