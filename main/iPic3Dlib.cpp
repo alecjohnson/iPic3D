@@ -538,7 +538,8 @@ void c_Solver::WriteOutput(int cycle) {
       WriteOutputParallel(grid, EMf, part, col, vct, cycle);
     if (cycle%(col->getParticlesOutputCycle())==0)
     {
-      warning_printf("WriteParticlesParallel() is not yet implemented.");
+      if(!MPIdata::get_rank())
+        warning_printf("WriteParticlesParallel() is not yet implemented.");
       //WritePartclH5hut(ns, grid, part, col, vct, cycle);
     }
   }
