@@ -222,7 +222,7 @@ def get_inputfile(args):
         #else:
         #  assert False, "unhandled option"
     #
-    if len(args)!=0:
+    if len(args)>=2:
       usage_error()
     return inputfile, args
 
@@ -239,6 +239,7 @@ def ipic_cmake(args):
     if numargs==0:
       sourcedir = os.getenv('IPIC_HOME','..');
     else:
+      args = deque(args)
       sourcedir = deque.popleft(args)
 
     if sourcedir!='src':
@@ -284,7 +285,7 @@ def ipic_cmake(args):
 def ipic_make(args):
 
     # invoke make 
-    make_command = ['make', 'VERBOSE=1'];
+    make_command = ['time', 'make', 'VERBOSE=1'];
     make_command.extend(args)
     #issue_shell_command(' '.join(make_command))
     issue_command(make_command)
