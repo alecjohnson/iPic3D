@@ -76,9 +76,11 @@ void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, Particles3Dcomm *part,
   outputfile.ClosePHDF5file();
 
 #else  
-  cout << " ERROR: The input file request the use of the Parallel HDF5 functions, but the code has been compiled using the sequential HDF5 library. " << endl;
-  cout << "        Recompile the code using the parallel HDF5 options or change the input file options. " << endl;
-  abort();
+  eprintf(
+    " The input file requests the use of the Parallel HDF5 functions,\n"
+    " but the code has been compiled using the sequential HDF5 library.\n"
+    " Recompile the code using the parallel HDF5 options\n"
+    " or change the input file options. ");
 #endif
 
 }
@@ -140,9 +142,11 @@ void WriteFieldsH5hut(int nspec, Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *
 //--- END SAVE FIELDS IN THE CELLS.
 
 #else  
-  cout << " ERROR: The input file request the use of the H5hut library, but the code has been compiled using other method. " << endl;
-  cout << "        Recompile the code using the H5hut options or change the input file. " << endl;
-  abort();
+  eprintf(
+    " The input file requests the use of the Parallel HDF5 functions,\n"
+    " but the code has been compiled using the sequential HDF5 library.\n"
+    " Recompile the code using the parallel HDF5 options\n"
+    " or change the input file options. ");
 #endif
 
 }
@@ -180,9 +184,11 @@ void WritePartclH5hut(int nspec, Grid3DCU *grid, Particles3Dcomm *part, Collecti
   file.ClosePartclFile();
 
 #else  
-  cout << " ERROR: The input file request the use of the H5hut library, but the code has been compiled using other method. " << endl;
-  cout << "        Recompile the code using the H5hut options or change the input file. " << endl;
-  abort();
+  eprintf(
+    " The input file requests the use of the Parallel HDF5 functions,\n"
+    " but the code has been compiled using the sequential HDF5 library.\n"
+    " Recompile the code using the parallel HDF5 options\n"
+    " or change the input file options. ");
 #endif
 
 }
