@@ -10,7 +10,6 @@ project(iPic3Dlib)
 # Set exec path
 #
 
-set(EXECUTABLE_OUTPUT_PATH exec/${CMAKE_BUILD_TYPE})
 set(LIBRARY_OUTPUT_PATH lib)
 set(IPIC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
@@ -61,17 +60,13 @@ file(
 
 option(IPIC_H5HUT_OUTPUT "Output is done using Parallel HDF5 with the H5hut library")
 if(IPIC_H5HUT_OUTPUT)
-  set(H5HUT_HOME $ENV{H5HUT_DIR} CACHE STRING "H5hut home directory")
-  set(H5HUT_INCLUDE_DIRS ${H5HUT_HOME}/include)
-#  set(H5HUT_LIBRARY_DIRS ${H5HUT_HOME}/lib)
-#  set(H5HUT_LIBRARIES H5hut)
-
-  set(H5HUTIO_HOME ${IPIC_HOME}/H5hut-io CACHE STRING "H5hut-io library home")
-  set(H5HUTIO_INCLUDE_DIRS ${H5HUTIO_HOME}/include)
-  set(H5HUTIO_LIBRARY_DIRS ${H5HUTIO_HOME}/lib)
+  add_subdirectory(${IPIC_HOME}/H5hut-io H5hut-io)
+  set(H5HUTIO_INCLUDE_DIRS ${IPIC_HOME}/H5hut-io/include)
   set(H5HUTIO_LIBRARIES H5hut-io)
+  set(H5HUT_INCLUDE_DIRS $ENV{H5HUT_DIR}/include)
 
   add_definitions(-DPHDF5)
+  add_definitions(-DUSEH5HUT)
   add_definitions(-DPARALLEL_IO)
 endif()
 
@@ -85,21 +80,14 @@ if(IPIC_XEONPHI)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
-option(IPIC_BUILD_SHARED "Compile shared library" OFF)
-if(IPIC_BUILD_SHARED)
-  set(IPIC_BUILD_TYPE SHARED)
-else()
-  set(IPIC_BUILD_TYPE STATIC)
-endif()
-
 #
 # include and lib directories
 #
 
 include_directories(
         ${IPIC_HOME}/include
-        ${H5HUTIO_INCLUDE_DIRS}
         ${H5HUT_INCLUDE_DIRS}
+        ${H5HUTIO_INCLUDE_DIRS}
         ${HDF5_INCLUDE_DIRS}
         ${MPI_INCLUDE_PATH}
 )
@@ -114,7 +102,7 @@ link_directories(
 
 add_library(
         iPic3Dlib
-        ${IPIC_BUILD_TYPE}
+        STATIC
         ${inc_files}
         ${src_files}
 )
@@ -126,11 +114,4 @@ add_library(
 target_link_libraries(
          iPic3Dlib
          ${H5HUTIO_LIBRARIES}
-         ${HDF5_LIBRARIES}
-         #${HDF5_C_LIBRARIES_RELEASE}
-         #${HDF5_HL_LIBRARIES_RELEASE}
-         #${IPIC_HDF5_C_LIB}
-         #${IPIC_HDF5_HL_LIB}
-         ${MPI_LIBRARIES}
-         ${CMAKE_DL_LIBS}
 )
