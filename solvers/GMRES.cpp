@@ -10,7 +10,7 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
     return;
   }
   bool GMRESVERBOSE = false;
-  double initial_error, rho_tol, mu, htmp, tmp, delta = 0.001;
+  double initial_error, rho_tol;
   double *r = new double[xkrylovlen];
   double *im = new double[xkrylovlen];
 
@@ -18,7 +18,6 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
   double *cs = new double[m + 1];
   double *sn = new double[m + 1];
   double *y = new double[m + 3];
-  int k;
   eqValue(0.0, s, m + 1);
   eqValue(0.0, cs, m + 1);
   eqValue(0.0, sn, m + 1);
@@ -49,8 +48,9 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
   if (normb == 0.0)
     normb = 1.0;
 
-  for (register int itr = 0; itr < max_iter; itr++) {
-
+  int itr=0;
+  for (itr = 0; itr < max_iter; itr++)
+  {
     // r = b - A*x
     (field->*FunctionImage) (im, xkrylov, grid, vct);
     sub(r, b, im, xkrylovlen);
@@ -64,23 +64,14 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
       if ((initial_error / normb) <= tol) {
         if (vct->getCartesian_rank() == 0)
           cout << "GMRES converged without iterations: initial error < tolerance" << endl;
-        delete[]r;
-        delete[]im;
-        delete[]s;
-        delete[]cs;
-        delete[]sn;
-        delete[]y;
-        delArr2(H, m + 1);
-        delArr2(V, m+1);
-
-        return;
+        break;
       }
     }
 
     scale(V[0], r, (1.0 / initial_error), xkrylovlen);
     eqValue(0.0, s, m + 1);
     s[0] = initial_error;
-    k = 0;
+    int k = 0;
     while (rho_tol < initial_error && k < m) {
 
       // w= A*V(:,k)
@@ -119,10 +110,11 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
       // why are we testing floating point numbers
       // for equality?  Is this supposed to say
       //if (av < delta * fabs(H[k + 1][k]))
+      const double delta=0.001;
       if (av + delta * H[k + 1][k] == av)
       {
         for (register int j = 0; j <= k; j++) {
-          htmp = dotP(w, V[j], xkrylovlen);
+          const double htmp = dotP(w, V[j], xkrylovlen);
           H[j][k] = H[j][k] + htmp;
           addscale(-htmp, w, V[j], xkrylovlen);
         }
@@ -139,7 +131,7 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
         getColumn(y, H, k, m + 1);
       }
 
-      mu = sqrt(H[k][k] * H[k][k] + H[k + 1][k] * H[k + 1][k]);
+      const double mu = sqrt(H[k][k] * H[k][k] + H[k + 1][k] * H[k + 1][k]);
       cs[k] = H[k][k] / mu;
       sn[k] = -H[k + 1][k] / mu;
       H[k][k] = cs[k] * H[k][k] - sn[k] * H[k + 1][k];
@@ -154,7 +146,7 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
     y[k] = s[k] / H[k][k];
 
     for (register int i = k - 1; i >= 0; i--) {
-      tmp = 0.0;
+      double tmp = 0.0;
       for (register int l = i + 1; l <= k; l++)
         tmp += H[i][l] * y[l];
       y[i] = (s[i] - tmp) / H[i][i];
@@ -173,24 +165,16 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
     if (initial_error <= rho_tol) {
       if (vct->getCartesian_rank() == 0)
         cout << "GMRES converged at restart # " << itr << "; iteration #" << k << " with error: " << initial_error / rho_tol * tol << endl;
-      delete[]r;
-      delete[]im;
-      delete[]s;
-      delete[]cs;
-      delete[]sn;
-      delete[]y;
-      delArr2(H, m + 1);
-      delArr2(V, m + 1);
-      return;
+      break;
     }
     if (vct->getCartesian_rank() == 0 && GMRESVERBOSE)
       cout << "Restart: " << itr << " error: " << initial_error / rho_tol * tol << endl;
 
   }
-
-
-  if (vct->getCartesian_rank() == 0)
+  if(itr==max_iter && vct->getCartesian_rank() == 0)
+  {
     cout << "GMRES not converged !! Final error: " << initial_error / rho_tol * tol << endl;
+  }
 
   delete[]r;
   delete[]im;
