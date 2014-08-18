@@ -10,22 +10,19 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
     return;
   }
   bool GMRESVERBOSE = false;
-  double initial_error, rho_tol, av, mu, htmp, tmp, delta = 0.001;
+  double initial_error, rho_tol, mu, htmp, tmp, delta = 0.001;
   double *r = new double[xkrylovlen];
   double *im = new double[xkrylovlen];
-  double *v;
-  double *w;
-
 
   double *s = new double[m + 1];
   double *cs = new double[m + 1];
   double *sn = new double[m + 1];
-  double *y = new double[m + 1];
+  double *y = new double[m + 3];
   int k;
   eqValue(0.0, s, m + 1);
   eqValue(0.0, cs, m + 1);
   eqValue(0.0, sn, m + 1);
-  eqValue(0.0, y, m + 1);
+  eqValue(0.0, y, m + 3);
 
 
   // allocate H for storing the results from decomposition
@@ -80,37 +77,58 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
       }
     }
 
-    v = V[0];
-    scale(v, r, (1.0 / initial_error), xkrylovlen);
+    scale(V[0], r, (1.0 / initial_error), xkrylovlen);
     eqValue(0.0, s, m + 1);
     s[0] = initial_error;
     k = 0;
     while (rho_tol < initial_error && k < m) {
 
       // w= A*V(:,k)
-      v = V[k];
-      w = V[k+1];
-      (field->*FunctionImage) (w, v, grid, vct);
-      av = normP(w, xkrylovlen);
+      double *w = V[k+1];
+      (field->*FunctionImage) (w, V[k], grid, vct);
+      // old code (many MPI_Allreduce calls)
+      //
+      //const double av = normP(w, xkrylovlen);
+      //for (register int j = 0; j <= k; j++) {
+      //  H[j][k] = dotP(w, V[j], xkrylovlen);
+      //  addscale(-H[j][k], w, V[j], xkrylovlen);
+      //}
 
+      // new code to make a single MPI_Allreduce call
       for (register int j = 0; j <= k; j++) {
-        v = V[j];
-        H[j][k] = dotP(w, v, xkrylovlen);
-        addscale(-H[j][k], w, v, xkrylovlen);
-
+        y[j] = dot(w, V[j], xkrylovlen);
       }
-      H[k + 1][k] = normP(w, xkrylovlen);
+      y[k+1] = norm2(w,xkrylovlen);
+      MPI_Allreduce(MPI_IN_PLACE, y, (k+2),
+        MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      for (register int j = 0; j <= k; j++) {
+        H[j][k] = y[j];
+        addscale(-H[j][k], V[k+1], V[j], xkrylovlen);
+      }
+      // Is there a numerically stable way to
+      // eliminate this second all-reduce all?
+      H[k+1][k] = normP(V[k+1], xkrylovlen);
+      //
+      // check that vectors are orthogonal
+      //
+      //for (register int j = 0; j <= k; j++) {
+      //  dprint(dotP(w, V[j], xkrylovlen));
+      //}
 
-      if (av + delta * H[k + 1][k] == av) {
-
+      double av = sqrt(y[k+1]);
+      // why are we testing floating point numbers
+      // for equality?  Is this supposed to say
+      //if (av < delta * fabs(H[k + 1][k]))
+      if (av + delta * H[k + 1][k] == av)
+      {
         for (register int j = 0; j <= k; j++) {
-          v = V[j];
-          htmp = dotP(w, v, xkrylovlen);
+          htmp = dotP(w, V[j], xkrylovlen);
           H[j][k] = H[j][k] + htmp;
-          addscale(-htmp, w, v, xkrylovlen);
+          addscale(-htmp, w, V[j], xkrylovlen);
         }
         H[k + 1][k] = normP(w, xkrylovlen);
       }
+      // normalize the new vector
       scale(w, (1.0 / H[k + 1][k]), xkrylovlen);
 
       if (0 < k) {
