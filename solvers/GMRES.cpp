@@ -13,8 +13,8 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
   double initial_error, rho_tol, av, mu, htmp, tmp, delta = 0.001;
   double *r = new double[xkrylovlen];
   double *im = new double[xkrylovlen];
-  double *v = new double[xkrylovlen];
-  double *w = new double[xkrylovlen];
+  double *v;
+  double *w;
 
 
   double *s = new double[m + 1];
@@ -34,9 +34,9 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
     for (int jj = 0; jj < m; jj++)
       H[ii][jj] = 0;
   // allocate V
-  double **V = newArr2(double, xkrylovlen, m + 1);
-  for (int ii = 0; ii < xkrylovlen; ii++)
-    for (int jj = 0; jj < m + 1; jj++)
+  double **V = newArr2(double, m+1, xkrylovlen);
+  for (int ii = 0; ii < m+1; ii++)
+    for (int jj = 0; jj < xkrylovlen; jj++)
       V[ii][jj] = 0;
 
 
@@ -70,55 +70,48 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
         delete[]r;
         delete[]im;
         delete[]s;
-        delete[]v;
         delete[]cs;
         delete[]sn;
-        delete[]w;
         delete[]y;
         delArr2(H, m + 1);
-        delArr2(V, xkrylovlen);
+        delArr2(V, m+1);
 
         return;
       }
     }
 
+    v = V[0];
     scale(v, r, (1.0 / initial_error), xkrylovlen);
-    putColumn(V, v, 0, xkrylovlen);
     eqValue(0.0, s, m + 1);
     s[0] = initial_error;
     k = 0;
     while (rho_tol < initial_error && k < m) {
 
       // w= A*V(:,k)
-      getColumn(v, V, k, xkrylovlen);
+      v = V[k];
+      w = V[k+1];
       (field->*FunctionImage) (w, v, grid, vct);
-      putColumn(V, w, k + 1, xkrylovlen);
       av = normP(w, xkrylovlen);
 
       for (register int j = 0; j <= k; j++) {
-        getColumn(v, V, j, xkrylovlen);
+        v = V[j];
         H[j][k] = dotP(w, v, xkrylovlen);
         addscale(-H[j][k], w, v, xkrylovlen);
 
       }
-      putColumn(V, w, k + 1, xkrylovlen);
       H[k + 1][k] = normP(w, xkrylovlen);
 
       if (av + delta * H[k + 1][k] == av) {
 
         for (register int j = 0; j <= k; j++) {
-          getColumn(v, V, j, xkrylovlen);
+          v = V[j];
           htmp = dotP(w, v, xkrylovlen);
           H[j][k] = H[j][k] + htmp;
           addscale(-htmp, w, v, xkrylovlen);
         }
-        putColumn(V, w, k + 1, xkrylovlen);
-
         H[k + 1][k] = normP(w, xkrylovlen);
       }
       scale(w, (1.0 / H[k + 1][k]), xkrylovlen);
-
-      putColumn(V, w, k + 1, xkrylovlen);
 
       if (0 < k) {
 
@@ -151,11 +144,12 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
     }
 
 
-    for (int jj = 0; jj < xkrylovlen; jj++) {
-      tmp = 0.0;
-      for (register int l = 0; l < k; l++)
-        tmp += y[l] * V[jj][l];
-      xkrylov[jj] += tmp;
+    for (register int j = 0; j < k; j++)
+    {
+      const double yj = y[j];
+      double* Vj = V[j];
+      for (int i = 0; i < xkrylovlen; i++)
+        xkrylov[i] += yj * Vj[i];
     }
 
     if (initial_error <= rho_tol) {
@@ -164,13 +158,11 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
       delete[]r;
       delete[]im;
       delete[]s;
-      delete[]v;
       delete[]cs;
       delete[]sn;
-      delete[]w;
       delete[]y;
       delArr2(H, m + 1);
-      delArr2(V, xkrylovlen);
+      delArr2(V, m + 1);
       return;
     }
     if (vct->getCartesian_rank() == 0 && GMRESVERBOSE)
@@ -185,13 +177,11 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
   delete[]r;
   delete[]im;
   delete[]s;
-  delete[]v;
   delete[]cs;
   delete[]sn;
-  delete[]w;
   delete[]y;
   delArr2(H, m + 1);
-  delArr2(V, xkrylovlen);
+  delArr2(V, m + 1);
   return;
 }
 
