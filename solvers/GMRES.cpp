@@ -86,13 +86,14 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
       //}
 
       // new code to make a single MPI_Allreduce call
-      for (register int j = 0; j <= k; j++) {
+      for (int j = 0; j <= k; j++)
+      {
         y[j] = dot(w, V[j], xkrylovlen);
       }
       y[k+1] = norm2(w,xkrylovlen);
       MPI_Allreduce(MPI_IN_PLACE, y, (k+2),
         MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      for (register int j = 0; j <= k; j++) {
+      for (int j = 0; j <= k; j++) {
         H[j][k] = y[j];
         addscale(-H[j][k], V[k+1], V[j], xkrylovlen);
       }
@@ -113,7 +114,7 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
       const double delta=0.001;
       if (av + delta * H[k + 1][k] == av)
       {
-        for (register int j = 0; j <= k; j++) {
+        for (int j = 0; j <= k; j++) {
           const double htmp = dotP(w, V[j], xkrylovlen);
           H[j][k] = H[j][k] + htmp;
           addscale(-htmp, w, V[j], xkrylovlen);
@@ -125,7 +126,7 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
 
       if (0 < k) {
 
-        for (register int j = 0; j < k; j++)
+        for (int j = 0; j < k; j++)
           ApplyPlaneRotation(H[j + 1][k], H[j][k], cs[j], sn[j]);
 
         getColumn(y, H, k, m + 1);
@@ -145,16 +146,16 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
     k--;
     y[k] = s[k] / H[k][k];
 
-    for (register int i = k - 1; i >= 0; i--) {
+    for (int i = k - 1; i >= 0; i--) {
       double tmp = 0.0;
-      for (register int l = i + 1; l <= k; l++)
+      for (int l = i + 1; l <= k; l++)
         tmp += H[i][l] * y[l];
       y[i] = (s[i] - tmp) / H[i][i];
 
     }
 
 
-    for (register int j = 0; j < k; j++)
+    for (int j = 0; j < k; j++)
     {
       const double yj = y[j];
       double* Vj = V[j];
