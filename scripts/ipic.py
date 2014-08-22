@@ -43,6 +43,9 @@ def lineno():
     """Returns the current line number in our program."""
     return inspect.currentframe().f_back.f_lineno
 
+def capture_shell_command_output(command):
+  return os.popen(command).read()
+
 def issue_command(command):
   if(show):
     print ' '.join(command)
@@ -299,6 +302,14 @@ def ipic_ctags(args):
     # sort tags file
     sort_tags_command = '''LC_ALL=C sort -u tags -o tags'''
     issue_shell_command(sort_tags_command)
+
+def ipic_eval_shell(command, args):
+    showcommand = ['ipic-show-'+command]
+    showcommand.extend(args)
+    shell_command = " ".join(showcommand)
+    generated_command = capture_shell_command_output(shell_command)
+    # generated_command = capture_command_output(showcommand)
+    issue_shell_command(generated_command)
 
 def ipic_basic_help():
     print '''
@@ -606,6 +617,9 @@ def ipic_command(argv1):
         ipic_run(args, 'mpirun')
     elif command == "exec":
         ipic_run(args, 'mpiexec')
+    elif command == "setstripe" \
+      or command == "getstripe":
+        ipic_eval_shell(command, args)
     else:
         print progname, command, "is not supported. Try: ipic help"
         sys.exit(-1)
