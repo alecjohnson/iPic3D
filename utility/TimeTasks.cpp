@@ -70,7 +70,7 @@ void TimeTasks::start_task(TimeTasks::Tasks taskid)
 // have to manage the task stack explicitly
 void TimeTasks::start_task(TimeTasks::Tasks taskid, double start_time)
 {
-  assert(!omp_get_thread_num()); //if(omp_get_thread_num()) return;
+  if(omp_get_thread_num()) return;
   if(stack_depth[taskid]==0)
   {
     start_times[taskid]=start_time;
