@@ -2,13 +2,10 @@
 
 proc ModulesHelp { } {
 global version
-
-puts stderr "***************************************************************"
-puts stderr " set environment to compile and run iPic3D without parallel IO "
-puts stderr "***************************************************************"
+puts stderr " set environment to compile and run iPic3D with parallel IO "
 }
 
-module-whatis "set environment for iPic3D"
+module-whatis "set environment for iPic3D with parallel IO"
 
 module load ipic
 
@@ -16,6 +13,11 @@ module load ipic
 module load hdf5
 setenv IPIC_CMAKE cmake28
 setenv H5HUT_DIR $env(HOME)/install
+# typical values:
+#   numtargets (stripe count): 4
+#   chunksize (stripe length): 1m, 64k
+set-alias ipic-show-setstripe {echo fhgfs-ctl --setpattern numtargets=${1:-4} chunksize=${2:-1m} ${3:-data}}
+set-alias ipic-show-getstripe {echo fhgfs-ctl --getentryinfo "$@"}
 # -DPARALLEL_IO must be used when compiling to correct for a bug in H5hut
 setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report -DPARALLEL_IO'"
 # make cmake28 search in the correct path
