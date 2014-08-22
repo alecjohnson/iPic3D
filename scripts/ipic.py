@@ -304,12 +304,17 @@ def ipic_ctags(args):
     issue_shell_command(sort_tags_command)
 
 def ipic_eval_shell(command, args):
-    showcommand = ['ipic-show-'+command]
-    showcommand.extend(args)
-    shell_command = " ".join(showcommand)
-    generated_command = capture_shell_command_output(shell_command)
-    # generated_command = capture_command_output(showcommand)
-    issue_shell_command(generated_command)
+    ipic_command = ['ipic-'+command]
+    ipic_command.extend(args)
+    issue_command(ipic_command)
+
+#def ipic_eval_shell(command, args):
+#    showcommand = ['ipic-show-'+command]
+#    showcommand.extend(args)
+#    shell_command = " ".join(showcommand)
+#    generated_command = capture_shell_command_output(shell_command)
+#    # generated_command = capture_command_output(showcommand)
+#    issue_shell_command(generated_command)
 
 def ipic_basic_help():
     print '''
