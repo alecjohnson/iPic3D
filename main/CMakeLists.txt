@@ -58,6 +58,11 @@ file(
 # Compilation options
 #
 
+option(IPIC_PHDF5 "Output is done using Parallel HDF5 without the H5hut library")
+if(IPIC_PHDF5)
+  add_definitions(-DPHDF5)
+  add_definitions(-DPARALLEL_IO)
+endif()
 option(IPIC_H5HUT_OUTPUT "Output is done using Parallel HDF5 with the H5hut library")
 if(IPIC_H5HUT_OUTPUT)
   add_subdirectory(${IPIC_HOME}/H5hut-io H5hut-io)
