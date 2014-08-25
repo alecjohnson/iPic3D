@@ -5,6 +5,8 @@
 # monitor jobs with:
 #   showq
 #    squeue -u `whoami`
+# kill jobs with:
+#   scancel <jobId>
 #
 # alternatively you can submit an interactive
 # job on a single node with
@@ -20,8 +22,10 @@
 # queue (development or normal)
 #SBATCH -p normal
 # number of nodes, not cores (16 cores per node)
+#TemplateLine: #SBATCH -N $NUM_NODES
 #SBATCH -N 2
 # total number of MPI tasks (if omitted, n=N)
+#TemplateLine: #SBATCH -n $NUM_PROCS
 #SBATCH -n 32
 # maximum time
 #SBATCH -t 00:15:00
@@ -31,10 +35,13 @@
 #module load ipic
 #module list
 
+#TemplateLine: export XLEN=$XLEN
 export XLEN=4
+#TemplateLine: export YLEN=$YLEN
 export YLEN=4
 # export OMP_NUM_THREADS=8
 # NUM_PROCS = nodes * ppn / OMP_NUM_THREADS
+#TemplateLine: NUM_PROCS=$NUM_PROCS
 NUM_PROCS=$(($XLEN*$YLEN))
 DATA=data
 
