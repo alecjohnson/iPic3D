@@ -7,7 +7,7 @@ function usage()
   echo "
     $ME: $PURPOSE
   
-    usage: $ME [-d <outputdir>] <XLEN,YLEN[,ZLEN]> [<pnxc,pnyc[,pnzc]>]
+    usage: $ME [-d <outputdir>] <XLEN>x<YLEN>[x<ZLEN>] [<pnxc>x<pnyc>[x<pnzc>]]
     
       <XLEN>: number of processes in X direction
       <YLEN>: number of processes in Y direction
@@ -18,7 +18,7 @@ function usage()
       <outputdir>: data by default
 
     example:
-      # use 4x6 array of processors
+      # use 4x6 array of processes with 16x16x8 subgrid in each process
       $ME -d data 4x6 16x16x8
   "
 }
