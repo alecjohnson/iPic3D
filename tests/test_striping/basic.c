@@ -13,7 +13,7 @@
 #define MY_RESULTS_FILE "my_results" /* name of output results file */
 #define MY_CHECKPOINT_FILE "my_checkpoint" /* name of checkpoint file */
 #define LOCAL_SIZE 1000000L     /* size of local array in ints */
-#define STRIPE_COUNT "2"       /* must be an ascii string */
+#define STRIPE_COUNT "8"       /* must be an ascii string */
 #define STRIPE_SIZE "1048576"    /* must be an ascii string */
 #define X_DIM 30000         /* size of 1st dimension */
 #define Y_DIM 20000         /* size of 2nd dimension, if any */
@@ -184,11 +184,19 @@ int main(int argc, char **argv)
   rc = MPI_File_delete(MY_RESULTS_FILE, MPI_INFO_NULL);
 
   /* Set the striping */
+  MPI_Info results_info;
+  MPI_Info_create(&results_info);
+  MPI_Info_set(results_info, "striping_factor", "8");
+  MPI_Info_set(results_info, "striping_unit", "524288");
 
   /* Open the results file. */
 
+  /*
   rc = MPI_File_open(MPI_COMM_WORLD, MY_RESULTS_FILE, MPI_MODE_WRONLY |
       MPI_MODE_CREATE, MPI_INFO_NULL, &out_fh);
+  */
+  rc = MPI_File_open(MPI_COMM_WORLD, MY_RESULTS_FILE, MPI_MODE_WRONLY |
+      MPI_MODE_CREATE, results_info, &out_fh);
   if (rc != MPI_SUCCESS) {
     fprintf(stderr, "could not open results file\n");
     MPI_Abort(MPI_COMM_WORLD, 3);
