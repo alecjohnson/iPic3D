@@ -119,4 +119,5 @@ add_library(
 target_link_libraries(
          iPic3Dlib
          ${H5HUTIO_LIBRARIES}
+         #${HDF5_LIBRARIES}
 )

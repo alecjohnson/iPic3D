@@ -75,6 +75,8 @@ add_library(
 
 target_link_libraries(
          H5hut-io
+         #${H5HUTIO_LIBRARIES}
          ${H5HUT_LIBRARIES}
+         ${HDF5_LIBRARIES}
 )
 
