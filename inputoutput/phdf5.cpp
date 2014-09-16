@@ -4,6 +4,7 @@
 #include "ipicdefs.h"
 #include "errors.h"
 #include "Alloc.h"
+#include "debug.h"
 
 #ifdef PHDF5
 
@@ -85,6 +86,39 @@ void PHDF5fileClass::CreatePHDF5file(double *L, int *dglob, int *dlocl, bool bp)
   //MPI_Info_set(info, "cb_nodes", CB_NODES);
   H5Pset_fapl_mpio(acc_t, comm, info);
   //H5Pset_fapl_mpio(acc_t, comm, MPI_INFO_NULL);
+
+  // Why does this code generate errors?
+  if(0)
+  {
+    // show the output mode that is actually being used
+    H5D_mpio_actual_io_mode_t actual_io_mode;
+    H5Pget_mpio_actual_io_mode(acc_t, &actual_io_mode);
+    if(actual_io_mode == H5D_MPIO_NO_COLLECTIVE)
+      dprintf("H5D_MPIO_NO_COLLECTIVE");
+    else if(actual_io_mode == H5D_MPIO_CHUNK_INDEPENDENT)
+      dprintf("H5D_MPIO_CHUNK_INDEPENDENT");
+    else if(actual_io_mode == H5D_MPIO_CHUNK_COLLECTIVE)
+      dprintf("H5D_MPIO_CHUNK_COLLECTIVE");
+    else if(actual_io_mode == H5D_MPIO_CONTIGUOUS_COLLECTIVE)
+      dprintf("H5D_MPIO_CONTIGUOUS_COLLECTIVE");
+    else
+      dprintf("unrecognized output method");
+
+    // show the chunking that is actually used
+    H5D_mpio_actual_chunk_opt_mode_t actual_chunk_opt_mode;
+    H5Pget_mpio_actual_chunk_opt_mode(acc_t, &actual_chunk_opt_mode);
+    if(actual_chunk_opt_mode == H5D_MPIO_NO_CHUNK_OPTIMIZATION)
+      dprintf("H5D_MPIO_NO_CHUNK_OPTIMIZATION");
+    else if(actual_chunk_opt_mode == H5D_MPIO_MULTI_CHUNK)
+      dprintf("H5D_MPIO_MULTI_CHUNK");
+    //else if(actual_chunk_opt_mode == H5D_MPIO_MULTI_CHUNK_NO_OPT)
+    //  dprintf("H5D_MPIO_MULTI_CHUNK_NO_OPT");
+    else if(actual_chunk_opt_mode == H5D_MPIO_LINK_CHUNK)
+      dprintf("H5D_MPIO_LINK_CHUNK");
+    else
+      dprintf("unrecognized chunking method");
+  }
+
   #else
   eprintf("WriteMethod==Parallel in input file "
           "requires setting USING_PARALLEL_HDF5 in ipicdefs.h");
