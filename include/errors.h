@@ -7,6 +7,9 @@
 void eprintf_fileLine(FILE * fptr, const char *type,
   const char *func, const char *file, int line_number,
   const char *format, ...);
+void fprintf_fileLine(FILE * fptr,
+  const char *type, const char *func, const char *file, int line_number,
+  const char *format, ...);
 
 #define eprintf(args...) \
   eprintf_fileLine(stdout,"ERROR",__func__, __FILE__, __LINE__, ## args);
