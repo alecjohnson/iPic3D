@@ -11,6 +11,7 @@
 #include "mic_particles.h"
 #include "ipicmath.h" // for roundup_to_multiple
 #include "Alloc.h"
+#include "asserts.h"
 
 using namespace iPic3D;
 
@@ -992,6 +993,8 @@ void EMfields3D::sumMoments_AoS_intr(
 
       // reduce moments in parallel
       //
+      // this code currently makes no sense for multiple threads.
+      assert_eq(num_threads,1);
       {
         // For each thread, distribute moments from cells to nodes
         // and then sum moments at each node over all threads.
