@@ -74,14 +74,14 @@ void PHDF5fileClass::CreatePHDF5file(double *L, int *dglob, int *dlocl, bool bp)
   #ifdef USING_PARALLEL_HDF5
   MPI_Info info;
   MPI_Info_create(&info);
-  char* CB_BUFFER_SIZE="1048576"; // 1MB
-  char* STRIPE_SIZE="131072"; // 128k
-  char* STRIPE_COUNT="16"; /* must be an ascii string */
+  const char* CB_BUFFER_SIZE="1048576"; // 1MB
+  const char* STRIPE_SIZE="131072"; // 128k
+  const char* STRIPE_COUNT="16"; /* must be an ascii string */
   //char* CB_NODES="8"; /* number of aggregators */
-  MPI_Info_set(info, "striping_factor", STRIPE_COUNT);
-  MPI_Info_set(info, "striping_unit", STRIPE_SIZE);
-  MPI_Info_set(info, "cb_buffer_size", CB_BUFFER_SIZE);
-  MPI_Info_set(info, "romio_cb_write", "enable");
+  MPI_Info_set(info, (char*)"striping_factor", (char*)STRIPE_COUNT);
+  MPI_Info_set(info, (char*)"striping_unit", (char*)STRIPE_SIZE);
+  MPI_Info_set(info, (char*)"cb_buffer_size", (char*)CB_BUFFER_SIZE);
+  MPI_Info_set(info, (char*)"romio_cb_write", (char*)"enable");
   //MPI_Info_set(info, "cb_nodes", CB_NODES);
   H5Pset_fapl_mpio(acc_t, comm, info);
   //H5Pset_fapl_mpio(acc_t, comm, MPI_INFO_NULL);
