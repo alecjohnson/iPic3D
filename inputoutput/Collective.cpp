@@ -673,12 +673,20 @@ void Collective::init_derived_parameters()
     if(nxc % XLEN) xerror=true;
     if(nyc % YLEN) yerror=true;
     if(nzc % ZLEN) zerror=true;
-    if(xerror) printf("!!!ERROR: XLEN=%d does not divide nxc=%d\n", XLEN,nxc);
-    if(yerror) printf("!!!ERROR: YLEN=%d does not divide nyc=%d\n", YLEN,nyc);
-    if(zerror) printf("!!!ERROR: ZLEN=%d does not divide nzc=%d\n", ZLEN,nzc);
+    if(xerror) warning_printf("XLEN=%d does not divide nxc=%d\n", XLEN,nxc);
+    if(yerror) warning_printf("YLEN=%d does not divide nyc=%d\n", YLEN,nyc);
+    if(zerror) warning_printf("ZLEN=%d does not divide nzc=%d\n", ZLEN,nzc);
     fflush(stdout);
-    bool error = xerror||yerror||zerror;
-    if(error) exit(1);
+    bool error = (xerror||yerror||zerror) && (getWriteMethod()=="default");
+    // Comment out this check if your postprocessing code does not
+    // require the field output subarrays to be the same size.
+    // Alternatively, you could modify the output routine to pad
+    // with zeros...
+    //if(error)
+    //{
+    //  eprintf("For WriteMethod=default processor dimensions "
+    //          "must divide mesh cell dimensions");
+    //}
   }
 
   int num_cells_r = nxc*nyc*nzc;

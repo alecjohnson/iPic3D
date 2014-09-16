@@ -43,13 +43,13 @@ Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct) {
   // the discretized problem in any way and without divisibility
   // restrictions.
   //
-  assert_divides(vct->getXLEN(), col->getNxc());
-  assert_divides(vct->getYLEN(), col->getNyc());
-  assert_divides(vct->getZLEN(), col->getNzc());
+  //assert_divides(vct->getXLEN(), col->getNxc());
+  //assert_divides(vct->getYLEN(), col->getNyc());
+  //assert_divides(vct->getZLEN(), col->getNzc());
   //
-  assert_eq(nxc_r,nxc_rr);
-  assert_eq(nyc_r,nyc_rr);
-  assert_eq(nzc_r,nzc_rr);
+  //assert_eq(nxc_r,nxc_rr);
+  //assert_eq(nyc_r,nyc_rr);
+  //assert_eq(nzc_r,nzc_rr);
 
   // add two for ghost cells
   nxc = nxc_r + 2;
@@ -65,14 +65,17 @@ Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct) {
 
   // local grid dimensions and boundaries of active nodes
   //
-  // width of an ordinary mesh cell
+  // width of an ordinary subdomain
   //
-  const double xWidth = (col->getLx() / (double) vct->getXLEN());
-  const double yWidth = (col->getLy() / (double) vct->getYLEN());
-  const double zWidth = (col->getLz() / (double) vct->getZLEN());
-  assert_almost_eq(dx*(nxc_r),xWidth,dx*1e-8);
-  assert_almost_eq(dy*(nyc_r),yWidth,dy*1e-8);
-  assert_almost_eq(dz*(nzc_r),zWidth,dz*1e-8);
+  const double xWidth = dx*nxc_rr;
+  const double yWidth = dy*nyc_rr;
+  const double zWidth = dz*nzc_rr;
+  //const double xWidth = (col->getLx() / (double) vct->getXLEN());
+  //const double yWidth = (col->getLy() / (double) vct->getYLEN());
+  //const double zWidth = (col->getLz() / (double) vct->getZLEN());
+  //assert_almost_eq(dx*(nxc_r),xWidth,dx*1e-8);
+  //assert_almost_eq(dy*(nyc_r),yWidth,dy*1e-8);
+  //assert_almost_eq(dz*(nzc_r),zWidth,dz*1e-8);
   //
   xStart = vct->getCoordinates(0) * xWidth;
   yStart = vct->getCoordinates(1) * yWidth;

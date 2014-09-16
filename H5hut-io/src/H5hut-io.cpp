@@ -1,7 +1,13 @@
 #include <mpi.h>
 #include <fstream>
 
+#include "assert.h"
 #include "H5hut-io.h"
+
+static inline int ceiling_of_ratio(int n, int m)
+{
+  return (n-1)/m+1;
+}
 
 /* ==================== */
 /* Auxiliary structures */
@@ -64,7 +70,7 @@ void H5output::SetNameCycle(std::string name, int c){
   cycle    = c;
 }
 
-void H5output::OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, int ntz, const int *coord, const int *dimns, MPI_Comm CART_COMM){
+void H5output::OpenFieldsFile(std::string dtype, int nspec, int ntx_in, int nty_in, int ntz_in, const int *coord, const int *dimns, MPI_Comm CART_COMM){
 
   std::stringstream filenmbr;
   std::string       filename;
@@ -75,38 +81,50 @@ void H5output::OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, in
   int d = -1;
   if (dtype=="Cell") d = 0;
 
-  ntx = ntx + d;
-  nty = nty + d;
-  ntz = ntz + d;
+  const int ntx = ntx_in + d;
+  const int nty = nty_in + d;
+  const int ntz = ntz_in + d;
 
   /* -------------- */
   /* Open HDF5 file */
   /* -------------- */
 
+  const int celldimns[3] = {
+    ceiling_of_ratio(ntx,dimns[0]),
+    ceiling_of_ratio(nty,dimns[1]),
+    ceiling_of_ratio(ntz,dimns[2])
+  };
   fldsfile = H5OpenFile(filename.c_str(), H5_O_RDWR, CART_COMM);
   H5SetStep(fldsfile,0);
   H5WriteStepAttribInt32(fldsfile, "nspec", &nspec, 1);
+  // for some reason I get "Cannot create dataset" when I do this...
+  //if(Parameters::call_H5Block3dSetChunk())
+  //  H5Block3dSetChunk(fldsfile, celldimns[0], celldimns[1], celldimns[2]);
   H5Block3dSetGrid(fldsfile, dimns[0], dimns[1], dimns[2]);
-  H5Block3dSetDims(fldsfile, ntx/dimns[0], nty/dimns[1], ntz/dimns[2]);
-  H5Block3dSetHalo(fldsfile, 1, 1, 1);
+  // The H5Block3dSetView call below overwrites what these two lines do
+  //H5Block3dSetDims(fldsfile, celldimns[0], celldimns[1], celldimns[2]);
+  //H5Block3dSetHalo(fldsfile, 1, 1, 1);
 
   int irange[2];
   int jrange[2];
   int krange[2];
 
-  int nnx = ntx/dimns[0];
-  int nny = nty/dimns[1];
-  int nnz = ntz/dimns[2];
-
+  // currently assumed by subsequent code
+  //if(ntx%dimns[0]){ printf("dimns[0]=%d does not divide ntx=%d",dimns[0],ntx); abort(); }
+  //if(nty%dimns[1]){ printf("dimns[1]=%d does not divide ntx=%d",dimns[1],nty); abort(); }
+  //if(ntz%dimns[2]){ printf("dimns[2]=%d does not divide ntx=%d",dimns[2],ntz); abort(); }
   d = 0;
   if (dtype=="Cell") d = -1;   // Yes, this line is the oposite of the previous 'if'
-
-  irange[0] = coord[0]      * nnx;
-  irange[1] =(coord[0] + 1) * nnx + d;
-  jrange[0] = coord[1]      * nny;
-  jrange[1] =(coord[1] + 1) * nny + d;
-  krange[0] = coord[2]      * nnz;
-  krange[1] =(coord[2] + 1) * nnz + d;
+  irange[0] = coord[0]      * celldimns[0];
+  jrange[0] = coord[1]      * celldimns[1];
+  krange[0] = coord[2]      * celldimns[2];
+  irange[1] =(coord[0] + 1) * celldimns[0] + d;
+  jrange[1] =(coord[1] + 1) * celldimns[1] + d;
+  krange[1] =(coord[2] + 1) * celldimns[2] + d;
+  // if this is an upper process then set the appropriate upper bound
+  if(coord[0]+1 == dimns[0]) irange[1] = ntx_in;
+  if(coord[1]+1 == dimns[1]) jrange[1] = nty_in;
+  if(coord[2]+1 == dimns[2]) krange[1] = ntz_in;
 
   /* -------------- */
   /* Set the "view" */
@@ -247,7 +265,7 @@ void H5input::SetNameCycle(std::string name, int rc){
   recycle  = rc;
 }
 
-void H5input::OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, int ntz, const int *coord, const int *dimns, MPI_Comm CART_COMM){
+void H5input::OpenFieldsFile(std::string dtype, int nspec, int ntx_in, int nty_in, int ntz_in, const int *coord, const int *dimns, MPI_Comm CART_COMM){
 
   int file_nspec;
 
@@ -260,9 +278,9 @@ void H5input::OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, int
   int d = -1;
   if (dtype=="Cell") d = 0;
 
-  ntx = ntx + d;
-  nty = nty + d;
-  ntz = ntz + d;
+  const int ntx = ntx_in + d;
+  const int nty = nty_in + d;
+  const int ntz = ntz_in + d;
 
   /* -------------- */
   /* Open HDF5 file */
@@ -325,8 +343,9 @@ void H5input::OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, int
   /* -------------------- */
 
   H5Block3dSetGrid(fldsfile, dimns[0], dimns[1], dimns[2]);
-  H5Block3dSetDims(fldsfile, ntx/dimns[0], nty/dimns[1], ntz/dimns[2]);
-  H5Block3dSetHalo(fldsfile, 1, 1, 1);
+  // The H5Block3dSetView call below overwrites what these two lines do
+  //H5Block3dSetDims(fldsfile, ntx/dimns[0], nty/dimns[1], ntz/dimns[2]);
+  //H5Block3dSetHalo(fldsfile, 1, 1, 1);
 
   int irange[2];
   int jrange[2];
@@ -336,11 +355,15 @@ void H5input::OpenFieldsFile(std::string dtype, int nspec, int ntx, int nty, int
   if (dtype=="Cell") d = -1;  // Yes, this is the oposite of the first 'if'
 
   irange[0] =   coord[0]   * ntx/dimns[0];
-  irange[1] = ((coord[0]+1)* ntx/dimns[0]) + d;
   jrange[0] =   coord[1]   * nty/dimns[1];
-  jrange[1] = ((coord[1]+1)* nty/dimns[1]) + d;
   krange[0] =   coord[2]   * ntz/dimns[2];
+  irange[1] = ((coord[0]+1)* ntx/dimns[0]) + d;
+  jrange[1] = ((coord[1]+1)* nty/dimns[1]) + d;
   krange[1] = ((coord[2]+1)* ntz/dimns[2]) + d;
+  // if this is an upper process then set the appropriate upper bound
+  if(coord[0]+1 == dimns[0]) irange[1] = ntx_in;
+  if(coord[1]+1 == dimns[1]) jrange[1] = nty_in;
+  if(coord[2]+1 == dimns[2]) krange[1] = ntz_in;
 
   /* -------------- */
   /* Set the "view" */
