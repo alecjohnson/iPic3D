@@ -40,6 +40,16 @@ pow2rounddown (int x)
     return (x >> 1);
 }
 
+// return integer ceiling of n over m
+inline int ceiling_of_ratio(int n, int m)
+{
+  // probably this way is cheapest
+  return ((n-1)/m+1);
+  //return (n+m-1)/m;
+  //const int out = ceil(n/double(m));
+  //return out;
+}
+
 // round n up to next multiple of m
 inline int roundup_to_multiple(int n, int m)
 {
