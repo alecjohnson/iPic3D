@@ -4,6 +4,17 @@ using namespace Parameters;
 
 //********** edit these parameters *********
 //
+// parameters relevant to parallel IO
+//bool Parameters::call_H5Block3dSetChunk() { return true; }
+//
+// parameters relevant to particle communication
+//
+// int Parameters::get_blockSize() { return 64; }
+int Parameters::get_blockSize() { return 2048; }
+int Parameters::get_numBlocks() { return 4; }
+//
+// parameters relevant to parallelization
+//
 bool Parameters::get_VECTORIZE_MOMENTS() { return false; }
 // supported options: SoA AoS
 Parameters::Enum Parameters::get_MOMENTS_TYPE() { return AoS; }
@@ -41,9 +52,6 @@ bool Parameters::get_RESORTING_PARTICLES() { return RESORTING_PARTICLES; }
 bool Parameters::get_SORTING_PARTICLES() { return SORTING_PARTICLES; }
 bool Parameters::get_SORTING_SOA() { return SORTING_SOA; }
 bool Parameters::get_USING_AOS() { return USING_AOS; }
-// int Parameters::get_blockSize() { return 64; }
-int Parameters::get_blockSize() { return 2048; }
-int Parameters::get_numBlocks() { return 4; }
 
 //bool Parameters::get_RESORTING_PARTICLES() { return true; }
 //bool Parameters::get_SORTING_PARTICLES() { return true; }
