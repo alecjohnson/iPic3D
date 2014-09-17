@@ -95,10 +95,10 @@ void PHDF5fileClass::CreatePHDF5file(double *L, int *dglob, int *dlocl, bool bp)
   if(!MPIdata::get_rank()) dprint(str_stripe_count);
   if(!MPIdata::get_rank()) dprint(str_stripe_size);
   if(!MPIdata::get_rank()) dprint(str_cb_buffer_size);
-  MPI_Info_set(info, "striping_factor", str_stripe_count);
-  MPI_Info_set(info, "striping_unit", str_stripe_size);
-  MPI_Info_set(info, "cb_buffer_size", str_cb_buffer_size);
-  MPI_Info_set(info, "romio_cb_write", "enable");
+  MPI_Info_set(info, (char*)"striping_factor", str_stripe_count);
+  MPI_Info_set(info, (char*)"striping_unit", str_stripe_size);
+  MPI_Info_set(info, (char*)"cb_buffer_size", str_cb_buffer_size);
+  MPI_Info_set(info, (char*)"romio_cb_write", (char*)"enable");
   //MPI_Info_set(info, "cb_nodes", CB_NODES);
   H5Pset_fapl_mpio(acc_t, comm, info);
   //H5Pset_fapl_mpio(acc_t, comm, MPI_INFO_NULL);
