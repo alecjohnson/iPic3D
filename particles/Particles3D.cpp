@@ -389,14 +389,7 @@ void Particles3D::mover_PC(Field * EMf) {
       const double eta1  = grid->getYN(iy) - yavg;
       const double zeta1 = grid->getZN(iz) - zavg;
 
-      pfloat Exl = 0.0;
-      pfloat Eyl = 0.0;
-      pfloat Ezl = 0.0;
-      pfloat Bxl = 0.0;
-      pfloat Byl = 0.0;
-      pfloat Bzl = 0.0;
-
-      pfloat weights[8];
+      double weights[8] ALLOC_ALIGNED;
       const pfloat weight0 = invVOL*xi0;
       const pfloat weight1 = invVOL*xi1;
       const pfloat weight00 = weight0*eta0;
@@ -426,14 +419,34 @@ void Particles3D::mover_PC(Field * EMf) {
       const double* field_components[8];
       get_field_components_for_cell(field_components,fieldForPcls,cx,cy,cz);
 
+      //double Exl=0,Exl=0,Ezl=0,Bxl=0,Byl=0,Bzl=0;
+      //for(int c=0; c<8; c++)
+      //{
+      //  Bxl += weights[c] * field_components[c][0];
+      //  Byl += weights[c] * field_components[c][1];
+      //  Bzl += weights[c] * field_components[c][2];
+      //  Exl += weights[c] * field_components[c][0+DFIELD_3or4];
+      //  Eyl += weights[c] * field_components[c][1+DFIELD_3or4];
+      //  Ezl += weights[c] * field_components[c][2+DFIELD_3or4];
+      //}
+      double sampled_field[8]={0,0,0,0,0,0,0,0} ALLOC_ALIGNED;
+      double& Bxl=sampled_field[0];
+      double& Byl=sampled_field[1];
+      double& Bzl=sampled_field[2];
+      double& Exl=sampled_field[0+DFIELD_3or4];
+      double& Eyl=sampled_field[1+DFIELD_3or4];
+      double& Ezl=sampled_field[2+DFIELD_3or4];
+      const int num_field_components=2*DFIELD_3or4;
       for(int c=0; c<8; c++)
       {
-        Bxl += weights[c] * field_components[c][0];
-        Byl += weights[c] * field_components[c][1];
-        Bzl += weights[c] * field_components[c][2];
-        Exl += weights[c] * field_components[c][0+DFIELD_3or4];
-        Eyl += weights[c] * field_components[c][1+DFIELD_3or4];
-        Ezl += weights[c] * field_components[c][2+DFIELD_3or4];
+        const double* field_components_c=field_components[c];
+        ASSUME_ALIGNED(field_components_c);
+        const double weight_c = weights[c];
+        #pragma simd
+        for(int i=0; i<num_field_components; i++)
+        {
+          sampled_field[i] += weights_c*field_components[i];
+        }
       }
       const double Omx = qdto2mc*Bxl;
       const double Omy = qdto2mc*Byl;
