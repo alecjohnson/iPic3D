@@ -4,6 +4,49 @@
 #include "assert.h"
 #include "H5hut-io.h"
 
+// copied from src/h5core/h5_core_private.h
+#define H5_STEPNAME_LEN		64
+// copied from h5_types_private.h
+/**
+   \struct h5_file
+
+   This is an essentially opaque datastructure that
+   acts as a filehandle and is defined as type \c h5_file_t.
+   It is created by \ref H5OpenFile and destroyed by
+   \ref H5CloseFile.
+*/
+struct h5_file {
+	hid_t		file;		/* file id -> fid		*/
+	h5_int32_t	mode;		/* file access mode		*/
+	char		empty;
+
+	/* MPI */
+
+	MPI_Comm comm;			/* MPI communicator		*/
+	int	nprocs;			/* number of processors		*/
+	int	myproc;			/* The index of the processor	
+					   this process is running on.	*/
+        int	throttle;
+
+	/* HDF5 */
+	hid_t	xfer_prop;		/* dataset transfer properties	*/
+	hid_t	access_prop;		/* file access properties	*/
+	hid_t	create_prop;		/* file create properties	*/
+	hid_t	root_gid;		/* id of root   		*/
+	hid_t	step_gid;		/* id of current step		*/
+
+	/* step internal data						*/
+	char	prefix_step_name[H5_STEPNAME_LEN];	/* Prefix of step name		*/
+	int	width_step_idx;		/* pad step index with 0 up to this */
+	char	step_name[2*H5_STEPNAME_LEN];		/* full step name		*/
+	h5_int64_t step_idx;		/* step index			*/
+	int	is_new_step;
+
+	struct h5u_fdata *u;
+	struct h5b_fdata *b;
+};
+
+
 static inline int ceiling_of_ratio(int n, int m)
 {
   return (n-1)/m+1;
@@ -166,6 +209,38 @@ void H5output::WriteFields(double ***field, std::string fname, int nx, int ny, i
   if (rank!=-1) myfile.close();
 
   H5Block3dWriteScalarFieldFloat64(fldsfile, fname.c_str(), buffer);
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if(!rank)
+  {
+    // show the output mode that is actually being used
+    H5D_mpio_actual_io_mode_t actual_io_mode;
+    H5Pget_mpio_actual_io_mode(fldsfile->xfer_prop, &actual_io_mode);
+    if(actual_io_mode == H5D_MPIO_NO_COLLECTIVE)
+      printf("H5D_MPIO_NO_COLLECTIVE\n");
+    else if(actual_io_mode == H5D_MPIO_CHUNK_INDEPENDENT)
+      printf("H5D_MPIO_CHUNK_INDEPENDENT\n");
+    else if(actual_io_mode == H5D_MPIO_CHUNK_COLLECTIVE)
+      printf("H5D_MPIO_CHUNK_COLLECTIVE\n");
+    else if(actual_io_mode == H5D_MPIO_CONTIGUOUS_COLLECTIVE)
+      printf("H5D_MPIO_CONTIGUOUS_COLLECTIVE\n");
+    else
+      printf("unrecognized output method\n");
+
+    // show the chunking that is actually used
+    H5D_mpio_actual_chunk_opt_mode_t actual_chunk_opt_mode;
+    H5Pget_mpio_actual_chunk_opt_mode(fldsfile->xfer_prop, &actual_chunk_opt_mode);
+    if(actual_chunk_opt_mode == H5D_MPIO_NO_CHUNK_OPTIMIZATION)
+      printf("H5D_MPIO_NO_CHUNK_OPTIMIZATION\n");
+    else if(actual_chunk_opt_mode == H5D_MPIO_MULTI_CHUNK)
+      printf("H5D_MPIO_MULTI_CHUNK\n");
+    //else if(actual_chunk_opt_mode == H5D_MPIO_MULTI_CHUNK_NO_OPT)
+    //  printf("H5D_MPIO_MULTI_CHUNK_NO_OPT\n");
+    else if(actual_chunk_opt_mode == H5D_MPIO_LINK_CHUNK)
+      printf("H5D_MPIO_LINK_CHUNK\n");
+    else
+      printf("unrecognized chunking method\n");
+  }
 
   delete [] buffer;
 }
