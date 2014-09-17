@@ -382,6 +382,49 @@ void EMfields3D::sumMomentsOld(const Particles3Dcomm& pcls, Grid * grid, Virtual
   timeTasks = timeTasksAcc;
   communicateGhostP2G(is, 0, 0, 0, 0, vct);
 }
+//
+// Create a vectorized version of this moment accumulator as follows.
+//
+// A. Moment accumulation
+//
+// Case 1: Assuming AoS particle layout and using intrinsics vectorization:
+//   Process P:=N/4 particles at a time:
+//   1. gather position coordinates from P particles and
+//      generate Px8 array of weights and P cell indices.
+//   2. for each particle, add 10x8 array of moment-weight
+//      products to appropriate cell accumulator.
+//   Each cell now has a 10x8 array of node-destined moments.
+//   (See sumMoments_AoS_intr().)
+// Case 2: Assuming SoA particle layout and using trivial vectorization:
+//   Process N:=sizeof(vector_unit)/sizeof(double) particles at a time:
+//   1. for pcl=1:N: (3) positions -> (8) weights, cell_index
+//   2. For each of 10 moments:
+//      a. for pcl=1:N: (<=2 of 3) charge velocities -> (1) moment
+//      b. for pcl=1:N: (1) moment, (8) weights -> (8) node-destined moments
+//      c. transpose 8xN array of node-destined moments to Nx8 array 
+//      d. foreach pcl: add node-distined moments to cell of cell_index
+//   Each cell now has a 10x8 array of node-destined moments.
+//
+//   If particles are sorted by mesh cell, then all moments are destined
+//   for the same node; in this case, we can simply accumulate an 8xN
+//   array of node-destined moments in each mesh cell and at the end
+//   gather these moments at the nodes; to help performance and
+//   code reuse, we will in each cell first transpose the 8xN array
+//   of node-destined moments to an Nx8 array.
+//
+// B: Moment reduction
+//
+//   Gather the information from cells to nodes:
+//   3. [foreach cell transpose node-destined moments:
+//      10x8 -> 8x10, or rather (8+2)x8 -> 8x8 + 8x2]
+//   4. at each node gather moments from cells.
+//   5. [transpose moments at nodes if step 3 was done.]
+//
+//   We will likely omit steps 3 and 5; they could help to optimize,
+//   but even without these steps, step 4 is not expected to dominate.
+//
+// Compare the vectorization notes at the top of mover_PC().
+//
 // This was Particles3Dcomm::interpP2G()
 void EMfields3D::sumMoments(const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct)
 {
@@ -828,6 +871,8 @@ inline void addto_cell_moments(
 //    if the number of particles per mesh cell is large;
 //    if the number of particles per mesh cell is small,
 //    then a fully vectorized moment sum is hard to justify anyway.
+//
+// See notes at the top of sumMoments().
 //
 void EMfields3D::sumMoments_AoS_intr(
   const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct)

@@ -282,6 +282,53 @@ void Particles3D::AddPerturbationJ(double deltaBoB, double kx, double ky, double
 void Particles3D::mover_explicit(Field * EMf) {
   eprintf("unimplemented");
 }
+//
+// Create a vectorized version of this mover as follows.
+//
+// Let N be the number of doubles that fit in the vector unit.
+//
+// Vectorization can be done in one of two ways:
+// 1. trivially by writing loops over stride-1 data,
+//    particularly if data is in SoA format, and
+// 2. with intrinsics, e.g. by loading the components
+//    of physical vectors in the vector unit and
+//    performing physical vector operations.
+//
+// Process N:=sizeof(vector_unit)/sizeof(double) particles at a time:
+//
+// A. Initialize average position with old position.
+// B. repeat the following steps:
+//    1. Use average position to generate 8 node weights and indices:
+//       for pcl=1:N: (3) position -> (8) weights and (8) node_indices
+//    2. Use weights and fields at node indices to calculate sampled field:
+//       for pcl=1:N: (8) weights, field at nodes -> (6 or 8) sampled field
+//    3. Use sampled field to advance velocity:
+//       for pcl=1:N: sampled field, velocity -> (3) new velocity
+//    4. Use velocity to advance position:
+//       for pcl=1:N: velocity, old position -> (3) average position
+// C. Use old position and average position to update the position.
+//
+// Since the fields used by the pusher are in AoS format,
+// step 2 can be vectorized trivially, independent of whether
+// the particle representation is AoS or SoA, and is expected
+// to dominate in the absence of vectorization.
+//
+// If the particle representation is AoS, then
+// vectorizing steps 1, 3, and 4 requires intrinsics.
+//
+// If the particle representation is SoA then
+// vectorizing step 3 requires intrinsics unless:
+// 1. the Nx(6 or 8) array of sampled fields is transposed
+//    from AoS format to SoA format or
+// 2. particles are sorted by mesh cell and are subcycled
+//    or resorted with each iteration to keep the average
+//    position within the mesh cell;
+//    in this case the cell nodes are the same for all
+//    N particles, so the sampled fields can be directly
+//    calculated in SoA format.
+//
+// Compare the vectorization notes at the top of sumMoments()
+//
 /** mover with a Predictor-Corrector scheme */
 void Particles3D::mover_PC(Field * EMf) {
   convertParticlesToSoA();
