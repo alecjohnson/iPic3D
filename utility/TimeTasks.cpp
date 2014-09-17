@@ -244,18 +244,18 @@ void TimeTasks::print_cycle_times(int cycle)
 
   if(!MPIdata::get_rank())
     fflush(stdout);
-  if(!MPIdata::get_rank())
-    printf("=== times for cycle %d (main process) ===\n", cycle);
-  print_cycle_times(cycle, task_duration, communicate, "main| ");
-  if(!MPIdata::get_rank())
-    printf("=== times for cycle %d (maximum over all processes) ===\n", cycle);
-  print_cycle_times_max(cycle);
+  //if(!MPIdata::get_rank())
+  //  printf("=== times for cycle %d (main process) ===\n", cycle);
+  //print_cycle_times(cycle, task_duration, communicate, "main| ");
+  //if(!MPIdata::get_rank())
+  //  printf("=== times for cycle %d (maximum over all processes) ===\n", cycle);
+  //print_cycle_times_max(cycle);
   if(!MPIdata::get_rank())
     printf("=== times for cycle %d (averaged over all processes) ===\n", cycle);
   print_cycle_times_avg(cycle);
-  if(!MPIdata::get_rank())
-    printf("=== times for cycle %d (minimum over all processes) ===\n", cycle);
-  print_cycle_times_min(cycle);
+  //if(!MPIdata::get_rank())
+  //  printf("=== times for cycle %d (minimum over all processes) ===\n", cycle);
+  //print_cycle_times_min(cycle);
 }
 
 // The following three methods provide for a hack by which
