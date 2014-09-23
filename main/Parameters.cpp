@@ -3,6 +3,11 @@
 using namespace Parameters;
 
 //********** edit these parameters *********
+// parameters relevant to parallelization
+//
+// This should be a multiple of the width of the vector unit
+// as measured in double precision floating point numbers
+int Parameters::get_multiple_of_vector_width_in_doubles(){ return 8; }
 //
 // parameters relevant to parallel IO
 //bool Parameters::call_H5Block3dSetChunk() { return true; }

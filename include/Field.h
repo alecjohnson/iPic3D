@@ -125,7 +125,7 @@ developers: Stefano Markidis, Enrico Camporeale, Giovanni Lapenta, David Burgess
 // /** add an amount of pressure density - direction ZZ to current density field at node X,Y,Z */
 // virtual void addPzz(double weight[][2][2], int X, int Y, int Z, int ns) = 0;
 // /** communicate ghost for grid -> Particles interpolation */
-// virtual void communicateGhostP2G(int ns, int bcFaceXright, int bcFaceXleft, int bcFaceYright, int bcFaceYleft, VirtualTopology3D * vct) = 0;
+// virtual void communicateGhostP2G(int ns, VirtualTopology3D * vct) = 0;
 // /** Sum density over different species */
 // virtual void sumOverSpecies(VirtualTopology3D * vct) = 0;
 // /** Sum current over different species */

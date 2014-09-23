@@ -83,12 +83,19 @@ public:
   bool isPeriodicZlower()const{ return _isPeriodicZlower; }
   bool isPeriodicZupper()const{ return _isPeriodicZupper; }
 
-  bool noXlowerNeighbor()const{ return _noXlowerNeighbor; }
-  bool noXupperNeighbor()const{ return _noXupperNeighbor; }
-  bool noYlowerNeighbor()const{ return _noYlowerNeighbor; }
-  bool noYupperNeighbor()const{ return _noYupperNeighbor; }
-  bool noZlowerNeighbor()const{ return _noZlowerNeighbor; }
-  bool noZupperNeighbor()const{ return _noZupperNeighbor; }
+  bool noXleftNeighbor()const{ return _noXleftNeighbor; }
+  bool noXrghtNeighbor()const{ return _noXrghtNeighbor; }
+  bool noYleftNeighbor()const{ return _noYleftNeighbor; }
+  bool noYrghtNeighbor()const{ return _noYrghtNeighbor; }
+  bool noZleftNeighbor()const{ return _noZleftNeighbor; }
+  bool noZrghtNeighbor()const{ return _noZrghtNeighbor; }
+
+  bool hasXleftNeighbor()const{ return !_noXleftNeighbor; }
+  bool hasXrghtNeighbor()const{ return !_noXrghtNeighbor; }
+  bool hasYleftNeighbor()const{ return !_noYleftNeighbor; }
+  bool hasYrghtNeighbor()const{ return !_noYrghtNeighbor; }
+  bool hasZleftNeighbor()const{ return !_noZleftNeighbor; }
+  bool hasZrghtNeighbor()const{ return !_noZrghtNeighbor; }
 
   bool isBoundaryProcess()const{ return _isBoundaryProcess; }
 
@@ -192,12 +199,12 @@ private:
   bool _isPeriodicZupper;
 
   /** indicators of whether this lacks a neighbor */
-  bool _noXupperNeighbor;
-  bool _noXlowerNeighbor;
-  bool _noYupperNeighbor;
-  bool _noYlowerNeighbor;
-  bool _noZupperNeighbor;
-  bool _noZlowerNeighbor;
+  bool _noXrghtNeighbor;
+  bool _noXleftNeighbor;
+  bool _noYrghtNeighbor;
+  bool _noYleftNeighbor;
+  bool _noZrghtNeighbor;
+  bool _noZleftNeighbor;
 
   int _isBoundaryProcess;
 

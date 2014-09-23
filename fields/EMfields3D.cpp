@@ -380,7 +380,7 @@ void EMfields3D::sumMomentsOld(const Particles3Dcomm& pcls, Grid * grid, Virtual
   // reset timeTasks to be its average value for all threads
   timeTasksAcc /= omp_get_max_threads();
   timeTasks = timeTasksAcc;
-  communicateGhostP2G(is, 0, 0, 0, 0, vct);
+  communicateGhostP2G(is, vct);
 }
 //
 // Create a vectorized version of this moment accumulator as follows.
@@ -630,12 +630,12 @@ void EMfields3D::sumMoments(const Particles3Dcomm* part, Grid * grid, VirtualTop
     if(!thread_num) timeTasks_end_task(TimeTasks::MOMENT_REDUCTION);
     // uncomment this and remove the loop below
     // when we change to use asynchronous communication.
-    // communicateGhostP2G(is, 0, 0, 0, 0, vct);
+    // communicateGhostP2G(is, vct);
   }
   }
   for (int i = 0; i < ns; i++)
   {
-    communicateGhostP2G(i, 0, 0, 0, 0, vct);
+    communicateGhostP2G(i, vct);
   }
 }
 
@@ -800,7 +800,7 @@ void EMfields3D::sumMoments_AoS(
   }
   for (int i = 0; i < ns; i++)
   {
-    communicateGhostP2G(i, 0, 0, 0, 0, vct);
+    communicateGhostP2G(i, vct);
   }
 }
 
@@ -1239,7 +1239,7 @@ void EMfields3D::sumMoments_AoS_intr(
 
   for (int i = 0; i < ns; i++)
   {
-    communicateGhostP2G(i, 0, 0, 0, 0, vct);
+    communicateGhostP2G(i, vct);
   }
 #endif // __MIC__
 }
@@ -1640,12 +1640,12 @@ void EMfields3D::sumMoments_vectorized(
     { timeTasks_end_task(TimeTasks::MOMENT_REDUCTION); }
     // uncomment this and remove the loop below
     // when we change to use asynchronous communication.
-    // communicateGhostP2G(is, 0, 0, 0, 0, vct);
+    // communicateGhostP2G(is, vct);
   }
   }
   for (int i = 0; i < ns; i++)
   {
-    communicateGhostP2G(i, 0, 0, 0, 0, vct);
+    communicateGhostP2G(i, vct);
   }
 }
 
@@ -1852,12 +1852,12 @@ void EMfields3D::sumMoments_vectorized_AoS(
     { timeTasks_end_task(TimeTasks::MOMENT_REDUCTION); }
     // uncomment this and remove the loop below
     // when we change to use asynchronous communication.
-    // communicateGhostP2G(is, 0, 0, 0, 0, vct);
+    // communicateGhostP2G(is, vct);
   }
   }
   for (int i = 0; i < ns; i++)
   {
-    communicateGhostP2G(i, 0, 0, 0, 0, vct);
+    communicateGhostP2G(i, vct);
   }
 }
 
@@ -2033,31 +2033,66 @@ void EMfields3D::MaxwellSource(double *bkrylov, Grid * grid, VirtualTopology3D *
 /*! Mapping of Maxwell image to give to solver */
 //
 // In the field solver, there is one layer of ghost cells.  The
-// nodes on the ghost cells define two layers of "ghost nodes": the
-// outer ghost nodes are clearly in the interior of the neighboring
-// subdomain, but the inner layer is on the boundary between
+// nodes on the ghost cells define two outer layers of nodes: the
+// outermost nodes are clearly in the interior of the neighboring
+// subdomain and can naturally be referred to as "ghost nodes",
+// but the second-outermost layer is on the boundary between
 // subdomains and thus does not clearly belong to any one process.
+// Refer to these shared nodes as "boundary nodes".
+//
+// To compute the laplacian, we first compute the gradient
+// at the center of each cell by differencing the values at
+// the corners of the cell.  We then compute the laplacian
+// (i.e. the divergence of the gradient) at each node by
+// differencing the cell-center values in the cells sharing
+// the node.
+//
+// The laplacian is required to be defined on all boundary
+// and interior nodes.  
 // 
 // In the krylov solver, we make no attempt to use or to
-// update the outer ghost nodes, and we assume (presumably
-// correctly) that the inner ghost nodes are updated consistently
-// between the processes that share them.  As a consequence,
-// in order to compute the laplacian, we must communicate the
-// gradient values that lie on the boundary of the processor
-// subdomain.  Computing the divergence requires that this
-// boundary communication first complete.
+// update the (outer) ghost nodes, and we assume (presumably
+// correctly) that the boundary nodes are updated identically
+// by all processes that share them.  Therefore, we must
+// communicate gradient values in the ghost cells.  The
+// subsequent computation of the divergence requires that
+// this boundary communication first complete.
 //
 // An alternative way would be to communicate outer ghost node
 // values after each update of Eth.  In this case, there would
-// be no need for the three boundary communications in the body
-// of MaxwellImage() entailed in the calls to lapN2N and the
-// fourth call needed prior to the call to gradN2C.  Of course,
-// we would then need to communicate the three components of the
-// electric field for the outer ghost nodes prior to each call to
-// MaxwellImage().
+// be no need for the 10=3*3+1 boundary communications in the body
+// of MaxwellImage() entailed in the calls to lapN2N plus the
+// call needed prior to the call to gradC2N.  Of course,
+// we would then need to communicate the 3 components of the
+// electric field for the outer ghost nodes prior to each call
+// to MaxwellImage().  This second alternative would thus reduce
+// communication by over a factor of 3.  Essentially, we would
+// replace the cost of communicating cell-centered differences
+// for ghost cell values with the cost of directly computing them.
 //
-// Is there much difference in the potential
-// of these two methods to hide latancy?
+// Also, while this second method does not increase the potential
+// to avoid exposing latency, it can make it easier to do so.
+//
+// Another change that I would propose: define:
+//
+//   array4_double physical_vector(3,nxn,nyn,nzn);
+//   arr3_double vectX = physical_vector[0];
+//   arr3_double vectY = physical_vector[1];
+//   arr3_double vectZ = physical_vector[2];
+//   vector = &physical_vector[0][0][0][0];
+//
+// It is currently the case that boundary nodes are
+// duplicated in "vector" and therefore receive a weight
+// that is twice, four times, or eight times as much as
+// other nodes in the Krylov inner product.  The definitions
+// above would imply that ghost nodes also appear in the
+// inner product.  To avoid this issue, we could simply zero
+// ghost nodes before returning to the Krylov solver.  With
+// the definitions above, phys2solver() would simply zero
+// the ghost nodes and solver2phys() would populate them via
+// communication.  Note that it would also be possible, if
+// desired, to give duplicated nodes equal weight by
+// rescaling their values in these two methods.
 // 
 void EMfields3D::MaxwellImage(double *im, double *vector, Grid * grid, VirtualTopology3D * vct) {
   eqValue(0.0, im, 3 * (nxn - 2) * (nyn - 2) * (nzn - 2));
@@ -2335,98 +2370,108 @@ void EMfields3D::fixBforcefree(Grid * grid, VirtualTopology3D * vct) {
 
 }
 
-
+// This method assumes mirror boundary conditions;
+// we therefore need to double the density on the boundary
+// nodes to incorporate the mirror particles from the mirror
+// cell just outside the domain.
+//
 /*! adjust densities on boundaries that are not periodic */
 void EMfields3D::adjustNonPeriodicDensities(int is, VirtualTopology3D * vct) {
   if (vct->getXleft_neighbor_P() == MPI_PROC_NULL) {
     for (int i = 1; i < nyn - 1; i++)
-      for (int k = 1; k < nzn - 1; k++) {
-        rhons[is][1][i][k] += rhons[is][1][i][k];
-        Jxs  [is][1][i][k] += Jxs  [is][1][i][k];
-        Jys  [is][1][i][k] += Jys  [is][1][i][k];
-        Jzs  [is][1][i][k] += Jzs  [is][1][i][k];
-        pXXsn[is][1][i][k] += pXXsn[is][1][i][k];
-        pXYsn[is][1][i][k] += pXYsn[is][1][i][k];
-        pXZsn[is][1][i][k] += pXZsn[is][1][i][k];
-        pYYsn[is][1][i][k] += pYYsn[is][1][i][k];
-        pYZsn[is][1][i][k] += pYZsn[is][1][i][k];
-        pZZsn[is][1][i][k] += pZZsn[is][1][i][k];
-      }
+    for (int k = 1; k < nzn - 1; k++)
+    {
+        rhons[is][1][i][k] *= 2;
+        Jxs  [is][1][i][k] *= 2;
+        Jys  [is][1][i][k] *= 2;
+        Jzs  [is][1][i][k] *= 2;
+        pXXsn[is][1][i][k] *= 2;
+        pXYsn[is][1][i][k] *= 2;
+        pXZsn[is][1][i][k] *= 2;
+        pYYsn[is][1][i][k] *= 2;
+        pYZsn[is][1][i][k] *= 2;
+        pZZsn[is][1][i][k] *= 2;
+    }
   }
   if (vct->getYleft_neighbor_P() == MPI_PROC_NULL) {
     for (int i = 1; i < nxn - 1; i++)
-      for (int k = 1; k < nzn - 1; k++) {
-        rhons[is][i][1][k] += rhons[is][i][1][k];
-        Jxs  [is][i][1][k] += Jxs  [is][i][1][k];
-        Jys  [is][i][1][k] += Jys  [is][i][1][k];
-        Jzs  [is][i][1][k] += Jzs  [is][i][1][k];
-        pXXsn[is][i][1][k] += pXXsn[is][i][1][k];
-        pXYsn[is][i][1][k] += pXYsn[is][i][1][k];
-        pXZsn[is][i][1][k] += pXZsn[is][i][1][k];
-        pYYsn[is][i][1][k] += pYYsn[is][i][1][k];
-        pYZsn[is][i][1][k] += pYZsn[is][i][1][k];
-        pZZsn[is][i][1][k] += pZZsn[is][i][1][k];
-      }
+    for (int k = 1; k < nzn - 1; k++)
+    {
+        rhons[is][i][1][k] *= 2;
+        Jxs  [is][i][1][k] *= 2;
+        Jys  [is][i][1][k] *= 2;
+        Jzs  [is][i][1][k] *= 2;
+        pXXsn[is][i][1][k] *= 2;
+        pXYsn[is][i][1][k] *= 2;
+        pXZsn[is][i][1][k] *= 2;
+        pYYsn[is][i][1][k] *= 2;
+        pYZsn[is][i][1][k] *= 2;
+        pZZsn[is][i][1][k] *= 2;
+    }
   }
   if (vct->getZleft_neighbor_P() == MPI_PROC_NULL) {
     for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++) {
-        rhons[is][i][j][1] += rhons[is][i][j][1];
-        Jxs  [is][i][j][1] += Jxs  [is][i][j][1];
-        Jys  [is][i][j][1] += Jys  [is][i][j][1];
-        Jzs  [is][i][j][1] += Jzs  [is][i][j][1];
-        pXXsn[is][i][j][1] += pXXsn[is][i][j][1];
-        pXYsn[is][i][j][1] += pXYsn[is][i][j][1];
-        pXZsn[is][i][j][1] += pXZsn[is][i][j][1];
-        pYYsn[is][i][j][1] += pYYsn[is][i][j][1];
-        pYZsn[is][i][j][1] += pYZsn[is][i][j][1];
-        pZZsn[is][i][j][1] += pZZsn[is][i][j][1];
-      }
+    for (int j = 1; j < nyn - 1; j++)
+    {
+        rhons[is][i][j][1] *= 2;
+        Jxs  [is][i][j][1] *= 2;
+        Jys  [is][i][j][1] *= 2;
+        Jzs  [is][i][j][1] *= 2;
+        pXXsn[is][i][j][1] *= 2;
+        pXYsn[is][i][j][1] *= 2;
+        pXZsn[is][i][j][1] *= 2;
+        pYYsn[is][i][j][1] *= 2;
+        pYZsn[is][i][j][1] *= 2;
+        pZZsn[is][i][j][1] *= 2;
+    }
   }
   if (vct->getXright_neighbor_P() == MPI_PROC_NULL) {
     for (int i = 1; i < nyn - 1; i++)
-      for (int k = 1; k < nzn - 1; k++) {
-        rhons[is][nxn - 2][i][k] += rhons[is][nxn - 2][i][k];
-        Jxs  [is][nxn - 2][i][k] += Jxs  [is][nxn - 2][i][k];
-        Jys  [is][nxn - 2][i][k] += Jys  [is][nxn - 2][i][k];
-        Jzs  [is][nxn - 2][i][k] += Jzs  [is][nxn - 2][i][k];
-        pXXsn[is][nxn - 2][i][k] += pXXsn[is][nxn - 2][i][k];
-        pXYsn[is][nxn - 2][i][k] += pXYsn[is][nxn - 2][i][k];
-        pXZsn[is][nxn - 2][i][k] += pXZsn[is][nxn - 2][i][k];
-        pYYsn[is][nxn - 2][i][k] += pYYsn[is][nxn - 2][i][k];
-        pYZsn[is][nxn - 2][i][k] += pYZsn[is][nxn - 2][i][k];
-        pZZsn[is][nxn - 2][i][k] += pZZsn[is][nxn - 2][i][k];
-      }
+    for (int k = 1; k < nzn - 1; k++)
+    {
+        rhons[is][nxn - 2][i][k] *= 2;
+        Jxs  [is][nxn - 2][i][k] *= 2;
+        Jys  [is][nxn - 2][i][k] *= 2;
+        Jzs  [is][nxn - 2][i][k] *= 2;
+        pXXsn[is][nxn - 2][i][k] *= 2;
+        pXYsn[is][nxn - 2][i][k] *= 2;
+        pXZsn[is][nxn - 2][i][k] *= 2;
+        pYYsn[is][nxn - 2][i][k] *= 2;
+        pYZsn[is][nxn - 2][i][k] *= 2;
+        pZZsn[is][nxn - 2][i][k] *= 2;
+    }
   }
   if (vct->getYright_neighbor_P() == MPI_PROC_NULL) {
     for (int i = 1; i < nxn - 1; i++)
-      for (int k = 1; k < nzn - 1; k++) {
-        rhons[is][i][nyn - 2][k] += rhons[is][i][nyn - 2][k];
-        Jxs  [is][i][nyn - 2][k] += Jxs  [is][i][nyn - 2][k];
-        Jys  [is][i][nyn - 2][k] += Jys  [is][i][nyn - 2][k];
-        Jzs  [is][i][nyn - 2][k] += Jzs  [is][i][nyn - 2][k];
-        pXXsn[is][i][nyn - 2][k] += pXXsn[is][i][nyn - 2][k];
-        pXYsn[is][i][nyn - 2][k] += pXYsn[is][i][nyn - 2][k];
-        pXZsn[is][i][nyn - 2][k] += pXZsn[is][i][nyn - 2][k];
-        pYYsn[is][i][nyn - 2][k] += pYYsn[is][i][nyn - 2][k];
-        pYZsn[is][i][nyn - 2][k] += pYZsn[is][i][nyn - 2][k];
-        pZZsn[is][i][nyn - 2][k] += pZZsn[is][i][nyn - 2][k];
-      }
+    for (int k = 1; k < nzn - 1; k++)
+    {
+        rhons[is][i][nyn - 2][k] *= 2;
+        Jxs  [is][i][nyn - 2][k] *= 2;
+        Jys  [is][i][nyn - 2][k] *= 2;
+        Jzs  [is][i][nyn - 2][k] *= 2;
+        pXXsn[is][i][nyn - 2][k] *= 2;
+        pXYsn[is][i][nyn - 2][k] *= 2;
+        pXZsn[is][i][nyn - 2][k] *= 2;
+        pYYsn[is][i][nyn - 2][k] *= 2;
+        pYZsn[is][i][nyn - 2][k] *= 2;
+        pZZsn[is][i][nyn - 2][k] *= 2;
+    }
   }
   if (vct->getZright_neighbor_P() == MPI_PROC_NULL) {
     for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++) {
-        rhons[is][i][j][nzn - 2] += rhons[is][i][j][nzn - 2];
-        Jxs  [is][i][j][nzn - 2] += Jxs  [is][i][j][nzn - 2];
-        Jys  [is][i][j][nzn - 2] += Jys  [is][i][j][nzn - 2];
-        Jzs  [is][i][j][nzn - 2] += Jzs  [is][i][j][nzn - 2];
-        pXXsn[is][i][j][nzn - 2] += pXXsn[is][i][j][nzn - 2];
-        pXYsn[is][i][j][nzn - 2] += pXYsn[is][i][j][nzn - 2];
-        pXZsn[is][i][j][nzn - 2] += pXZsn[is][i][j][nzn - 2];
-        pYYsn[is][i][j][nzn - 2] += pYYsn[is][i][j][nzn - 2];
-        pYZsn[is][i][j][nzn - 2] += pYZsn[is][i][j][nzn - 2];
-        pZZsn[is][i][j][nzn - 2] += pZZsn[is][i][j][nzn - 2];
-      }
+    for (int j = 1; j < nyn - 1; j++)
+    {
+        rhons[is][i][j][nzn - 2] *= 2;
+        Jxs  [is][i][j][nzn - 2] *= 2;
+        Jys  [is][i][j][nzn - 2] *= 2;
+        Jzs  [is][i][j][nzn - 2] *= 2;
+        pXXsn[is][i][j][nzn - 2] *= 2;
+        pXYsn[is][i][j][nzn - 2] *= 2;
+        pXZsn[is][i][j][nzn - 2] *= 2;
+        pYYsn[is][i][j][nzn - 2] *= 2;
+        pYZsn[is][i][j][nzn - 2] *= 2;
+        pZZsn[is][i][j][nzn - 2] *= 2;
+    }
   }
 }
 
@@ -2807,34 +2852,37 @@ void EMfields3D::interpDensitiesN2C(VirtualTopology3D * vct, Grid * grid) {
   grid->interpN2C(rhoc, rhon);
 }
 /*! communicate ghost for grid -> Particles interpolation */
-void EMfields3D::communicateGhostP2G(int ns, int bcFaceXright, int bcFaceXleft, int bcFaceYright, int bcFaceYleft, VirtualTopology3D * vct) {
+void EMfields3D::communicateGhostP2G(int ns, VirtualTopology3D * vct) {
   // interpolate adding common nodes among processors
   timeTasks_set_communicating();
 
-  communicateInterp(nxn, nyn, nzn, ns, rhons.fetch_arr4(), 0, 0, 0, 0, 0, 0, vct);
-  communicateInterp(nxn, nyn, nzn, ns, Jxs  .fetch_arr4(), 0, 0, 0, 0, 0, 0, vct);
-  communicateInterp(nxn, nyn, nzn, ns, Jys  .fetch_arr4(), 0, 0, 0, 0, 0, 0, vct);
-  communicateInterp(nxn, nyn, nzn, ns, Jzs  .fetch_arr4(), 0, 0, 0, 0, 0, 0, vct);
-  communicateInterp(nxn, nyn, nzn, ns, pXXsn.fetch_arr4(), 0, 0, 0, 0, 0, 0, vct);
-  communicateInterp(nxn, nyn, nzn, ns, pXYsn.fetch_arr4(), 0, 0, 0, 0, 0, 0, vct);
-  communicateInterp(nxn, nyn, nzn, ns, pXZsn.fetch_arr4(), 0, 0, 0, 0, 0, 0, vct);
-  communicateInterp(nxn, nyn, nzn, ns, pYYsn.fetch_arr4(), 0, 0, 0, 0, 0, 0, vct);
-  communicateInterp(nxn, nyn, nzn, ns, pYZsn.fetch_arr4(), 0, 0, 0, 0, 0, 0, vct);
-  communicateInterp(nxn, nyn, nzn, ns, pZZsn.fetch_arr4(), 0, 0, 0, 0, 0, 0, vct);
+  // add the values for the shared nodes
+  //
+  communicateInterp(nxn, nyn, nzn, rhons[ns].fetch_arr3(), vct);
+  communicateInterp(nxn, nyn, nzn, Jxs  [ns].fetch_arr3(), vct);
+  communicateInterp(nxn, nyn, nzn, Jys  [ns].fetch_arr3(), vct);
+  communicateInterp(nxn, nyn, nzn, Jzs  [ns].fetch_arr3(), vct);
+  communicateInterp(nxn, nyn, nzn, pXXsn[ns].fetch_arr3(), vct);
+  communicateInterp(nxn, nyn, nzn, pXYsn[ns].fetch_arr3(), vct);
+  communicateInterp(nxn, nyn, nzn, pXZsn[ns].fetch_arr3(), vct);
+  communicateInterp(nxn, nyn, nzn, pYYsn[ns].fetch_arr3(), vct);
+  communicateInterp(nxn, nyn, nzn, pYZsn[ns].fetch_arr3(), vct);
+  communicateInterp(nxn, nyn, nzn, pZZsn[ns].fetch_arr3(), vct);
   // calculate the correct densities on the boundaries
   adjustNonPeriodicDensities(ns, vct);
-  // put the correct values on ghost cells
 
-  communicateNode_P(nxn, nyn, nzn, rhons, ns, vct);
-  communicateNode_P(nxn, nyn, nzn, Jxs  , ns, vct);
-  communicateNode_P(nxn, nyn, nzn, Jys  , ns, vct);
-  communicateNode_P(nxn, nyn, nzn, Jzs  , ns, vct);
-  communicateNode_P(nxn, nyn, nzn, pXXsn, ns, vct);
-  communicateNode_P(nxn, nyn, nzn, pXYsn, ns, vct);
-  communicateNode_P(nxn, nyn, nzn, pXZsn, ns, vct);
-  communicateNode_P(nxn, nyn, nzn, pYYsn, ns, vct);
-  communicateNode_P(nxn, nyn, nzn, pYZsn, ns, vct);
-  communicateNode_P(nxn, nyn, nzn, pZZsn, ns, vct);
+  // populate the ghost nodes
+  //
+  communicateNode_P(nxn, nyn, nzn, rhons[ns], vct);
+  communicateNode_P(nxn, nyn, nzn, Jxs  [ns], vct);
+  communicateNode_P(nxn, nyn, nzn, Jys  [ns], vct);
+  communicateNode_P(nxn, nyn, nzn, Jzs  [ns], vct);
+  communicateNode_P(nxn, nyn, nzn, pXXsn[ns], vct);
+  communicateNode_P(nxn, nyn, nzn, pXYsn[ns], vct);
+  communicateNode_P(nxn, nyn, nzn, pXZsn[ns], vct);
+  communicateNode_P(nxn, nyn, nzn, pYYsn[ns], vct);
+  communicateNode_P(nxn, nyn, nzn, pYZsn[ns], vct);
+  communicateNode_P(nxn, nyn, nzn, pZZsn[ns], vct);
 }
 
 void EMfields3D::setZeroDerivedMoments()

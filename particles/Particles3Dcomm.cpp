@@ -517,7 +517,7 @@ void Particles3Dcomm::resize_SoA(int nop)
 //    }
 //  }
 //  // communicate contribution from ghost cells 
-//  EMf->communicateGhostP2G(ns, 0, 0, 0, 0, vct);
+//  EMf->communicateGhostP2G(ns, vct);
 //}
 
 // returns true if particle was sent
@@ -912,22 +912,22 @@ void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
     {
       default:
         invalid_value_error(direction);
-      case XDN: assert(vct->noXlowerNeighbor());
+      case XDN: assert(vct->noXleftNeighbor());
         apply_Xleft_BC(pcl_list);
         break;
-      case XUP: assert(vct->noXupperNeighbor());
+      case XUP: assert(vct->noXrghtNeighbor());
         apply_Xrght_BC(pcl_list);
         break;
-      case YDN: assert(vct->noYlowerNeighbor());
+      case YDN: assert(vct->noYleftNeighbor());
         apply_Yleft_BC(pcl_list);
         break;
-      case YUP: assert(vct->noYupperNeighbor());
+      case YUP: assert(vct->noYrghtNeighbor());
         apply_Yrght_BC(pcl_list);
         break;
-      case ZDN: assert(vct->noZlowerNeighbor());
+      case ZDN: assert(vct->noZleftNeighbor());
         apply_Zleft_BC(pcl_list);
         break;
-      case ZUP: assert(vct->noZupperNeighbor());
+      case ZUP: assert(vct->noZrghtNeighbor());
         apply_Zrght_BC(pcl_list);
         break;
     }
@@ -1008,9 +1008,9 @@ int Particles3Dcomm::handle_received_particles(int pclCommMode)
   };
   const bool do_apply_BCs[num_recv_buffers] =
   {
-    vct->noXlowerNeighbor(), vct->noXupperNeighbor(),
-    vct->noYlowerNeighbor(), vct->noYupperNeighbor(),
-    vct->noZlowerNeighbor(), vct->noZupperNeighbor()
+    vct->noXleftNeighbor(), vct->noXrghtNeighbor(),
+    vct->noYleftNeighbor(), vct->noYrghtNeighbor(),
+    vct->noZleftNeighbor(), vct->noZrghtNeighbor()
   };
   const int direction[num_recv_buffers] =
   {

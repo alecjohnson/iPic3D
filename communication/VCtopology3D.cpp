@@ -105,20 +105,20 @@ void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
   _isPeriodicZlower = PERIODICZ && isZlower();
   _isPeriodicZupper = PERIODICZ && isZupper();
 
-  _noXlowerNeighbor = (getXleft() == MPI_PROC_NULL);
-  _noXupperNeighbor = (getXrght() == MPI_PROC_NULL);
-  _noYlowerNeighbor = (getYleft() == MPI_PROC_NULL);
-  _noYupperNeighbor = (getYrght() == MPI_PROC_NULL);
-  _noZlowerNeighbor = (getZleft() == MPI_PROC_NULL);
-  _noZupperNeighbor = (getZrght() == MPI_PROC_NULL);
+  _noXleftNeighbor = (getXleft() == MPI_PROC_NULL);
+  _noXrghtNeighbor = (getXrght() == MPI_PROC_NULL);
+  _noYleftNeighbor = (getYleft() == MPI_PROC_NULL);
+  _noYrghtNeighbor = (getYrght() == MPI_PROC_NULL);
+  _noZleftNeighbor = (getZleft() == MPI_PROC_NULL);
+  _noZrghtNeighbor = (getZrght() == MPI_PROC_NULL);
 
   _isBoundaryProcess = 
-    _noXlowerNeighbor ||
-    _noXupperNeighbor ||
-    _noYlowerNeighbor ||
-    _noYupperNeighbor ||
-    _noZlowerNeighbor ||
-    _noZupperNeighbor;
+    _noXleftNeighbor ||
+    _noXrghtNeighbor ||
+    _noYleftNeighbor ||
+    _noYrghtNeighbor ||
+    _noZleftNeighbor ||
+    _noZrghtNeighbor;
 }
 /** destructor */
 VCtopology3D::~VCtopology3D() {

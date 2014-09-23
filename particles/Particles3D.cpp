@@ -1262,12 +1262,12 @@ void Particles3D::repopulate_particles()
 
   // boundaries to repopulate
   //
-  const bool repopulateXleft = (vct->noXlowerNeighbor() && bcPfaceXleft == REEMISSION);
-  const bool repopulateYleft = (vct->noYlowerNeighbor() && bcPfaceYleft == REEMISSION);
-  const bool repopulateZleft = (vct->noZlowerNeighbor() && bcPfaceZleft == REEMISSION);
-  const bool repopulateXrght = (vct->noXupperNeighbor() && bcPfaceXright == REEMISSION);
-  const bool repopulateYrght = (vct->noYupperNeighbor() && bcPfaceYright == REEMISSION);
-  const bool repopulateZrght = (vct->noZupperNeighbor() && bcPfaceZright == REEMISSION);
+  const bool repopulateXleft = (vct->noXleftNeighbor() && bcPfaceXleft == REEMISSION);
+  const bool repopulateYleft = (vct->noYleftNeighbor() && bcPfaceYleft == REEMISSION);
+  const bool repopulateZleft = (vct->noZleftNeighbor() && bcPfaceZleft == REEMISSION);
+  const bool repopulateXrght = (vct->noXrghtNeighbor() && bcPfaceXright == REEMISSION);
+  const bool repopulateYrght = (vct->noYrghtNeighbor() && bcPfaceYright == REEMISSION);
+  const bool repopulateZrght = (vct->noZrghtNeighbor() && bcPfaceZright == REEMISSION);
   const bool do_repopulate = 
        repopulateXleft || repopulateYleft || repopulateZleft
     || repopulateXrght || repopulateYrght || repopulateZrght;
