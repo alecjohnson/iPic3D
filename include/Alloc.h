@@ -254,7 +254,7 @@ namespace iPic3D
   // - operator[].
   //
 #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
-#error "how did I get here?"
+#warning "arrays are flat"
 
   template <class type>
   class array_fetch1
@@ -366,6 +366,8 @@ namespace iPic3D
     }
   };
 
+#else
+//#warning "arrays are not flat
 #endif // FLAT_ARRAYS
 
   // ArrN corresponds to multi_array_ref in the boost library.
@@ -878,9 +880,12 @@ namespace iPic3D
   template < class type >
   inline type* fetch_arr(array_fetch1<type>& in)
   { return in.fetch_arr(); }
-
 }
 
+// Unfortunately we cannot make an arr_fetch3<type> automatically
+// convert itself to a type***, since it overrides its methods,
+// so the user must use an explicit conversion routine.
+// to a ***
 #define newArr4(type,sz1,sz2,sz3,sz4) newArray4<type>((sz1),(sz2),(sz3),(sz4))
 #define newArr3(type,sz1,sz2,sz3) newArray3<type>((sz1),(sz2),(sz3))
 #define newArr2(type,sz1,sz2) newArray2<type>((sz1),(sz2))

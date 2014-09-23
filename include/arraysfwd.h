@@ -37,6 +37,21 @@
 
 #endif
 
+#if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+  #define convert_to_arr3(arg) (arg.fetch_arr3())
+#else
+  #define convert_to_arr3(arg) (arg)
+#endif
+//template <class type>
+//inline type*** fetch_arr3(array_fetch3(type)&in)
+//{
+//  #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+//  return in.fetch_arr3();
+//  #else
+//  return in; // the argument is what we want, so return it
+//  #endif
+//}
+
 namespace iPic3D
 {
   template <class T>

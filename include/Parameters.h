@@ -33,6 +33,7 @@ namespace Parameters
   Enum get_MOVER_TYPE();
   Enum get_MOMENTS_TYPE();
 
+  int get_multiple_of_vector_width_in_doubles();
   // blocksize and numblocks for use in BlockCommunicator
   int get_blockSize();
   int get_numBlocks();

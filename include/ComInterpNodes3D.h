@@ -13,6 +13,6 @@ developers           : Stefano Markidis, Giovanni Lapenta
 #include "ComBasic3D.h"
 
 /** communicate ghost cells and sum the contribution with a index indicating the number of species*/
-void communicateInterp(int nx, int ny, int nz, int ns, double ****vector, VirtualTopology3D * vct);
+void communicateInterp(int nx, int ny, int nz, double ***vector, VirtualTopology3D * vct);
 
 #endif

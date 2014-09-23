@@ -2856,33 +2856,43 @@ void EMfields3D::communicateGhostP2G(int ns, VirtualTopology3D * vct) {
   // interpolate adding common nodes among processors
   timeTasks_set_communicating();
 
+  double ***moment0 = convert_to_arr3(rhons[ns]);
+  double ***moment1 = convert_to_arr3(Jxs  [ns]);
+  double ***moment2 = convert_to_arr3(Jys  [ns]);
+  double ***moment3 = convert_to_arr3(Jzs  [ns]);
+  double ***moment4 = convert_to_arr3(pXXsn[ns]);
+  double ***moment5 = convert_to_arr3(pXYsn[ns]);
+  double ***moment6 = convert_to_arr3(pXZsn[ns]);
+  double ***moment7 = convert_to_arr3(pYYsn[ns]);
+  double ***moment8 = convert_to_arr3(pYZsn[ns]);
+  double ***moment9 = convert_to_arr3(pZZsn[ns]);
   // add the values for the shared nodes
   //
-  communicateInterp(nxn, nyn, nzn, rhons[ns].fetch_arr3(), vct);
-  communicateInterp(nxn, nyn, nzn, Jxs  [ns].fetch_arr3(), vct);
-  communicateInterp(nxn, nyn, nzn, Jys  [ns].fetch_arr3(), vct);
-  communicateInterp(nxn, nyn, nzn, Jzs  [ns].fetch_arr3(), vct);
-  communicateInterp(nxn, nyn, nzn, pXXsn[ns].fetch_arr3(), vct);
-  communicateInterp(nxn, nyn, nzn, pXYsn[ns].fetch_arr3(), vct);
-  communicateInterp(nxn, nyn, nzn, pXZsn[ns].fetch_arr3(), vct);
-  communicateInterp(nxn, nyn, nzn, pYYsn[ns].fetch_arr3(), vct);
-  communicateInterp(nxn, nyn, nzn, pYZsn[ns].fetch_arr3(), vct);
-  communicateInterp(nxn, nyn, nzn, pZZsn[ns].fetch_arr3(), vct);
+  communicateInterp(nxn, nyn, nzn, moment0, vct);
+  communicateInterp(nxn, nyn, nzn, moment1, vct);
+  communicateInterp(nxn, nyn, nzn, moment2, vct);
+  communicateInterp(nxn, nyn, nzn, moment3, vct);
+  communicateInterp(nxn, nyn, nzn, moment4, vct);
+  communicateInterp(nxn, nyn, nzn, moment5, vct);
+  communicateInterp(nxn, nyn, nzn, moment6, vct);
+  communicateInterp(nxn, nyn, nzn, moment7, vct);
+  communicateInterp(nxn, nyn, nzn, moment8, vct);
+  communicateInterp(nxn, nyn, nzn, moment9, vct);
   // calculate the correct densities on the boundaries
   adjustNonPeriodicDensities(ns, vct);
 
   // populate the ghost nodes
   //
-  communicateNode_P(nxn, nyn, nzn, rhons[ns], vct);
-  communicateNode_P(nxn, nyn, nzn, Jxs  [ns], vct);
-  communicateNode_P(nxn, nyn, nzn, Jys  [ns], vct);
-  communicateNode_P(nxn, nyn, nzn, Jzs  [ns], vct);
-  communicateNode_P(nxn, nyn, nzn, pXXsn[ns], vct);
-  communicateNode_P(nxn, nyn, nzn, pXYsn[ns], vct);
-  communicateNode_P(nxn, nyn, nzn, pXZsn[ns], vct);
-  communicateNode_P(nxn, nyn, nzn, pYYsn[ns], vct);
-  communicateNode_P(nxn, nyn, nzn, pYZsn[ns], vct);
-  communicateNode_P(nxn, nyn, nzn, pZZsn[ns], vct);
+  communicateNode_P(nxn, nyn, nzn, moment0, vct);
+  communicateNode_P(nxn, nyn, nzn, moment1, vct);
+  communicateNode_P(nxn, nyn, nzn, moment2, vct);
+  communicateNode_P(nxn, nyn, nzn, moment3, vct);
+  communicateNode_P(nxn, nyn, nzn, moment4, vct);
+  communicateNode_P(nxn, nyn, nzn, moment5, vct);
+  communicateNode_P(nxn, nyn, nzn, moment6, vct);
+  communicateNode_P(nxn, nyn, nzn, moment7, vct);
+  communicateNode_P(nxn, nyn, nzn, moment8, vct);
+  communicateNode_P(nxn, nyn, nzn, moment9, vct);
 }
 
 void EMfields3D::setZeroDerivedMoments()
@@ -3097,7 +3107,8 @@ void EMfields3D::init(VirtualTopology3D * vct, Grid * grid, Collective *col) {
           for (int jj = 1; jj < nzn - 1; jj++)
             rhons[is][i][j][jj] = temp_storage[k++];
 
-      communicateNode_P(nxn, nyn, nzn, rhons, is, vct);
+      double ***moment0 = convert_to_arr3(rhons[ns]);
+      communicateNode_P(nxn, nyn, nzn, moment0, vct);
       status = H5Dclose(dataset_id);
 
     }
