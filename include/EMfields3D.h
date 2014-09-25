@@ -284,8 +284,16 @@ class EMfields3D                // :public Field
     // OpenBC
     void updateInfoFields(Grid *grid,VirtualTopology3D *vct,Collective *col);
 
+  public: // accessors
+    const Collective& get_col()const{return _col;}
+    const Grid& get_grid()const{return _grid;};
+    const VirtualTopology3D& get_vct()const{return _vct;}
     /* ********************************* // VARIABLES ********************************* */
   private:
+    // access to global data
+    const Collective& _col;
+    const Grid& _grid;
+    const VirtualTopology3D&_vct;
     /*! light speed */
     double c;
     /* 4*PI for normalization */

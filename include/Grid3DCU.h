@@ -193,6 +193,7 @@ private:
   //   
 private:
   const static bool suppress_runaway_particle_instability = true;
+  const VirtualTopology3D& _vct;
   /** number of cells - X direction, including + 2 (guard cells) */
   int nxc;
   /** number of nodes - X direction, including + 2 extra nodes for guard cells */
@@ -253,6 +254,7 @@ private:
   double nzc_minus_epsilon;
 
 public: // accessors (inline)
+  const VirtualTopology3D& get_vct()const{return _vct;}
   int getNXC()const{ return (nxc); }
   int getNXN()const{ return (nxn); }
   int getNYC()const{ return (nyc); }

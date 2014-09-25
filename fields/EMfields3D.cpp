@@ -26,7 +26,10 @@ using namespace iPic3D;
 // in particular, nxc, nyc, nzc and nxn, nyn, nzn are assumed
 // initialized when subsequently used.
 //
-EMfields3D::EMfields3D(Collective * col, Grid * grid) : 
+EMfields3D::EMfields3D(Collective * col, Grid * grid, VirtualTopology *vct) : 
+  _col(*col),
+  _grid(*grid),
+  _vct(*vct),
   nxc(grid->getNXC()),
   nxn(grid->getNXN()),
   nyc(grid->getNYC()),
@@ -2895,6 +2898,25 @@ void EMfields3D::communicateGhostP2G(int ns, VirtualTopology3D * vct) {
   communicateNode_P(nxn, nyn, nzn, moment8, vct);
   communicateNode_P(nxn, nyn, nzn, moment9, vct);
 }
+
+/*! communicate ghost for grid -> Particles interpolation */
+//void EMfields3D::communicateGhostMomentsX()
+//{
+//  const VirtualTopology3D * vct = &get_vct();
+//  timeTasks_set_communicating();
+//  
+//  // start communication of moments in the X direction
+//  for(int is=0; is<ns; i++)
+//  {
+//    for(int im=0; im<10; im++)
+//    {
+//      // copy data from faces into buffers
+//      // send buffer data right and left
+//    }
+//  }
+//
+//  // receive and parse communication
+//}
 
 void EMfields3D::setZeroDerivedMoments()
 {

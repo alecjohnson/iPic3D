@@ -104,7 +104,7 @@ int c_Solver::Init(int argc, char **argv) {
   // Create the local grid
   former_MPI_Barrier(MPI_COMM_WORLD);
   grid = new Grid3DCU(col, vct);  // Create the local grid
-  EMf = new EMfields3D(col, grid);  // Create Electromagnetic Fields Object
+  EMf = new EMfields3D(col, grid, vct);  // Create Electromagnetic Fields Object
 
   if      (col->getCase()=="GEMnoPert") EMf->initGEMnoPert(vct,grid,col);
   else if (col->getCase()=="ForceFree") EMf->initForceFree(vct,grid,col);

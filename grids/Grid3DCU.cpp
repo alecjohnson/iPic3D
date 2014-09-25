@@ -10,7 +10,9 @@
 #include "ipicmath.h"
 
 /*! constructor */
-Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct) {
+Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct):
+  _vct(*vct)
+{
 
   // get number of cells restricted to regular (untruncated) subdomain
   //
