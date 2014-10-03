@@ -14,8 +14,14 @@ module-whatis "set environment for iPic3D"
 #
 #module load impi
 #module swap mvapich2 impi
-module swap mvapich2 impi/4.1.0.030
+module unload mvapich2
+#module swap mvapich2 impi/4.1.0.030
+module load impi
 module load cmake
+setenv I_MPI_MIC 1
+setenv I_MPI_OFA_ADAPTER_NAME mlx4_0
+setenv I_MPI_FABRICS shm:dapl
+setenv I_MPI_DAPL_PROVIDER "ofa-v2-mlx4_0-1u"
 setenv CXX icpc
 setenv CC icc
 setenv FC ifort
