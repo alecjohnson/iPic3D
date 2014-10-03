@@ -1,0 +1,4 @@
+#!/bin/sh
+set -x
+rm -r CMakeCache.txt CMakeFiles cmake_install.cmake exec lib Makefile
+#rm machinefile spawnfile

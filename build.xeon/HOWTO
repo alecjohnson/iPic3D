@@ -5,7 +5,7 @@ Build Fields Solver for Intel Xeon
 
 2) Configure for compilation
 
-   $ cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/cmake_template.cmake.Xeon
+   $ ./cmake-configure
 
 3) Compile
 

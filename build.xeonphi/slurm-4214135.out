@@ -1,0 +1,183 @@
++ pwd
+/home1/02456/alec/ipic3d/build.xeonphi
++ scontrol show hostname
++ tee spawnfile
++ sed 's/$/-mic0/'
++ mpiexec.hydra -iface br0 -np 4 -machinefile machinefile -env LD_LIBRARY_PATH /opt/apps/intel/13/composer_xe_2013.2.146/tbb/lib/mic:/opt/apps/intel/13/composer_xe_2013.2.146/compiler/lib/mic:/opt/intel/mic/coi/device-linux-release/lib:/opt/intel/mic/myo/lib:/opt/apps/intel/13/composer_xe_2013.2.146/tbb/lib/mic:/opt/apps/intel/13/composer_xe_2013.2.146/mkl/lib/mic exec/iPic3D ../inputfiles/GEM.inp
+Particles solver: 3
+Particles solver: 1
+Particles solver: 2
+Particles solver: 0
+Fields solver: 2 argv[1]: ../inputfiles/GEM.inp
+Fields solver: 0 argv[1]: ../inputfiles/GEM.inp
+
+Number of processes = 4
+Fields solver: 1 argv[1]: ../inputfiles/GEM.inp-------------------------
+
+
+Virtual Cartesian Processors Topology
+-------------------------------------
+Processors grid: 2x2x1
+Periodicity Field X: 1
+Periodicity Field Y: 0
+
+Periodicity Field z: 1
+Periodicity Particles X: 1
+Periodicity Particles Y: 0
+Periodicity Particles z: 1
+
+
+Simulation Parameters
+---------------------
+Number of species    = 2
+Number of particles of species 0 = 3686400	 (MAX = 11059200)  QOM = -256
+Number of particles of species 1 = 3686400	 (MAX = 11059200)  QOM = 1
+x-Length                 = 10
+y-Length                 = 10
+z-Length                 = 1
+Number of cells (x)      = 60
+Number of cells (y)      = 60
+Number of cells (z)      = 1
+Time step                = 0.5
+Number of cycles         = 2
+Results saved in  : data
+Case type         : GEM
+Simulation name   : GEMchllg
+Poisson correction: yes
+---------------------
+Check Simulation Constraints
+---------------------
+Accuracy Constraint:  
+u_th < dx/dt species 0.....OK
+v_th < dy/dt species 0......OK
+u_th < dx/dt species 1.....OK
+v_th < dy/dt species 1......OK
+
+Finite Grid Stability Constraint:  
+OK u_th*dt/dx (species 0) = 0.135 > .1Fields solver: 3 argv[1]: ../inputfiles/GEM.inp
+
+OK v_th*dt/dy (species 0) = 0.135 > .1
+WARNING.  u_th*dt/dx (species 1) = 0.0189 < .1
+WARNING. v_th*dt/dy (species 1) = 0.0189 < .1
+
+Number of processes = 4
+-------------------------
+
+
+Virtual Cartesian Processors Topology
+-------------------------------------
+Processors grid: 2x2x1
+Periodicity Field X: 1
+Periodicity Field Y: 0
+Periodicity Field z: 1
+Periodicity Particles X: 1
+Periodicity Particles Y: 0
+Periodicity Particles z: 1
+
+
+Simulation Parameters
+---------------------
+Number of species    = 2
+Number of particles of species 0 = 3686400	 (MAX = 11059200)  QOM = -256
+Number of particles of species 1 = 3686400	 (MAX = 11059200)  QOM = 1
+x-Length                 = 10
+y-Length                 = 10
+z-Length                 = 1
+Number of cells (x)      = 60
+Number of cells (y)      = 60
+Number of cells (z)      = 1
+Time step                = 0.5
+Number of cycles         = 2
+Results saved in  : data
+Case type         : GEM
+Simulation name   : GEMchllg
+Poisson correction: yes
+---------------------
+Check Simulation Constraints
+---------------------
+Accuracy Constraint:  
+u_th < dx/dt species 0.....OK
+v_th < dy/dt species 0......OK
+u_th < dx/dt species 1.....OK
+v_th < dy/dt species 1......OK
+
+Finite Grid Stability Constraint:  
+OK u_th*dt/dx (species 0) = 0.135 > .1
+OK v_th*dt/dy (species 0) = 0.135 > .1
+WARNING.  u_th*dt/dx (species 1) = 0.0189 < .1
+WARNING. v_th*dt/dy (species 1) = 0.0189 < .1
+------------------------------------------
+Initialize GEM Challenge with Pertubation
+------------------------------------------
+B0x                              = 0.0097
+B0y                              = 0
+B0z                              = 0
+Delta (current sheet thickness) = 0.5
+rho species 0 = 1 DRIFTING 
+rho species 1 = 1 DRIFTING 
+-------------------------
+------------------------------------------
+Initialize GEM Challenge with Pertubation
+------------------------------------------
+B0x                              = 0.0097
+B0y                              = 0
+B0z                              = 0
+Delta (current sheet thickness) = 0.5
+rho species 0 = 1 DRIFTING 
+rho species 1 = 1 DRIFTING 
+-------------------------
+ ======= Cycle 0 ======= 
+*** E CALCULATION ***
+*** DIVERGENCE CLEANING ***
+CG Initial error: 0
+*** MAXWELL SOLVER ***
+Initial residual: 0.0822484 norm b vector (source) = 0.0822484
+GMRES converged at restart # 3; iteration #2 with error: 0.000988628
+*** B CALCULATION ***
+*** MOVER species 0 ***3 ITERATIONS   ****
+*** MOVER species 1 ***3 ITERATIONS   ****
+*** Repopulator species 0 ***
+*** number of particles 921759 ***
+*** Repopulator species 1 ***
+*** number of particles 921600 ***
+*** B CALCULATION ***
+=== times for cycle 0 for rank 0 === 
+| time   subtask
+|  3.146 mover_pcl_sorting
+|  1.630 mover_pcl_moving
+|  5.896 mover_pcl_total
+|  7.205 cycle_total
+ ======= Cycle 1 ======= 
+*** E CALCULATION ***
+*** DIVERGENCE CLEANING ***
+CG Initial error: 0.00944618
+CG converged at iteration # 75 with error 9.07694e-06
+*** MAXWELL SOLVER ***
+Initial residual: 0.544179 norm b vector (source) = 0.0798788
+GMRES converged at restart # 1; iteration #18 with error: 0.000874556
+*** B CALCULATION ***
+
+
+*** SIMULATION ENDED SUCESSFULLY ***
+ PARSEK Simulation Time: 12.3057 sec (0.00341824 hours)
+***
+
+*** MOVER species 0 ***3 ITERATIONS   ****
+*** MOVER species 1 ***3 ITERATIONS   ****
+*** Repopulator species 0 ***
+*** number of particles 921769 ***
+*** Repopulator species 1 ***
+*** number of particles 921639 ***
+*** B CALCULATION ***
+=== times for cycle 1 for rank 0 === 
+| time   subtask
+|  2.916 mover_pcl_sorting
+|  2.389 mover_pcl_moving
+|  6.479 mover_pcl_total
+|  7.734 cycle_total
+
+
+*** SIMULATION ENDED SUCESSFULLY ***
+ PARSEK Simulation Time: 14.9403 sec (0.0041501 hours)
+***
+

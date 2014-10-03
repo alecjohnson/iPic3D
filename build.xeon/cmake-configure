@@ -1,0 +1,3 @@
+#!/bin/sh
+set -x
+cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/cmake_template.cmake.Xeon

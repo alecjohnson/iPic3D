@@ -1,0 +1,4 @@
+#!/bin/sh
+set -x
+show hostname | tee spawnfile | sed 's/$/-mic0/' > machinefile
+exec mpiexec.hydra -iface br0 -np 4 -machinefile machinefile -env LD_LIBRARY_PATH $MIC_LD_LIBRARY_PATH exec/iPic3D ../inputfiles/GEM.inp
