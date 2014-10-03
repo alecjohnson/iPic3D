@@ -429,7 +429,10 @@ void Particles3D::mover_PC(Field * EMf) {
       //  Eyl += weights[c] * field_components[c][1+DFIELD_3or4];
       //  Ezl += weights[c] * field_components[c][2+DFIELD_3or4];
       //}
-      double sampled_field[8]={0,0,0,0,0,0,0,0} ALLOC_ALIGNED;
+      // causes compile error on icpc
+      //double sampled_field[8]={0,0,0,0,0,0,0,0} ALLOC_ALIGNED;
+      double sampled_field[8] ALLOC_ALIGNED;
+      for(int i=0;i<8;i++) sampled_field[i]=0;
       double& Bxl=sampled_field[0];
       double& Byl=sampled_field[1];
       double& Bzl=sampled_field[2];
@@ -533,7 +536,10 @@ void Particles3D::mover_PC_AoS(Field * EMf)
       //  Eyl += weights[c] * field_components[c][1+DFIELD_3or4];
       //  Ezl += weights[c] * field_components[c][2+DFIELD_3or4];
       //}
-      double sampled_field[8]={0,0,0,0,0,0,0,0} ALLOC_ALIGNED;
+      // causes compile error on icpc
+      //double sampled_field[8]={0,0,0,0,0,0,0,0} ALLOC_ALIGNED;
+      double sampled_field[8] ALLOC_ALIGNED;
+      for(int i=0;i<8;i++) sampled_field[i]=0;
       double& Bxl=sampled_field[0];
       double& Byl=sampled_field[1];
       double& Bzl=sampled_field[2];
