@@ -9,7 +9,7 @@ PURPOSE="prepare to run ipic3d job for supplied parameters"
 
   # choose values for stripe count and length
   PROCS_PER_STRIPE=2
-  MAX_STRIPES=130
+  MAX_STRIPES=64
   STRIPE_COUNT=$(($NUM_PROCS/$PROCS_PER_STRIPE))
   # cap the requested stripe count
   STRIPE_COUNT=$(($STRIPE_COUNT>$MAX_STRIPES?$MAX_STRIPES:$STRIPE_COUNT))
