@@ -4,4 +4,4 @@
 # Set number of OpenMP threads per spawned MPI proc 
 export OMP_NUM_THREADS=4
 
-../build.xeon/exec/iPic3D_fields $1
+exec ../build.xeon/exec/iPic3D_fields $1
