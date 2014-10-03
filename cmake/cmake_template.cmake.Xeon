@@ -9,6 +9,10 @@ SET(MPI_CXX_COMPILER mpicxx)
 # "CACHE STRING "" FORCE" is a workaround so that FLAGS are not ignored
 # Intel
 SET(CMAKE_CXX_FLAGS "-O3 -openmp -fno-exceptions" CACHE STRING "" FORCE)
+# needed on stampede
+#SET(HDF5_imf_LIBRARY_RELEASE "/opt/apps/intel/13/composer_xe_2013.2.146/compiler/lib/intel64")
 
 # Set root path to HDF5 library
-SET(ENV{HDF5_ROOT} /opt/hdf5/1.8.11)
+#SET(ENV{HDF5_ROOT} /opt/hdf5/1.8.11)
+SET(ENV{HDF5_ROOT} /opt/apps/intel13/hdf5/1.8.9)
+SET(HDF5_imf_LIBRARY_RELEASE /opt/apps/intel/13/composer_xe_2013.2.146/compiler/lib/intel64/libimf.so)
