@@ -1,0 +1,19 @@
+#!/bin/sh
+if [ $# -lt 2 ]; then echo "
+  usage: setjob <XLEN> <YLEN> <NUM_NODES>
+";
+  exit 1
+fi
+
+export XLEN=$1
+export YLEN=$2
+NUM_NODES=${3:-"1"}
+NUM_PROCS=$(($XLEN*$YLEN))
+set -x
+sed -i "s/XLEN =.*/XLEN = $XLEN/" ../inputfiles/GEM.inp
+sed -i "s/YLEN =.*/YLEN = $YLEN/" ../inputfiles/GEM.inp
+sed -i "s/^#SBATCH -N.*/#SBATCH -N $NUM_NODES/" job.sh
+sed -i "s/^#SBATCH -n.*/#SBATCH -n $NUM_PROCS/" job.sh
+sed -i "s/^export XLEN=.*/export XLEN=$XLEN/" job.sh
+sed -i "s/^export YLEN=.*/export YLEN=$YLEN/" job.sh
+
