@@ -14,8 +14,9 @@ module-whatis "set environment for iPic3D"
 #
 #module load impi
 #module swap mvapich2 impi
-module unload mvapich2
 #module swap mvapich2 impi/4.1.0.030
+# comment out the next two lines if using mvapich2
+module unload mvapich2
 module load impi
 module load cmake
 setenv I_MPI_MIC 1
