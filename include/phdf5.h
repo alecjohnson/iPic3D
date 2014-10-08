@@ -2,14 +2,11 @@
 #ifndef __PHDF5_H__
 #define __PHDF5_H__
 
-#include <iostream>
-
-using namespace std;
-
 #include "mpi.h"
 #include "ipichdf5.h"
 #include "arraysfwd.h"
 #include <string>
+using namespace std;
 
 class PHDF5fileClass{
 

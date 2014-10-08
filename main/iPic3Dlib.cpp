@@ -7,14 +7,17 @@
 #include "debug.h"
 #include "Parameters.h"
 #include "ompdefs.h"
-#include "ParallelIO.h"
 #include "VCtopology3D.h"
 #include "Collective.h"
 #include "Grid3DCU.h"
 #include "EMfields3D.h"
 #include "Particles3D.h"
 #include "Timing.h"
+//
+#ifndef NO_HDF5
+#include "ParallelIO.h"
 #include "WriteOutputParallel.h"
+#endif
 //
 #include <iostream>
 #include <fstream>

@@ -6,11 +6,6 @@
 #ifndef _IPIC3D_H_
 #define _IPIC3D_H_
 
-//using namespace std;
-//using std::cerr;
-//using std::endl;
-//using std::ofstream;
-
 class Timing;
 
 #ifndef NO_HDF5
