@@ -1,5 +1,7 @@
 
 #include <mpi.h>
+#include "hdf5.h"
+#include "hdf5_hl.h"
 #include "phdf5.h"
 #include "ipicdefs.h"
 #include "errors.h"

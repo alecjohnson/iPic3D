@@ -31,7 +31,7 @@ developers: Stefano Markidis, Giovanni Lapenta.
 #include "Particles3Dcomm.h"
 #include "Parameters.h"
 
-#include "hdf5.h"
+#include "ipichdf5.h"
 //#include <vector>
 //#include <complex>
 #include "debug.h"
@@ -271,7 +271,11 @@ Particles3Dcomm::Particles3Dcomm(
 
   // if RESTART is true initialize the particle in allocate method
   restart = col->getRestart_status();
-  if (restart != 0) {
+  if (restart != 0)
+  {
+  #ifdef NO_HDF5
+    eprintf("restart is supported only if compiling with HDF5");
+  #else
     if (vct->getCartesian_rank() == 0 && get_species_num() == 0)
       cout << "LOADING PARTICLES FROM RESTART FILE in " + col->getRestartDirName() + "/restart.hdf" << endl;
     stringstream ss;
@@ -369,6 +373,7 @@ Particles3Dcomm::Particles3Dcomm(
     // close the hdf file
     status = H5Fclose(file_id);
     convertParticlesToAoS();
+  #endif
   }
 }
 

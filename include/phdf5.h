@@ -7,9 +7,9 @@
 using namespace std;
 
 #include "mpi.h"
-#include "hdf5.h"
-#include "hdf5_hl.h"
+#include "ipichdf5.h"
 #include "arraysfwd.h"
+#include <string>
 
 class PHDF5fileClass{
 

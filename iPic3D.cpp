@@ -1,9 +1,9 @@
 
-#include <mpi.h>
-#include <iomanip>
+#include "MPIdata.h"
 #include "iPic3D.h"
 #include "debug.h"
 #include "TimeTasks.h"
+#include <stdio.h>
 
 using namespace iPic3D;
 
@@ -18,7 +18,8 @@ int main(int argc, char **argv) {
   KCode.CalculateMoments();
   for (int i = KCode.FirstCycle(); i < KCode.LastCycle(); i++) {
 
-    if (KCode.get_myrank() == 0) cout << " ======= Cycle " << i << " ======= " << endl;
+    if (KCode.get_myrank() == 0)
+      printf(" ======= Cycle %d ======= \n",i);
 
     timeTasks.resetCycle();
     KCode.CalculateField();

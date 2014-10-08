@@ -9,4 +9,6 @@ class EMfields3D;
 typedef EMfields3D Field;
 class VCtopology3D;
 typedef VCtopology3D VirtualTopology3D;
+class Particles3D;
+class Particles3Dcomm;
 #endif

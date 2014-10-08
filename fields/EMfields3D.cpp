@@ -1,5 +1,6 @@
 
 #include <mpi.h>
+#include "ipichdf5.h"
 #include "EMfields3D.h"
 #include "Particles3Dcomm.h"
 #include "TimeTasks.h"
@@ -2995,6 +2996,9 @@ void EMfields3D::init(VirtualTopology3D * vct, Grid * grid, Collective *col) {
       grid->interpN2C(rhocs, is, rhons);
   }
   else {                        // READING FROM RESTART
+  #ifdef NO_HDF5
+    eprintf("restart requires compiling with HDF5");
+  #else
     if (vct->getCartesian_rank() == 0)
       cout << "LOADING EM FIELD FROM RESTART FILE in " + RestartDirName + "/restart.hdf" << endl;
     stringstream ss;
@@ -3141,6 +3145,7 @@ void EMfields3D::init(VirtualTopology3D * vct, Grid * grid, Collective *col) {
     status = H5Fclose(file_id);
     delete[]temp_storage;
     delete[]species_name;
+  #endif // NO_HDF5
   }
 }
 

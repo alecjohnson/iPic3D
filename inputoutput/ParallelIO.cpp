@@ -4,6 +4,11 @@
 #include "ParallelIO.h"
 #include "MPIdata.h"
 #include "TimeTasks.h"
+#include "Collective.h"
+#include "Grid3DCU.h"
+#include "VCtopology3D.h"
+#include "Particles3Dcomm.h"
+#include "EMfields3D.h"
 
 /*! Function used to write the EM fields using the parallel HDF5 library */
 void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, Particles3Dcomm *part, CollectiveIO *col, VCtopology3D *vct, int cycle){

@@ -1,4 +1,6 @@
 
+#include "mpi.h"
+#include "MPIdata.h"
 #include "iPic3D.h"
 #include "TimeTasks.h"
 #include "ipicdefs.h"
@@ -6,6 +8,17 @@
 #include "Parameters.h"
 #include "ompdefs.h"
 #include "ParallelIO.h"
+#include "VCtopology3D.h"
+#include "Collective.h"
+#include "Grid3DCU.h"
+#include "EMfields3D.h"
+#include "Particles3D.h"
+#include "Timing.h"
+#include "WriteOutputParallel.h"
+//
+#include <iostream>
+#include <fstream>
+#include <sstream>
 
 #include "Moments.h" // for debugging
 
@@ -145,7 +158,10 @@ int c_Solver::Init(int argc, char **argv) {
     }
   }
 
-  if (col->getWriteMethod() == "default") {
+  // restart files are not supported yet for parallel output
+  #ifndef NO_HDF5
+  if (col->getWriteMethod() == "default")
+  {
     // Initialize the output (simulation results and restart file)
     // PSK::OutputManager < PSK::OutputAdaptor > output_mgr; // Create an Output Manager
     // myOutputAgent < PSK::HDF5OutputAdaptor > hdf5_agent; // Create an Output Agent for HDF5 output
@@ -162,18 +178,21 @@ int c_Solver::Init(int argc, char **argv) {
       hdf5_agent.close();
     }
     // Restart
-    num_proc << myrank;
+    stringstream num_proc_ss;
+    num_proc_ss << myrank;
+    num_proc_str = num_proc_ss.str();
     if (restart == 0) {           // new simulation from input file
-      hdf5_agent.open(SaveDirName + "/proc" + num_proc.str() + ".hdf");
+      hdf5_agent.open(SaveDirName + "/proc" + num_proc_str + ".hdf");
       output_mgr.output("proc_topology ", 0);
       hdf5_agent.close();
     }
     else {                        // restart append the results to the previous simulation 
-      hdf5_agent.open_append(SaveDirName + "/proc" + num_proc.str() + ".hdf");
+      hdf5_agent.open_append(SaveDirName + "/proc" + num_proc_str + ".hdf");
       output_mgr.output("proc_topology ", 0);
       hdf5_agent.close();
     }
   }
+  #endif // NO_HDF5
 
   former_MPI_Barrier(MPI_COMM_WORLD);
   Eenergy, Benergy, TOTenergy = 0.0, TOTmomentum = 0.0;
@@ -191,7 +210,7 @@ int c_Solver::Init(int argc, char **argv) {
     ofstream my_file(ds.c_str());
     my_file.close();
   }
-  cqsat = SaveDirName + "/VirtualSatelliteTraces" + num_proc.str() + ".txt";
+  cqsat = SaveDirName + "/VirtualSatelliteTraces" + num_proc_str + ".txt";
   // if(myrank==0)
   ofstream my_file(cqsat.c_str(), fstream::binary);
   nsat = 3;
@@ -391,9 +410,11 @@ void c_Solver::WriteRestart(int cycle)
   if(!do_WriteRestart)
     return;
 
+  #ifndef NO_HDF5
   convertParticlesToSynched(); // hack
   // write the RESTART file
   writeRESTART(RestartDirName, myrank, cycle, ns, vct, col, grid, EMf, part, 0); // without ,0 add to restart file
+  #endif
 }
 
 // write the conserved quantities
@@ -468,6 +489,9 @@ void c_Solver::WriteVirtualSatelliteTraces()
 }
 
 void c_Solver::WriteFields(int cycle) {
+  #ifdef NO_HDF5
+    eprintf("must compile with HDF5");
+  #else
   if(cycle % (col->getFieldOutputCycle()) == 0 || cycle == first_cycle)
   {
     timeTasks_set_task(TimeTasks::WRITE_FIELDS);
@@ -476,16 +500,20 @@ void c_Solver::WriteFields(int cycle) {
     }
     else // OUTPUT to large file, called proc**
     {
-        hdf5_agent.open_append(SaveDirName + "/proc" + num_proc.str() + ".hdf");
+        hdf5_agent.open_append(SaveDirName + "/proc" + num_proc_str + ".hdf");
         output_mgr.output("Eall + Ball + rhos + Jsall + pressure", cycle);
         // Pressure tensor is available
         hdf5_agent.close();
     }
   }
+  #endif
 }
 
 void c_Solver::WriteParticles(int cycle)
 {
+  #ifdef NO_HDF5
+    eprintf("NO_HDF5 requires OutputMethod=none")
+  #else
   const bool do_WriteParticles
     = (cycle % (col->getParticlesOutputCycle()) == 0
        && col->getParticlesOutputCycle() != 1);
@@ -503,17 +531,18 @@ void c_Solver::WriteParticles(int cycle)
   }
   else
   {
-    hdf5_agent.open_append(SaveDirName + "/proc" + num_proc.str() + ".hdf");
+    hdf5_agent.open_append(SaveDirName + "/proc" + num_proc_str + ".hdf");
     output_mgr.output("position + velocity + q ", cycle, 1);
     hdf5_agent.close();
   }
+  #endif // NO_HDF5
 }
 
 // This needs to be separated into methods that save particles
 // and methods that save field data
 //
 void c_Solver::WriteOutput(int cycle) {
-
+  #ifndef NO_HDF5 // array output is only supported for HDF5
   // once phdf5 is properly supported,
   // let's change "Parallel" to mean "phdf5".
   if (col->getWriteMethod() == "H5hut"
@@ -561,6 +590,7 @@ void c_Solver::WriteOutput(int cycle) {
   {
     invalid_value_error(col->getWriteMethod().c_str());
   }
+  #endif
 
   // This should be invoked by user if desired
   // by means of a callback mechanism.
@@ -571,8 +601,10 @@ void c_Solver::WriteOutput(int cycle) {
 void c_Solver::Finalize() {
   if (col->getCallFinalize())
   {
+    #ifndef NO_HDF5
     convertParticlesToSynched();
     writeRESTART(RestartDirName, myrank, (col->getNcycles() + first_cycle) - 1, ns, vct, col, grid, EMf, part, 0);
+    #endif
   }
 
   // stop profiling
@@ -610,4 +642,8 @@ void c_Solver::convertParticlesToSynched()
 {
   for (int i = 0; i < ns; i++)
     part[i].convertParticlesToSynched();
+}
+
+int c_Solver::LastCycle() {
+    return (col->getNcycles() + first_cycle);
 }

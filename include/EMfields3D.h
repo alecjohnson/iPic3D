@@ -9,8 +9,6 @@
 #include <math.h>
 #include <mpi.h>
 
-#include "hdf5.h"
-
 #include "Alloc.h"
 #include "Basic.h"
 #include "Grid.h"

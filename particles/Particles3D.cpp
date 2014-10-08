@@ -28,7 +28,6 @@ developers: Stefano Markidis, Giovanni Lapenta
 
 #include "mic_particles.h"
 #include "debug.h"
-#include "hdf5.h"
 #include <complex>
 
 using std::cout;

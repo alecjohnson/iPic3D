@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "input_array.h"
-#include "hdf5.h"
+#include "ipichdf5.h"
 #include "Collective.h"
 #include "ConfigFile.h"
 #include "limits.h" // for INT_MAX
@@ -377,6 +377,9 @@ void Collective::ReadInput(string inputfile) {
 }
 /*! Read the collective information from the RESTART file in HDF5 format There are three restart status: restart_status = 0 ---> new inputfile restart_status = 1 ---> RESTART and restart and result directories does not coincide restart_status = 2 ---> RESTART and restart and result directories coincide */
 int Collective::ReadRestart(string inputfile) {
+#ifdef NO_HDF5
+  eprintf("restart requires compiling with HDF5");
+#else
   restart_status = 1;
   // hdf stuff 
   hid_t file_id;
@@ -611,7 +614,7 @@ int Collective::ReadRestart(string inputfile) {
   // deallocate
   delete[]name_species;
   delete[]ss;
-
+#endif
   return (0);
 }
 /*! constructor */

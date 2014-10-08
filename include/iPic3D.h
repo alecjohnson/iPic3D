@@ -6,27 +6,21 @@
 #ifndef _IPIC3D_H_
 #define _IPIC3D_H_
 
-#include "MPIdata.h"
-#include "VCtopology3D.h"
-#include "Collective.h"
-#include "Grid3DCU.h"
-#include "EMfields3D.h"
-#include "Particles3D.h"
+//using namespace std;
+//using std::cerr;
+//using std::endl;
+//using std::ofstream;
+
+class Timing;
+
+#ifndef NO_HDF5
+#include "mpi.h"
 #include "Restart3D.h"
-#include "Timing.h"
-#include "WriteOutputParallel.h"
-
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <sstream>
-
-using namespace std;
-using std::cerr;
-using std::endl;
-using std::ofstream;
-
 using namespace PSK;
+#endif
+#include "ipicfwd.h"
+#include <string>
+using std::string;
 
 namespace iPic3D {
 
@@ -62,9 +56,9 @@ namespace iPic3D {
     void WriteOutput(int cycle);
     void Finalize();
 
-    inline int FirstCycle();
-    inline int LastCycle();
-    inline int get_myrank();
+    int FirstCycle() { return (first_cycle); }
+    int get_myrank() { return (myrank); }
+    int LastCycle();
 
   private:
     void pad_particle_capacities();
@@ -85,8 +79,10 @@ namespace iPic3D {
     double        *Qremoved;
     Timing        *my_clock;
 
+    #ifndef NO_HDF5
     PSK::OutputManager < PSK::OutputAdaptor > output_mgr; // Create an Output Manager
     myOutputAgent < PSK::HDF5OutputAdaptor > hdf5_agent;  // Create an Output Agent for HDF5 output
+    #endif // NO_HDF5
 
     bool verbose;
     string SaveDirName;
@@ -94,7 +90,7 @@ namespace iPic3D {
     string cqsat;
     string cq;
     string ds;
-    stringstream num_proc;
+    string num_proc_str;
     int restart_cycle;
     int restart;
     int first_cycle;
@@ -109,15 +105,6 @@ namespace iPic3D {
     double TOTmomentum;
   };
 
-  inline int c_Solver::FirstCycle() {
-    return (first_cycle);
-  }
-  inline int c_Solver::LastCycle() {
-    return (col->getNcycles() + first_cycle);
-  }
-  inline int c_Solver::get_myrank() {
-    return (myrank);
-  }
 }
 
 #endif
