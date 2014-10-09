@@ -1,7 +1,16 @@
 
 #include <mpi.h>
 #include "WriteOutputParallel.h"
+#include "phdf5.h"
+#include "CollectiveIO.h"
+#include "Grid3DCU.h"
+#include "EMfields3D.h"
+#include "VCtopology3D.h"
 #include "errors.h"
+#include <string>
+#include <sstream>
+#include <iomanip>
+using std::string;
 
 void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCtopology3D *vct, int cycle){
 

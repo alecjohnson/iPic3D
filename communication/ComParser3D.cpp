@@ -1,6 +1,9 @@
 
 #include <mpi.h>
 #include "ComParser3D.h"
+#include "Alloc.h"
+#include "VCtopology3D.h"
+#include "asserts.h"
 
 /** swap the buffer */
 void swapBuffer(int buffer_size, double *b_left, double *b_rght) {

@@ -7,10 +7,10 @@ developers: Stefano Markidis, Giovanni Lapenta
 #ifndef Particles_H
 #define Particles_H
 
-#include "CollectiveIO.h"
-#include "VirtualTopology3D.h"
-#include "Grid.h"
-#include "Field.h"
+//#include "CollectiveIO.h"
+//#include "VirtualTopology3D.h"
+//#include "Grid.h"
+//#include "Field.h"
 
 /**
  * 

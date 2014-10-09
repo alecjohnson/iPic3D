@@ -1,4 +1,5 @@
 #include <mpi.h>
+#include "stdio.h"
 #include "Timing.h"
 #include "ipicdefs.h"
 
@@ -53,12 +54,16 @@ void Timing::stopTiming() {
   tend = MPI_Wtime();
   texecution = tend - tstart;
   if (rank_id == 0) {
-    cout << endl;
-    cout << endl;
-    cout << "*** SIMULATION ENDED SUCESSFULLY ***" << endl;
-    cout << " PARSEK Simulation Time: " << texecution << " sec" << " (" << texecution / 3600 << " hours)" << endl;
-    cout << "***" << endl;
-    cout << endl;
+    // replace %g with %11.3e?
+    printf( "\n\n*** SIMULATION ENDED SUCESSFULLY ***\n"
+            " PARSEK Simulation Time: %g sec (%g hours)\n***\n\n",
+            texecution, texecution / 3600);
+    //cout << endl;
+    //cout << endl;
+    //cout << "*** SIMULATION ENDED SUCESSFULLY ***" << endl;
+    //cout << " PARSEK Simulation Time: " << texecution << " sec" << " (" << texecution / 3600 << " hours)" << endl;
+    //cout << "***" << endl;
+    //cout << endl;
   }
   // close the log file
   // MPE_Finish_log("PARSEK_LOG");
@@ -94,9 +99,12 @@ double Timing::getExecutionTime() {
 }
 /** print to screen the elapsed time */
 void Timing::Print() {
-  cout << "Execution Time: " << texecution << " sec" << " (" << texecution / 3600 << " hours)" << endl;
+  printf("Execution Time: %g sec (%g hours)\n",
+    texecution, texecution / 3600);
+  //cout << "Execution Time: " << texecution << " sec" << " (" << texecution / 3600 << " hours)" << endl;
 }
 /** print to screen the elapsed time from t_start to the call to print function*/
 void Timing::Print_OnAir() {
-  cout << "Execution Time: " << MPI_Wtime() - tstart << " sec" << endl;
+  printf("Execution Time: %g sec\n", MPI_Wtime() - tstart);
+  //cout << "Execution Time: " << MPI_Wtime() - tstart << " sec" << endl;
 }

@@ -1,19 +1,8 @@
 #ifndef GMRES_new2_H
 #define GMRES_new2_H
 
-#include <iostream>
-#include <math.h>
+#include "ipicfwd.h"
 
-#include "Alloc.h"
-#include "Basic.h"
-#include "EMfields3D.h"
-#include "VirtualTopology3D.h"
-
-using std::cout;
-using std::cerr;
-using std::endl;
-
-class EMfields3D;
 typedef void (EMfields3D::*FIELD_IMAGE) (double *, double *, Grid *, VirtualTopology3D *);
 typedef void (*GENERIC_IMAGE) (double *, double *, Grid *, VirtualTopology3D *);
 

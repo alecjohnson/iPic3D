@@ -1,5 +1,7 @@
 #include <mpi.h>
 #include "ComParticles3D.h"
+#include "ComBasic3D.h"
+#include "VCtopology3D.h"
 #include "ipicdefs.h"
 
 /** comunicate particles and receive particles to and from 6 processors */

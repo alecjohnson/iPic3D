@@ -2,6 +2,15 @@
 #include <mpi.h>
 #include "ipichdf5.h"
 #include "EMfields3D.h"
+#include "Basic.h"
+#include "ComNodes3D.h"
+#include "ComInterpNodes3D.h"
+#include "CollectiveIO.h"
+#include "VCtopology3D.h"
+#include "Grid3DCU.h"
+#include "CG.h"
+#include "GMRES.h"
+#include "BCStructure.h"
 #include "Particles3Dcomm.h"
 #include "TimeTasks.h"
 #include "Moments.h"
@@ -13,10 +22,14 @@
 #include "ipicmath.h" // for roundup_to_multiple
 #include "Alloc.h"
 #include "asserts.h"
-#include "Grid3DCU.h"
-#include "EMfields3D.h"
-#include "VirtualTopology3D.h"
+#ifndef NO_HDF5
+#include "Restart3D.h"
+#endif
 
+#include <iostream>
+//#include <sstream>
+using std::cout;
+using std::endl;
 using namespace iPic3D;
 
 /*! constructor */
@@ -198,8 +211,6 @@ EMfields3D::EMfields3D(Collective * col, Grid * grid, VirtualTopology3D *vct) :
   FourPI = 16 * atan(1.0);
   /*! Restart */
   restart1 = col->getRestart_status();
-  RestartDirName = col->getRestartDirName();
-  Case = col->getCase();
 
   // OpenBC
   injFieldsLeft   = new injInfoFields(nxn, nyn, nzn);
@@ -1868,6 +1879,41 @@ void EMfields3D::sumMoments_vectorized_AoS(
   }
 }
 
+/** method to convert a 1D field in a 3D field not considering guard cells*/
+void solver2phys(arr3_double vectPhys, double *vectSolver, int nx, int ny, int nz) {
+  for (register int i = 1; i < nx - 1; i++)
+    for (register int j = 1; j < ny - 1; j++)
+      for (register int k = 1; k < nz - 1; k++)
+        vectPhys[i][j][k] = *vectSolver++;
+
+}
+/** method to convert a 1D field in a 3D field not considering guard cells*/
+void solver2phys(arr3_double vectPhys1, arr3_double vectPhys2, arr3_double vectPhys3, double *vectSolver, int nx, int ny, int nz) {
+  for (register int i = 1; i < nx - 1; i++)
+    for (register int j = 1; j < ny - 1; j++)
+      for (register int k = 1; k < nz - 1; k++) {
+        vectPhys1[i][j][k] = *vectSolver++;
+        vectPhys2[i][j][k] = *vectSolver++;
+        vectPhys3[i][j][k] = *vectSolver++;
+      }
+}
+/** method to convert a 3D field in a 1D field not considering guard cells*/
+void phys2solver(double *vectSolver, const arr3_double vectPhys, int nx, int ny, int nz) {
+  for (register int i = 1; i < nx - 1; i++)
+    for (register int j = 1; j < ny - 1; j++)
+      for (register int k = 1; k < nz - 1; k++)
+        *vectSolver++ = vectPhys.get(i,j,k);
+}
+/** method to convert a 3D field in a 1D field not considering guard cells*/
+void phys2solver(double *vectSolver, const arr3_double vectPhys1, const arr3_double vectPhys2, const arr3_double vectPhys3, int nx, int ny, int nz) {
+  for (register int i = 1; i < nx - 1; i++)
+    for (register int j = 1; j < ny - 1; j++)
+      for (register int k = 1; k < nz - 1; k++) {
+        *vectSolver++ = vectPhys1.get(i,j,k);
+        *vectSolver++ = vectPhys2.get(i,j,k);
+        *vectSolver++ = vectPhys3.get(i,j,k);
+      }
+}
 /*! Calculate Electric field with the implicit solver: the Maxwell solver method is called here */
 void EMfields3D::calculateE(Grid * grid, VirtualTopology3D * vct, Collective *col) {
   if (vct->getCartesian_rank() == 0)
@@ -1972,9 +2018,9 @@ void EMfields3D::MaxwellSource(double *bkrylov, Grid * grid, VirtualTopology3D *
   communicateCenterBC(nxc, nyc, nzc, Byc, col->bcBy[0],col->bcBy[1],col->bcBy[2],col->bcBy[3],col->bcBy[4],col->bcBy[5], vct);
   communicateCenterBC(nxc, nyc, nzc, Bzc, col->bcBz[0],col->bcBz[1],col->bcBz[2],col->bcBz[3],col->bcBz[4],col->bcBz[5], vct);
 
-  if (Case=="ForceFree") fixBforcefree(grid,vct);
-  if (Case=="GEM")       fixBgem(grid, vct);
-  if (Case=="GEMnoPert") fixBgem(grid, vct);
+  if (get_col().getCase()=="ForceFree") fixBforcefree(grid,vct);
+  if (get_col().getCase()=="GEM")       fixBgem(grid, vct);
+  if (get_col().getCase()=="GEMnoPert") fixBgem(grid, vct);
 
   // OpenBC:
   BoundaryConditionsB(Bxc,Byc,Bzc,nxc,nyc,nzc,grid,vct);
@@ -2702,9 +2748,9 @@ void EMfields3D::calculateB(Grid * grid, VirtualTopology3D * vct, Collective *co
   communicateCenterBC(nxc, nyc, nzc, Byc, col->bcBy[0],col->bcBy[1],col->bcBy[2],col->bcBy[3],col->bcBy[4],col->bcBy[5], vct);
   communicateCenterBC(nxc, nyc, nzc, Bzc, col->bcBz[0],col->bcBz[1],col->bcBz[2],col->bcBz[3],col->bcBz[4],col->bcBz[5], vct);
 
-  if (Case=="ForceFree") fixBforcefree(grid,vct);
-  if (Case=="GEM")       fixBgem(grid, vct);
-  if (Case=="GEMnoPert") fixBgem(grid, vct);
+  if (get_col().getCase()=="ForceFree") fixBforcefree(grid,vct);
+  if (get_col().getCase()=="GEM")       fixBgem(grid, vct);
+  if (get_col().getCase()=="GEMnoPert") fixBgem(grid, vct);
 
   // OpenBC:
   BoundaryConditionsB(Bxc,Byc,Bzc,nxc,nyc,nzc,grid,vct);
@@ -3024,122 +3070,12 @@ void EMfields3D::init(VirtualTopology3D * vct, Grid * grid, Collective *col) {
   #ifdef NO_HDF5
     eprintf("restart requires compiling with HDF5");
   #else
-    if (vct->getCartesian_rank() == 0)
-      cout << "LOADING EM FIELD FROM RESTART FILE in " + RestartDirName + "/restart.hdf" << endl;
-    stringstream ss;
-    ss << vct->getCartesian_rank();
-    string name_file = RestartDirName + "/restart" + ss.str() + ".hdf";
-    // hdf stuff 
-    hid_t file_id, dataspace;
-    hid_t datatype, dataset_id;
-    herr_t status;
-    size_t size;
-    hsize_t dims_out[3];        /* dataset dimensions */
-    int status_n;
+    read_field_restart(&get_col(),vct,grid,Bxn,Byn,Bzn,Ex,Ey,Ez,&rhons,ns);
 
-    // open the hdf file
-    file_id = H5Fopen(name_file.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
-    if (file_id < 0) {
-      cout << "couldn't open file: " << name_file << endl;
-      cout << "RESTART NOT POSSIBLE" << endl;
-    }
-
-    dataset_id = H5Dopen2(file_id, "/fields/Bx/cycle_0", H5P_DEFAULT); // HDF 1.8.8
-    datatype = H5Dget_type(dataset_id);
-    size = H5Tget_size(datatype);
-    dataspace = H5Dget_space(dataset_id);
-    status_n = H5Sget_simple_extent_dims(dataspace, dims_out, NULL);
-
-
-
-    // Bxn
-    double *temp_storage = new double[dims_out[0] * dims_out[1] * dims_out[2]];
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, temp_storage);
-    int k = 0;
-    for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++)
-        for (int jj = 1; jj < nzn - 1; jj++)
-          Bxn[i][j][jj] = temp_storage[k++];
-
-
-    status = H5Dclose(dataset_id);
-
-    // Byn
-    dataset_id = H5Dopen2(file_id, "/fields/By/cycle_0", H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, temp_storage);
-    k = 0;
-    for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++)
-        for (int jj = 1; jj < nzn - 1; jj++)
-          Byn[i][j][jj] = temp_storage[k++];
-
-    status = H5Dclose(dataset_id);
-
-
-    // Bzn
-    dataset_id = H5Dopen2(file_id, "/fields/Bz/cycle_0", H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, temp_storage);
-    k = 0;
-    for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++)
-        for (int jj = 1; jj < nzn - 1; jj++)
-          Bzn[i][j][jj] = temp_storage[k++];
-
-    status = H5Dclose(dataset_id);
-
-
-    // Ex
-    dataset_id = H5Dopen2(file_id, "/fields/Ex/cycle_0", H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, temp_storage);
-    k = 0;
-    for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++)
-        for (int jj = 1; jj < nzn - 1; jj++)
-          Ex[i][j][jj] = temp_storage[k++];
-
-    status = H5Dclose(dataset_id);
-
-
-    // Ey 
-    dataset_id = H5Dopen2(file_id, "/fields/Ey/cycle_0", H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, temp_storage);
-    k = 0;
-    for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++)
-        for (int jj = 1; jj < nzn - 1; jj++)
-          Ey[i][j][jj] = temp_storage[k++];
-
-    status = H5Dclose(dataset_id);
-
-    // Ez 
-    dataset_id = H5Dopen2(file_id, "/fields/Ez/cycle_0", H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, temp_storage);
-    k = 0;
-    for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++)
-        for (int jj = 1; jj < nzn - 1; jj++)
-          Ez[i][j][jj] = temp_storage[k++];
-
-    status = H5Dclose(dataset_id);
-
-    // open the charge density for species
-
-    stringstream *species_name = new stringstream[ns];
+    // communicate species densities to ghost nodes
     for (int is = 0; is < ns; is++) {
-      species_name[is] << is;
-      string name_dataset = "/moments/species_" + species_name[is].str() + "/rho/cycle_0";
-      dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-      status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, temp_storage);
-      k = 0;
-      for (int i = 1; i < nxn - 1; i++)
-        for (int j = 1; j < nyn - 1; j++)
-          for (int jj = 1; jj < nzn - 1; jj++)
-            rhons[is][i][j][jj] = temp_storage[k++];
-
       double ***moment0 = convert_to_arr3(rhons[ns]);
       communicateNode_P(nxn, nyn, nzn, moment0, vct);
-      status = H5Dclose(dataset_id);
-
     }
 
     if (col->getCase()=="Dipole") {
@@ -3166,10 +3102,6 @@ void EMfields3D::init(VirtualTopology3D * vct, Grid * grid, Collective *col) {
     communicateNodeBC(nxn, nyn, nzn, Ez, col->bcEz[0],col->bcEz[1],col->bcEz[2],col->bcEz[3],col->bcEz[4],col->bcEz[5], vct);
     for (int is = 0; is < ns; is++)
       grid->interpN2C(rhocs, is, rhons);
-    // close the hdf file
-    status = H5Fclose(file_id);
-    delete[]temp_storage;
-    delete[]species_name;
   #endif // NO_HDF5
   }
 }

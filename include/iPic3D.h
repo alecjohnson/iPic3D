@@ -11,11 +11,12 @@ class Timing;
 #ifndef NO_HDF5
 #include "mpi.h"
 #include "Restart3D.h"
-using namespace PSK;
 #endif
 #include "ipicfwd.h"
 #include <string>
 using std::string;
+
+class OutputWrapperFPP;
 
 namespace iPic3D {
 
@@ -29,6 +30,7 @@ namespace iPic3D {
       grid(0),
       EMf(0),
       part(0),
+      outputWrapperFPP(0),
       Ke(0),
       momentum(0),
       Qremoved(0),
@@ -74,10 +76,10 @@ namespace iPic3D {
     double        *Qremoved;
     Timing        *my_clock;
 
-    #ifndef NO_HDF5
-    PSK::OutputManager < PSK::OutputAdaptor > output_mgr; // Create an Output Manager
-    myOutputAgent < PSK::HDF5OutputAdaptor > hdf5_agent;  // Create an Output Agent for HDF5 output
-    #endif // NO_HDF5
+    OutputWrapperFPP& fetch_outputWrapperFPP(){
+      assert(outputWrapperFPP);
+      return *outputWrapperFPP;}
+    OutputWrapperFPP *outputWrapperFPP;
 
     bool verbose;
     string SaveDirName;
@@ -87,7 +89,7 @@ namespace iPic3D {
     string ds;
     string num_proc_str;
     int restart_cycle;
-    int restart;
+    int restart_status;
     int first_cycle;
     int ns;
     int nprocs;

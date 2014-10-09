@@ -6,6 +6,7 @@
 // corrected by Markidis
 
 #include <iostream>
+#include <iosfwd>
 
 struct array_int {
   int a, b, c, d, e, f;

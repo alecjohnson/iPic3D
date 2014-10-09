@@ -6,8 +6,8 @@
 #ifndef ComBasic_H
 #define ComBasic_H
 
-#include "MPIdata.h"
-#include "ComParser3D.h"
+//#include "MPIdata.h"
+//#include "ComParser3D.h"
 
 
 /** communicate particles along a direction **/

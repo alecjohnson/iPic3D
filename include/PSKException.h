@@ -6,7 +6,6 @@
 
 #include <string>
 #include <vector>
-#include <iostream>
 #include <stdio.h>
 #include <errno.h>
 
@@ -55,12 +54,20 @@ namespace PSK {
       }
 
       void diag_cout() {
-        std::cout << _type_str << " " << _err_str << " in " << _fn_str << std::endl;
+        printf("%s %s in %s\n",
+          _type_str.c_str(), _err_str.c_str(), _fn_str.c_str());
+        //std::cout << _type_str << " " << _err_str << " in " << _fn_str << std::endl;
         if (_sys_errno != 0)
-          std::cout << "sys errno: " << _sys_errno << " [" << _sys_err_str << "]" << std::endl;
+        {
+          printf("sys errno: %d [%s]\n", _sys_errno, _sys_err_str.c_str());
+          //std::cout << "sys errno: " << _sys_errno << " [" << _sys_err_str << "]" << std::endl;
+        }
         int n_msgs = _err_msgs.size();
         for (int i = 0; i < n_msgs; ++i)
-          std::cout << ".. " << _err_msgs[i] << std::endl;
+        {
+          printf(".. %s\n", _err_msgs[i].c_str());
+          //std::cout << ".. " << _err_msgs[i] << std::endl;
+        }
       }
 
   };

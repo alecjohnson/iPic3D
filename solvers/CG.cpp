@@ -1,6 +1,8 @@
 
 #include <mpi.h>
 #include "CG.h"
+#include "Basic.h"
+#include "VCtopology3D.h"
 
 /**
  * 
@@ -36,7 +38,8 @@ bool CG(double *xkrylov, int xkrylovlen, double *b, int maxit, double tol, FIELD
   c = dotP(r, r, xkrylovlen);
   initial_error = sqrt(c);
   if (vct->getCartesian_rank() == 0)
-    cout << "CG Initial error: " << initial_error << endl;
+    printf("CG Initial error: %g\n", initial_error);
+    //cout << "CG Initial error: " << initial_error << endl;
   if (initial_error < 1E-16)
     return (true);
   while (i < maxit) {
@@ -48,19 +51,27 @@ bool CG(double *xkrylov, int xkrylovlen, double *b, int maxit, double tol, FIELD
     addscale(-t, r, z, xkrylovlen);
     d = dotP(r, r, xkrylovlen);
     if (CGVERBOSE && vct->getCartesian_rank() == 0)
-      cout << "Iteration # " << i << " - norm of residual relative to initial error " << sqrt(d) / initial_error << endl;
+    {
+      printf("Iteration # %d - norm of residual relative to initial error %g\n",
+        i, sqrt(d) / initial_error);
+      //cout << "Iteration # " << i << " - norm of residual relative to initial error " << sqrt(d) / initial_error << endl;
+    }
     if (sqrt(d) < tol * initial_error) {
       // if (d < tol){
 
       if (vct->getCartesian_rank() == 0)
-        cout << "CG converged at iteration # " << i << " with error " << sqrt(d) << endl;
+      {
+        printf("CG converged at iteration # %d with error %g\n", i, sqrt(d));
+        //cout << "CG converged at iteration # " << i << " with error " << sqrt(d) << endl;
+      }
       CONVERGED = true;
       break;
     }
     else if (sqrt(d) > 10E8 * initial_error) {
       if (vct->getCartesian_rank() == 0) {
-        cerr << "CG not converging" << endl;
-        cerr << "CG stopped" << endl;
+        printf("CG not converged after %d iterations\n", maxit);
+        //cerr << "CG not converging" << endl;
+        //cerr << "CG stopped" << endl;
 
       }
       CONVERGED = false;
@@ -76,7 +87,10 @@ bool CG(double *xkrylov, int xkrylovlen, double *b, int maxit, double tol, FIELD
 
   }
   if (i == maxit)
-    cout << "CG not converged after " << maxit << " iterations" << endl;
+  {
+    printf("CG not converged after %d iterations\n", maxit);
+    //cout << "CG not converged after " << maxit << " iterations" << endl;
+  }
   // deallocate
   delete[]r;
   delete[]im;
@@ -106,13 +120,15 @@ bool CG(double *xkrylov, int xkrylovlen, double *b, int maxit, double tol, GENER
   c = dotP(r, r, xkrylovlen);
   initial_error = sqrt(c);
   if (vct->getCartesian_rank() == 0)
-    cout << "Initial error: " << initial_error << endl;
+  {
+    printf("Initial error: %g\n", initial_error);
+    //cout << "Initial error: " << initial_error << endl;
+  }
   // for i=0,1,..., until convergence
   if (CGVERBOSE && vct->getCartesian_rank() == 0) {
-    cout << "------------------------------------" << endl;
-    cout << "-               CG                 -" << endl;
-    cout << "------------------------------------" << endl;
-    cout << endl;
+    printf( "------------------------------------\n"
+            "-               CG                 -\n"
+            "------------------------------------\n\n");
   }
   while (i < maxit) {
     (*FunctionImage) (z, v, grid, vct);
@@ -125,17 +141,25 @@ bool CG(double *xkrylov, int xkrylovlen, double *b, int maxit, double tol, GENER
     d = dotP(r, r, xkrylovlen);
 
     if (CGVERBOSE && vct->getCartesian_rank() == 0)
-      cout << "Iteration # " << i << " - norm of residual relative to initial error " << sqrt(d) / initial_error << endl;
+    {
+      printf("Iteration # %d - norm of residual relative to initial error %g\n",
+        i, sqrt(d) / initial_error);
+      //cout << "Iteration # " << i << " - norm of residual relative to initial error " << sqrt(d) / initial_error << endl;
+    }
     if (sqrt(d) < tol * initial_error) {
       if (vct->getCartesian_rank() == 0)
-        cout << "CG converged at iteration # " << i << endl;
+      {
+        printf("CG converged at iteration # %d\n", i);
+        //cout << "CG converged at iteration # " << i << endl;
+      }
       CONVERGED = true;
       break;
     }
     else if (sqrt(d) > 10E8 * initial_error) {
       if (vct->getCartesian_rank() == 0) {
-        cerr << "CG not converging" << endl;
-        cerr << "CG stopped" << endl;
+        printf("CG not converging\n" "CG stopped\n");
+        //cerr << "CG not converging" << endl;
+        //cerr << "CG stopped" << endl;
       }
       CONVERGED = false;
       break;

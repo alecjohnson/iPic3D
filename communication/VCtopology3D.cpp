@@ -80,8 +80,15 @@ void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
   //  MPI_Comm_rank(CART_COMM_P, &pcl_cartesian_rank);
   //  MPI_Cart_coords(CART_COMM_P, pcl_cartesian_rank, 3, pcl_coordinates);
   //  
-  //  // This seems to be assumed elsewhere in the code.
-  //  assert_eq(cartesian_rank, MPIdata::get_rank());
+  // This seems to be assumed elsewhere in the code.
+  // We need to eliminate this assumption.
+  // This becomes important if we want
+  // a running program to have more than one
+  // mesh and processor topology.
+  // The MPI rank is for system-level code, e.g.
+  // to identify the process from which debug is coming.
+  // The cartesian rank is for application-level code.
+  assert_eq(cartesian_rank, MPIdata::get_rank());
   //  // should agree
   //  assert_eq(cartesian_rank,pcl_cartesian_rank);
   //  for(int dim=0;dim<3;dim++)

@@ -32,6 +32,7 @@ developers: Stefano Markidis, Giovanni Lapenta.
 #include "Parameters.h"
 
 #include "ipichdf5.h"
+#include "Restart3D.h"
 //#include <vector>
 //#include <complex>
 #include "debug.h"
@@ -276,102 +277,11 @@ Particles3Dcomm::Particles3Dcomm(
   #ifdef NO_HDF5
     eprintf("restart is supported only if compiling with HDF5");
   #else
-    if (vct->getCartesian_rank() == 0 && get_species_num() == 0)
-      cout << "LOADING PARTICLES FROM RESTART FILE in " + col->getRestartDirName() + "/restart.hdf" << endl;
-    stringstream ss;
-    ss << vct->getCartesian_rank();
-    string name_file = col->getRestartDirName() + "/restart" + ss.str() + ".hdf";
-    // hdf stuff 
-    hid_t file_id, dataspace;
-    hid_t datatype, dataset_id;
-    herr_t status;
-    size_t size;
-    hsize_t dims_out[1];        /* dataset dimensions */
-    int status_n;
-
-    // open the hdf file
-    file_id = H5Fopen(name_file.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
-    if (file_id < 0) {
-      cout << "couldn't open file: " << name_file << endl;
-      cout << "RESTART NOT POSSIBLE" << endl;
-    }
-
-    stringstream species_name;
-    species_name << get_species_num();
-    // the cycle of the last restart is set to 0
-    string name_dataset = "/particles/species_" + species_name.str() + "/x/cycle_0";
-    dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    datatype = H5Dget_type(dataset_id);
-    size = H5Tget_size(datatype);
-    dataspace = H5Dget_space(dataset_id); /* dataspace handle */
-    status_n = H5Sget_simple_extent_dims(dataspace, dims_out, NULL);
-
-    // get how many particles there are on this processor for this species
-    status_n = H5Sget_simple_extent_dims(dataspace, dims_out, NULL);
-    const int nop = dims_out[0]; // number of particles in this process
+    int species_number = get_species_num();
     // prepare arrays to receive particles
     particleType = ParticleType::SoA;
-    resize_SoA(nop);
-    // get x
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &x[0]);
-    // close the data set
-    status = H5Dclose(dataset_id);
-
-    // get y
-    name_dataset = "/particles/species_" + species_name.str() + "/y/cycle_0";
-    dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &y[0]);
-    status = H5Dclose(dataset_id);
-
-    // get z
-    name_dataset = "/particles/species_" + species_name.str() + "/z/cycle_0";
-    dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &z[0]);
-    status = H5Dclose(dataset_id);
-
-    // get u
-    name_dataset = "/particles/species_" + species_name.str() + "/u/cycle_0";
-    dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &u[0]);
-    status = H5Dclose(dataset_id);
-    // get v
-    name_dataset = "/particles/species_" + species_name.str() + "/v/cycle_0";
-    dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &v[0]);
-    status = H5Dclose(dataset_id);
-    // get w
-    name_dataset = "/particles/species_" + species_name.str() + "/w/cycle_0";
-    dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &w[0]);
-    status = H5Dclose(dataset_id);
-    // get q
-    name_dataset = "/particles/species_" + species_name.str() + "/q/cycle_0";
-    dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &q[0]);
-    status = H5Dclose(dataset_id);
-    // ID 
-    //if (TrackParticleID) {
-    //  // herr_t (*old_func)(void*); // HDF 1.6
-    //  H5E_auto2_t old_func;      // HDF 1.8.8
-    //  void *old_client_data;
-    //  H5Eget_auto2(H5E_DEFAULT, &old_func, &old_client_data);  // HDF 1.8.8
-    //  /* Turn off error handling */
-    //  // H5Eset_auto(NULL, NULL); // HDF 1.6
-    //  H5Eset_auto2(H5E_DEFAULT, 0, 0); // HDF 1.8
-    //  name_dataset = "/particles/species_" + species_name.str() + "/ID/cycle_0";
-    //  dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    //
-    //  // H5Eset_auto(old_func, old_client_data); // HDF 1.6
-    //  H5Eset_auto2(H5E_DEFAULT, old_func, old_client_data);
-    //  if (dataset_id > 0)
-    //    status = H5Dread(dataset_id, H5T_NATIVE_ULONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, ParticleID);
-    //  //else {
-    //  //  for (int counter = 0; counter < nop; counter++)
-    //  //    fetch_ParticleID(counter) = particleIDgenerator.get_ID();
-    //  //}
-    //}
-    // close the hdf file
-    status = H5Fclose(file_id);
+    read_particles_restart(col, vct, species_number,
+      u, v, w, q, x, y, z, t);
     convertParticlesToAoS();
   #endif
   }

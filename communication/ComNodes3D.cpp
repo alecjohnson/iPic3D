@@ -1,6 +1,10 @@
 
 #include "mpi.h"
 #include "ComNodes3D.h"
+#include "ComParser3D.h"
+#include "ComBasic3D.h"
+#include "BcFields3D.h"
+#include "VCtopology3D.h"
 #include "TimeTasks.h"
 #include "ipicdefs.h"
 #include "Alloc.h"

@@ -8,13 +8,14 @@ developers           : Stefano Markidis, Giovanni Lapenta
  ***************************************************************************/
 
 #ifndef ComNodes3D_H
-#define ComNodes_H
+#define ComNodes3D_H
 
 #include "arraysfwd.h"
-#include "ComBasic3D.h"
+#include "ipicfwd.h"
+//#include "ComBasic3D.h"
 
 // boundary condition for fields
-#include "BcFields3D.h"
+//#include "BcFields3D.h"
 
 /** communicate ghost cells (FOR NODES) */
 void communicateNode(int nx, int ny, int nz, arr3_double vector, VirtualTopology3D * vct);

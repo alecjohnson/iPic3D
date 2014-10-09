@@ -7,12 +7,12 @@ developers: Stefano Markidis, Enrico Camporeale, Giovanni Lapenta, David Burgess
 #ifndef TIMING_H
 #define TIMING_H
 
-#include "MPIdata.h"
+//#include "MPIdata.h"
 
-#include <iostream>
+//#include <iostream>
 
-using std::cout;
-using std::endl;
+//using std::cout;
+//using std::endl;
 /**
  * 
  * series of methods for timing and profiling PARSEK 

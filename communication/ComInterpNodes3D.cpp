@@ -1,7 +1,10 @@
 #include <mpi.h>
 #include "ComInterpNodes3D.h"
+#include "ComParser3D.h"
+#include "ComBasic3D.h"
 #include "ipicdefs.h"
 #include "Alloc.h"
+#include "VCtopology3D.h"
 
 /** communicate and sum shared ghost cells */
 void communicateInterp(int nx, int ny, int nz, double*** vector, VirtualTopology3D * vct)

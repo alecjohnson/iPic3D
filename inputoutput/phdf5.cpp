@@ -170,15 +170,18 @@ int PHDF5fileClass::WritePHDF5dataset(string grpname, string datasetname, const_
   /* --------------------------------- */
 
   if (bparticles && grpname.c_str()=="Particles"){
-    cout << " WARNING(phdf5): Particle data is not going to be written as the 'bparticles' flag is currently turn to FALSE" << endl;
+    warning_printf("Particle data is not going to be written,"
+      " because the 'bparticles' flag is currently turn to FALSE");
     return (2);
   }
 
   for (int i=0; i<ndim; i++){
     if (dim[i]%chdim[i]!=0){
-      cout << " ERROR(phdf5): Grid size is not a multiple of the chunk size in the " << i << " dimension." << endl;
-      cout << "         Glob: " << dim[0] << " " << dim[1] << " " << dim[2] << endl;
-      cout << "         Locl: " << chdim[0] << " " << chdim[1] << " " << chdim[2] << endl;
+      eprintf("Grid size is not a multiple of the chunk size in the %d dimension,"
+        "\tGlob: %d %d %d\n"
+        "\tLocl: %d %d %d\n",
+        i, dim[0],dim[1],dim[2],
+	chdim[0],chdim[1],chdim[2]);
       return 1;
     }
   }
@@ -188,7 +191,7 @@ int PHDF5fileClass::WritePHDF5dataset(string grpname, string datasetname, const_
   /* ----------------------- */
 
   if (nx!=chdim[0] || ny!=chdim[1] || nz!=chdim[2]){
-    cout << " ERROR(phdf5): data size is not equal to HDF5 chunk size " << endl;
+    eprintf("data size is not equal to HDF5 chunk size ");
     return 1;
   }
 

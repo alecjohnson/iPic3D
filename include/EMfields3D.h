@@ -3,29 +3,11 @@
 #ifndef EMfields3D_H
 #define EMfields3D_H
 
-#include <iostream>
-#include <sstream>
-
-#include <math.h>
-#include <mpi.h>
-
-#include "Alloc.h"
-#include "Basic.h"
-#include "Grid.h"
-#include "TransArraySpace3D.h"
-#include "CG.h"
-#include "GMRES.h"
-#include "Collective.h"
-#include "ComNodes3D.h"
-#include "ComInterpNodes3D.h"
-//#include "TimeTasks.h"
 #include "asserts.h"
-#include "BCStructure.h"
+//#include "BCStructure.h"
 #include "ipicfwd.h"
-
-using std::cout;
-using std::cerr;
-using std::endl;
+#include "Alloc.h"
+struct injInfoFields;
 
 /*! Electromagnetic fields and sources defined for each local grid, and for an implicit maxwell's solver @date May 2008 @par Copyright: (C) 2008 KUL @author Stefano Markidis, Giovanni Lapenta. @version 3.0 */
 
@@ -290,6 +272,7 @@ class EMfields3D                // :public Field
     const Grid& get_grid()const{return _grid;};
     const VirtualTopology3D& get_vct()const{return _vct;}
     /* ********************************* // VARIABLES ********************************* */
+    
   private:
     // access to global data
     const Collective& _col;
@@ -506,10 +489,6 @@ class EMfields3D                // :public Field
     bool PoissonCorrection;
     /*! RESTART BOOLEAN */
     int restart1;
-    /*! String with the directory for the restart file */
-    string RestartDirName;
-    /*! Case */
-    string Case;
 
     /*! CG tolerance criterium for stopping iterations */
     double CGtol;

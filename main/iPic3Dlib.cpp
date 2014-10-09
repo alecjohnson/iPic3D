@@ -17,6 +17,7 @@
 #ifndef NO_HDF5
 #include "ParallelIO.h"
 #include "WriteOutputParallel.h"
+#include "OutputWrapperFPP.h"
 #endif
 //
 #include <iostream>
@@ -34,6 +35,7 @@ c_Solver::~c_Solver()
   delete vct; // process topology
   delete grid; // grid
   delete EMf; // field
+  delete outputWrapperFPP;
 
   // delete particles
   //
@@ -75,7 +77,7 @@ int c_Solver::Init(int argc, char **argv) {
   restart_cycle = col->getRestartOutputCycle();
   SaveDirName = col->getSaveDirName();
   RestartDirName = col->getRestartDirName();
-  restart = col->getRestart_status();
+  restart_status = col->getRestart_status();
   ns = col->getNs();            // get the number of particle species involved in simulation
   first_cycle = col->getLast_cycle() + 1; // get the last cycle from the restart
   // initialize the virtual cartesian topology 
@@ -90,6 +92,11 @@ int c_Solver::Init(int argc, char **argv) {
   }
   // We create a new communicator with a 3D virtual Cartesian topology
   vct->setup_vctopology(MPI_COMM_WORLD);
+  {
+    stringstream num_proc_ss;
+    num_proc_ss << vct->getCartesian_rank();
+    num_proc_str = num_proc_ss.str();
+  }
   // initialize the central cell index
 
 #ifdef BATSRUS
@@ -147,7 +154,7 @@ int c_Solver::Init(int argc, char **argv) {
   }
 
   // Initial Condition for PARTICLES if you are not starting from RESTART
-  if (restart == 0) {
+  if (restart_status == 0) {
     // wave = new Planewave(col, EMf, grid, vct);
     // wave->Wave_Rotated(part); // Single Plane Wave
     for (int i = 0; i < ns; i++)
@@ -161,41 +168,13 @@ int c_Solver::Init(int argc, char **argv) {
     }
   }
 
-  // restart files are not supported yet for parallel output
-  #ifndef NO_HDF5
   if (col->getWriteMethod() == "default")
   {
-    // Initialize the output (simulation results and restart file)
-    // PSK::OutputManager < PSK::OutputAdaptor > output_mgr; // Create an Output Manager
-    // myOutputAgent < PSK::HDF5OutputAdaptor > hdf5_agent; // Create an Output Agent for HDF5 output
-    hdf5_agent.set_simulation_pointers(EMf, grid, vct, col);
-    for (int i = 0; i < ns; ++i)
-      hdf5_agent.set_simulation_pointers_part(&part[i]);
-    output_mgr.push_back(&hdf5_agent);  // Add the HDF5 output agent to the Output Manager's list
-    if (myrank == 0 & restart < 2) {
-      hdf5_agent.open(SaveDirName + "/settings.hdf");
-      output_mgr.output("collective + total_topology + proc_topology", 0);
-      hdf5_agent.close();
-      hdf5_agent.open(RestartDirName + "/settings.hdf");
-      output_mgr.output("collective + total_topology + proc_topology", 0);
-      hdf5_agent.close();
-    }
-    // Restart
-    stringstream num_proc_ss;
-    num_proc_ss << myrank;
-    num_proc_str = num_proc_ss.str();
-    if (restart == 0) {           // new simulation from input file
-      hdf5_agent.open(SaveDirName + "/proc" + num_proc_str + ".hdf");
-      output_mgr.output("proc_topology ", 0);
-      hdf5_agent.close();
-    }
-    else {                        // restart append the results to the previous simulation 
-      hdf5_agent.open_append(SaveDirName + "/proc" + num_proc_str + ".hdf");
-      output_mgr.output("proc_topology ", 0);
-      hdf5_agent.close();
-    }
+    #ifndef NO_HDF5
+    outputWrapperFPP = new OutputWrapperFPP;
+    fetch_outputWrapperFPP().init_output_files(col,vct,grid,EMf,part,ns);
+    #endif
   }
-  #endif // NO_HDF5
 
   former_MPI_Barrier(MPI_COMM_WORLD);
   Eenergy, Benergy, TOTenergy = 0.0, TOTmomentum = 0.0;
@@ -503,10 +482,9 @@ void c_Solver::WriteFields(int cycle) {
     }
     else // OUTPUT to large file, called proc**
     {
-        hdf5_agent.open_append(SaveDirName + "/proc" + num_proc_str + ".hdf");
-        output_mgr.output("Eall + Ball + rhos + Jsall + pressure", cycle);
         // Pressure tensor is available
-        hdf5_agent.close();
+        fetch_outputWrapperFPP().append_output(
+          "Eall + Ball + rhos + Jsall + pressure", cycle);
     }
   }
   #endif
@@ -534,9 +512,8 @@ void c_Solver::WriteParticles(int cycle)
   }
   else
   {
-    hdf5_agent.open_append(SaveDirName + "/proc" + num_proc_str + ".hdf");
-    output_mgr.output("position + velocity + q ", cycle, 1);
-    hdf5_agent.close();
+    fetch_outputWrapperFPP().append_output(
+      "position + velocity + q ", cycle, 1);
   }
   #endif // NO_HDF5
 }

@@ -1,12 +1,19 @@
 
 #include <mpi.h>
 #include "GMRES.h"
-#include "debug.h"
+#include "Basic.h"
+#include "VCtopology3D.h"
+#include "errors.h"
+#include "Alloc.h"
 
 void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const double *b, int m, int max_iter, double tol, Grid * grid, VirtualTopology3D * vct, Field * field) {
   if (m > xkrylovlen) {
     if (vct->getCartesian_rank() == 0)
-      cerr << "In GMRES the dimension of Krylov space(m) can't be > (length of krylov vector)/(# processors)" << endl;
+    {
+      eprintf("In GMRES the dimension of Krylov space(m) "
+        "can't be > (length of krylov vector)/(# processors)\n");
+      //cerr << "In GMRES the dimension of Krylov space(m) can't be > (length of krylov vector)/(# processors)" << endl;
+    }
     return;
   }
   bool GMRESVERBOSE = false;
@@ -38,10 +45,9 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
 
 
   if (GMRESVERBOSE && vct->getCartesian_rank() == 0) {
-    cout << "------------------------------------" << endl;
-    cout << "-             GMRES                -" << endl;
-    cout << "------------------------------------" << endl;
-    cout << endl;
+    printf( "------------------------------------\n"
+            "-             GMRES                -\n"
+            "------------------------------------\n\n");
   }
 
   double normb = normP(b, xkrylovlen);
@@ -58,12 +64,15 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
 
     if (itr == 0) {
       if (vct->getCartesian_rank() == 0)
-        cout << "Initial residual: " << initial_error << " norm b vector (source) = " << normb << endl;
+        printf("Initial residual: %g norm b vector (source) = %g\n",
+          initial_error, normb);
+        //cout << "Initial residual: " << initial_error << " norm b vector (source) = " << normb << endl;
       rho_tol = initial_error * tol;
 
       if ((initial_error / normb) <= tol) {
         if (vct->getCartesian_rank() == 0)
-          cout << "GMRES converged without iterations: initial error < tolerance" << endl;
+          printf("GMRES converged without iterations: initial error < tolerance\n");
+          //cout << "GMRES converged without iterations: initial error < tolerance" << endl;
         break;
       }
     }
@@ -165,16 +174,25 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
 
     if (initial_error <= rho_tol) {
       if (vct->getCartesian_rank() == 0)
-        cout << "GMRES converged at restart # " << itr << "; iteration #" << k << " with error: " << initial_error / rho_tol * tol << endl;
+      {
+        printf("GMRES converged at restart # %d; iteration #%d with error: %g\n",
+          itr, k,  initial_error / rho_tol * tol);
+        //cout << "GMRES converged at restart # " << itr << "; iteration #" << k << " with error: " << initial_error / rho_tol * tol << endl;
+      }
       break;
     }
     if (vct->getCartesian_rank() == 0 && GMRESVERBOSE)
-      cout << "Restart: " << itr << " error: " << initial_error / rho_tol * tol << endl;
+    {
+      printf("Restart: %d error: %g\n", itr,  initial_error / rho_tol * tol);
+      //cout << "Restart: " << itr << " error: " << initial_error / rho_tol * tol << endl;
+    }
 
   }
   if(itr==max_iter && vct->getCartesian_rank() == 0)
   {
-    cout << "GMRES not converged !! Final error: " << initial_error / rho_tol * tol << endl;
+    printf("GMRES not converged !! Final error: %g\n",
+      initial_error / rho_tol * tol);
+    //cout << "GMRES not converged !! Final error: " << initial_error / rho_tol * tol << endl;
   }
 
   delete[]r;
