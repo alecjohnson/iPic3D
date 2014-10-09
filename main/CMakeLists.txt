@@ -17,7 +17,10 @@ set(IPIC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/..)
 # Find third class libraries
 #
 
+option(IPIC_HDF5_OUTPUT "Write output" ON)
+if(IPIC_HDF5_OUTPUT)
 find_package(HDF5 COMPONENTS HL C REQUIRED)
+endif()
 find_package(MPI REQUIRED)
 
 #
@@ -38,12 +41,10 @@ file(
         GLOB
         src_files
         ${IPIC_HOME}/ConfigFile/src/*.cpp
-        ${IPIC_HOME}/PSKOutput3D/*.cpp
         ${IPIC_HOME}/bc/*.cpp
         ${IPIC_HOME}/communication/*.cpp
         ${IPIC_HOME}/fields/*.cpp
         ${IPIC_HOME}/grids/*.cpp
-        ${IPIC_HOME}/inputoutput/*.cpp
         ${IPIC_HOME}/mathlib/*.cpp
         ${IPIC_HOME}/mpidata/*.cpp
         ${IPIC_HOME}/particles/*.cpp
@@ -53,15 +54,27 @@ file(
         ${IPIC_HOME}/utility/*.cpp
         ${IPIC_HOME}/main/*.cpp
 )
+# currently HDF5 is the only output format
+if(IPIC_HDF5_OUTPUT)
+  file(
+        GLOB
+        hdf_files
+        ${IPIC_HOME}/PSKOutput3D/*.cpp
+        ${IPIC_HOME}/inputoutput/*.cpp
+  )
+endif()
 
 #
 # Compilation options
 #
 
+if(NOT IPIC_HDF5_OUTPUT)
+  add_definitions(-DNO_HDF5)
+endif()
 option(IPIC_PHDF5 "Output is done using Parallel HDF5 without the H5hut library")
 if(IPIC_PHDF5)
   add_definitions(-DPHDF5)
-  add_definitions(-DPARALLEL_IO)
+  #add_definitions(-DPARALLEL_IO)
 endif()
 option(IPIC_H5HUT_OUTPUT "Output is done using Parallel HDF5 with the H5hut library")
 if(IPIC_H5HUT_OUTPUT)
@@ -72,7 +85,7 @@ if(IPIC_H5HUT_OUTPUT)
 
   add_definitions(-DPHDF5)
   add_definitions(-DUSEH5HUT)
-  add_definitions(-DPARALLEL_IO)
+  add_definitions(-DPARALLEL_IO) # needed to correct for a bug in H5hut
 endif()
 
 option(IPIC_BATSRUS "Compile library with coupling code for BATS-R-US" OFF)
@@ -110,6 +123,7 @@ add_library(
         STATIC
         ${inc_files}
         ${src_files}
+        ${hdf_files}
 )
 
 #

@@ -7,10 +7,20 @@ cmake_minimum_required(VERSION 2.8.8)
 project(iPic3D)
 
 #
+# Compilation options
+#
+option(IPIC_HDF5_OUTPUT "write output" ON)
+if(NOT IPIC_HDF5_OUTPUT)
+  add_definitions(-DNO_HDF5)
+endif()
+
+#
 # Find packages (already managed by CMake)
 #
 
+if(IPIC_HDF5_OUTPUT)
 find_package(HDF5 COMPONENTS HL C REQUIRED)
+endif()
 find_package(MPI REQUIRED)
 
 #
@@ -29,11 +39,18 @@ add_subdirectory(main)
 ##   set(H5HUTIO_LIBRARIES H5hut-io)
 ## endif()
 
+if(IPIC_HDF5_OUTPUT)
 include_directories(
     include
     ${HDF5_INCLUDE_DIRS}
     ${MPI_INCLUDE_PATH}
 )
+else()
+include_directories(
+    include
+    ${MPI_INCLUDE_PATH}
+)
+endif()
 
 #
 # Executable compilation
@@ -48,13 +65,20 @@ add_executable(
 # Libraries linked
 #
 
+if(IPIC_HDF5_OUTPUT)
+  target_link_libraries(
+    iPic3D
+    iPic3Dlib
+    ${MPI_LIBRARIES}
+    ${HDF5_LIBRARIES}
+  )
+else()
 target_link_libraries(
     iPic3D
     iPic3Dlib
-    #${H5HUTIO_LIBRARIES}
     ${MPI_LIBRARIES}
-    ${HDF5_LIBRARIES}
 )
+endif()
 
 #
 # Code testing
