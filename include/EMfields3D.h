@@ -21,6 +21,7 @@
 //#include "TimeTasks.h"
 #include "asserts.h"
 #include "BCStructure.h"
+#include "ipicfwd.h"
 
 using std::cout;
 using std::cerr;
@@ -37,7 +38,7 @@ class EMfields3D                // :public Field
 {
   public:
     /*! constructor */
-    EMfields3D(Collective * col, Grid * grid);
+    EMfields3D(Collective * col, Grid * grid, VirtualTopology3D *vct);
     /*! destructor */
     ~EMfields3D();
 

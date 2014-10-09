@@ -13,6 +13,9 @@
 #include "ipicmath.h" // for roundup_to_multiple
 #include "Alloc.h"
 #include "asserts.h"
+#include "Grid3DCU.h"
+#include "EMfields3D.h"
+#include "VirtualTopology3D.h"
 
 using namespace iPic3D;
 
@@ -26,7 +29,7 @@ using namespace iPic3D;
 // in particular, nxc, nyc, nzc and nxn, nyn, nzn are assumed
 // initialized when subsequently used.
 //
-EMfields3D::EMfields3D(Collective * col, Grid * grid, VirtualTopology *vct) : 
+EMfields3D::EMfields3D(Collective * col, Grid * grid, VirtualTopology3D *vct) : 
   _col(*col),
   _grid(*grid),
   _vct(*vct),
