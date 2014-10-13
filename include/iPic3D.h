@@ -13,6 +13,7 @@ class Timing;
 #include "Restart3D.h"
 #endif
 #include "ipicfwd.h"
+#include "assert.h"
 #include <string>
 using std::string;
 

@@ -18,7 +18,8 @@
   // === section: extending intrinsics classes ===
 
   #define MICVEC_DEFINE_OUTPUT_OPERATORS
-  #include <iosfwd>
+  //#include <iosfwd>
+  #include <iostream>
   // for some bizarre reason this, along with arithmetic and subscripting
   // operators, is not defined for this class, so I do it here.
   inline std::ostream& operator<<(std::ostream& os, const I32vec16 obj)
