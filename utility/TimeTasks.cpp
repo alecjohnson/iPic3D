@@ -8,6 +8,7 @@
 #include "debug.h"
 #include "errors.h"
 #include "Collective.h"
+#include "string.h" // for strcmp
 
 /** implementation of declarations in utility/TimeTasks.h **/
 
