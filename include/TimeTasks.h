@@ -31,13 +31,13 @@ class TimeTasks
     //
     COMMUNICATING,
     before_communication,
-    FLDS_LOCAL_COMM,
+    FLDS_COMM,
     FLDS_MPI_ALLREDUCE,
     FLDS_MPI_SENDRECV,
-    PCLS_LOCAL_COMM,
+    PCLS_COMM,
     PCLS_MPI_ALLREDUCE,
     PCLS_MPI_SENDRECV,
-    MOMS_LOCAL_COMM,
+    MOMS_COMM,
     MOMS_MPI_ALLREDUCE,
     MOMS_MPI_SENDRECV,
     //

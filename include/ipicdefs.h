@@ -15,15 +15,18 @@ typedef unsigned long long longid;
 #define former_MPI_Barrier(args...)
 
 #define flds_MPI_Allreduce(first, args...) \
+{ \
+  assert(timeTasks.is_active(TimeTasks::REDUCE_FIELDS)); \
+  timeTasks_set_task(TimeTasks::FLDS_COMM); \
   { \
-    assert(timeTasks.is_active(TimeTasks::REDUCE_FIELDS)); \
     timeTasks_set_task(TimeTasks::FLDS_MPI_ALLREDUCE); \
     MPI_Allreduce(first, ## args); \
-  }
+  } \
+}
 
 #define flds_MPI_Sendrecv_replace(first, args...) \
   { \
-    assert(timeTasks.is_active(TimeTasks::FLDS_LOCAL_COMM)); \
+    assert(timeTasks.is_active(TimeTasks::FLDS_COMM)); \
     timeTasks_set_task(TimeTasks::FLDS_MPI_SENDRECV); \
     MPI_Sendrecv_replace(first, ## args); \
   }
@@ -38,7 +41,7 @@ typedef unsigned long long longid;
 
 #define pcls_MPI_Isend(first, args...) \
   { \
-    assert(timeTasks.is_active(TimeTasks::PCLS_LOCAL_COMM)); \
+    assert(timeTasks.is_active(TimeTasks::PCLS_COMM)); \
     timeTasks_set_task(TimeTasks::PCLS_MPI_Isend); \
     MPI_Isend(first, ## args); \
   }
@@ -51,7 +54,7 @@ typedef unsigned long long longid;
 
 #define pcls_MPI_Wait(first, args...) \
   { \
-    assert(timeTasks.is_active(TimeTasks::PCLS_LOCAL_COMM)); \
+    assert(timeTasks.is_active(TimeTasks::PCLS_COMM)); \
     timeTasks_set_task(TimeTasks::PCLS_MPI_Wait); \
     MPI_Wait(first, ## args); \
   }
@@ -70,14 +73,14 @@ typedef unsigned long long longid;
 
 #define pcls_MPI_Test(first, args...) \
   { \
-    assert(timeTasks.is_active(TimeTasks::PCLS_LOCAL_COMM)); \
+    assert(timeTasks.is_active(TimeTasks::PCLS_COMM)); \
     timeTasks_set_task(TimeTasks::PCLS_MPI_Test); \
     MPI_Test(first, ## args); \
   }
 
 #define pcls_MPI_Waitany(first, args...) \
   { \
-    assert(timeTasks.is_active(TimeTasks::PCLS_LOCAL_COMM)); \
+    assert(timeTasks.is_active(TimeTasks::PCLS_COMM)); \
     timeTasks_set_task(TimeTasks::PCLS_MPI_Waitany); \
     MPI_Waitany(first, ## args); \
   }

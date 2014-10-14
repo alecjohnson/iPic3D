@@ -24,13 +24,13 @@ static const char *taskNames[] = // order must agree with Tasks in TimeTasks.h
   //
   "communicating",
   "BEFORE_COMMUNICATION",
-  "flds_local_comm",
+  "flds_comm",
   "flds_mpi_allreduce",
   "flds_mpi_sendrecv",
-  "pcls_local_comm",
+  "pcls_comm",
   "pcls_mpi_allreduce",
   "pcls_mpi_sendrecv",
-  "moms_local_comm",
+  "moms_comm",
   "moms_mpi_allreduce",
   "moms_mpi_sendrecv",
   //
@@ -108,13 +108,13 @@ void TimeTasks::start_task(TimeTasks::Tasks taskid)
         default:
           invalid_value_error(active_task);
         case FIELDS:
-          timeTasks.start_task(FLDS_LOCAL_COMM);
+          timeTasks.start_task(FLDS_COMM);
           break;
         case PARTICLES:
-          timeTasks.start_task(PCLS_LOCAL_COMM);
+          timeTasks.start_task(PCLS_COMM);
           break;
         case MOMENTS:
-          timeTasks.start_task(MOMS_LOCAL_COMM);
+          timeTasks.start_task(MOMS_COMM);
           break;
       }
       break;
@@ -160,13 +160,13 @@ void TimeTasks::end_task(TimeTasks::Tasks taskid, double start_time)
         default:
           invalid_value_error(active_task);
         case FIELDS:
-          timeTasks.end_task(FLDS_LOCAL_COMM, start_time);
+          timeTasks.end_task(FLDS_COMM, start_time);
           break;
         case PARTICLES:
-          timeTasks.end_task(PCLS_LOCAL_COMM, start_time);
+          timeTasks.end_task(PCLS_COMM, start_time);
           break;
         case MOMENTS:
-          timeTasks.end_task(MOMS_LOCAL_COMM, start_time);
+          timeTasks.end_task(MOMS_COMM, start_time);
           break;
       }
       break;
@@ -229,17 +229,17 @@ void TimeTasks::print_cycle_times(int cycle,
   FILE* file = stdout;
   {
     fflush(file);
-    double loccom[NUMBER_OF_TASKS];
+    double commun[NUMBER_OF_TASKS];
     double sndrcv[NUMBER_OF_TASKS];
     double allred[NUMBER_OF_TASKS];
     //commun[NUMBER_OF_TASKS];
-    loccom[FIELDS] = tskdur[FLDS_LOCAL_COMM];
+    commun[FIELDS] = tskdur[FLDS_COMM];
     sndrcv[FIELDS] = tskdur[FLDS_MPI_SENDRECV];
     allred[FIELDS] = tskdur[FLDS_MPI_ALLREDUCE];
-    loccom[PARTICLES] = tskdur[PCLS_LOCAL_COMM];
+    commun[PARTICLES] = tskdur[PCLS_COMM];
     sndrcv[PARTICLES] = tskdur[PCLS_MPI_SENDRECV];
     allred[PARTICLES] = tskdur[PCLS_MPI_ALLREDUCE];
-    loccom[MOMENTS] = tskdur[MOMS_LOCAL_COMM];
+    commun[MOMENTS] = tskdur[MOMS_COMM];
     sndrcv[MOMENTS] = tskdur[MOMS_MPI_SENDRECV];
     allred[MOMENTS] = tskdur[MOMS_MPI_ALLREDUCE];
     sndrcv[PARTICLES] +=
@@ -254,26 +254,23 @@ void TimeTasks::print_cycle_times(int cycle,
     double computtot=0.;
     double communtot=0.;
     double allredtot=0.;
-    double loccomtot=0.;
     double sndrcvtot=0.;
     fprintf(file, "%s_|total  comput commun msgpro sndrcv allred task\n", reduce_mode);
     assert_eq(FIELDS+2,MOMENTS);
     for(int e=FIELDS; e<=MOMENTS; e++)
     {
-      const double comput = tskdur[e]-loccom[e]-allred[e];
-      const double commun = tskdur[e]-comput;
+      const double comput = tskdur[e]-commun[e];
       tskdurtot += tskdur[e];
       computtot += comput;
-      communtot += commun;
+      communtot += commun[e];
       allredtot += allred[e];
-      loccomtot += loccom[e];
       sndrcvtot += sndrcv[e];
       fprintf(file, "%s_|%6.3f %6.3f %6.3f %6.3f %6.3f %6.3f %s\n",
         reduce_mode,
         tskdur[e],
         comput,
-        commun,
-        loccom[e]-sndrcv[e],
+        commun[e],
+        commun[e]-sndrcv[e]-allred[e],
         sndrcv[e],
         allred[e],
         //loccom[e],
@@ -286,7 +283,7 @@ void TimeTasks::print_cycle_times(int cycle,
       tskdurtot,
       computtot,
       communtot,
-      loccomtot-sndrcvtot,
+      communtot-sndrcvtot-allredtot,
       sndrcvtot,
       allredtot,
       //loccomtot,
