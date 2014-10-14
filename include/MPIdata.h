@@ -59,4 +59,7 @@ private:
   //char *buffer;
   //int buffer_size;
 };
+
+#define printf0(first, args...) \
+  if(!MPIdata::get_rank()) printf(first, ## args);
 #endif

@@ -1,6 +1,7 @@
 #ifndef __TimeTasks_H__
 #define __TimeTasks_H__
 #include "assert.h"
+#include "errors.h"
 
 /* Avoid direct use of this class.
    Instead, use and add to the macros at the bottom
@@ -22,10 +23,26 @@ class TimeTasks
   enum Tasks // order must agree with taskNames in TimeTasks.cpp
   {
     NONE = 0,
-    MOMENTS,
+    //
     FIELDS,
     PARTICLES,
-    LAST, // no more exclusive tasks
+    MOMENTS,
+    after_exclusive,
+    //
+    COMMUNICATING,
+    before_communication,
+    FLDS_LOCAL_COMM,
+    FLDS_MPI_ALLREDUCE,
+    FLDS_MPI_SENDRECV,
+    PCLS_LOCAL_COMM,
+    PCLS_MPI_ALLREDUCE,
+    PCLS_MPI_SENDRECV,
+    MOMS_LOCAL_COMM,
+    MOMS_MPI_ALLREDUCE,
+    MOMS_MPI_SENDRECV,
+    //
+    before_report_list,
+    REDUCE_FIELDS,
     BFIELD,
     MOMENT_PCL_SORTING,
     MOMENT_ACCUMULATION,
@@ -36,6 +53,14 @@ class TimeTasks
     TRANSPOSE_PCLS_TO_SOA,
     WRITE_FIELDS,
     WRITE_PARTICLES,
+    PCLS_MPI_Isend,
+    PCLS_MPI_Irecv,
+    PCLS_MPI_Wait,
+    PCLS_MPI_Cancel,
+    PCLS_MPI_Request_free,
+    PCLS_MPI_Test,
+    PCLS_MPI_Waitany,
+    //
     NUMBER_OF_TASKS // this line should be last
   };
 
@@ -64,7 +89,9 @@ class TimeTasks
   //
   // provide start_time on ending call
   //
-  void end_communicating(double start_time);
+  //void end_communicating(double start_time);
+  void end_sendrecv(double start_time);
+  void end_allreduce(double start_time);
   void start_main_task(TimeTasks::Tasks taskid);
   void end_main_task(TimeTasks::Tasks taskid, double start_time);
   void start_task(TimeTasks::Tasks taskid);
@@ -77,25 +104,32 @@ class TimeTasks
 
   // accessors
   //
-  bool is_active(Tasks taskid){ return active[taskid]; }
-  bool get_communicating() { return communicating; }
-  void set_communicating(bool val) { communicating = val; }
+  bool is_active(Tasks taskid){
+    bool retval = active[taskid];
+    //if(retval&& stack_depth[taskid]==0)
+    //{
+    //  eprintf("active task %s has depth %d",
+    //    get_taskname(taskid), stack_depth[taskid]);
+    //}
+    return retval;
+  }
+  //bool get_communicating() { return communicating; }
+  //void set_communicating(bool val) { communicating = val; }
   int get_stack_depth(TimeTasks::Tasks taskid) { return stack_depth[taskid]; }
 
   // reporting
   //
  private:
-  void print_cycle_times(int cycle, double*, double*, const char*);
-  void print_cycle_times_min(int cycle);
-  void print_cycle_times_max(int cycle);
-  void print_cycle_times_avg(int cycle);
+  void print_cycle_times(int cycle, double* task_duration,
+    const char* reduce_mode="avg");
+  void print_cycle_times(int cycle, const char* reduce_mode);
  public:
   void print_cycle_times(int cycle);
 
  private:
 
   // is task exclusive?
-  bool is_exclusive(Tasks taskid) { return (taskid < LAST); }
+  bool is_exclusive(Tasks taskid) { return (taskid < after_exclusive); }
 
   // reporting
   //
@@ -113,9 +147,11 @@ class TimeTasks
  private:
   int active_task;
   bool active[NUMBER_OF_TASKS];
-  bool communicating;
+  //bool communicating;
   double task_duration[NUMBER_OF_TASKS];
-  double communicate[NUMBER_OF_TASKS];
+  //double communicate[NUMBER_OF_TASKS];
+  //double sendrecv[NUMBER_OF_TASKS];
+  //double allreduce[NUMBER_OF_TASKS];
   int stack_depth[NUMBER_OF_TASKS];
   double start_times[NUMBER_OF_TASKS];
 };
@@ -138,7 +174,7 @@ class TimeTasks_caller_to_set_task_for_scope
   double start_time;
   TimeTasks::Tasks task;
  public:
-  TimeTasks_caller_to_set_task_for_scope(TimeTasks::Tasks _task);
+  TimeTasks_caller_to_set_task_for_scope(TimeTasks::Tasks task_);
   ~TimeTasks_caller_to_set_task_for_scope();
 };
 
@@ -160,10 +196,14 @@ class TimeTasks_caller_to_set_communication_mode_for_scope
 //
 #define timeTasks_set_main_task(task) \
   TimeTasks_caller_to_set_main_task_for_scope myFunnyInstance(task);
+// unfortunately this just pastes __func__ and __LINE__ literally
+//#define timeTasks_set_task(task) \
+//TimeTasks_caller_to_set_task_for_scope myFunnyName##__func__##__LINE__(task);
 #define timeTasks_set_task(task) \
-  TimeTasks_caller_to_set_task_for_scope myFunnyName##__func__##__LINE__(task);
-#define timeTasks_set_communicating() \
-  TimeTasks_caller_to_set_communication_mode_for_scope myFunnyCommunicationInstance;
+  TimeTasks_caller_to_set_task_for_scope myFunnyName(task);
+#define timeTasks_set_communicating() timeTasks_set_task(TimeTasks::COMMUNICATING);
+//#define timeTasks_set_communicating() \
+//  TimeTasks_caller_to_set_communication_mode_for_scope myFunnyCommunicationInstance;
 //
 // The scoping trick does not work if the timeTasks call needs to be conditional,
 // so we also provide the ability to explicitly begin and end.

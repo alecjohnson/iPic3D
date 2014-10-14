@@ -7,6 +7,7 @@
 #include "MPIdata.h"
 #include "Parameters.h"
 #include "Connection.h"
+#include "TimeTasks.h"
 #include <list>
 
 inline bool signal_hack()
@@ -46,8 +47,8 @@ struct Block
   {
     if(request!=MPI_REQUEST_NULL)
     {
-      MPI_Cancel(&request);
-      MPI_Request_free(&request);
+      pcls_MPI_Cancel(&request);
+      pcls_MPI_Request_free(&request);
     }
   }
  public: // accessors
@@ -73,7 +74,7 @@ struct Block
   bool test_comm(MPI_Status& status)
   {
     int flag=0;
-    MPI_Test(&request, &flag, &status);
+    pcls_MPI_Test(&request, &flag, &status);
     if(!flag)
       return false;
     // MPI_Test man page says this should now be true
@@ -139,14 +140,14 @@ struct Block
     //  listID, commID,
     //  dest.rank(), dest.tag_name(),
     //  nop);
-    MPI_Isend(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
+    pcls_MPI_Isend(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
       dest.rank(), dest.tag(), dest.comm(), &request);
     //dprintf("finished sending block number %d", listID);
   }
   void waitfor_send()
   {
     MPI_Status status;
-    MPI_Wait(&request, &status);
+    pcls_MPI_Wait(&request, &status);
   }
   void set_request(MPI_Request request_)
   {
@@ -168,7 +169,7 @@ struct Block
     // make sure that space exists to receive
     int newsize = signal_hack() ? capacity+1 : capacity;
     block.resize(newsize);
-    MPI_Irecv(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
+    pcls_MPI_Irecv(&block[0], NUMBERS_PER_ELEMENT*block.size(), MPI_DOUBLE,
       source.rank(), source.tag(), source.comm(), &request);
   }
   // processing received data
@@ -216,7 +217,7 @@ struct Block
   void waitfor_recv()
   {
     MPI_Status status;
-    MPI_Wait(&request, &status);
+    pcls_MPI_Wait(&request, &status);
     shrink_received_block(status);
   }
   // returns true if message has been received.
@@ -444,8 +445,8 @@ class BlockCommunicator
       MPI_Request& pending_request = fetch_curr_block().fetch_request();
       if(pending_request!=MPI_REQUEST_NULL)
       {
-        MPI_Cancel(&pending_request);
-        MPI_Request_free(&pending_request);
+        pcls_MPI_Cancel(&pending_request);
+        pcls_MPI_Request_free(&pending_request);
       }
     }
   }

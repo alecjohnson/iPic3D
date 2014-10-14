@@ -3,20 +3,23 @@
 #include "Basic.h"
 #include "EllipticF.h"
 #include "Alloc.h"
+#include "TimeTasks.h"
 #include "errors.h"
 
 /** method to calculate the parallel dot product with vect1, vect2 having the ghost cells*/
 double dotP(const double *vect1, const double *vect2, int n) {
+  timeTasks_set_task(TimeTasks::REDUCE_FIELDS);
   double result = 0;
   double local_result = 0;
   for (register int i = 0; i < n; i++)
     local_result += vect1[i] * vect2[i];
-  MPI_Allreduce(&local_result, &result, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  flds_MPI_Allreduce(&local_result, &result, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return (result);
 
 }
 /** method to calculate dot product */
 double dot(const double *vect1, const double *vect2, int n) {
+  timeTasks_set_task(TimeTasks::REDUCE_FIELDS);
   double result = 0;
   for (int i = 0; i < n; i++)
     result += vect1[i] * vect2[i];
@@ -24,6 +27,7 @@ double dot(const double *vect1, const double *vect2, int n) {
 }
 /** method to calculate the square norm of a vector */
 double norm2(const double *const*vect, int nx, int ny) {
+  timeTasks_set_task(TimeTasks::REDUCE_FIELDS);
   double result = 0;
   for (int i = 0; i < nx; i++)
     for (int j = 0; j < ny; j++)
@@ -32,6 +36,7 @@ double norm2(const double *const*vect, int nx, int ny) {
 }
 /** method to calculate the square norm of a vector */
 double norm2(const arr3_double vect, int nx, int ny) {
+  timeTasks_set_task(TimeTasks::REDUCE_FIELDS);
   double result = 0;
   for (int i = 0; i < nx; i++)
     for (int j = 0; j < ny; j++)
@@ -40,6 +45,7 @@ double norm2(const arr3_double vect, int nx, int ny) {
 }
 /** method to calculate the square norm of a vector */
 double norm2(const double *vect, int nx) {
+  timeTasks_set_task(TimeTasks::REDUCE_FIELDS);
   double result = 0;
   for (int i = 0; i < nx; i++)
     result += vect[i] * vect[i];
@@ -50,6 +56,7 @@ double norm2(const double *vect, int nx) {
 
 /** method to calculate the parallel dot product */
 double norm2P(const arr3_double vect, int nx, int ny, int nz) {
+  timeTasks_set_task(TimeTasks::REDUCE_FIELDS);
   double result = 0;
   double local_result = 0;
   for (int i = 0; i < nx; i++)
@@ -57,27 +64,28 @@ double norm2P(const arr3_double vect, int nx, int ny, int nz) {
       for (int k = 0; k < nz; k++)
         local_result += vect.get(i,j,k) * vect.get(i,j,k);
 
-  MPI_Allreduce(&local_result, &result, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  flds_MPI_Allreduce(&local_result, &result, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return (result);
 }
 /** method to calculate the parallel norm of a vector on different processors with the ghost cell */
 double norm2P(const double *vect, int n) {
+  timeTasks_set_task(TimeTasks::REDUCE_FIELDS);
   double result = 0;
   double local_result = 0;
   for (int i = 0; i < n; i++)
     local_result += vect[i] * vect[i];
-  MPI_Allreduce(&local_result, &result, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  flds_MPI_Allreduce(&local_result, &result, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return (result);
 }
 /** method to calculate the parallel norm of a vector on different processors with the gost cell*/
 double normP(const double *vect, int n) {
+  timeTasks_set_task(TimeTasks::REDUCE_FIELDS);
   double result = 0.0;
   double local_result = 0.0;
   for (register int i = 0; i < n; i++)
     local_result += vect[i] * vect[i];
 
-
-  MPI_Allreduce(&local_result, &result, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  flds_MPI_Allreduce(&local_result, &result, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
   return (sqrt(result));
 

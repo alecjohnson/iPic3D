@@ -14,7 +14,6 @@ void fprintf_fileLine(FILE * fptr, const char *type, const char *func,
 
 #define dprintf(args...) fprintf_fileLine(stdout, "DEBUG", __func__, __FILE__, __LINE__,## args)
 #define dprint(var) printvar_fileLine(__func__, __FILE__,__LINE__,#var,var);
-#define dprint0(var) dprint(var)
 #define declare_dprintvar_fileLine(type) \
 void printvar_fileLine(const char*,const char*,int,const char*,type);
 

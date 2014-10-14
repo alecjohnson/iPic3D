@@ -92,6 +92,8 @@ void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, Particles3Dcomm *part,
 
 /*! Function to write the EM fields using the H5hut library. */
 void WriteFieldsH5hut(int nspec, Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCtopology3D *vct, int cycle){
+  if(col->field_output_is_off())
+    return;
 #ifdef USEH5HUT
   timeTasks_set_task(TimeTasks::WRITE_FIELDS);
 
@@ -158,7 +160,6 @@ void WriteFieldsH5hut(int nspec, Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *
 
 /*! Function to write the particles using the H5hut library. */
 void WritePartclH5hut(int nspec, Grid3DCU *grid, Particles3Dcomm *part, CollectiveIO *col, VCtopology3D *vct, int cycle){
-
 #ifdef USEH5HUT
   timeTasks_set_task(TimeTasks::WRITE_PARTICLES);
 

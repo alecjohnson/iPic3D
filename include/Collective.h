@@ -146,6 +146,8 @@ class Collective
     int getRestartOutputCycle()const{ return (RestartOutputCycle); }
     int getDiagnosticsOutputCycle()const{ return (DiagnosticsOutputCycle); }
     bool getCallFinalize()const{ return (CallFinalize); }
+    bool particle_output_is_off()const;
+    bool field_output_is_off()const;
     
     /*! Boundary condition selection for BCFace for the electric field components */
     int bcEx[6], bcEy[6], bcEz[6];

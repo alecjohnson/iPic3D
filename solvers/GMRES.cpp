@@ -5,6 +5,8 @@
 #include "VCtopology3D.h"
 #include "errors.h"
 #include "Alloc.h"
+#include "TimeTasks.h"
+#include "ipicdefs.h"
 
 void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const double *b, int m, int max_iter, double tol, Grid * grid, VirtualTopology3D * vct, Field * field) {
   if (m > xkrylovlen) {
@@ -100,8 +102,11 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
         y[j] = dot(w, V[j], xkrylovlen);
       }
       y[k+1] = norm2(w,xkrylovlen);
-      MPI_Allreduce(MPI_IN_PLACE, y, (k+2),
-        MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      {
+        timeTasks_set_task(TimeTasks::REDUCE_FIELDS);
+        flds_MPI_Allreduce(MPI_IN_PLACE, y, (k+2),
+          MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      }
       for (int j = 0; j <= k; j++) {
         H[j][k] = y[j];
         addscale(-H[j][k], V[k+1], V[j], xkrylovlen);

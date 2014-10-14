@@ -14,7 +14,7 @@ developers: Stefano Markidis, Giovanni Lapenta.
 #include "VCtopology3D.h"
 #include "CollectiveIO.h"
 #include "Collective.h"
-#include "ComParticles3D.h"
+//#include "ComParticles3D.h"
 #include "Alloc.h"
 #include "Basic.h"
 #include "BcParticles.h"
@@ -946,7 +946,7 @@ int Particles3Dcomm::handle_received_particles(int pclCommMode)
   {
     int recv_index;
     MPI_Status recv_status;
-    MPI_Waitany(num_recv_buffers, recv_requests, &recv_index, &recv_status);
+    pcls_MPI_Waitany(num_recv_buffers,recv_requests,&recv_index,&recv_status);
     if(recv_index==MPI_UNDEFINED)
       eprintf("recv_requests contains no active handles");
     assert_ge(recv_index,0);
@@ -1019,6 +1019,7 @@ static long long mpi_global_sum(int in)
   long long total;
   long long long_in = in;
   //dprintf("calling MPI_Allreduce(%d,&total,1, ...)", long_in);
+  timeTasks_set_task(TimeTasks::PCLS_MPI_ALLREDUCE);
   MPI_Allreduce(&long_in, &total, 1, MPI_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
   return total;
 }

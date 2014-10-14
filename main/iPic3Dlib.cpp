@@ -168,7 +168,7 @@ int c_Solver::Init(int argc, char **argv) {
     }
   }
 
-  if (col->getWriteMethod() == "default")
+  if (col->getWriteMethod() == "shdf5")
   {
     #ifndef NO_HDF5
     outputWrapperFPP = new OutputWrapperFPP;
@@ -471,6 +471,8 @@ void c_Solver::WriteVirtualSatelliteTraces()
 }
 
 void c_Solver::WriteFields(int cycle) {
+  if(col->field_output_is_off())
+    return;
   #ifdef NO_HDF5
     eprintf("must compile with HDF5");
   #else
@@ -492,14 +494,11 @@ void c_Solver::WriteFields(int cycle) {
 
 void c_Solver::WriteParticles(int cycle)
 {
+  if(!col->particle_output_is_off())
+    return;
   #ifdef NO_HDF5
     eprintf("NO_HDF5 requires OutputMethod=none")
   #else
-  const bool do_WriteParticles
-    = (cycle % (col->getParticlesOutputCycle()) == 0
-       && col->getParticlesOutputCycle() != 1);
-  if(!do_WriteParticles)
-    return;
 
   timeTasks_set_task(TimeTasks::WRITE_PARTICLES);
 
@@ -532,9 +531,11 @@ void c_Solver::WriteOutput(int cycle) {
     /* Parallel HDF5 output using the H5hut library */
     /* -------------------------------------------- */
 
-    if (cycle%(col->getFieldOutputCycle())==0)
+    if (!col->field_output_is_off() &&
+        cycle%(col->getFieldOutputCycle())==0)
       WriteFieldsH5hut(ns, grid, EMf, col, vct, cycle);
-    if (cycle%(col->getParticlesOutputCycle())==0)
+    if (!col->particle_output_is_off() &&
+        cycle%(col->getParticlesOutputCycle())==0)
       WritePartclH5hut(ns, grid, part, col, vct, cycle);
   }
   else if (col->getWriteMethod() == "phdf5")
@@ -543,16 +544,18 @@ void c_Solver::WriteOutput(int cycle) {
     /* Parallel output using basic hdf5 */
     /* -------------------------------------------- */
 
-    if (cycle%(col->getFieldOutputCycle())==0)
+    if (!col->field_output_is_off() &&
+      cycle%(col->getFieldOutputCycle())==0)
       WriteOutputParallel(grid, EMf, part, col, vct, cycle);
-    if (cycle%(col->getParticlesOutputCycle())==0)
+    if (!col->particle_output_is_off() &&
+        cycle%(col->getParticlesOutputCycle())==0)
     {
       if(!MPIdata::get_rank())
         warning_printf("WriteParticlesParallel() is not yet implemented.");
       //WritePartclH5hut(ns, grid, part, col, vct, cycle);
     }
   }
-  else if (col->getWriteMethod() == "default")
+  else if (col->getWriteMethod() == "shdf5")
   {
     // write fields-related data
     WriteFields(cycle);
@@ -565,6 +568,17 @@ void c_Solver::WriteOutput(int cycle) {
     // this also writes field data...
     WriteRestart(cycle);
     WriteParticles(cycle);
+  }
+  else if (col->getWriteMethod() == "default")
+  {
+    if(col->getParticlesOutputCycle()==1)
+    {
+      warning_printf(
+        "ParticlesOutputCycle=1 now means output particles with evey cycle.\n"
+        "\tParticlesOutputCycle = 0 turns off particle output.");
+    }
+    eprintf("The new name for serial hdf5 output is shdf5.\n"
+      "\tselect WriteMethod=shdf5.");
   }
   else
   {

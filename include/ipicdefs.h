@@ -14,11 +14,72 @@ typedef unsigned long long longid;
 //#define MPI_Barrier(args...)
 #define former_MPI_Barrier(args...)
 
-#define ipicMPI_Allreduce(args...) \
+#define flds_MPI_Allreduce(first, args...) \
   { \
-    static int count=0; \
-    dprint(count++); \
-    MPI_Allreduce(## args); \
+    assert(timeTasks.is_active(TimeTasks::REDUCE_FIELDS)); \
+    timeTasks_set_task(TimeTasks::FLDS_MPI_ALLREDUCE); \
+    MPI_Allreduce(first, ## args); \
+  }
+
+#define flds_MPI_Sendrecv_replace(first, args...) \
+  { \
+    assert(timeTasks.is_active(TimeTasks::FLDS_LOCAL_COMM)); \
+    timeTasks_set_task(TimeTasks::FLDS_MPI_SENDRECV); \
+    MPI_Sendrecv_replace(first, ## args); \
+  }
+
+// updates time for appropriate XXXX_MPI_SENDRECV task
+#define ipic_MPI_Sendrecv_replace(first, args...) \
+  { \
+    double start_time = MPI_Wtime(); \
+    MPI_Sendrecv_replace(first, ## args); \
+    timeTasks.end_sendrecv(start_time); \
+  }
+
+#define pcls_MPI_Isend(first, args...) \
+  { \
+    assert(timeTasks.is_active(TimeTasks::PCLS_LOCAL_COMM)); \
+    timeTasks_set_task(TimeTasks::PCLS_MPI_Isend); \
+    MPI_Isend(first, ## args); \
+  }
+
+#define pcls_MPI_Irecv(first, args...) \
+  { \
+    timeTasks_set_task(TimeTasks::PCLS_MPI_Irecv); \
+    MPI_Irecv(first, ## args); \
+  }
+
+#define pcls_MPI_Wait(first, args...) \
+  { \
+    assert(timeTasks.is_active(TimeTasks::PCLS_LOCAL_COMM)); \
+    timeTasks_set_task(TimeTasks::PCLS_MPI_Wait); \
+    MPI_Wait(first, ## args); \
+  }
+
+#define pcls_MPI_Cancel(first, args...) \
+  { \
+    timeTasks_set_task(TimeTasks::PCLS_MPI_Cancel); \
+    MPI_Cancel(first, ## args); \
+  }
+
+#define pcls_MPI_Request_free(first, args...) \
+  { \
+    timeTasks_set_task(TimeTasks::PCLS_MPI_Request_free); \
+    MPI_Request_free(first, ## args); \
+  }
+
+#define pcls_MPI_Test(first, args...) \
+  { \
+    assert(timeTasks.is_active(TimeTasks::PCLS_LOCAL_COMM)); \
+    timeTasks_set_task(TimeTasks::PCLS_MPI_Test); \
+    MPI_Test(first, ## args); \
+  }
+
+#define pcls_MPI_Waitany(first, args...) \
+  { \
+    assert(timeTasks.is_active(TimeTasks::PCLS_LOCAL_COMM)); \
+    timeTasks_set_task(TimeTasks::PCLS_MPI_Waitany); \
+    MPI_Waitany(first, ## args); \
   }
 
 // determine the width of the vector unit

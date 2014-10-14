@@ -370,11 +370,19 @@ void Collective::ReadInput(string inputfile) {
     TrackParticleID[4] = TrackParticleID0.e;
   if (ns > 5)
     TrackParticleID[5] = TrackParticleID0.f;
-
-
-
-
 }
+
+bool Collective::field_output_is_off()const
+{
+  return getFieldOutputCycle() <= 0;
+}
+
+bool Collective::particle_output_is_off()const
+{
+  return getParticlesOutputCycle() <= 0;
+}
+
+
 /*! Read the collective information from the RESTART file in HDF5 format There are three restart status: restart_status = 0 ---> new inputfile restart_status = 1 ---> RESTART and restart and result directories does not coincide restart_status = 2 ---> RESTART and restart and result directories coincide */
 int Collective::ReadRestart(string inputfile) {
 #ifdef NO_HDF5
@@ -680,7 +688,7 @@ void Collective::init_derived_parameters()
     if(yerror) warning_printf("YLEN=%d does not divide nyc=%d\n", YLEN,nyc);
     if(zerror) warning_printf("ZLEN=%d does not divide nzc=%d\n", ZLEN,nzc);
     fflush(stdout);
-    bool error = (xerror||yerror||zerror) && (getWriteMethod()=="default");
+    bool error = (xerror||yerror||zerror);
     // Comment out this check if your postprocessing code does not
     // require the field output subarrays to be the same size.
     // Alternatively, you could modify the output routine to pad
