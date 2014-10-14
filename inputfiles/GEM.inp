@@ -12,7 +12,7 @@ NpMaxNpRatio = 3.0
 # New flags:
 Case              = GEM       # Select the case
 PoissonCorrection = no        # Poisson correction
-WriteMethod       = default   # Output method [default, H5hut, phdf5]
+WriteMethod       = shdf5     # Output method [shdf5, H5hut, phdf5]
 SimulationName    = GEM       # Simulation name for the output
 
 #  %%%%%%%%%%%%%%%%%%% Magnetic Reconnection %%%%%%%%%%%%%%%%%%
@@ -29,7 +29,7 @@ delta = 0.5
 
 #  %%%%%%%%%%%%%%%%%%% TIME %%%%%%%%%%%%%%%%%%
 dt =   0.5                  # dt = time step  
-ncycles = 20 		     # cycles
+ncycles = 30 		     # cycles
 th = 1.0                     # th =   decentering parameter
 c = 1.0                      # c = light speed 
 
@@ -47,14 +47,14 @@ y_center =   1.                  # Ly = simulation box length - y direction in m
 z_center =   1.                  # Lz = simulation box length - z direction in m  
 L_square =   .1
 
-nxc = 120                  # nxc = number of cells - x direction        
-nyc = 120                  # nyc = number of cells - y direction
+nxc = 60                   # nxc = number of cells - x direction        
+nyc = 60                   # nyc = number of cells - y direction
 nzc = 1                    # nzc = number of cells - z direction        
 
 # %%%%%%%%%%%%%% MPI TOPOLOGY %%%%%%%%%%%%%%
 # number of MPI subdomains in each direction
-XLEN = 2
-YLEN = 2
+XLEN = 4
+YLEN = 4
 ZLEN = 1
 # topology of subdomains in each dimension (1=true, 0=false)
 PERIODICX = 1

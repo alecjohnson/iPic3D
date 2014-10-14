@@ -23,12 +23,12 @@
 #SBATCH -p normal
 # number of nodes, not cores (16 cores per node)
 #TemplateLine: #SBATCH -N $NUM_NODES
-#SBATCH -N 2
+#SBATCH -N 1
 # total number of MPI tasks (if omitted, n=N)
 #TemplateLine: #SBATCH -n $NUM_PROCS
-#SBATCH -n 32
+#SBATCH -n 16
 # maximum time
-#SBATCH -t 00:15:00
+#SBATCH -t 00:05:00
 #SBATCH --mail-user=Alec.Johnson@wis.kuleuven.be
 #SBATCH --mail-type=ALL  
 
@@ -45,5 +45,14 @@ export YLEN=4
 NUM_PROCS=$(($XLEN*$YLEN))
 DATA=data
 
-# use ibrun for MPI codes, not mpirun or srun
-ibrun -np $NUM_PROCS ./iPic3D "$DATA"/parameters.inp | tee out.${XLEN}x${YLEN}.txt
+# if running on Xeon
+if true
+then
+  # use ibrun for MPI codes, not mpirun or srun
+  ibrun -np $NUM_PROCS ./iPic3D parameters.inp | tee out.${XLEN}x${YLEN}.txt
+# if running on MIC
+else
+  set -x
+  scontrol show hostname | sed 's/$/-mic0/' > machinefile
+  mpiexec.hydra -np $NUM_PROCS -machinefile machinefile -env LD_LIBRARY_PATH $MIC_LD_LIBRARY_PATH ./iPic3D parameters.inp | tee out.${XLEN}x${YLEN}.mic.txt
+fi
