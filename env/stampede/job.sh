@@ -49,10 +49,10 @@ DATA=data
 if true
 then
   # use ibrun for MPI codes, not mpirun or srun
-  ibrun -np $NUM_PROCS ./iPic3D parameters.inp | tee out.${XLEN}x${YLEN}.txt
+  ibrun -np $NUM_PROCS ./iPic3D "$DATA"/parameters.inp | tee out.${XLEN}x${YLEN}.txt
 # if running on MIC
 else
   set -x
   scontrol show hostname | sed 's/$/-mic0/' > machinefile
-  mpiexec.hydra -np $NUM_PROCS -machinefile machinefile -env LD_LIBRARY_PATH $MIC_LD_LIBRARY_PATH ./iPic3D parameters.inp | tee out.${XLEN}x${YLEN}.mic.txt
+  mpiexec.hydra -np $NUM_PROCS -machinefile machinefile -env LD_LIBRARY_PATH $MIC_LD_LIBRARY_PATH ./iPic3D "$DATA"/parameters.inp | tee out.${XLEN}x${YLEN}.mic.txt
 fi
