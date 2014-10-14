@@ -494,7 +494,7 @@ void c_Solver::WriteFields(int cycle) {
 
 void c_Solver::WriteParticles(int cycle)
 {
-  if(!col->particle_output_is_off())
+  if(col->particle_output_is_off())
     return;
   #ifdef NO_HDF5
     eprintf("NO_HDF5 requires OutputMethod=none")
