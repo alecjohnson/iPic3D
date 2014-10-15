@@ -8,7 +8,12 @@ developers           : Stefano Markidis, Giovanni Lapenta
 #include "BcFields3D.h"
 
 /** set the boundary condition on boundaries */
-void BCface(int nx, int ny, int nz, double ***vector, int bcFaceXright, int bcFaceXleft, int bcFaceYright, int bcFaceYleft, int bcFaceZright, int bcFaceZleft, VirtualTopology3D * vct) {
+void BCface(int nx, int ny, int nz, double ***vector,
+  int bcFaceXright, int bcFaceXleft,
+  int bcFaceYright, int bcFaceYleft,
+  int bcFaceZright, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
   // XLEFT
   if (vct->getXleft_neighbor() == MPI_PROC_NULL) {
     switch (bcFaceXleft) {
@@ -186,7 +191,12 @@ void BCface(int nx, int ny, int nz, double ***vector, int bcFaceXright, int bcFa
 
 // / particles
 /** set the boundary condition on boundaries */
-void BCface_P(int nx, int ny, int nz, double ***vector, int bcFaceXright, int bcFaceXleft, int bcFaceYright, int bcFaceYleft, int bcFaceZright, int bcFaceZleft, VirtualTopology3D * vct) {
+void BCface_P(int nx, int ny, int nz, double ***vector,
+  int bcFaceXright, int bcFaceXleft,
+  int bcFaceYright, int bcFaceYleft,
+  int bcFaceZright, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
   // XLEFT
   if (vct->getXleft_neighbor_P() == MPI_PROC_NULL) {
     switch (bcFaceXleft) {
@@ -363,7 +373,12 @@ void BCface_P(int nx, int ny, int nz, double ***vector, int bcFaceXright, int bc
 
 // SPECIES
 /** set the boundary condition on boundaries */
-void BCface(int nx, int ny, int nz, int ns, double ****vector, int bcFaceXright, int bcFaceXleft, int bcFaceYright, int bcFaceYleft, int bcFaceZright, int bcFaceZleft, VirtualTopology3D * vct) {
+void BCface(int nx, int ny, int nz, int ns, double ****vector,
+  int bcFaceXright, int bcFaceXleft,
+  int bcFaceYright, int bcFaceYleft,
+  int bcFaceZright, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
   // XLEFT
   if (vct->getXleft_neighbor() == MPI_PROC_NULL) {
     switch (bcFaceXleft) {
@@ -540,7 +555,12 @@ void BCface(int nx, int ny, int nz, int ns, double ****vector, int bcFaceXright,
 
 // SPECIES
 /** set the boundary condition on boundaries Particles*/
-void BCface_P(int nx, int ny, int nz, int ns, double ****vector, int bcFaceXright, int bcFaceXleft, int bcFaceYright, int bcFaceYleft, int bcFaceZright, int bcFaceZleft, VirtualTopology3D * vct) {
+void BCface_P(int nx, int ny, int nz, int ns, double ****vector,
+  int bcFaceXright, int bcFaceXleft,
+  int bcFaceYright, int bcFaceYleft,
+  int bcFaceZright, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
   // XLEFT
   if (vct->getXleft_neighbor_P() == MPI_PROC_NULL) {
     switch (bcFaceXleft) {

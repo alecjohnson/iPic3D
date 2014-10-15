@@ -52,9 +52,9 @@ void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCt
   /* Write the Electric field */
   /* ------------------------ */
 
-  outputfile.WritePHDF5dataset("Fields", "Ex", EMf->getExc(grid), nxc-2, nyc-2, nzc-2);
-  outputfile.WritePHDF5dataset("Fields", "Ey", EMf->getEyc(grid), nxc-2, nyc-2, nzc-2);
-  outputfile.WritePHDF5dataset("Fields", "Ez", EMf->getEzc(grid), nxc-2, nyc-2, nzc-2);
+  outputfile.WritePHDF5dataset("Fields", "Ex", EMf->getExc(), nxc-2, nyc-2, nzc-2);
+  outputfile.WritePHDF5dataset("Fields", "Ey", EMf->getEyc(), nxc-2, nyc-2, nzc-2);
+  outputfile.WritePHDF5dataset("Fields", "Ez", EMf->getEzc(), nxc-2, nyc-2, nzc-2);
 
   /* ------------------------ */
   /* Write the Magnetic field */
@@ -75,11 +75,11 @@ void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCt
     const string num = snmbr.str();
 
     // Charge Density
-    outputfile.WritePHDF5dataset("Fields", string("Rho_")+num , EMf->getRHOcs(grid,is), nxc-2, nyc-2, nzc-2);
+    outputfile.WritePHDF5dataset("Fields", string("Rho_")+num , EMf->getRHOcs(is), nxc-2, nyc-2, nzc-2);
     // Current
-    outputfile.WritePHDF5dataset("Fields", string("Jx_")+num, EMf->getJxsc(grid, is), nxc-2, nyc-2, nzc-2);
-    outputfile.WritePHDF5dataset("Fields", string("Jy_")+num, EMf->getJysc(grid, is), nxc-2, nyc-2, nzc-2);
-    outputfile.WritePHDF5dataset("Fields", string("Jz_")+num, EMf->getJzsc(grid, is), nxc-2, nyc-2, nzc-2);
+    outputfile.WritePHDF5dataset("Fields", string("Jx_")+num, EMf->getJxsc(is), nxc-2, nyc-2, nzc-2);
+    outputfile.WritePHDF5dataset("Fields", string("Jy_")+num, EMf->getJysc(is), nxc-2, nyc-2, nzc-2);
+    outputfile.WritePHDF5dataset("Fields", string("Jz_")+num, EMf->getJzsc(is), nxc-2, nyc-2, nzc-2);
   }
 
   outputfile.ClosePHDF5file();

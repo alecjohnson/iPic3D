@@ -25,67 +25,67 @@ class EMfields3D                // :public Field
     ~EMfields3D();
 
     /*! initialize the electromagnetic fields with constant values */
-    void init(VirtualTopology3D * vct, Grid * grid, Collective *col);
+    void init();
     /*! init beam */
-    void initBEAM(VirtualTopology3D * vct, Grid * grid, Collective *col, double x_center, double y_center, double z_center, double radius);
+    void initBEAM(double x_center, double y_center, double z_center, double radius);
     /*! initialize GEM challenge */
-    void initGEM(VirtualTopology3D * vct, Grid * grid, Collective *col);
-    void initOriginalGEM(VirtualTopology3D * vct, Grid * grid, Collective *col);
-    void initDoublePeriodicHarrisWithGaussianHumpPerturbation(VirtualTopology3D * vct, Grid * grid, Collective *col);
+    void initGEM();
+    void initOriginalGEM();
+    void initDoublePeriodicHarrisWithGaussianHumpPerturbation();
     /*! initialize GEM challenge with dipole-like tail without perturbation */
-    void initGEMDipoleLikeTailNoPert(VirtualTopology3D * vct, Grid * grid, Collective *col);
+    void initGEMDipoleLikeTailNoPert();
     /*! initialize GEM challenge with no Perturbation */
-    void initGEMnoPert(VirtualTopology3D * vct, Grid * grid, Collective *col);
+    void initGEMnoPert();
 #ifdef BATSRUS
     /*! initialize from BATSRUS */
-    void initBATSRUS(VirtualTopology3D * vct, Grid * grid, Collective * col);
+    void initBATSRUS();
 #endif
     /*! Random initial field */
-    void initRandomField(VirtualTopology3D * vct, Grid * grid, Collective *col);
+    void initRandomField();
     /*! Init Force Free (JxB=0) */
-    void initForceFree(VirtualTopology3D * vct, Grid * grid, Collective *col);
+    void initForceFree();
     /*! initialized with rotated magnetic field */
-    void initEM_rotate(VirtualTopology3D * vct, Grid * grid, Collective *col, double B, double theta);
+    void initEM_rotate(double B, double theta);
     /*! add a perturbattion to charge density */
     void AddPerturbationRho(double deltaBoB, double kx, double ky, double Bx_mod, double By_mod, double Bz_mod, double ne_mod, double ne_phase, double ni_mod, double ni_phase, double B0, Grid * grid);
     /*! add a perturbattion to the EM field */
     void AddPerturbation(double deltaBoB, double kx, double ky, double Ex_mod, double Ex_phase, double Ey_mod, double Ey_phase, double Ez_mod, double Ez_phase, double Bx_mod, double Bx_phase, double By_mod, double By_phase, double Bz_mod, double Bz_phase, double B0, Grid * grid);
     /*! Initialise a combination of magnetic dipoles */
-    void initDipole(VirtualTopology3D *vct, Grid *grid, Collective *col);
+    void initDipole();
 
     /*! Calculate Electric field using the implicit Maxwell solver */
-    void calculateE(Grid * grid, VirtualTopology3D * vct, Collective *col);
+    void calculateE();
     /*! Image of Poisson Solver (for SOLVER) */
-    void PoissonImage(double *image, double *vector, Grid * grid, VirtualTopology3D * vct);
+    void PoissonImage(double *image, double *vector);
     /*! Image of Maxwell Solver (for Solver) */
-    void MaxwellImage(double *im, double *vector, Grid * grid, VirtualTopology3D * vct);
+    void MaxwellImage(double *im, double *vector);
     /*! Maxwell source term (for SOLVER) */
-    void MaxwellSource(double *bkrylov, Grid * grid, VirtualTopology3D * vct, Collective *col);
+    void MaxwellSource(double *bkrylov);
     /*! Impose a constant charge inside a spherical zone of the domain */
-    void ConstantChargePlanet(Grid * grid, VirtualTopology3D * vct, double R, double x_center, double y_center, double z_center);
+    void ConstantChargePlanet(double R, double x_center, double y_center, double z_center);
     /*! Impose a constant charge in the OpenBC boundaries */
-    void ConstantChargeOpenBC(Grid * grid, VirtualTopology3D * vct);
+    void ConstantChargeOpenBC();
     /*! Impose a constant charge in the OpenBC boundaries */
-    void ConstantChargeOpenBCv2(Grid * grid, VirtualTopology3D * vct);
+    void ConstantChargeOpenBCv2();
     /*! Calculate Magnetic field with the implicit solver: calculate B defined on nodes With E(n+ theta) computed, the magnetic field is evaluated from Faraday's law */
-    void calculateB(Grid * grid, VirtualTopology3D * vct, Collective *col);
+    void calculateB();
     /*! fix B on the boundary for gem challange */
-    void fixBgem(Grid * grid, VirtualTopology3D * vct);
+    void fixBgem();
     /*! fix B on the boundary for gem challange */
-    void fixBforcefree(Grid * grid, VirtualTopology3D * vct);
+    void fixBforcefree();
 
     /*! Calculate the three components of Pi(implicit pressure) cross image vector */
     void PIdot(arr3_double PIdotX, arr3_double PIdotY, arr3_double PIdotZ,
-      const_arr3_double vectX, const_arr3_double vectY, const_arr3_double vectZ, int ns, Grid * grid);
+      const_arr3_double vectX, const_arr3_double vectY, const_arr3_double vectZ, int ns);
     /*! Calculate the three components of mu (implicit permeattivity) cross image vector */
     void MUdot(arr3_double MUdotX, arr3_double MUdotY, arr3_double MUdotZ,
-      const_arr3_double vectX, const_arr3_double vectY, const_arr3_double vectZ, Grid * grid);
+      const_arr3_double vectX, const_arr3_double vectY, const_arr3_double vectZ);
     /*! Calculate rho hat, Jx hat, Jy hat, Jz hat */
-    void calculateHatFunctions(Grid * grid, VirtualTopology3D * vct);
+    void calculateHatFunctions();
 
 
     /*! communicate ghost for densities and interp rho from node to center */
-    void interpDensitiesN2C(VirtualTopology3D * vct, Grid * grid);
+    void interpDensitiesN2C();
     /*! set to 0 all the densities fields */
     void setZeroDensities();
     /*! set to 0 primary moments */
@@ -93,27 +93,27 @@ class EMfields3D                // :public Field
     /*! set to 0 all densities derived from primary moments */
     void setZeroDerivedMoments();
     /*! Sum rhon over species */
-    void sumOverSpecies(VirtualTopology3D * vct);
+    void sumOverSpecies();
     /*! Sum current over different species */
     void sumOverSpeciesJ();
     /*! Smoothing after the interpolation* */
-    void smooth(double value, arr3_double vector, int type, Grid * grid, VirtualTopology3D * vct);
+    void smooth(double value, arr3_double vector, int type);
     /*! SPECIES: Smoothing after the interpolation for species fields* */
-    void smooth(double value, arr4_double vector, int is, int type, Grid * grid, VirtualTopology3D * vct);
+    void smooth(double value, arr4_double vector, int is, int type);
     /*! smooth the electric field */
-    void smoothE(double value, VirtualTopology3D * vct, Collective *col);
+    void smoothE(double value);
 
     /*! copy the field data to the array used to move the particles */
     void set_fieldForPcls();
     /*! communicate ghost for grid -> Particles interpolation */
-    void communicateGhostP2G(int ns, VirtualTopology3D * vct);
+    void communicateGhostP2G(int ns);
     /*! sum moments (interp_P2G) versions */
-    void sumMoments(const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct);
-    void sumMoments_AoS(const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct);
-    void sumMoments_AoS_intr(const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct);
-    void sumMoments_vectorized(const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct);
-    void sumMoments_vectorized_AoS(const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct);
-    void sumMomentsOld(const Particles3Dcomm& pcls, Grid * grid, VirtualTopology3D * vct);
+    void sumMoments(const Particles3Dcomm* part);
+    void sumMoments_AoS(const Particles3Dcomm* part);
+    void sumMoments_AoS_intr(const Particles3Dcomm* part);
+    void sumMoments_vectorized(const Particles3Dcomm* part);
+    void sumMoments_vectorized_AoS(const Particles3Dcomm* part);
+    void sumMomentsOld(const Particles3Dcomm& pcls);
     /*! add accumulated moments to the moments for a given species */
     //void addToSpeciesMoments(const TenMoments & in, int is);
     /*! add an amount of charge density to charge density field at node X,Y,Z */
@@ -139,20 +139,20 @@ class EMfields3D                // :public Field
     void addPzz(double weight[][2][2], int X, int Y, int Z, int is);
 
     /*! adjust densities on boundaries that are not periodic */
-    void adjustNonPeriodicDensities(int is, VirtualTopology3D * vct);
+    void adjustNonPeriodicDensities(int is);
 
 
     /*! Perfect conductor boundary conditions LEFT wall */
     void perfectConductorLeft(arr3_double imageX, arr3_double imageY, arr3_double imageZ,
       const_arr3_double vectorX, const_arr3_double vectorY, const_arr3_double vectorZ,
-      int dir, Grid * grid);
+      int dir);
     /*! Perfect conductor boundary conditions RIGHT wall */
     void perfectConductorRight(
       arr3_double imageX, arr3_double imageY, arr3_double imageZ,
       const_arr3_double vectorX,
       const_arr3_double vectorY,
       const_arr3_double vectorZ,
-      int dir, Grid * grid);
+      int dir);
     /*! Perfect conductor boundary conditions for source LEFT wall */
     void perfectConductorLeftS(arr3_double vectorX, arr3_double vectorY, arr3_double vectorZ, int dir);
     /*! Perfect conductor boundary conditions for source RIGHT wall */
@@ -190,9 +190,9 @@ class EMfields3D                // :public Field
 
     // field components without ghost cells
     //
-    arr3_double getExc(Grid3DCU *grid);
-    arr3_double getEyc(Grid3DCU *grid);
-    arr3_double getEzc(Grid3DCU *grid);
+    arr3_double getExc();
+    arr3_double getEyc();
+    arr3_double getEzc();
     arr3_double getBxc();
     arr3_double getByc();
     arr3_double getBzc();
@@ -209,7 +209,7 @@ class EMfields3D                // :public Field
     double*** getRHOns(int is){return &rhons[is][0];}
     arr4_double getRHOns(){return rhons;}
     /* density on cells without ghost cells */
-    arr3_double getRHOcs(Grid3DCU *grid, int is);
+    arr3_double getRHOcs(int is);
 
     double getBx_ext(int X, int Y, int Z) const{return Bx_ext.get(X,Y,Z);}
     double getBy_ext(int X, int Y, int Z) const{return By_ext.get(X,Y,Z);}
@@ -244,9 +244,9 @@ class EMfields3D                // :public Field
 
     // get current for species in all cells except ghost
     //
-    arr3_double getJxsc(Grid3DCU *grid, int is);
-    arr3_double getJysc(Grid3DCU *grid, int is);
-    arr3_double getJzsc(Grid3DCU *grid, int is);
+    arr3_double getJxsc(int is);
+    arr3_double getJysc(int is);
+    arr3_double getJzsc(int is);
 
     /*! get the electric field energy */
     double getEenergy();
@@ -265,7 +265,7 @@ class EMfields3D                // :public Field
     void print(void) const;
 
     // OpenBC
-    void updateInfoFields(Grid *grid,VirtualTopology3D *vct,Collective *col);
+    void updateInfoFields();
 
   public: // accessors
     const Collective& get_col()const{return _col;}
@@ -507,12 +507,12 @@ class EMfields3D                // :public Field
     injInfoFields* get_InfoFieldsRight();
 
     void BoundaryConditionsB(arr3_double vectorX, arr3_double vectorY, arr3_double vectorZ,
-      int nx, int ny, int nz,Grid *grid, VirtualTopology3D *vct);
+      int nx, int ny, int nz);
     void BoundaryConditionsE(arr3_double vectorX, arr3_double vectorY, arr3_double vectorZ,
-      int nx, int ny, int nz,Grid *grid, VirtualTopology3D *vct);
+      int nx, int ny, int nz);
     void BoundaryConditionsEImage(arr3_double imageX, arr3_double imageY, arr3_double imageZ,
       const_arr3_double vectorX, const_arr3_double vectorY, const_arr3_double vectorZ,
-      int nx, int ny, int nz, VirtualTopology3D *vct,Grid *grid);
+      int nx, int ny, int nz);
 };
 
 inline void EMfields3D::addRho(double weight[][2][2], int X, int Y, int Z, int is) {

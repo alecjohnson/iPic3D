@@ -116,15 +116,15 @@ int c_Solver::Init(int argc, char **argv) {
   grid = new Grid3DCU(col, vct);  // Create the local grid
   EMf = new EMfields3D(col, grid, vct);  // Create Electromagnetic Fields Object
 
-  if      (col->getCase()=="GEMnoPert") EMf->initGEMnoPert(vct,grid,col);
-  else if (col->getCase()=="ForceFree") EMf->initForceFree(vct,grid,col);
-  else if (col->getCase()=="GEM")       EMf->initGEM(vct, grid,col);
+  if      (col->getCase()=="GEMnoPert") EMf->initGEMnoPert();
+  else if (col->getCase()=="ForceFree") EMf->initForceFree();
+  else if (col->getCase()=="GEM")       EMf->initGEM();
 #ifdef BATSRUS
-  else if (col->getCase()=="BATSRUS")   EMf->initBATSRUS(vct,grid,col);
+  else if (col->getCase()=="BATSRUS")   EMf->initBATSRUS();
 #endif
-  else if (col->getCase()=="Dipole")    EMf->initDipole(vct,grid,col);
+  else if (col->getCase()=="Dipole")    EMf->initDipole();
   else if (col->getCase()=="RandomCase") {
-    EMf->initRandomField(vct,grid,col);
+    EMf->initRandomField();
     if (myrank==0) {
       cout << "Case is " << col->getCase() <<"\n";
       cout <<"total # of particle per cell is " << col->getNpcel(0) << "\n";
@@ -137,11 +137,11 @@ int c_Solver::Init(int argc, char **argv) {
       cout << "          Runing simulation with the default initialization. " << endl;
       cout << " =========================================================== " << endl;
     }
-    EMf->init(vct,grid,col);
+    EMf->init();
   }
 
   // OpenBC
-  EMf->updateInfoFields(grid,vct,col);
+  EMf->updateInfoFields();
 
   // Allocation of particles
   // part = new Particles3D[ns];
@@ -239,12 +239,12 @@ void c_Solver::CalculateMoments() {
         // we can vectorize interpolation of particles to grid
         convertParticlesToSoA();
         sortParticles();
-        EMf->sumMoments_vectorized(part, grid, vct);
+        EMf->sumMoments_vectorized(part);
         break;
       case Parameters::AoS:
         convertParticlesToAoS();
         sortParticles();
-        EMf->sumMoments_vectorized_AoS(part, grid, vct);
+        EMf->sumMoments_vectorized_AoS(part);
         break;
       default:
         unsupported_value_error(Parameters::get_MOMENTS_TYPE());
@@ -259,17 +259,17 @@ void c_Solver::CalculateMoments() {
       case Parameters::SoA:
         EMf->setZeroPrimaryMoments();
         convertParticlesToSoA();
-        EMf->sumMoments(part, grid, vct);
+        EMf->sumMoments(part);
         break;
       case Parameters::AoS:
         EMf->setZeroPrimaryMoments();
         convertParticlesToAoS();
-        EMf->sumMoments_AoS(part, grid, vct);
+        EMf->sumMoments_AoS(part);
         break;
       case Parameters::AoSintr:
         EMf->setZeroPrimaryMoments();
         convertParticlesToAoS();
-        EMf->sumMoments_AoS_intr(part, grid, vct);
+        EMf->sumMoments_AoS_intr(part);
         break;
       default:
         unsupported_value_error(Parameters::get_MOMENTS_TYPE());
@@ -280,34 +280,40 @@ void c_Solver::CalculateMoments() {
   //  EMf->sumMomentsOld(part[i], grid, vct);
   //}
   EMf->setZeroDerivedMoments();
-  EMf->sumOverSpecies(vct);                 // sum all over the species
+  // sum all over the species
+  EMf->sumOverSpecies();
 
   // Fill with constant charge the planet
   if (col->getCase()=="Dipole") {
-    EMf->ConstantChargePlanet(grid, vct, col->getL_square(),col->getx_center(),col->gety_center(),col->getz_center());
+    EMf->ConstantChargePlanet(col->getL_square(),col->getx_center(),col->gety_center(),col->getz_center());
   }
 
-  EMf->ConstantChargeOpenBC(grid, vct);     // Set a constant charge in the OpenBC boundaries
+  // Set a constant charge in the OpenBC boundaries
+  EMf->ConstantChargeOpenBC();
 
   former_MPI_Barrier(MPI_COMM_WORLD);
 
-  EMf->interpDensitiesN2C(vct, grid);       // calculate densities on centers from nodes
-  EMf->calculateHatFunctions(grid, vct);    // calculate the hat quantities for the implicit method
+  // calculate densities on centers from nodes
+  EMf->interpDensitiesN2C();
+  // calculate the hat quantities for the implicit method
+  EMf->calculateHatFunctions();
   former_MPI_Barrier(MPI_COMM_WORLD);
 }
 
 //! MAXWELL SOLVER for Efield
 void c_Solver::CalculateField() {
   timeTasks_set_main_task(TimeTasks::FIELDS);
-  EMf->updateInfoFields(grid,vct,col);
-  EMf->calculateE(grid, vct, col);               // calculate the E field
+  EMf->updateInfoFields();
+  // calculate the E field
+  EMf->calculateE();
 }
 
 //! MAXWELL SOLVER for Bfield (assuming Efield has already been calculated)
 void c_Solver::CalculateB() {
   timeTasks_set_main_task(TimeTasks::FIELDS);
   timeTasks_set_task(TimeTasks::BFIELD); // subtask
-  EMf->calculateB(grid, vct, col);   // calculate the B field
+  // calculate the B field
+  EMf->calculateB();
 }
 
 /*  -------------- */

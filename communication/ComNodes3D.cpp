@@ -12,7 +12,9 @@
 #include "parallel.h"
 
 /** communicate ghost cells (FOR NODES) */
-void communicateNode(int nx, int ny, int nz, arr3_double _vector, VirtualTopology3D * vct) {
+void communicateNode(int nx, int ny, int nz, arr3_double _vector,
+  const VirtualTopology3D * vct)
+{
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
   double ***vector=_vector.fetch_arr3();
@@ -118,7 +120,12 @@ void communicateNode(int nx, int ny, int nz, arr3_double _vector, VirtualTopolog
   delete[]ghostXleftYrghtZsameEdge;
 }
 /** communicate ghost cells (FOR NODES) */
-void communicateNodeBC(int nx, int ny, int nz, arr3_double _vector, int bcFaceXrght, int bcFaceXleft, int bcFaceYrght, int bcFaceYleft, int bcFaceZrght, int bcFaceZleft, VirtualTopology3D * vct) {
+void communicateNodeBC(int nx, int ny, int nz, arr3_double _vector,
+  int bcFaceXrght, int bcFaceXleft,
+  int bcFaceYrght, int bcFaceYleft,
+  int bcFaceZrght, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
   double ***vector = _vector.fetch_arr3();
@@ -227,7 +234,12 @@ void communicateNodeBC(int nx, int ny, int nz, arr3_double _vector, int bcFaceXr
   delete[]ghostXleftYrghtZsameEdge;
 }
 /** communicate ghost cells (FOR NODES) with particles BC*/
-void communicateNodeBC_P(int nx, int ny, int nz, arr3_double _vector, int bcFaceXrght, int bcFaceXleft, int bcFaceYrght, int bcFaceYleft, int bcFaceZrght, int bcFaceZleft, VirtualTopology3D * vct) {
+void communicateNodeBC_P(int nx, int ny, int nz, arr3_double _vector,
+  int bcFaceXrght, int bcFaceXleft,
+  int bcFaceYrght, int bcFaceYleft,
+  int bcFaceZrght, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
   double ***vector=_vector.fetch_arr3();
@@ -337,7 +349,8 @@ void communicateNodeBC_P(int nx, int ny, int nz, arr3_double _vector, int bcFace
 
 // PARTICLES
 /** SPECIES: communicate ghost cells */
-void communicateNode_P(int nx, int ny, int nz, double*** vector, VirtualTopology3D * vct)
+void communicateNode_P(int nx, int ny, int nz, double*** vector,
+  const VirtualTopology3D * vct)
 {
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
@@ -503,7 +516,9 @@ void communicateNode_P(int nx, int ny, int nz, double*** vector, VirtualTopology
 
 // 
 /** communicate ghost cells (FOR CENTERS) */
-void communicateCenter(int nx, int ny, int nz, arr3_double _vector, VirtualTopology3D * vct) {
+void communicateCenter(int nx, int ny, int nz, arr3_double _vector,
+  const VirtualTopology3D * vct)
+{
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
   double ***vector = _vector.fetch_arr3();
@@ -607,7 +622,12 @@ void communicateCenter(int nx, int ny, int nz, arr3_double _vector, VirtualTopol
   delete[]ghostXleftYrghtZsameEdge;
 }
 /** communicate ghost cells (FOR CENTERS) with BOX stencil*/
-void communicateCenterBoxStencilBC(int nx, int ny, int nz, arr3_double _vector, int bcFaceXrght, int bcFaceXleft, int bcFaceYrght, int bcFaceYleft, int bcFaceZrght, int bcFaceZleft, VirtualTopology3D * vct) {
+void communicateCenterBoxStencilBC(int nx, int ny, int nz, arr3_double _vector,
+  int bcFaceXrght, int bcFaceXleft,
+  int bcFaceYrght, int bcFaceYleft,
+  int bcFaceZrght, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
   double ***vector=_vector.fetch_arr3();
@@ -643,7 +663,12 @@ void communicateCenterBoxStencilBC(int nx, int ny, int nz, arr3_double _vector, 
 }
 // particles
 /** communicate ghost cells (FOR CENTERS) with BOX stencil*/
-void communicateCenterBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector, int bcFaceXrght, int bcFaceXleft, int bcFaceYrght, int bcFaceYleft, int bcFaceZrght, int bcFaceZleft, VirtualTopology3D * vct) {
+void communicateCenterBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector,
+  int bcFaceXrght, int bcFaceXleft,
+  int bcFaceYrght, int bcFaceYleft,
+  int bcFaceZrght, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
   double ***vector=_vector.fetch_arr3();
@@ -681,7 +706,12 @@ void communicateCenterBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector
 // 
 
 
-void communicateNodeBoxStencilBC(int nx, int ny, int nz, arr3_double _vector, int bcFaceXrght, int bcFaceXleft, int bcFaceYrght, int bcFaceYleft, int bcFaceZrght, int bcFaceZleft, VirtualTopology3D * vct) {
+void communicateNodeBoxStencilBC(int nx, int ny, int nz, arr3_double _vector,
+  int bcFaceXrght, int bcFaceXleft,
+  int bcFaceYrght, int bcFaceYleft,
+  int bcFaceZrght, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
   double ***vector=_vector.fetch_arr3();
@@ -716,7 +746,12 @@ void communicateNodeBoxStencilBC(int nx, int ny, int nz, arr3_double _vector, in
   delete[]ghostZleftFace;
 }
 
-void communicateNodeBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector, int bcFaceXrght, int bcFaceXleft, int bcFaceYrght, int bcFaceYleft, int bcFaceZrght, int bcFaceZleft, VirtualTopology3D * vct) {
+void communicateNodeBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector,
+  int bcFaceXrght, int bcFaceXleft,
+  int bcFaceYrght, int bcFaceYleft,
+  int bcFaceZrght, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
   double ***vector=_vector.fetch_arr3();
@@ -753,7 +788,12 @@ void communicateNodeBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector, 
 
 
 // /////////// communication + BC ////////////////////////////
-void communicateCenterBC(int nx, int ny, int nz, arr3_double _vector, int bcFaceXrght, int bcFaceXleft, int bcFaceYrght, int bcFaceYleft, int bcFaceZrght, int bcFaceZleft, VirtualTopology3D * vct) {
+void communicateCenterBC(int nx, int ny, int nz, arr3_double _vector,
+  int bcFaceXrght, int bcFaceXleft,
+  int bcFaceYrght, int bcFaceYleft,
+  int bcFaceZrght, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
   double ***vector=_vector.fetch_arr3();
@@ -919,7 +959,12 @@ void communicateCenterBC(int nx, int ny, int nz, arr3_double _vector, int bcFace
   delete[]ghostXleftYrghtZsameEdge;
 }
 // /////////// communication + BC ////////////////////////////
-void communicateCenterBC_P(int nx, int ny, int nz, arr3_double _vector, int bcFaceXrght, int bcFaceXleft, int bcFaceYrght, int bcFaceYleft, int bcFaceZrght, int bcFaceZleft, VirtualTopology3D * vct) {
+void communicateCenterBC_P(int nx, int ny, int nz, arr3_double _vector,
+  int bcFaceXrght, int bcFaceXleft,
+  int bcFaceYrght, int bcFaceYleft,
+  int bcFaceZrght, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
   double ***vector=_vector.fetch_arr3();

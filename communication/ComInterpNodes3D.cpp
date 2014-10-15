@@ -7,7 +7,7 @@
 #include "VCtopology3D.h"
 
 /** communicate and sum shared ghost cells */
-void communicateInterp(int nx, int ny, int nz, double*** vector, VirtualTopology3D * vct)
+void communicateInterp(int nx, int ny, int nz, double*** vector, const VirtualTopology3D * vct)
 {
   const int nxr = nx-2;
   const int nyr = ny-2;

@@ -2,21 +2,22 @@
 #include <mpi.h>
 #include "GMRES.h"
 #include "Basic.h"
-#include "VCtopology3D.h"
+#include "parallel.h"
 #include "errors.h"
 #include "Alloc.h"
 #include "TimeTasks.h"
 #include "ipicdefs.h"
 
-void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const double *b, int m, int max_iter, double tol, Grid * grid, VirtualTopology3D * vct, Field * field) {
+void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen,
+  const double *b, int m, int max_iter, double tol, Field * field)
+{
   if (m > xkrylovlen) {
-    if (vct->getCartesian_rank() == 0)
-    {
-      eprintf("In GMRES the dimension of Krylov space(m) "
-        "can't be > (length of krylov vector)/(# processors)\n");
-      //cerr << "In GMRES the dimension of Krylov space(m) can't be > (length of krylov vector)/(# processors)" << endl;
-    }
-    return;
+    // m need not be the same for all processes,
+    // we cannot restrict this test to the main process,
+    // (although we could probably restrict it to the
+    // process with the highest cartesian rank).
+    eprintf("In GMRES the dimension of Krylov space(m) "
+      "can't be > (length of krylov vector)/(# processors)\n");
   }
   bool GMRESVERBOSE = false;
   double initial_error, rho_tol;
@@ -46,7 +47,7 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
 
 
 
-  if (GMRESVERBOSE && vct->getCartesian_rank() == 0) {
+  if (GMRESVERBOSE && is_output_thread()) {
     printf( "------------------------------------\n"
             "-             GMRES                -\n"
             "------------------------------------\n\n");
@@ -60,19 +61,19 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
   for (itr = 0; itr < max_iter; itr++)
   {
     // r = b - A*x
-    (field->*FunctionImage) (im, xkrylov, grid, vct);
+    (field->*FunctionImage) (im, xkrylov);
     sub(r, b, im, xkrylovlen);
     initial_error = normP(r, xkrylovlen);
 
     if (itr == 0) {
-      if (vct->getCartesian_rank() == 0)
+      if (is_output_thread())
         printf("Initial residual: %g norm b vector (source) = %g\n",
           initial_error, normb);
         //cout << "Initial residual: " << initial_error << " norm b vector (source) = " << normb << endl;
       rho_tol = initial_error * tol;
 
       if ((initial_error / normb) <= tol) {
-        if (vct->getCartesian_rank() == 0)
+        if (is_output_thread())
           printf("GMRES converged without iterations: initial error < tolerance\n");
           //cout << "GMRES converged without iterations: initial error < tolerance" << endl;
         break;
@@ -87,7 +88,7 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
 
       // w= A*V(:,k)
       double *w = V[k+1];
-      (field->*FunctionImage) (w, V[k], grid, vct);
+      (field->*FunctionImage) (w, V[k]);
       // old code (many MPI_Allreduce calls)
       //
       //const double av = normP(w, xkrylovlen);
@@ -178,7 +179,7 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
     }
 
     if (initial_error <= rho_tol) {
-      if (vct->getCartesian_rank() == 0)
+      if (is_output_thread())
       {
         printf("GMRES converged at restart # %d; iteration #%d with error: %g\n",
           itr, k,  initial_error / rho_tol * tol);
@@ -186,14 +187,14 @@ void GMRES(FIELD_IMAGE FunctionImage, double *xkrylov, int xkrylovlen, const dou
       }
       break;
     }
-    if (vct->getCartesian_rank() == 0 && GMRESVERBOSE)
+    if (is_output_thread() && GMRESVERBOSE)
     {
       printf("Restart: %d error: %g\n", itr,  initial_error / rho_tol * tol);
       //cout << "Restart: " << itr << " error: " << initial_error / rho_tol * tol << endl;
     }
 
   }
-  if(itr==max_iter && vct->getCartesian_rank() == 0)
+  if(itr==max_iter && is_output_thread())
   {
     printf("GMRES not converged !! Final error: %g\n",
       initial_error / rho_tol * tol);

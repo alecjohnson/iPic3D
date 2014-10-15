@@ -239,8 +239,10 @@ EMfields3D::EMfields3D(Collective * col, Grid * grid, VirtualTopology3D *vct) :
 }
 
 // This was Particles3Dcomm::interpP2G()
-void EMfields3D::sumMomentsOld(const Particles3Dcomm& pcls, Grid * grid, VirtualTopology3D * vct)
+void EMfields3D::sumMomentsOld(const Particles3Dcomm& pcls)
 {
+  const Grid *grid = &get_grid();
+
   const double inv_dx = 1.0 / dx;
   const double inv_dy = 1.0 / dy;
   const double inv_dz = 1.0 / dz;
@@ -398,7 +400,7 @@ void EMfields3D::sumMomentsOld(const Particles3Dcomm& pcls, Grid * grid, Virtual
   // reset timeTasks to be its average value for all threads
   timeTasksAcc /= omp_get_max_threads();
   timeTasks = timeTasksAcc;
-  communicateGhostP2G(is, vct);
+  communicateGhostP2G(is);
 }
 //
 // Create a vectorized version of this moment accumulator as follows.
@@ -444,8 +446,10 @@ void EMfields3D::sumMomentsOld(const Particles3Dcomm& pcls, Grid * grid, Virtual
 // Compare the vectorization notes at the top of mover_PC().
 //
 // This was Particles3Dcomm::interpP2G()
-void EMfields3D::sumMoments(const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct)
+void EMfields3D::sumMoments(const Particles3Dcomm* part)
 {
+  const Grid *grid = &get_grid();
+
   const double inv_dx = 1.0 / dx;
   const double inv_dy = 1.0 / dy;
   const double inv_dz = 1.0 / dz;
@@ -653,13 +657,14 @@ void EMfields3D::sumMoments(const Particles3Dcomm* part, Grid * grid, VirtualTop
   }
   for (int i = 0; i < ns; i++)
   {
-    communicateGhostP2G(i, vct);
+    communicateGhostP2G(i);
   }
 }
 
-void EMfields3D::sumMoments_AoS(
-  const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct)
+void EMfields3D::sumMoments_AoS(const Particles3Dcomm* part)
 {
+  const Grid *grid = &get_grid();
+
   const double inv_dx = 1.0 / dx;
   const double inv_dy = 1.0 / dy;
   const double inv_dz = 1.0 / dz;
@@ -818,7 +823,7 @@ void EMfields3D::sumMoments_AoS(
   }
   for (int i = 0; i < ns; i++)
   {
-    communicateGhostP2G(i, vct);
+    communicateGhostP2G(i);
   }
 }
 
@@ -892,12 +897,12 @@ inline void addto_cell_moments(
 //
 // See notes at the top of sumMoments().
 //
-void EMfields3D::sumMoments_AoS_intr(
-  const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct)
+void EMfields3D::sumMoments_AoS_intr(const Particles3Dcomm* part)
 {
 #ifndef __MIC__
   eprintf("not implemented");
 #else
+  const Grid *grid = &get_grid();
 
   // define global parameters
   //
@@ -1257,7 +1262,7 @@ void EMfields3D::sumMoments_AoS_intr(
 
   for (int i = 0; i < ns; i++)
   {
-    communicateGhostP2G(i, vct);
+    communicateGhostP2G(i);
   }
 #endif // __MIC__
 }
@@ -1507,9 +1512,10 @@ inline void add_moments_for_pcl_vec(double momentsAccVec[8][10][8],
   }
 }
 
-void EMfields3D::sumMoments_vectorized(
-  const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct)
+void EMfields3D::sumMoments_vectorized(const Particles3Dcomm* part)
 {
+  const Grid *grid = &get_grid();
+
   const double inv_dx = grid->get_invdx();
   const double inv_dy = grid->get_invdy();
   const double inv_dz = grid->get_invdz();
@@ -1658,19 +1664,19 @@ void EMfields3D::sumMoments_vectorized(
     { timeTasks_end_task(TimeTasks::MOMENT_REDUCTION); }
     // uncomment this and remove the loop below
     // when we change to use asynchronous communication.
-    // communicateGhostP2G(is, vct);
+    // communicateGhostP2G(is);
   }
   }
   for (int i = 0; i < ns; i++)
   {
-    communicateGhostP2G(i, vct);
+    communicateGhostP2G(i);
   }
 }
 
-void EMfields3D::sumMoments_vectorized_AoS(
-  const Particles3Dcomm* part, Grid * grid, VirtualTopology3D * vct)
+void EMfields3D::sumMoments_vectorized_AoS(const Particles3Dcomm* part)
 {
-  dprint("entering")
+  const Grid *grid = &get_grid();
+
   const double inv_dx = grid->get_invdx();
   const double inv_dy = grid->get_invdy();
   const double inv_dz = grid->get_invdz();
@@ -1870,12 +1876,12 @@ void EMfields3D::sumMoments_vectorized_AoS(
     { timeTasks_end_task(TimeTasks::MOMENT_REDUCTION); }
     // uncomment this and remove the loop below
     // when we change to use asynchronous communication.
-    // communicateGhostP2G(is, vct);
+    // communicateGhostP2G(is);
   }
   }
   for (int i = 0; i < ns; i++)
   {
-    communicateGhostP2G(i, vct);
+    communicateGhostP2G(i);
   }
 }
 
@@ -1915,9 +1921,15 @@ void phys2solver(double *vectSolver, const arr3_double vectPhys1, const arr3_dou
       }
 }
 /*! Calculate Electric field with the implicit solver: the Maxwell solver method is called here */
-void EMfields3D::calculateE(Grid * grid, VirtualTopology3D * vct, Collective *col) {
-  if (vct->getCartesian_rank() == 0)
+void EMfields3D::calculateE()
+{
+  const Collective *col = &get_col();
+  const VirtualTopology3D * vct = &get_vct();
+  const Grid *grid = &get_grid();
+
+  if (get_vct().getCartesian_rank() == 0)
     cout << "*** E CALCULATION ***" << endl;
+
   array3_double divE     (nxc, nyc, nzc);
   array3_double gradPHIX (nxn, nyn, nzn);
   array3_double gradPHIY (nxn, nyn, nzn);
@@ -1939,7 +1951,7 @@ void EMfields3D::calculateE(Grid * grid, VirtualTopology3D * vct, Collective *co
   eqValue(0.0, gradPHIZ, nxn, nyn, nzn);
   // Adjust E calculating laplacian(PHI) = div(E) -4*PI*rho DIVERGENCE CLEANING
   if (PoissonCorrection) {
-    if (vct->getCartesian_rank() == 0)
+    if (get_vct().getCartesian_rank() == 0)
       cout << "*** DIVERGENCE CLEANING ***" << endl;
     grid->divN2C(divE, Ex, Ey, Ez);
     scale(tempC, rhoc, -FourPI, nxc, nyc, nzc);
@@ -1947,11 +1959,11 @@ void EMfields3D::calculateE(Grid * grid, VirtualTopology3D * vct, Collective *co
     // move to krylov space 
     phys2solver(bkrylovPoisson, divE, nxc, nyc, nzc);
     // use conjugate gradient first
-    if (!CG(xkrylovPoisson, (nxc - 2) * (nyc - 2) * (nzc - 2), bkrylovPoisson, 3000, CGtol, &Field::PoissonImage, grid, vct, this)) {
-      if (vct->getCartesian_rank() == 0)
+    if (!CG(xkrylovPoisson, (nxc - 2) * (nyc - 2) * (nzc - 2), bkrylovPoisson, 3000, CGtol, &Field::PoissonImage, this)) {
+      if (get_vct().getCartesian_rank() == 0)
         cout << "CG not Converged. Trying with GMRes. Consider to increase the number of the CG iterations" << endl;
       eqValue(0.0, xkrylovPoisson, (nxc - 2) * (nyc - 2) * (nzc - 2));
-      GMRES(&Field::PoissonImage, xkrylovPoisson, (nxc - 2) * (nyc - 2) * (nzc - 2), bkrylovPoisson, 20, 200, GMREStol, grid, vct, this);
+      GMRES(&Field::PoissonImage, xkrylovPoisson, (nxc - 2) * (nyc - 2) * (nzc - 2), bkrylovPoisson, 20, 200, GMREStol, this);
     }
     solver2phys(PHI, xkrylovPoisson, nxc, nyc, nzc);
     communicateCenterBC(nxc, nyc, nzc, PHI, 2, 2, 2, 2, 2, 2, vct);
@@ -1963,13 +1975,14 @@ void EMfields3D::calculateE(Grid * grid, VirtualTopology3D * vct, Collective *co
     sub(Ez, gradPHIZ, nxn, nyn, nzn);
 
   }                             // end of divergence cleaning 
-  if (vct->getCartesian_rank() == 0)
+  if (get_vct().getCartesian_rank() == 0)
     cout << "*** MAXWELL SOLVER ***" << endl;
   // prepare the source 
-  MaxwellSource(bkrylov, grid, vct, col);
+  MaxwellSource(bkrylov);
   phys2solver(xkrylov, Ex, Ey, Ez, nxn, nyn, nzn);
   // solver
-  GMRES(&Field::MaxwellImage, xkrylov, 3 * (nxn - 2) * (nyn - 2) * (nzn - 2), bkrylov, 20, 200, GMREStol, grid, vct, this);
+  GMRES(&Field::MaxwellImage, xkrylov, 3 * (nxn - 2) * (nyn - 2) * (nzn - 2),
+    bkrylov, 20, 200, GMREStol, this);
   // move from krylov space to physical space
   solver2phys(Exth, Eyth, Ezth, xkrylov, nxn, nyn, nzn);
 
@@ -1978,9 +1991,9 @@ void EMfields3D::calculateE(Grid * grid, VirtualTopology3D * vct, Collective *co
   addscale(1 / th, -(1.0 - th) / th, Ez, Ezth, nxn, nyn, nzn);
 
   // apply to smooth to electric field 3 times
-  smoothE(Smooth, vct, col);
-  smoothE(Smooth, vct, col);
-  smoothE(Smooth, vct, col);
+  smoothE(Smooth);
+  smoothE(Smooth);
+  smoothE(Smooth);
 
   // communicate so the interpolation can have good values
   communicateNodeBC(nxn, nyn, nzn, Exth, col->bcEx[0],col->bcEx[1],col->bcEx[2],col->bcEx[3],col->bcEx[4],col->bcEx[5], vct);
@@ -1991,8 +2004,8 @@ void EMfields3D::calculateE(Grid * grid, VirtualTopology3D * vct, Collective *co
   communicateNodeBC(nxn, nyn, nzn, Ez,   col->bcEz[0],col->bcEz[1],col->bcEz[2],col->bcEz[3],col->bcEz[4],col->bcEz[5], vct);
 
   // OpenBC
-  BoundaryConditionsE(Exth, Eyth, Ezth, nxn, nyn, nzn, grid, vct);
-  BoundaryConditionsE(Ex, Ey, Ez, nxn, nyn, nzn, grid, vct);
+  BoundaryConditionsE(Exth, Eyth, Ezth, nxn, nyn, nzn);
+  BoundaryConditionsE(Ex, Ey, Ez, nxn, nyn, nzn);
 
   // deallocate temporary arrays
   delete[]xkrylov;
@@ -2002,7 +2015,12 @@ void EMfields3D::calculateE(Grid * grid, VirtualTopology3D * vct, Collective *co
 }
 
 /*! Calculate sorgent for Maxwell solver */
-void EMfields3D::MaxwellSource(double *bkrylov, Grid * grid, VirtualTopology3D * vct, Collective *col) {
+void EMfields3D::MaxwellSource(double *bkrylov)
+{
+  const Collective *col = &get_col();
+  const VirtualTopology3D * vct = &get_vct();
+  const Grid *grid = &get_grid();
+
   eqValue(0.0, tempC, nxc, nyc, nzc);
   eqValue(0.0, tempX, nxn, nyn, nzn);
   eqValue(0.0, tempY, nxn, nyn, nzn);
@@ -2018,12 +2036,12 @@ void EMfields3D::MaxwellSource(double *bkrylov, Grid * grid, VirtualTopology3D *
   communicateCenterBC(nxc, nyc, nzc, Byc, col->bcBy[0],col->bcBy[1],col->bcBy[2],col->bcBy[3],col->bcBy[4],col->bcBy[5], vct);
   communicateCenterBC(nxc, nyc, nzc, Bzc, col->bcBz[0],col->bcBz[1],col->bcBz[2],col->bcBz[3],col->bcBz[4],col->bcBz[5], vct);
 
-  if (get_col().getCase()=="ForceFree") fixBforcefree(grid,vct);
-  if (get_col().getCase()=="GEM")       fixBgem(grid, vct);
-  if (get_col().getCase()=="GEMnoPert") fixBgem(grid, vct);
+  if (get_col().getCase()=="ForceFree") fixBforcefree();
+  if (get_col().getCase()=="GEM")       fixBgem();
+  if (get_col().getCase()=="GEMnoPert") fixBgem();
 
   // OpenBC:
-  BoundaryConditionsB(Bxc,Byc,Bzc,nxc,nyc,nzc,grid,vct);
+  BoundaryConditionsB(Bxc,Byc,Bzc,nxc,nyc,nzc);
 
   // prepare curl of B for known term of Maxwell solver: for the source term
   grid->curlC2N(tempXN, tempYN, tempZN, Bxc, Byc, Bzc);
@@ -2081,8 +2099,8 @@ void EMfields3D::MaxwellSource(double *bkrylov, Grid * grid, VirtualTopology3D *
 
   // physical space -> Krylov space
   phys2solver(bkrylov, tempX, tempY, tempZ, nxn, nyn, nzn);
-
 }
+
 /*! Mapping of Maxwell image to give to solver */
 //
 // In the field solver, there is one layer of ghost cells.  The
@@ -2147,7 +2165,12 @@ void EMfields3D::MaxwellSource(double *bkrylov, Grid * grid, VirtualTopology3D *
 // desired, to give duplicated nodes equal weight by
 // rescaling their values in these two methods.
 // 
-void EMfields3D::MaxwellImage(double *im, double *vector, Grid * grid, VirtualTopology3D * vct) {
+void EMfields3D::MaxwellImage(double *im, double* vector)
+{
+  const Collective *col = &get_col();
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
+
   eqValue(0.0, im, 3 * (nxn - 2) * (nyn - 2) * (nzn - 2));
   eqValue(0.0, imageX, nxn, nyn, nzn);
   eqValue(0.0, imageY, nxn, nyn, nzn);
@@ -2160,14 +2183,14 @@ void EMfields3D::MaxwellImage(double *im, double *vector, Grid * grid, VirtualTo
   eqValue(0.0, Dz, nxn, nyn, nzn);
   // move from krylov space to physical space
   solver2phys(vectX, vectY, vectZ, vector, nxn, nyn, nzn);
-  grid->lapN2N(imageX, vectX, vct);
-  grid->lapN2N(imageY, vectY, vct);
-  grid->lapN2N(imageZ, vectZ, vct);
+  grid->lapN2N(imageX, vectX);
+  grid->lapN2N(imageY, vectY);
+  grid->lapN2N(imageZ, vectZ);
   neg(imageX, nxn, nyn, nzn);
   neg(imageY, nxn, nyn, nzn);
   neg(imageZ, nxn, nyn, nzn);
   // grad(div(mu dot E(n + theta)) mu dot E(n + theta) = D
-  MUdot(Dx, Dy, Dz, vectX, vectY, vectZ, grid);
+  MUdot(Dx, Dy, Dz, vectX, vectY, vectZ);
   grid->divN2C(divC, Dx, Dy, Dz);
   // communicate you should put BC 
   // think about the Physics 
@@ -2196,25 +2219,25 @@ void EMfields3D::MaxwellImage(double *im, double *vector, Grid * grid, VirtualTo
 
   // boundary condition: Xleft
   if (vct->getXleft_neighbor() == MPI_PROC_NULL && bcEMfaceXleft == 0)  // perfect conductor
-    perfectConductorLeft(imageX, imageY, imageZ, vectX, vectY, vectZ, 0, grid);
+    perfectConductorLeft(imageX, imageY, imageZ, vectX, vectY, vectZ, 0);
   // boundary condition: Xright
   if (vct->getXright_neighbor() == MPI_PROC_NULL && bcEMfaceXright == 0)  // perfect conductor
-    perfectConductorRight(imageX, imageY, imageZ, vectX, vectY, vectZ, 0, grid);
+    perfectConductorRight(imageX, imageY, imageZ, vectX, vectY, vectZ, 0);
   // boundary condition: Yleft
   if (vct->getYleft_neighbor() == MPI_PROC_NULL && bcEMfaceYleft == 0)  // perfect conductor
-    perfectConductorLeft(imageX, imageY, imageZ, vectX, vectY, vectZ, 1, grid);
+    perfectConductorLeft(imageX, imageY, imageZ, vectX, vectY, vectZ, 1);
   // boundary condition: Yright
   if (vct->getYright_neighbor() == MPI_PROC_NULL && bcEMfaceYright == 0)  // perfect conductor
-    perfectConductorRight(imageX, imageY, imageZ, vectX, vectY, vectZ, 1, grid);
+    perfectConductorRight(imageX, imageY, imageZ, vectX, vectY, vectZ, 1);
   // boundary condition: Zleft
   if (vct->getZleft_neighbor() == MPI_PROC_NULL && bcEMfaceZleft == 0)  // perfect conductor
-    perfectConductorLeft(imageX, imageY, imageZ, vectX, vectY, vectZ, 2, grid);
+    perfectConductorLeft(imageX, imageY, imageZ, vectX, vectY, vectZ, 2);
   // boundary condition: Zright
   if (vct->getZright_neighbor() == MPI_PROC_NULL && bcEMfaceZright == 0)  // perfect conductor
-    perfectConductorRight(imageX, imageY, imageZ, vectX, vectY, vectZ, 2, grid);
+    perfectConductorRight(imageX, imageY, imageZ, vectX, vectY, vectZ, 2);
 
   // OpenBC
-  BoundaryConditionsEImage(imageX, imageY, imageZ, vectX, vectY, vectZ, nxn, nyn, nzn, vct, grid);
+  BoundaryConditionsEImage(imageX, imageY, imageZ, vectX, vectY, vectZ, nxn, nyn, nzn);
 
   // move from physical space to krylov space
   phys2solver(im, imageX, imageY, imageZ, nxn, nyn, nzn);
@@ -2223,7 +2246,9 @@ void EMfields3D::MaxwellImage(double *im, double *vector, Grid * grid, VirtualTo
 }
 
 /*! Calculate PI dot (vectX, vectY, vectZ) */
-void EMfields3D::PIdot(arr3_double PIdotX, arr3_double PIdotY, arr3_double PIdotZ, const_arr3_double vectX, const_arr3_double vectY, const_arr3_double vectZ, int ns, Grid * grid) {
+void EMfields3D::PIdot(arr3_double PIdotX, arr3_double PIdotY, arr3_double PIdotZ, const_arr3_double vectX, const_arr3_double vectY, const_arr3_double vectZ, int ns)
+{
+  const Grid *grid = &get_grid();
   double beta, edotb, omcx, omcy, omcz, denom;
   beta = .5 * qom[ns] * dt / c;
   for (int i = 1; i < nxn - 1; i++)
@@ -2241,8 +2266,9 @@ void EMfields3D::PIdot(arr3_double PIdotX, arr3_double PIdotY, arr3_double PIdot
 }
 /*! Calculate MU dot (vectX, vectY, vectZ) */
 void EMfields3D::MUdot(arr3_double MUdotX, arr3_double MUdotY, arr3_double MUdotZ,
-  const_arr3_double vectX, const_arr3_double vectY, const_arr3_double vectZ, Grid * grid)
+  const_arr3_double vectX, const_arr3_double vectY, const_arr3_double vectZ)
 {
+  const Grid *grid = &get_grid();
   double beta, edotb, omcx, omcy, omcz, denom;
   for (int i = 1; i < nxn - 1; i++)
     for (int j = 1; j < nyn - 1; j++)
@@ -2268,7 +2294,10 @@ void EMfields3D::MUdot(arr3_double MUdotX, arr3_double MUdotY, arr3_double MUdot
   }
 }
 /* Interpolation smoothing: Smoothing (vector must already have ghost cells) TO MAKE SMOOTH value as to be different from 1.0 type = 0 --> center based vector ; type = 1 --> node based vector ; */
-void EMfields3D::smooth(double value, arr3_double vector, int type, Grid * grid, VirtualTopology3D * vct) {
+void EMfields3D::smooth(double value, arr3_double vector, int type)
+{
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
 
   int nvolte = 6;
   for (int icount = 1; icount < nvolte + 1; icount++) {
@@ -2312,7 +2341,10 @@ void EMfields3D::smooth(double value, arr3_double vector, int type, Grid * grid,
   }
 }
 /* Interpolation smoothing: Smoothing (vector must already have ghost cells) TO MAKE SMOOTH value as to be different from 1.0 type = 0 --> center based vector ; type = 1 --> node based vector ; */
-void EMfields3D::smoothE(double value, VirtualTopology3D * vct, Collective *col) {
+void EMfields3D::smoothE(double value)
+{
+  const Collective *col = &get_col();
+  const VirtualTopology3D *vct = &get_vct();
 
   int nvolte = 6;
   for (int icount = 1; icount < nvolte + 1; icount++) {
@@ -2365,12 +2397,17 @@ void EMfields3D::smoothE(double value, VirtualTopology3D * vct, Collective *col)
 }
 
 /* SPECIES: Interpolation smoothing TO MAKE SMOOTH value as to be different from 1.0 type = 0 --> center based vector type = 1 --> node based vector */
-void EMfields3D::smooth(double value, arr4_double vector, int is, int type, Grid * grid, VirtualTopology3D * vct) {
-  cout << "Smoothing for Species not implemented in 3D" << endl;
+void EMfields3D::smooth(double value, arr4_double vector, int is, int type)
+{
+  eprintf("Smoothing for Species not implemented in 3D");
 }
 
 /*! fix the B boundary when running gem */
-void EMfields3D::fixBgem(Grid * grid, VirtualTopology3D * vct) {
+void EMfields3D::fixBgem()
+{
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
+
   if (vct->getYright_neighbor() == MPI_PROC_NULL) {
     for (int i = 0; i < nxc; i++)
       for (int k = 0; k < nzc; k++) {
@@ -2395,11 +2432,14 @@ void EMfields3D::fixBgem(Grid * grid, VirtualTopology3D * vct) {
         Bzc[i][2][k] = B0z;
       }
   }
-
 }
 
 /*! fix the B boundary when running forcefree */
-void EMfields3D::fixBforcefree(Grid * grid, VirtualTopology3D * vct) {
+void EMfields3D::fixBforcefree()
+{
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
+
   if (vct->getYright_neighbor() == MPI_PROC_NULL) {
     for (int i = 0; i < nxc; i++)
       for (int k = 0; k < nzc; k++) {
@@ -2420,7 +2460,6 @@ void EMfields3D::fixBforcefree(Grid * grid, VirtualTopology3D * vct) {
         Bzc[i][2][k] = B0z / cosh((grid->getYC(i, 2, k) - Ly / 2) / delta);
       }
   }
-
 }
 
 // This method assumes mirror boundary conditions;
@@ -2429,7 +2468,9 @@ void EMfields3D::fixBforcefree(Grid * grid, VirtualTopology3D * vct) {
 // cell just outside the domain.
 //
 /*! adjust densities on boundaries that are not periodic */
-void EMfields3D::adjustNonPeriodicDensities(int is, VirtualTopology3D * vct) {
+void EMfields3D::adjustNonPeriodicDensities(int is)
+{
+  const VirtualTopology3D *vct = &get_vct();
   if (vct->getXleft_neighbor_P() == MPI_PROC_NULL) {
     for (int i = 1; i < nyn - 1; i++)
     for (int k = 1; k < nzn - 1; k++)
@@ -2528,7 +2569,10 @@ void EMfields3D::adjustNonPeriodicDensities(int is, VirtualTopology3D * vct) {
   }
 }
 
-void EMfields3D::ConstantChargeOpenBCv2(Grid * grid, VirtualTopology3D * vct) {
+void EMfields3D::ConstantChargeOpenBCv2()
+{
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
 
   double ff;
 
@@ -2605,7 +2649,10 @@ void EMfields3D::ConstantChargeOpenBCv2(Grid * grid, VirtualTopology3D * vct) {
 
 }
 
-void EMfields3D::ConstantChargeOpenBC(Grid * grid, VirtualTopology3D * vct) {
+void EMfields3D::ConstantChargeOpenBC()
+{
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
 
   double ff;
 
@@ -2682,7 +2729,10 @@ void EMfields3D::ConstantChargeOpenBC(Grid * grid, VirtualTopology3D * vct) {
 
 }
 
-void EMfields3D::ConstantChargePlanet(Grid * grid, VirtualTopology3D * vct, double R, double x_center, double y_center, double z_center) {
+void EMfields3D::ConstantChargePlanet(double R,
+  double x_center, double y_center, double z_center)
+{
+  const Grid *grid = &get_grid();
 
   double xd;
   double yd;
@@ -2733,7 +2783,12 @@ void EMfields3D::set_fieldForPcls()
 }
 
 /*! Calculate Magnetic field with the implicit solver: calculate B defined on nodes With E(n+ theta) computed, the magnetic field is evaluated from Faraday's law */
-void EMfields3D::calculateB(Grid * grid, VirtualTopology3D * vct, Collective *col) {
+void EMfields3D::calculateB()
+{
+  const Collective *col = &get_col();
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
+
   if (vct->getCartesian_rank() == 0)
     cout << "*** B CALCULATION ***" << endl;
 
@@ -2748,12 +2803,12 @@ void EMfields3D::calculateB(Grid * grid, VirtualTopology3D * vct, Collective *co
   communicateCenterBC(nxc, nyc, nzc, Byc, col->bcBy[0],col->bcBy[1],col->bcBy[2],col->bcBy[3],col->bcBy[4],col->bcBy[5], vct);
   communicateCenterBC(nxc, nyc, nzc, Bzc, col->bcBz[0],col->bcBz[1],col->bcBz[2],col->bcBz[3],col->bcBz[4],col->bcBz[5], vct);
 
-  if (get_col().getCase()=="ForceFree") fixBforcefree(grid,vct);
-  if (get_col().getCase()=="GEM")       fixBgem(grid, vct);
-  if (get_col().getCase()=="GEMnoPert") fixBgem(grid, vct);
+  if (get_col().getCase()=="ForceFree") fixBforcefree();
+  if (get_col().getCase()=="GEM")       fixBgem();
+  if (get_col().getCase()=="GEMnoPert") fixBgem();
 
   // OpenBC:
-  BoundaryConditionsB(Bxc,Byc,Bzc,nxc,nyc,nzc,grid,vct);
+  BoundaryConditionsB(Bxc,Byc,Bzc,nxc,nyc,nzc);
 
   // interpolate C2N
   grid->interpC2N(Bxn, Bxc);
@@ -2763,11 +2818,13 @@ void EMfields3D::calculateB(Grid * grid, VirtualTopology3D * vct, Collective *co
   communicateNodeBC(nxn, nyn, nzn, Bxn, col->bcBx[0],col->bcBx[1],col->bcBx[2],col->bcBx[3],col->bcBx[4],col->bcBx[5], vct);
   communicateNodeBC(nxn, nyn, nzn, Byn, col->bcBy[0],col->bcBy[1],col->bcBy[2],col->bcBy[3],col->bcBy[4],col->bcBy[5], vct);
   communicateNodeBC(nxn, nyn, nzn, Bzn, col->bcBz[0],col->bcBz[1],col->bcBz[2],col->bcBz[3],col->bcBz[4],col->bcBz[5], vct);
-
-
 }
+
 /*! initialize EM field with transverse electric waves 1D and rotate anticlockwise (theta degrees) */
-void EMfields3D::initEM_rotate(VirtualTopology3D * vct, Grid * grid, Collective *col, double B, double theta) {
+void EMfields3D::initEM_rotate(double B, double theta)
+{
+  const Grid *grid = &get_grid();
+
   // initialize E and rhos on nodes
   for (int i = 0; i < nxn; i++)
     for (int j = 0; j < nyn; j++) {
@@ -2788,8 +2845,8 @@ void EMfields3D::initEM_rotate(VirtualTopology3D * vct, Grid * grid, Collective 
 
   for (int is = 0; is < ns; is++)
     grid->interpN2C(rhocs, is, rhons);
-
 }
+
 /*!Add a periodic perturbation in rho exp i(kx - \omega t); deltaBoB is the ratio (Delta B / B0) * */
 void EMfields3D::AddPerturbationRho(double deltaBoB, double kx, double ky, double Bx_mod, double By_mod, double Bz_mod, double ne_mod, double ne_phase, double ni_mod, double ni_phase, double B0, Grid * grid) {
 
@@ -2840,14 +2897,16 @@ void EMfields3D::AddPerturbation(double deltaBoB, double kx, double ky, double E
   grid->interpN2C(Byc, Byn);
   grid->interpN2C(Bzc, Bzn);
 
-
 }
 
 
 /*! Calculate hat rho hat, Jx hat, Jy hat, Jz hat */
-void EMfields3D::calculateHatFunctions(Grid * grid, VirtualTopology3D * vct) {
+void EMfields3D::calculateHatFunctions()
+{
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
   // smoothing
-  smooth(Smooth, rhoc, 0, grid, vct);
+  smooth(Smooth, rhoc, 0);
   // calculate j hat
 
   for (int is = 0; is < ns; is++) {
@@ -2868,13 +2927,13 @@ void EMfields3D::calculateHatFunctions(Grid * grid, VirtualTopology3D * vct) {
     sum(tempYN, Jys, nxn, nyn, nzn, is);
     sum(tempZN, Jzs, nxn, nyn, nzn, is);
     // PIDOT
-    PIdot(Jxh, Jyh, Jzh, tempXN, tempYN, tempZN, is, grid);
+    PIdot(Jxh, Jyh, Jzh, tempXN, tempYN, tempZN, is);
 
   }
   // smooth j
-  smooth(Smooth, Jxh, 1, grid, vct);
-  smooth(Smooth, Jyh, 1, grid, vct);
-  smooth(Smooth, Jzh, 1, grid, vct);
+  smooth(Smooth, Jxh, 1);
+  smooth(Smooth, Jyh, 1);
+  smooth(Smooth, Jzh, 1);
 
   // calculate rho hat = rho - (dt*theta)div(jhat)
   grid->divN2C(tempXC, Jxh, Jyh, Jzh);
@@ -2885,7 +2944,11 @@ void EMfields3D::calculateHatFunctions(Grid * grid, VirtualTopology3D * vct) {
   communicateCenterBC_P(nxc, nyc, nzc, rhoh, 2, 2, 2, 2, 2, 2, vct);
 }
 /*! Image of Poisson Solver */
-void EMfields3D::PoissonImage(double *image, double *vector, Grid * grid, VirtualTopology3D * vct) {
+void EMfields3D::PoissonImage(double *image, double *vector)
+{
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
+
   // allocate 2 three dimensional service vectors
   array3_double temp(nxc, nyc, nzc);
   array3_double im(nxc, nyc, nzc);
@@ -2895,19 +2958,23 @@ void EMfields3D::PoissonImage(double *image, double *vector, Grid * grid, Virtua
   // move from krylov space to physical space and communicate ghost cells
   solver2phys(temp, vector, nxc, nyc, nzc);
   // calculate the laplacian
-  grid->lapC2Cpoisson(im, temp, vct);
+  grid->lapC2Cpoisson(im, temp);
   // move from physical space to krylov space
   phys2solver(image, im, nxc, nyc, nzc);
 }
 /*! interpolate charge density and pressure density from node to center */
-void EMfields3D::interpDensitiesN2C(VirtualTopology3D * vct, Grid * grid) {
+void EMfields3D::interpDensitiesN2C()
+{
   // do we need communication or not really?
-  grid->interpN2C(rhoc, rhon);
+  get_grid().interpN2C(rhoc, rhon);
 }
 /*! communicate ghost for grid -> Particles interpolation */
-void EMfields3D::communicateGhostP2G(int ns, VirtualTopology3D * vct) {
+void EMfields3D::communicateGhostP2G(int ns)
+{
   // interpolate adding common nodes among processors
   timeTasks_set_communicating();
+
+  const VirtualTopology3D *vct = &get_vct();
 
   double ***moment0 = convert_to_arr3(rhons[ns]);
   double ***moment1 = convert_to_arr3(Jxs  [ns]);
@@ -2932,7 +2999,7 @@ void EMfields3D::communicateGhostP2G(int ns, VirtualTopology3D * vct) {
   communicateInterp(nxn, nyn, nzn, moment8, vct);
   communicateInterp(nxn, nyn, nzn, moment9, vct);
   // calculate the correct densities on the boundaries
-  adjustNonPeriodicDensities(ns, vct);
+  adjustNonPeriodicDensities(ns);
 
   // populate the ghost nodes
   //
@@ -3016,7 +3083,8 @@ void EMfields3D::setZeroDensities() {
 }
 
 /*!SPECIES: Sum the charge density of different species on NODES */
-void EMfields3D::sumOverSpecies(VirtualTopology3D * vct) {
+void EMfields3D::sumOverSpecies()
+{
   for (int is = 0; is < ns; is++)
     for (register int i = 0; i < nxn; i++)
       for (register int j = 0; j < nyn; j++)
@@ -3039,7 +3107,11 @@ void EMfields3D::sumOverSpeciesJ() {
 
 
 /*! initialize Magnetic and Electric Field with initial configuration */
-void EMfields3D::init(VirtualTopology3D * vct, Grid * grid, Collective *col) {
+void EMfields3D::init()
+{
+  const Collective *col = &get_col();
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
 
   if (restart1 == 0) {
     for (int i = 0; i < nxn; i++) {
@@ -3079,10 +3151,10 @@ void EMfields3D::init(VirtualTopology3D * vct, Grid * grid, Collective *col) {
     }
 
     if (col->getCase()=="Dipole") {
-      ConstantChargePlanet(grid, vct, col->getL_square(),col->getx_center(),col->gety_center(),col->getz_center());
+      ConstantChargePlanet(col->getL_square(),col->getx_center(),col->gety_center(),col->getz_center());
     }
 
-    ConstantChargeOpenBC(grid, vct);
+    ConstantChargeOpenBC();
 
     // communicate ghost
     communicateNodeBC(nxn, nyn, nzn, Bxn, col->bcBx[0],col->bcBx[1],col->bcBx[2],col->bcBx[3],col->bcBx[4],col->bcBx[5], vct);
@@ -3108,7 +3180,10 @@ void EMfields3D::init(VirtualTopology3D * vct, Grid * grid, Collective *col) {
 
 #ifdef BATSRUS
 /*! initiliaze EM for GEM challange */
-void EMfields3D::initBATSRUS(VirtualTopology3D * vct, Grid * grid, Collective *col) {
+void EMfields3D::initBATSRUS()
+{
+  const Collective *col = &get_col();
+  const Grid *grid = &get_grid();
   cout << "------------------------------------------" << endl;
   cout << "         Initialize from BATSRUS          " << endl;
   cout << "------------------------------------------" << endl;
@@ -3143,13 +3218,16 @@ void EMfields3D::initBATSRUS(VirtualTopology3D * vct, Grid * grid, Collective *c
 #endif
 
 /*! initiliaze EM for GEM challange */
-void EMfields3D::initGEM(VirtualTopology3D * vct, Grid * grid, Collective *col) {
+void EMfields3D::initGEM()
+{
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
   // perturbation localized in X
   double pertX = 0.4;
   double xpert, ypert, exp_pert;
   if (restart1 == 0) {
     // initialize
-    if (vct->getCartesian_rank() == 0) {
+    if (get_vct().getCartesian_rank() == 0) {
       cout << "------------------------------------------" << endl;
       cout << "Initialize GEM Challenge with Pertubation" << endl;
       cout << "------------------------------------------" << endl;
@@ -3217,15 +3295,17 @@ void EMfields3D::initGEM(VirtualTopology3D * vct, Grid * grid, Collective *col) 
       grid->interpN2C(rhocs, is, rhons);
   }
   else {
-    init(vct, grid, col);            // use the fields from restart file
+    init(); // use the fields from restart file
   }
 }
 
-void EMfields3D::initOriginalGEM(VirtualTopology3D * vct, Grid * grid, Collective *col) {
+void EMfields3D::initOriginalGEM()
+{
+  const Grid *grid = &get_grid();
   // perturbation localized in X
   if (restart1 == 0) {
     // initialize
-    if (vct->getCartesian_rank() == 0) {
+    if (get_vct().getCartesian_rank() == 0) {
       cout << "------------------------------------------" << endl;
       cout << "Initialize GEM Challenge with Pertubation" << endl;
       cout << "------------------------------------------" << endl;
@@ -3282,18 +3362,22 @@ void EMfields3D::initOriginalGEM(VirtualTopology3D * vct, Grid * grid, Collectiv
       grid->interpN2C(rhocs, is, rhons);
   }
   else {
-    init(vct, grid, col);            // use the fields from restart file
+    init(); // use the fields from restart file
   }
 }
 
-void EMfields3D::initDoublePeriodicHarrisWithGaussianHumpPerturbation(VirtualTopology3D * vct, Grid * grid, Collective *col) {
+void EMfields3D::initDoublePeriodicHarrisWithGaussianHumpPerturbation()
+{
+  const Collective *col = &get_col();
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
   // perturbation localized in X
   const double pertX = 0.4;
   const double deltax = 8. * delta;
   const double deltay = 4. * delta;
   if (restart1 == 0) {
     // initialize
-    if (vct->getCartesian_rank() == 0) {
+    if (get_vct().getCartesian_rank() == 0) {
       cout << "------------------------------------------" << endl;
       cout << "Initialize GEM Challenge with Pertubation" << endl;
       cout << "------------------------------------------" << endl;
@@ -3392,14 +3476,15 @@ void EMfields3D::initDoublePeriodicHarrisWithGaussianHumpPerturbation(VirtualTop
       grid->interpN2C(rhocs, is, rhons);
   }
   else {
-    init(vct, grid, col);            // use the fields from restart file
+    init(); // use the fields from restart file
   }
 }
 
 
 /*! initialize GEM challenge with no Perturbation with dipole-like tail topology */
-void EMfields3D::initGEMDipoleLikeTailNoPert(VirtualTopology3D * vct, Grid * grid, Collective *col) {
-
+void EMfields3D::initGEMDipoleLikeTailNoPert()
+{
+  const Grid *grid = &get_grid();
   // parameters controling the field topology
   // e.g., x1=Lx/5,x2=Lx/4 give 'separated' fields, x1=Lx/4,x2=Lx/3 give 'reconnected' topology
 
@@ -3414,7 +3499,7 @@ void EMfields3D::initGEMDipoleLikeTailNoPert(VirtualTopology3D * vct, Grid * gri
   if (restart1 == 0) {
 
     // initialize
-    if (vct->getCartesian_rank() == 0) {
+    if (get_vct().getCartesian_rank() == 0) {
       cout << "----------------------------------------------" << endl;
       cout << "Initialize GEM Challenge without Perturbation" << endl;
       cout << "----------------------------------------------" << endl;
@@ -3483,17 +3568,21 @@ void EMfields3D::initGEMDipoleLikeTailNoPert(VirtualTopology3D * vct, Grid * gri
       grid->interpN2C(rhocs, is, rhons);
   }
   else {
-    init(vct, grid, col);            // use the fields from restart file
+    init(); // use the fields from restart file
   }
 
 }
 
 /*! initialize GEM challenge with no Perturbation */
-void EMfields3D::initGEMnoPert(VirtualTopology3D * vct, Grid * grid, Collective *col) {
+void EMfields3D::initGEMnoPert()
+{
+  const Collective *col = &get_col();
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
   if (restart1 == 0) {
 
     // initialize
-    if (vct->getCartesian_rank() == 0) {
+    if (get_vct().getCartesian_rank() == 0) {
       cout << "----------------------------------------------" << endl;
       cout << "Initialize GEM Challenge without Perturbation" << endl;
       cout << "----------------------------------------------" << endl;
@@ -3545,102 +3634,19 @@ void EMfields3D::initGEMnoPert(VirtualTopology3D * vct, Grid * grid, Collective 
       grid->interpN2C(rhocs, is, rhons);
   }
   else {
-    init(vct, grid, col);            // use the fields from restart file
+    init(); // use the fields from restart file
   }
 }
-/* old init, Random problem */
-#if 0
-void EMfields3D::initRandomFieldOld(VirtualTopology3D * vct, Grid * grid, Collective *col) {
-  double **modes_seed = newArr2(double, 7, 7);
-  if (restart1 == 0) {
-    // initialize
-    if (vct->getCartesian_rank() == 0) {
-      cout << "------------------------------------------" << endl;
-      cout << "Initialize GEM Challenge with Pertubation" << endl;
-      cout << "------------------------------------------" << endl;
-      cout << "B0x                              = " << B0x << endl;
-      cout << "B0y                              = " << B0y << endl;
-      cout << "B0z                              = " << B0z << endl;
-      cout << "Delta (current sheet thickness) = " << delta << endl;
-      for (int i = 0; i < ns; i++) {
-        cout << "rho species " << i << " = " << rhoINIT[i];
-        if (DriftSpecies[i])
-          cout << " DRIFTING " << endl;
-        else
-          cout << " BACKGROUND " << endl;
-      }
-      cout << "-------------------------" << endl;
-    }
-    double phixy;
-    double phix;
-    double phiy;
-    double phiz;
-    double kx;
-    double ky;
-    phixy = rand() / (double) RAND_MAX;
-    phiz = rand() / (double) RAND_MAX;
-    phix = rand() / (double) RAND_MAX;
-    phiy = rand() / (double) RAND_MAX;
-    for (int m = -3; m < 4; m++)
-      for (int n = -3; n < 4; n++) {
-        modes_seed[m + 3][n + 3] = rand() / (double) RAND_MAX;
-      }
-    for (int i = 0; i < nxn; i++)
-      for (int j = 0; j < nyn; j++)
-        for (int k = 0; k < nzn; k++) {
-          // initialize the density for species
-          for (int is = 0; is < ns; is++) {
-            rhons[is][i][j][k] = rhoINIT[is] / FourPI;
-          }
-          // electric field
-          Ex[i][j][k] = 0.0;
-          Ey[i][j][k] = 0.0;
-          Ez[i][j][k] = 0.0;
-          // Magnetic field
-          Bxn[i][j][k] = 0.0;
-          Byn[i][j][k] = 0.0;
-          Bzn[i][j][k] = 0.0;
-          for (int m = -3; m < 4; m++)
-            for (int n = -3; n < 4; n++) {
-
-              kx = 2.0 * M_PI * m / Lx;
-              ky = 2.0 * M_PI * n / Ly;
-              Bxn[i][j][k] += -B0x * ky * cos(grid->getXN(i, j, k) * kx + grid->getYN(i, j, k) * ky + 2.0 * M_PI * modes_seed[m + 3][n + 3]);
-              Byn[i][j][k] += B0x * kx * cos(grid->getXN(i, j, k) * kx + grid->getYN(i, j, k) * ky + 2.0 * M_PI * modes_seed[m + 3][n + 3]);
-              Bzn[i][j][k] += B0x * cos(grid->getXN(i, j, k) * kx + grid->getYN(i, j, k) * ky + 2.0 * M_PI * modes_seed[m + 3][n + 3]);
-            }
-
-
-        }
-    // communicate ghost
-    communicateNodeBC(nxn, nyn, nzn, Bxn, col->bcBx[0],col->bcBx[1],col->bcBx[2],col->bcBx[3],col->bcBx[4],col->bcBx[5], vct);
-    communicateNodeBC(nxn, nyn, nzn, Byn, col->bcBy[0],col->bcBy[1],col->bcBy[2],col->bcBy[3],col->bcBy[4],col->bcBy[5], vct);
-    communicateNodeBC(nxn, nyn, nzn, Bzn, col->bcBz[0],col->bcBz[1],col->bcBz[2],col->bcBz[3],col->bcBz[4],col->bcBz[5], vct);
-    // initialize B on centers
-    grid->interpN2C(Bxc, Bxn);
-    grid->interpN2C(Byc, Byn);
-    grid->interpN2C(Bzc, Bzn);
-    // communicate ghost
-    communicateCenterBC(nxc, nyc, nzc, Bxc, col->bcBx[0],col->bcBx[1],col->bcBx[2],col->bcBx[3],col->bcBx[4],col->bcBx[5], vct);
-    communicateCenterBC(nxc, nyc, nzc, Byc, col->bcBy[0],col->bcBy[1],col->bcBy[2],col->bcBy[3],col->bcBy[4],col->bcBy[5], vct);
-    communicateCenterBC(nxc, nyc, nzc, Bzc, col->bcBz[0],col->bcBz[1],col->bcBz[2],col->bcBz[3],col->bcBz[4],col->bcBz[5], vct);
-    for (int is = 0; is < ns; is++)
-      grid->interpN2C(rhocs, is, rhons);
-  }
-  else {
-    init(vct, grid, col);            // use the fields from restart file
-  }
-  delArr2(modes_seed, 7);
-}
-#endif
 
 // new init, random problem
-void EMfields3D::initRandomField(VirtualTopology3D *vct, Grid *grid, Collective *col)
+void EMfields3D::initRandomField()
 {
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
   double **modes_seed = newArr2(double, 7, 7);
   if (restart1 ==0){
     // initialize
-    if (vct->getCartesian_rank() ==0){
+    if (get_vct().getCartesian_rank() ==0){
       cout << "------------------------------------------" << endl;
       cout << "Initialize GEM Challenge with Pertubation" << endl;
       cout << "------------------------------------------" << endl;
@@ -3761,18 +3767,21 @@ void EMfields3D::initRandomField(VirtualTopology3D *vct, Grid *grid, Collective 
 	  for (int is=0 ; is<ns; is++)
             grid->interpN2C(rhocs,is,rhons);
 	} else {
-    init(vct,grid, col);  // use the fields from restart file
+    init(); // use the fields from restart file
     }
   delArr2(modes_seed, 7);
-  }
+}
 
 
 /*! Init Force Free (JxB=0) */
-void EMfields3D::initForceFree(VirtualTopology3D * vct, Grid * grid, Collective *col) {
+void EMfields3D::initForceFree()
+{
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
   if (restart1 == 0) {
 
     // initialize
-    if (vct->getCartesian_rank() == 0) {
+    if (get_vct().getCartesian_rank() == 0) {
       cout << "----------------------------------------" << endl;
       cout << "Initialize Force Free with Perturbation" << endl;
       cout << "----------------------------------------" << endl;
@@ -3820,11 +3829,15 @@ void EMfields3D::initForceFree(VirtualTopology3D * vct, Grid * grid, Collective 
       grid->interpN2C(rhocs, is, rhons);
   }
   else {
-    init(vct, grid, col);            // use the fields from restart file
+    init(); // use the fields from restart file
   }
 }
 /*! Initialize the EM field with constants values or from restart */
-void EMfields3D::initBEAM(VirtualTopology3D * vct, Grid * grid, Collective *col, double x_center, double y_center, double z_center, double radius) {
+void EMfields3D::initBEAM(double x_center, double y_center, double z_center,
+  double radius)
+{
+  const Grid *grid = &get_grid();
+
   double distance;
   // initialize E and rhos on nodes
   if (restart1 == 0) {
@@ -3862,14 +3875,17 @@ void EMfields3D::initBEAM(VirtualTopology3D * vct, Grid * grid, Collective *col,
     for (int is = 0; is < ns; is++)
       grid->interpN2C(rhocs, is, rhons);
   }
-  else {                        // EM initialization from RESTART
-    init(vct, grid, col);            // use the fields from restart file
+  else {
+    init(); // use the fields from restart file
   }
-
 }
 
 /*! Initialise a combination of magnetic dipoles */
-void EMfields3D::initDipole(VirtualTopology3D *vct, Grid *grid, Collective *col){
+void EMfields3D::initDipole()
+{
+  const Collective *col = &get_col();
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
 
   double distance;
 
@@ -3943,8 +3959,8 @@ void EMfields3D::initDipole(VirtualTopology3D *vct, Grid *grid, Collective *col)
   for (int is=0 ; is<ns; is++)
     grid->interpN2C(rhocs,is,rhons);
 
-  if (restart1 != 0) { // EM initialization from RESTART
-    init(vct,grid,col);  // use the fields from restart file
+  if (restart1 != 0) {
+    init();  // use the fields from restart file
   }
 
 }
@@ -4097,7 +4113,7 @@ void EMfields3D::sustensorRightZ(double **susxz, double **susyz, double **suszz)
 /*! Perfect conductor boundary conditions: LEFT wall */
 void EMfields3D::perfectConductorLeft(arr3_double imageX, arr3_double imageY, arr3_double imageZ,
   const_arr3_double vectorX, const_arr3_double vectorY, const_arr3_double vectorZ,
-  int dir, Grid * grid)
+  int dir)
 {
   double** susxy;
   double** susyy;
@@ -4163,7 +4179,7 @@ void EMfields3D::perfectConductorRight(
   const_arr3_double vectorX,
   const_arr3_double vectorY,
   const_arr3_double vectorZ,
-  int dir, Grid * grid)
+  int dir)
 {
   double beta, omcx, omcy, omcz, denom;
   double** susxy;
@@ -4328,7 +4344,10 @@ injInfoFields* EMfields3D::get_InfoFieldsRear() {return injFieldsRear;}
 
 // Open Boundary conditions implementation
 
-void EMfields3D::updateInfoFields(Grid *grid,VirtualTopology3D *vct,Collective *col){
+void EMfields3D::updateInfoFields()
+{
+  const Collective *col = &get_col();
+  const VirtualTopology3D *vct = &get_vct();
 
   double u_0, v_0, w_0;
   u_0=col->getU0(0);
@@ -4438,8 +4457,9 @@ void EMfields3D::updateInfoFields(Grid *grid,VirtualTopology3D *vct,Collective *
 
 void EMfields3D::BoundaryConditionsEImage(arr3_double imageX, arr3_double imageY, arr3_double imageZ,
   const_arr3_double vectorX, const_arr3_double vectorY, const_arr3_double vectorZ,
-  int nx, int ny, int nz, VirtualTopology3D *vct,Grid *grid)
+  int nx, int ny, int nz)
 {
+  const VirtualTopology3D *vct = &get_vct();
 
   if(vct->getXleft_neighbor()==MPI_PROC_NULL && bcEMfaceXleft == 2) {
     for (int j=1; j < ny-1;j++)
@@ -4499,7 +4519,10 @@ void EMfields3D::BoundaryConditionsEImage(arr3_double imageX, arr3_double imageY
 
 }
 
-void EMfields3D::BoundaryConditionsB(arr3_double vectorX, arr3_double vectorY, arr3_double vectorZ,int nx, int ny, int nz,Grid *grid, VirtualTopology3D *vct){
+void EMfields3D::BoundaryConditionsB(arr3_double vectorX, arr3_double vectorY, arr3_double vectorZ,
+  int nx, int ny, int nz)
+{
+  const VirtualTopology3D *vct = &get_vct();
 
   if(vct->getXleft_neighbor()==MPI_PROC_NULL && bcEMfaceXleft ==2) {
     for (int j=0; j < ny;j++)
@@ -4582,7 +4605,10 @@ void EMfields3D::BoundaryConditionsB(arr3_double vectorX, arr3_double vectorY, a
 
 }
 
-void EMfields3D::BoundaryConditionsE(arr3_double vectorX, arr3_double vectorY, arr3_double vectorZ,int nx, int ny, int nz,Grid *grid, VirtualTopology3D *vct){
+void EMfields3D::BoundaryConditionsE(arr3_double vectorX, arr3_double vectorY, arr3_double vectorZ,
+  int nx, int ny, int nz)
+{
+  const VirtualTopology3D *vct = &get_vct();
 
   if(vct->getXleft_neighbor()==MPI_PROC_NULL && bcEMfaceXleft ==2) {
     for (int j=0; j < ny;j++)
@@ -4665,9 +4691,10 @@ void EMfields3D::BoundaryConditionsE(arr3_double vectorX, arr3_double vectorY, a
 }
 
 /*! get Electric Field component X array cell without the ghost cells */
-arr3_double EMfields3D::getExc(Grid3DCU *grid) {
+arr3_double EMfields3D::getExc()
+{
   array3_double tmp(nxc,nyc,nzc);
-  grid->interpN2C(tmp, Ex);
+  get_grid().interpN2C(tmp, Ex);
 
   for (int i = 1; i < nxc-1; i++)
     for (int j = 1; j < nyc-1; j++)
@@ -4676,9 +4703,10 @@ arr3_double EMfields3D::getExc(Grid3DCU *grid) {
   return arr;
 }
 /*! get Electric Field component Y array cell without the ghost cells */
-arr3_double EMfields3D::getEyc(Grid3DCU *grid) {
+arr3_double EMfields3D::getEyc()
+{
   array3_double tmp(nxc,nyc,nzc);
-  grid->interpN2C(tmp, Ey);
+  get_grid().interpN2C(tmp, Ey);
 
   for (int i = 1; i < nxc-1; i++)
     for (int j = 1; j < nyc-1; j++)
@@ -4687,9 +4715,10 @@ arr3_double EMfields3D::getEyc(Grid3DCU *grid) {
   return arr;
 }
 /*! get Electric Field component Z array cell without the ghost cells */
-arr3_double EMfields3D::getEzc(Grid3DCU *grid) {
+arr3_double EMfields3D::getEzc()
+{
   array3_double tmp(nxc,nyc,nzc);
-  grid->interpN2C(tmp, Ez);
+  get_grid().interpN2C(tmp, Ez);
 
   for (int i = 1; i < nxc-1; i++)
     for (int j = 1; j < nyc-1; j++)
@@ -4722,9 +4751,10 @@ arr3_double EMfields3D::getBzc() {
   return arr;
 }
 /*! get species density component X array cell without the ghost cells */
-arr3_double EMfields3D::getRHOcs(Grid3DCU *grid, int is) {
+arr3_double EMfields3D::getRHOcs(int is)
+{
   array4_double tmp(ns,nxc,nyc,nzc);
-  grid->interpN2C(tmp, is, rhons);
+  get_grid().interpN2C(tmp, is, rhons);
 
   for (int i = 1; i < nxc-1; i++)
     for (int j = 1; j < nyc-1; j++)
@@ -4734,9 +4764,10 @@ arr3_double EMfields3D::getRHOcs(Grid3DCU *grid, int is) {
 }
 
 /*! get Magnetic Field component X array species is cell without the ghost cells */
-arr3_double EMfields3D::getJxsc(Grid3DCU *grid, int is) {
+arr3_double EMfields3D::getJxsc(int is)
+{
   array4_double tmp(ns,nxc,nyc,nzc);
-  grid->interpN2C(tmp, is, Jxs);
+  get_grid().interpN2C(tmp, is, Jxs);
 
   for (int i = 1; i < nxc-1; i++)
     for (int j = 1; j < nyc-1; j++)
@@ -4746,9 +4777,10 @@ arr3_double EMfields3D::getJxsc(Grid3DCU *grid, int is) {
 }
 
 /*! get current component Y array species is cell without the ghost cells */
-arr3_double EMfields3D::getJysc(Grid3DCU *grid, int is) {
+arr3_double EMfields3D::getJysc(int is)
+{
   array4_double tmp(ns,nxc,nyc,nzc);
-  grid->interpN2C(tmp, is, Jys);
+  get_grid().interpN2C(tmp, is, Jys);
 
   for (int i = 1; i < nxc-1; i++)
     for (int j = 1; j < nyc-1; j++)
@@ -4757,9 +4789,10 @@ arr3_double EMfields3D::getJysc(Grid3DCU *grid, int is) {
   return arr;
 }
 /*! get current component Z array species is cell without the ghost cells */
-arr3_double EMfields3D::getJzsc(Grid3DCU *grid, int is) {
+arr3_double EMfields3D::getJzsc(int is)
+{
   array4_double tmp(ns,nxc,nyc,nzc);
-  grid->interpN2C(tmp, is, Jzs);
+  get_grid().interpN2C(tmp, is, Jzs);
 
   for (int i = 1; i < nxc-1; i++)
     for (int j = 1; j < nyc-1; j++)

@@ -339,7 +339,7 @@ void addFace(int nx, int ny, int nz, double ***vector,
   double *ghostXrghtFace, double *ghostXleftFace,
   double *ghostYrghtFace, double *ghostYleftFace,
   double *ghostZrghtFace, double *ghostZleftFace,
-  VirtualTopology3D * vct)
+  const VirtualTopology3D * vct)
 {
   const int nxr = nx-2;
   const int nyr = ny-2;
@@ -445,7 +445,7 @@ void parseEdgeZ(int nx, int ny, int nz, double ***vector,
 void addEdgeZ(int nx, int ny, int nz, double ***vector,
   double *ghostXrghtYrghtZsameEdge, double *ghostXleftYleftZsameEdge,
   double *ghostXrghtYleftZsameEdge, double *ghostXleftYrghtZsameEdge,
-  VirtualTopology3D * vct)
+  const VirtualTopology3D * vct)
 {
   if (vct->hasXrghtNeighbor() && vct->hasYrghtNeighbor()) {
     for (int i = 1; i < (nz - 1); i++)
@@ -480,7 +480,7 @@ void parseEdgeY(int nx, int ny, int nz, double ***vector,
 void addEdgeY(int nx, int ny, int nz, double ***vector,
   double *ghostXrghtYsameZrghtEdge, double *ghostXleftYsameZleftEdge,
   double *ghostXleftYsameZrghtEdge, double *ghostXrghtYsameZleftEdge,
-  VirtualTopology3D * vct)
+  const VirtualTopology3D * vct)
 {
   if (vct->hasXrghtNeighbor() && vct->hasZrghtNeighbor()) {
     for (int i = 1; i < (ny - 1); i++)
@@ -515,7 +515,7 @@ void parseEdgeX(int nx, int ny, int nz, double ***vector,
 void addEdgeX(int nx, int ny, int nz, double ***vector,
   double *ghostXsameYrghtZrghtEdge, double *ghostXsameYleftZleftEdge,
   double *ghostXsameYleftZrghtEdge, double *ghostXsameYrghtZleftEdge,
-  VirtualTopology3D * vct)
+  const VirtualTopology3D * vct)
 {
   if (vct->hasYrghtNeighbor() && vct->hasZrghtNeighbor()) {
     for (int i = 1; i < (nx - 1); i++)
@@ -562,7 +562,7 @@ void addCorner(int nx, int ny, int nz, double ***vector,
   double *ghostXrghtYleftZrghtCorner, double *ghostXleftYleftZrghtCorner,
   double *ghostXrghtYrghtZleftCorner, double *ghostXleftYrghtZleftCorner,
   double *ghostXrghtYleftZleftCorner, double *ghostXleftYleftZleftCorner,
-  VirtualTopology3D * vct)
+  const VirtualTopology3D * vct)
 {
   if (vct->hasXrghtNeighbor() && vct->hasYrghtNeighbor() && vct->hasZrghtNeighbor())
     vector[nx - 2][ny - 2][nz - 2] += *ghostXrghtYrghtZrghtCorner;

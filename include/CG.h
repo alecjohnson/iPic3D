@@ -17,10 +17,9 @@ developers: Stefano Markidis, Giovanni Lapenta
 
 class EMfields3D;
 typedef EMfields3D Field;
-typedef void (Field::*FIELD_IMAGE) (double *, double *, Grid *, VirtualTopology3D *);
-typedef void (*GENERIC_IMAGE) (double *, double *, Grid *, VirtualTopology3D *);
+typedef void (Field::*FIELD_IMAGE) (double *, double *);
+typedef void (*GENERIC_IMAGE) (double *, double *);
 
-bool CG(double *xkrylov, int xkrylovlen, double *b, int maxit, double tol, FIELD_IMAGE FunctionImage, Grid * grid, VirtualTopology3D * vct, Field * field);
-bool CG(double *xkrylov, int xkrylovlen, double *b, int maxit, double tol, GENERIC_IMAGE FunctionImage, Grid * grid, VirtualTopology3D * vct);
+bool CG(double *xkrylov, int xkrylovlen, double *b, int maxit, double tol, FIELD_IMAGE FunctionImage, Field * field);
 
 #endif
