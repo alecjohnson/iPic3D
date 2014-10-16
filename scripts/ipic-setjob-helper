@@ -19,3 +19,4 @@ PURPOSE="prepare to run ipic3d job for supplied parameters"
     s@NUM_PROCS=.*@NUM_PROCS=$NUM_PROCS@
     s@DATA=.*@DATA=$DATA@
   " job.sh > "$DATA"/job.sh
+  chmod +x "$DATA"/job.sh
