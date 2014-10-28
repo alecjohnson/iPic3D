@@ -46,13 +46,14 @@ NUM_PROCS=$(($XLEN*$YLEN))
 DATA=data
 
 # if running on Xeon
-if true
+if false
 then
   # use ibrun for MPI codes, not mpirun or srun
   ibrun -np $NUM_PROCS ./iPic3D "$DATA"/parameters.inp | tee out.${XLEN}x${YLEN}.txt
 # if running on MIC
 else
   set -x
-  scontrol show hostname | sed 's/$/-mic0/' > machinefile
-  mpiexec.hydra -np $NUM_PROCS -machinefile machinefile -env LD_LIBRARY_PATH $MIC_LD_LIBRARY_PATH ./iPic3D "$DATA"/parameters.inp | tee out.${XLEN}x${YLEN}.mic.txt
+  scontrol show hostname | sed 's/$/-mic0/' > "$DATA"/machinefile
+  #ibrun.symm -np $NUM_PROCS -machinefile machinefile -env LD_LIBRARY_PATH $MIC_LD_LIBRARY_PATH -m ./iPic3D "$DATA"/parameters.inp | tee out.${XLEN}x${YLEN}.mic.txt
+  mpiexec.hydra -np $NUM_PROCS -machinefile "$DATA"/machinefile -env LD_LIBRARY_PATH $MIC_LD_LIBRARY_PATH ./iPic3D "$DATA"/parameters.inp | tee out.${XLEN}x${YLEN}.mic.txt
 fi
