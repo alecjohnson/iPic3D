@@ -527,6 +527,18 @@ void c_Solver::WriteParticles(int cycle)
 // and methods that save field data
 //
 void c_Solver::WriteOutput(int cycle) {
+
+  // The quickest things should be written first.
+
+  WriteConserved(cycle);
+  // This should be invoked by user if desired
+  // by means of a callback mechanism.
+  //WriteVelocityDistribution(cycle);
+
+  // mechanism to suppress output
+  if(!Parameters::get_doWriteOutput())
+    return;
+
   #ifndef NO_HDF5 // array output is only supported for HDF5
   // once phdf5 is properly supported,
   // let's change "Parallel" to mean "phdf5".
@@ -591,11 +603,6 @@ void c_Solver::WriteOutput(int cycle) {
     invalid_value_error(col->getWriteMethod().c_str());
   }
   #endif
-
-  // This should be invoked by user if desired
-  // by means of a callback mechanism.
-  //WriteVelocityDistribution(cycle);
-  WriteConserved(cycle);
 }
 
 void c_Solver::Finalize() {

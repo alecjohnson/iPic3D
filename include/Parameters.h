@@ -37,5 +37,6 @@ namespace Parameters
   // blocksize and numblocks for use in BlockCommunicator
   int get_blockSize();
   int get_numBlocks();
+  bool get_doWriteOutput();
 }
 #endif
