@@ -26,6 +26,7 @@ developers: Stefano Markidis, Giovanni Lapenta.
 #include "ipicmath.h"
 #include "ipicdefs.h"
 #include "mic_basics.h"
+#include "parallel.h"
 
 #include "Particle.h"
 #include "Particles3Dcomm.h"
@@ -294,6 +295,8 @@ Particles3Dcomm::Particles3Dcomm(
 //
 void Particles3Dcomm::pad_capacities()
 {
+ #pragma omp master
+ {
   _pcls.reserve(roundup_to_multiple(_pcls.size(),DVECWIDTH));
   u.reserve(roundup_to_multiple(u.size(),DVECWIDTH));
   v.reserve(roundup_to_multiple(v.size(),DVECWIDTH));
@@ -303,21 +306,28 @@ void Particles3Dcomm::pad_capacities()
   y.reserve(roundup_to_multiple(y.size(),DVECWIDTH));
   z.reserve(roundup_to_multiple(z.size(),DVECWIDTH));
   t.reserve(roundup_to_multiple(t.size(),DVECWIDTH));
+ }
 }
 
 void Particles3Dcomm::resize_AoS(int nop)
 {
+ #pragma omp master
+ {
   const int padded_nop = roundup_to_multiple(nop,DVECWIDTH);
   _pcls.reserve(padded_nop);
   _pcls.resize(nop);
+ }
 }
 
 void Particles3Dcomm::resize_SoA(int nop)
 {
+ #pragma omp master
+ {
   //
   // allocate space for particles including padding
   //
   const int padded_nop = roundup_to_multiple(nop,DVECWIDTH);
+  if(is_output_thread()) dprintf("allocating to hold %d", padded_nop);
   u.reserve(padded_nop);
   v.reserve(padded_nop);
   w.reserve(padded_nop);
@@ -337,6 +347,8 @@ void Particles3Dcomm::resize_SoA(int nop)
   y.resize(nop);
   z.resize(nop);
   t.resize(nop);
+  if(is_output_thread()) dprintf("done resizing to hold %d", nop);
+ }
 }
 // A much faster version of this is at EMfields3D::sumMoments
 //
@@ -1792,11 +1804,13 @@ void Particles3Dcomm::sort_particles_serial_AoS()
 //}
 //#endif
 
+// This can be called from within an omp parallel block
 void Particles3Dcomm::copyParticlesToSoA()
 {
   timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_SOA);
   const int nop = _pcls.size();
   // create memory for SoA representation
+  if(is_output_thread()) dprintf("copying to struct of arrays");
   resize_SoA(nop);
  #ifndef __MIC__stub // replace with __MIC__ when this has been debugged
   #pragma omp for
@@ -1816,6 +1830,7 @@ void Particles3Dcomm::copyParticlesToSoA()
   // rather than doing stride-8 scatter,
   // copy and transpose data 8 particles at a time
   assert_divides(8,u.capacity());
+  #pragma omp for
   for(int pidx=0; pidx<nop; pidx+=8)
   {
     F64vec8* SoAdata[8] = {
@@ -1834,12 +1849,13 @@ void Particles3Dcomm::copyParticlesToSoA()
   particleType = ParticleType::synched;
 }
 
+// This can be called from within an omp parallel block
 void Particles3Dcomm::copyParticlesToAoS()
 {
   timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_AOS);
   const int nop = u.size();
+  if(is_output_thread()) dprintf("copying to array of structs");
   resize_AoS(nop);
-  dprintf("copying to array of structs");
  #ifndef __MIC__
   // use a simple stride-8 gather
   #pragma omp for
@@ -1853,6 +1869,7 @@ void Particles3Dcomm::copyParticlesToAoS()
   // for efficiency, copy data 8 particles at a time,
   // transposing each block of particles
   assert_divides(8,_pcls.capacity());
+  #pragma omp for
   for(int pidx=0; pidx<nop; pidx+=8)
   {
     F64vec8* AoSdata = reinterpret_cast<F64vec8*>(&_pcls[pidx]);
