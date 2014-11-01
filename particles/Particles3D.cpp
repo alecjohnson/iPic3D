@@ -23,7 +23,7 @@ developers: Stefano Markidis, Giovanni Lapenta
 #include "MPIdata.h"
 #include "ipicdefs.h"
 #include "TimeTasks.h"
-
+#include "parallel.h"
 #include "Particles3D.h"
 
 #include "mic_particles.h"
@@ -39,6 +39,11 @@ using std::endl;
 #define MIN_VAL   1E-16
 // particles processed together
 #define P_SAME_TIME 2
+
+// if true then mover cannot move particle 
+// more than one processor subdomain
+//
+static bool cap_velocity(){return false;}
 
 /**
  * 
@@ -580,6 +585,25 @@ void Particles3D::mover_PC_AoS(Field * EMf)
       zavg = zorig + wavg * dto2;
     }                           // end of iteration
     // update the final position and velocity
+    //
+    if(cap_velocity())
+    {
+      bool cap = (abs(uavg)>umax || abs(vavg)>vmax || abs(wavg)>wmax)
+        ? true : false;
+      // we could do something more smooth or sophisticated
+      if(builtin_expect(cap,false))
+      {
+        if(true)
+        {
+          dprintf("capping velocity: abs(%g,%g,%g)>(%g,%g,%g)",
+            uavg,vavg,wavg,umax,vmax,wmax);
+        }
+        if(uavg>umax) uavg=umax; else if(uavg<umin) uavg=umin;
+        if(vavg>vmax) vavg=vmax; else if(vavg<vmin) vavg=vmin;
+        if(wavg>wmax) wavg=wmax; else if(wavg<wmin) wavg=wmin;
+      }
+    }
+    //
     pcl->set_x(xorig + uavg * dt);
     pcl->set_y(yorig + vavg * dt);
     pcl->set_z(zorig + wavg * dt);
@@ -604,6 +628,8 @@ void Particles3D::mover_PC_AoS_vec_intr(Field * EMf)
   const F64vec8 dx_inv = make_F64vec8(get_invdx(), get_invdy(), get_invdz());
   // starting physical position of proper subdomain ("pdom", without ghosts)
   const F64vec8 pdom_xlow = make_F64vec8(get_xstart(),get_ystart(), get_zstart());
+  F64vec8 umaximum = make_F64vec8(umax,vmax,wmax);
+  F64vec8 uminimum = make_F64vec8(umin,vmin,wmin);
   //
   // compute canonical coordinates of subdomain (including ghosts)
   // relative to global coordinates.
@@ -694,6 +720,11 @@ void Particles3D::mover_PC_AoS_vec_intr(Field * EMf)
       xavg = xorig + uavg*dto2;
     } // end of iterative particle advance
     // update the final position and velocity
+    if(cap_velocity())
+    {
+      uavg = minimum(uavg,umaximum);
+      uavg = maximum(uavg,uminimum);
+    }
     const F64vec8 xnew = xavg+(xavg - xorig);
     const F64vec8 unew = uavg+(uavg - uorig);
     const F64vec8 pcl0new = cat_low_halves(unew, xnew);

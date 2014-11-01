@@ -286,6 +286,21 @@ Particles3Dcomm::Particles3Dcomm(
     convertParticlesToAoS();
   #endif
   }
+
+  // set_velocity_caps()
+  //
+  umax = 0.95*col->getLx()/col->getDt();
+  vmax = 0.95*col->getLy()/col->getDt();
+  wmax = 0.95*col->getLz()/col->getDt();
+  umin = -umax;
+  vmin = -vmax;
+  wmin = -wmax;
+  // show velocity cap that will be applied
+  if(false && is_output_thread())
+  {
+    printf("species %d velocity cap: umax=%g,vmax=%g,wmax=%g\n",
+      ns, umax,vmax,wmax);
+  }
 }
 
 // pad capacities so that aligned vectorization

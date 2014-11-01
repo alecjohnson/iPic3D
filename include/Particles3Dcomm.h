@@ -408,11 +408,17 @@ protected:
   double Q_removed;
   /** density of the injection of the particles */
   double Ninj;
- private:
-  // sending is complete if this is zero.
-  // if sending is not complete, send buffers must
-  // be flushed and particles must be received.
-  //long long tot_num_pcls_sent;
+
+ protected:
+
+  // limits to apply to particle velocity
+  //
+  double umax;
+  double vmax;
+  double wmax;
+  double umin;
+  double vmin;
+  double wmin;
 };
 
 // find the particles with particular IDs and print them

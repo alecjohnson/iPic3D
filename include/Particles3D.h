@@ -20,10 +20,11 @@ developers: Stefano Markidis, Enrico Camporeale, Giovanni Lapenta, David Burgess
  *
  */
 class Particles3D:public Particles3Dcomm {
+
   public:
     /** constructor */
-    Particles3D();
-    Particles3D(int species, CollectiveIO * col, VirtualTopology3D * vct, Grid * grid):
+    //Particles3D();
+    Particles3D(int species, CollectiveIO *col, VirtualTopology3D *vct, Grid * grid):
       Particles3Dcomm(species, col, vct, grid)
     {}
     /** destructor */
