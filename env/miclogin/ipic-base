@@ -31,4 +31,11 @@ setenv IPIC_MPIRUN mpiexec.hydra
 
 prepend-path PATH $env(IPIC_HOME)/scripts
 
+# stuff needed for OmpSs offloading
+#
+module load OmpSs
+# library needed if you want to use nanox to offload
+prepend-path LD_LIBRARY_PATH /home/fsainz/runtime/nanox-mpi-09072014/lib/performance
+setenv NX_OFFL_HOSTFILE $env(IPIC_HOME)/env/miclogin/offload_hosts
+
 setenv IPIC_RUNENV miclogin.xeon
