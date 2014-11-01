@@ -12,7 +12,7 @@
 
 inline bool signal_hack()
 {
-  return false;
+  return true;
 }
 
 // block of elements
