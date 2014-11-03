@@ -538,7 +538,8 @@
   }
 
   // transpose 8x8 data from in to out, leaving in unmodified
-  inline void transpose_8x8_double(F64vec8 out[8], F64vec8* in[8])
+  // (in is non-consecutive)
+  inline void transpose_8x8_double(F64vec8 out[8], const F64vec8* in[8])
   {
     F64vec8 buff[8];
     // 1. transpose each 2x2 block.

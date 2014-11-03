@@ -1822,12 +1822,13 @@ void Particles3Dcomm::sort_particles_serial_AoS()
 // This can be called from within an omp parallel block
 void Particles3Dcomm::copyParticlesToSoA()
 {
-  timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_SOA);
   const int nop = _pcls.size();
   // create memory for SoA representation
   if(is_output_thread()) dprintf("copying to struct of arrays");
   resize_SoA(nop);
- #ifndef __MIC__stub // replace with __MIC__ when this has been debugged
+  assert_eq(u.size(),_pcls.size());
+  timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_SOA);
+ #ifndef __MIC__
   #pragma omp for
   for(int pidx=0; pidx<nop; pidx++)
   {
@@ -1857,8 +1858,18 @@ void Particles3Dcomm::copyParticlesToSoA()
       (F64vec8*) &y[pidx],
       (F64vec8*) &z[pidx],
       (F64vec8*) &t[pidx]};
-    F64vec8* AoSdata = reinterpret_cast<F64vec8*>(&_pcls[pidx]);
-    transpose_8x8_double(AoSdata,SoAdata);
+    const F64vec8* AoSdata = reinterpret_cast<F64vec8*>(&_pcls[pidx]);
+    // this seems to perform slower
+    //const F64vec8* AoSdata[8] ={
+    //  (F64vec8*) &_pcls[pidx],
+    //  (F64vec8*) &_pcls[pidx+1],
+    //  (F64vec8*) &_pcls[pidx+2],
+    //  (F64vec8*) &_pcls[pidx+3],
+    //  (F64vec8*) &_pcls[pidx+4],
+    //  (F64vec8*) &_pcls[pidx+5],
+    //  (F64vec8*) &_pcls[pidx+6],
+    //  (F64vec8*) &_pcls[pidx+7]};
+    transpose_8x8_double(SoAdata,AoSdata);
   }
  #endif // __MIC__
   particleType = ParticleType::synched;
@@ -1867,10 +1878,11 @@ void Particles3Dcomm::copyParticlesToSoA()
 // This can be called from within an omp parallel block
 void Particles3Dcomm::copyParticlesToAoS()
 {
-  timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_AOS);
   const int nop = u.size();
   if(is_output_thread()) dprintf("copying to array of structs");
   resize_AoS(nop);
+  assert_eq(u.size(),_pcls.size());
+  timeTasks_set_task(TimeTasks::TRANSPOSE_PCLS_TO_AOS);
  #ifndef __MIC__
   // use a simple stride-8 gather
   #pragma omp for
@@ -1888,7 +1900,7 @@ void Particles3Dcomm::copyParticlesToAoS()
   for(int pidx=0; pidx<nop; pidx+=8)
   {
     F64vec8* AoSdata = reinterpret_cast<F64vec8*>(&_pcls[pidx]);
-    F64vec8* SoAdata[8] ={
+    const F64vec8* SoAdata[8] ={
       (F64vec8*) &u[pidx],
       (F64vec8*) &v[pidx],
       (F64vec8*) &w[pidx],
@@ -1897,7 +1909,7 @@ void Particles3Dcomm::copyParticlesToAoS()
       (F64vec8*) &y[pidx],
       (F64vec8*) &z[pidx],
       (F64vec8*) &t[pidx]};
-    transpose_8x8_double(SoAdata, AoSdata);
+    transpose_8x8_double(AoSdata, SoAdata);
   }
  #endif
   particleType = ParticleType::synched;
