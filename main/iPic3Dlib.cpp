@@ -35,7 +35,9 @@ c_Solver::~c_Solver()
   delete vct; // process topology
   delete grid; // grid
   delete EMf; // field
+  #ifndef NO_HDF5
   delete outputWrapperFPP;
+  #endif
 
   // delete particles
   //
