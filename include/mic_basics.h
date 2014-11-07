@@ -259,6 +259,15 @@
 
   // === section: methods for fast transpose ===
 
+  // number of operations for naive transpose in scalar case:
+  // - 84 for in-place
+  // - 64 for in->out
+  // number of operations for blocked transpose in scalar case:
+  // - 144 for in-place
+  // number of operations for blocked transpose in vector case:
+  // - 28 or 36 for in-place
+  // - 24 for in->out
+
   // transpose each 2x2 block in the two rows of a 2x8 matrix
   // used to transpose the 2x2 blocks of the 8x8 matrix
   //
@@ -476,12 +485,16 @@
     const __mmask16 rmask_11110000 = _mm512_int2mask(0x00ff); //mask=00001111
     data2 = _mm512_mask_permute4f128_ps(data2, rmask_11110000, buff1,_MM_PERM_BADC);
   }
+
+  /*** versions of transpose_8x8_double ***/
   
   // transpose with blocked algorithm in
   // 24=8*3 = 8*log_2(8) vector instructions
-  // (ignoring 12=4*3 copies made to
+  // (ignoring as many as 12=4*3 copies made to
   // buffers to reduce number of registers needed)
-  //
+
+  // methods to transpose consecutive data in place
+
   inline void transpose_8x8_double_new(double in_[8][8])
   {
     ASSUME_ALIGNED(in_);
@@ -520,7 +533,9 @@
       trans2x8(data[i], data[i+4]);
   }
 
-  // transpose 8x8 data from in to out, leaving in unmodified
+  // methods to transpose from in to out, leaving in unmodified
+
+  // in is contiguous, out is separate rows
   inline void transpose_8x8_double(F64vec8* out[8], const F64vec8 in[8])
   {
     F64vec8 buff[8];
@@ -537,8 +552,7 @@
       trans2x8(*(out[i]), *(out[i+4]), buff[i], buff[i+4]);
   }
 
-  // transpose 8x8 data from in to out, leaving in unmodified
-  // (in is non-consecutive)
+  // in is separate rows, out is contiguous
   inline void transpose_8x8_double(F64vec8 out[8], const F64vec8* in[8])
   {
     F64vec8 buff[8];
@@ -555,6 +569,40 @@
       trans2x8(out[i], out[i+4], buff[i], buff[i+4]);
   }
 
+  // in and out are both contiguous
+  inline void transpose_8x8_double(F64vec8 out[8], const F64vec8 in[8])
+  {
+    F64vec8 buff[8];
+    // 1. transpose each 2x2 block.
+    for(int i=0; i<8; i+=2)
+      trans2x2(buff[i], buff[i+1], in[i], in[i+1]);
+    // 2. transpose each 4x4 block of 2x2 elements
+    trans2x4(buff[0], buff[2]);
+    trans2x4(buff[1], buff[3]);
+    trans2x4(buff[4], buff[6]);
+    trans2x4(buff[5], buff[7]);
+    // 3. swap lower left and upper right 4x4 elements
+    for(int i=0; i<4; i+=1)
+      trans2x8(out[i], out[i+4], buff[i], buff[i+4]);
+  }
+
+  // transpose 8x8 data from in to out, leaving in
+  // unmodified; it is assumed that out and in each point to
+  // an aligned 64-element 1-dimensional array representing
+  // an 8x8 array of doubles.
+  //inline void transpose_8x8_double(double* out_, const double* in_)
+  inline void transpose_8x8_double(double out_[8][8], const double in_[8][8])
+  {
+    ASSUME_ALIGNED(in_);
+    ASSUME_ALIGNED(out_);
+    //F64vec8* out = reinterpret_cast<F64vec8*>(out_);
+    //const F64vec8* in = reinterpret_cast<F64vec8*>(in_);
+    F64vec8* out = reinterpret_cast<F64vec8*>(out_[0]);
+    const F64vec8* in = reinterpret_cast<F64vec8*>(in_[0]);
+
+    transpose_8x8_double(out, in);
+  }
+
   /*** end methods for fast transpose ***/
 
   typedef I32vec16 Ivec;
@@ -566,7 +614,29 @@
 //  typedef I32vec8 Ivec;
 //  typedef F64vec4 Dvec;
 //#elif defined(__SSE2__)
-#else
+#else // #assert undef(__MIC__)
+  //inline void transpose_8x8_double(double *out_, const double* in_)
+  inline void transpose_8x8_double(double out[8][8], const double in[8][8])
+  {
+    //double& out[8][8] = reinterpret_cast<double& [8][8]>(*out_);
+    //double& in[8][8] = reinterpret_cast<double& [8][8]>(*in_);
+    for(int i=0;i<8;i++)
+    for(int j=0;j<8;j++)
+    {
+      // this order gathers
+      out[i][j] = in[j][i];
+    }
+  }
+  inline void transpose_8x8_double(double in[8][8])
+  {
+    for(int i=0;i<8;i++)
+    for(int j=0;j<i;j++)
+    {
+      double tmp=in[i][j];
+      in[i][j]=in[j][i];
+      in[j][i]=tmp;
+    }
+  }
   class Ivec8
   {
     int a[8];
