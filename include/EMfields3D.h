@@ -109,6 +109,7 @@ class EMfields3D                // :public Field
     void communicateGhostP2G(int ns);
     /*! sum moments (interp_P2G) versions */
     void sumMoments(const Particles3Dcomm* part);
+    void sumMoments_vec(const Particles3Dcomm* part);
     void sumMoments_AoS(const Particles3Dcomm* part);
     void sumMoments_AoS_intr(const Particles3Dcomm* part);
     void sumMoments_vectorized(const Particles3Dcomm* part);

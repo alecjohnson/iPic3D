@@ -231,26 +231,27 @@ void c_Solver::CalculateMoments() {
 
   pad_particle_capacities();
 
-  // vectorized assumes that particles are sorted by mesh cell
   if(Parameters::get_VECTORIZE_MOMENTS())
   {
-    switch(Parameters::get_MOMENTS_TYPE())
-    {
-      case Parameters::SoA:
-        // since particles are sorted,
-        // we can vectorize interpolation of particles to grid
-        convertParticlesToSoA();
-        sortParticles();
-        EMf->sumMoments_vectorized(part);
-        break;
-      case Parameters::AoS:
-        convertParticlesToAoS();
-        sortParticles();
-        EMf->sumMoments_vectorized_AoS(part);
-        break;
-      default:
-        unsupported_value_error(Parameters::get_MOMENTS_TYPE());
-    }
+    EMf->sumMoments_vec(part);
+    // these assume that particles are sorted by mesh cell
+    //switch(Parameters::get_MOMENTS_TYPE())
+    //{
+    //  case Parameters::SoA:
+    //    // since particles are sorted,
+    //    // we can vectorize interpolation of particles to grid
+    //    convertParticlesToSoA();
+    //    sortParticles();
+    //    EMf->sumMoments_vectorized(part);
+    //    break;
+    //  case Parameters::AoS:
+    //    convertParticlesToAoS();
+    //    sortParticles();
+    //    EMf->sumMoments_vectorized_AoS(part);
+    //    break;
+    //  default:
+    //    unsupported_value_error(Parameters::get_MOMENTS_TYPE());
+    //}
   }
   else
   {
