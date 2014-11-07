@@ -140,39 +140,8 @@ void Grid3DCU::init_derived_parameters()
   cxlast = nxc-1;
   cylast = nyc-1;
   czlast = nzc-1;
-
-  // arrays allocation: nodes ---> the first node has index 1, the last has index nxn-2!
-  pfloat_node_xcoord = new pfloat[nxn];
-  pfloat_node_ycoord = new pfloat[nyn];
-  pfloat_node_zcoord = new pfloat[nzn];
-  node_xcoord = new double[nxn];
-  node_ycoord = new double[nyn];
-  node_zcoord = new double[nzn];
-  for (int i=0; i<nxn; i++) node_xcoord[i] = xStart + (i - 1) * dx;
-  for (int j=0; j<nyn; j++) node_ycoord[j] = yStart + (j - 1) * dy;
-  for (int k=0; k<nzn; k++) node_zcoord[k] = zStart + (k - 1) * dz;
-  for (int i=0; i<nxn; i++) pfloat_node_xcoord[i] = node_xcoord[i];
-  for (int j=0; j<nyn; j++) pfloat_node_ycoord[j] = node_ycoord[j];
-  for (int k=0; k<nzn; k++) pfloat_node_zcoord[k] = node_zcoord[k];
-  // arrays allocation: cells ---> the first cell has index 1, the last has index ncn-2!
-  center_xcoord = new double[nxc];
-  center_ycoord = new double[nyc];
-  center_zcoord = new double[nzc];
-  for(int i=0; i<nxc; i++) center_xcoord[i] = .5*(node_xcoord[i]+node_xcoord[i+1]);
-  for(int j=0; j<nyc; j++) center_ycoord[j] = .5*(node_ycoord[j]+node_ycoord[j+1]);
-  for(int k=0; k<nzc; k++) center_zcoord[k] = .5*(node_zcoord[k]+node_zcoord[k+1]);
   //num_cells_r = nxc_r*nyc_r*nzc_r;
   //num_cells = nxc*nyc*nzc;
-}
-
-/** deallocate the local grid */
-Grid3DCU::~Grid3DCU() {
-  delete [] node_xcoord;
-  delete [] node_ycoord;
-  delete [] node_zcoord;
-  delete [] center_xcoord;
-  delete [] center_ycoord;
-  delete [] center_zcoord;
 }
 
 /** print the local grid info */
@@ -191,9 +160,9 @@ void Grid3DCU::print()const
     "Xin = %g; Xfin = %g\n"
     "Yin = %g; Yfin = %g\n"
     "Zin = %g; Zfin = %g\n\n",
-    node_xcoord[1], node_xcoord[nxn - 2],
-    node_ycoord[1], node_ycoord[nyn - 2],
-    node_zcoord[1], node_zcoord[nzn - 2]);
+    getXN(1), getXN(nxn-2),
+    getYN(1), getYN(nyn-2),
+    getZN(1), getZN(nzn-2));
 }
 
 /** calculate gradient on nodes, given a scalar field defined on central points  */

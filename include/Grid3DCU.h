@@ -31,7 +31,7 @@ public:
     double dx_, double dy_, double dz_,
     double xStart_, double yStart_, double zStart_);
   /** destructor */
-  ~Grid3DCU();
+  ~Grid3DCU(){};
   /** allocate grid arrays for this domain */
   //void allocate(CollectiveIO * ptC, VirtualTopology3D * ptVCT);
   /** deallocate grid arrays for this domain */
@@ -231,17 +231,6 @@ private:
   int nzc_r;
   // number of subdomain cells in a regular (untruncated) subdomain grid
   int num_cells_rr;
-  /** node coordinate */
-  pfloat *pfloat_node_xcoord;
-  pfloat *pfloat_node_ycoord;
-  pfloat *pfloat_node_zcoord;
-  double *node_xcoord;
-  double *node_ycoord;
-  double *node_zcoord;
-  /** center coordinate */
-  double *center_xcoord;
-  double *center_ycoord;
-  double *center_zcoord;
   /** local grid boundaries coordinate of proper subdomain */
   double xStart, xEnd, yStart, yEnd, zStart, zEnd;
   double xStart_g, yStart_g, zStart_g;
@@ -271,30 +260,33 @@ public: // accessors (inline)
   //
   // coordinate accessors
   //
-  // calculated equivalents (preferred for accelerator?):
-  double calcXN(int X)const{ return xStart+(X-1)*dx;}
-  double calcYN(int Y)const{ return yStart+(Y-1)*dy;}
-  double calcZN(int Z)const{ return zStart+(Z-1)*dz;}
-  //const pfloat &get_pfloat_XN(int X)const{ return pfloat_node_xcoord[X];}
-  //const pfloat &get_pfloat_YN(int Y)const{ return pfloat_node_ycoord[Y];}
-  //const pfloat &get_pfloat_ZN(int Z)const{ return pfloat_node_zcoord[Z];}
-  const double &getXN(int X)const{ return node_xcoord[X];}
-  const double &getYN(int Y)const{ return node_ycoord[Y];}
-  const double &getZN(int Z)const{ return node_zcoord[Z];}
-  const double &getXC(int X)const{ return center_xcoord[X];}
-  const double &getYC(int Y)const{ return center_ycoord[Y];}
-  const double &getZC(int Z)const{ return center_zcoord[Z];}
+  // calculate coordinates rather than access an array of
+  // precalculated coordinates to avoid random access that
+  // could interfere with vectorization.
   //
-  // The following could be eliminated in favor of the previous
-  // unless we truly anticipate generalizing to a deformed
+  double getXN(int X)const{ return xStart_g+X*dx;}
+  double getYN(int Y)const{ return yStart_g+Y*dy;}
+  double getZN(int Z)const{ return zStart_g+Z*dz;}
+  // only used for initial conditions, so not optimized
+  double getXC(int X)const{ return xStart_g+(X+.5)*dx;}
+  double getYC(int Y)const{ return yStart_g+(Y+.5)*dy;}
+  double getZC(int Z)const{ return zStart_g+(Z+.5)*dz;}
+  //
+  // The following can be eliminated in favor of the previous;
+  // We do not anticipate generalizing to a deformed
   // logically cartesian mesh.  See issue #40.
+  // An important value of an undeforomed cartesian mesh
+  // is that the map between physical coordinates and grid
+  // is a simple calculation with no need for random memory access.
+  // These methods are currently only used in initialization code
+  // and have been retained to avoid modififying that code.
   //
-  const double &getXN(int X, int Y, int Z)const{ return node_xcoord[X];}
-  const double &getYN(int X, int Y, int Z)const{ return node_ycoord[Y];}
-  const double &getZN(int X, int Y, int Z)const{ return node_zcoord[Z];}
-  const double &getXC(int X, int Y, int Z)const{ return center_xcoord[X];}
-  const double &getYC(int X, int Y, int Z)const{ return center_ycoord[Y];}
-  const double &getZC(int X, int Y, int Z)const{ return center_zcoord[Z];}
+  double getXN(int X, int Y, int Z)const{ return getXN(X); }
+  double getYN(int X, int Y, int Z)const{ return getYN(Y); }
+  double getZN(int X, int Y, int Z)const{ return getZN(Z); }
+  double getXC(int X, int Y, int Z)const{ return getXC(X); }
+  double getYC(int X, int Y, int Z)const{ return getYC(Y); }
+  double getZC(int X, int Y, int Z)const{ return getZC(Z); }
   //
   double getXstart()const{ return (xStart); }
   double getXend()const{ return (xEnd); }
@@ -305,38 +297,67 @@ public: // accessors (inline)
   double getVOL()const{ return (VOL); }
   double getInvVOL()const{ return (invVOL); }
 
+  // compute underlying one-dimensional index
+  // on grid with dimensions nxc*nyc*nzc
+  int get_cell_index(int cx,int cy,int cz)const
+  {
+    return (cx*nyc+cy)*nzc+cz;
+  }
+
+  static void get_weights(
+    double w0x, double w0y, double w0z,
+    double w1x, double w1y, double w1z,
+    double& w000,
+    double& w001,
+    double& w010,
+    double& w011,
+    double& w100,
+    double& w101,
+    double& w110,
+    double& w111)
+  {
+    // a good optimizer would generate the same
+    // code for the following two alternatives
+    if(true)
+    // this could require more calculation
+    {
+      w000 = w0x*(w0y*w0z);
+      w001 = w0x*(w0y*w1z);
+      w010 = w0x*(w1y*w0z);
+      w011 = w0x*(w1y*w1z);
+      w100 = w1x*(w0y*w0z);
+      w101 = w1x*(w0y*w1z);
+      w110 = w1x*(w1y*w0z);
+      w111 = w1x*(w1y*w1z);
+    }
+    else
+    // but this could require more registers
+    {
+      const double w00 = w0x*w0y;
+      const double w01 = w0x*w1y;
+      const double w10 = w1x*w0y;
+      const double w11 = w1x*w1y;
+      w000 = w00*w0z;
+      w001 = w00*w1z;
+      w010 = w01*w0z;
+      w011 = w01*w1z;
+      w100 = w10*w0z;
+      w101 = w10*w1z;
+      w110 = w11*w0z;
+      w111 = w11*w1z;
+    }
+  }
+
   // inline methods to calculate mesh cell and weights.
-  static void get_weights(double weights[8],
+  static void get_weights(double w[8],
     double w0x, double w0y, double w0z,
     double w1x, double w1y, double w1z)
   {
-    // which of the following is faster?
-    //
-    // this:
-    //
-    //const double weight00 = w0x*w0y;
-    //const double weight01 = w0x*w1y;
-    //const double weight10 = w1x*w0y;
-    //const double weight11 = w1x*w1y;
-    //weights[0] = weight00*w0z; // weight000
-    //weights[1] = weight00*w1z; // weight001
-    //weights[2] = weight01*w0z; // weight010
-    //weights[3] = weight01*w1z; // weight011
-    //weights[4] = weight10*w0z; // weight100
-    //weights[5] = weight10*w1z; // weight101
-    //weights[6] = weight11*w0z; // weight110
-    //weights[7] = weight11*w1z; // weight111
-    //
-    // or this:
-    //
-    weights[0] = w0x*w0y*w0z; // weight000
-    weights[1] = w0x*w0y*w1z; // weight001
-    weights[2] = w0x*w1y*w0z; // weight010
-    weights[3] = w0x*w1y*w1z; // weight011
-    weights[4] = w1x*w0y*w0z; // weight100
-    weights[5] = w1x*w0y*w1z; // weight101
-    weights[6] = w1x*w1y*w0z; // weight110
-    weights[7] = w1x*w1y*w1z; // weight111
+    get_weights(
+      w0x, w0y, w0z,
+      w1x, w1y, w1z,
+      w[0], w[1], w[2], w[3],
+      w[4], w[5], w[6], w[7]);
   }
   void get_cell_coordinates(
     int& cx, int& cy, int& cz,
@@ -434,6 +455,56 @@ public: // accessors (inline)
   void get_safe_cell_and_weights(double xpos[3], int cx[3], double weights[8])const
   {
     get_safe_cell_and_weights(xpos[0],xpos[1],xpos[2],cx[0],cx[1],cx[2],weights);
+  }
+
+  // unsafe version used if pcls are already sorted,
+  // e.g. when accumulating moments
+  //
+  // note that w111 is the weight for the lower node
+  // and w000 is the weight for the upper node
+  // (an unnatural convention that I lack time
+  // to reverse).
+  //
+  void get_cell_and_weights(
+    double xpos, double ypos, double zpos,
+    int &cx, int& cy, int& cz,
+    double& w000,
+    double& w001,
+    double& w010,
+    double& w011,
+    double& w100,
+    double& w101,
+    double& w110,
+    double& w111)const
+  {
+    //convert_xpos_to_cxpos(xpos,ypos,zpos,cx_pos,cy_pos,cz_pos);
+    // gxStart marks start of guarded domain (including ghosts)
+    const double rel_xpos = xpos - xStart_g;
+    const double rel_ypos = ypos - yStart_g;
+    const double rel_zpos = zpos - zStart_g;
+    // cell position (in guarded array)
+    double cx_pos = rel_xpos * invdx;
+    double cy_pos = rel_ypos * invdy;
+    double cz_pos = rel_zpos * invdz;
+    //
+    cx = int(floor(cx_pos));
+    cy = int(floor(cy_pos));
+    cz = int(floor(cz_pos));
+  
+    // fraction of distance from the left
+    const double w0x = cx_pos - cx;
+    const double w0y = cy_pos - cy;
+    const double w0z = cz_pos - cz;
+    // fraction of the distance from the right of the cell
+    const double w1x = 1.-w0x;
+    const double w1y = 1.-w0y;
+    const double w1z = 1.-w0z;
+
+    get_weights(
+      w0x, w0y, w0z,
+      w1x, w1y, w1z,
+      w000, w001, w010, w011,
+      w100, w101, w110, w111);
   }
 };
 
