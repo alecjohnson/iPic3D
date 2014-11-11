@@ -1,7 +1,10 @@
 /* forward declaration for array classes */
 #ifndef arraysfwd_h
 #define arraysfwd_h
-#include "ipicdefs.h" // for pfloat
+
+#ifdef CHECK_BOUNDS
+#define FLAT_ARRAYS
+#endif
 
 // Unfortunately C++ does not allow typedefs for templates:
 //
@@ -14,7 +17,7 @@
 // array access is by means of a chained pointer or a calculated
 // 1-dimensional index, I resort to declaration macros.
 // 
-#if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+#if defined(FLAT_ARRAYS)
 
   //#define const_arr_ref3(type) iPic3D::const_array_ref3<type>
   //#define const_arr_ref2(type) iPic3D::const_array_ref2<type>
@@ -45,7 +48,7 @@
 //template <class type>
 //inline type*** fetch_arr3(array_fetch3(type)&in)
 //{
-//  #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+//  #if defined(FLAT_ARRAYS)
 //  return in.fetch_arr3();
 //  #else
 //  return in; // the argument is what we want, so return it
@@ -117,7 +120,7 @@ typedef iPic3D::array2<double> array2_double;
 typedef iPic3D::array3<double> array3_double;
 typedef iPic3D::array4<double> array4_double;
 // This directive should be consistent with the directives in Alloc.h
-//#if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+//#if defined(FLAT_ARRAYS)
 //typedef iPic3D::array_fetch1<double> arr1_double_fetch;
 //typedef iPic3D::array_fetch2<double> arr2_double_fetch;
 //typedef iPic3D::array_fetch3<double> arr3_double_fetch;

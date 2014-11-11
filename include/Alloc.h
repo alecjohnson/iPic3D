@@ -59,7 +59,7 @@
     for my g++ 4.2, iPic3D suffered from stack frame corruption.)
     //
     Note that the directive
-      #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+      #if defined(FLAT_ARRAYS)
     appears not only here but also in arraysfwd.h
 */
 #define ALIGNMENT (64)
@@ -253,7 +253,7 @@ namespace iPic3D
   // - automatic conversion to chained pointer and
   // - operator[].
   //
-#if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+#if defined(FLAT_ARRAYS)
 #warning "arrays are flat"
 
   template <class type>
@@ -475,7 +475,7 @@ namespace iPic3D
       int get_size() const { return size; }
       size_t dim1() const { return S2; }
       size_t dim2() const { return S1; }
-    #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+    #if defined(FLAT_ARRAYS)
       const const_array_get1<type> operator[](size_t n2)const{
         check_bounds(n2, S2);
         return const_array_get1<type>(arr, n2*S1, S1);
@@ -540,7 +540,7 @@ namespace iPic3D
         const_array_ref2<type>(in,s2,s1)
       { }
       void free(){ delArray2<type>((type***)arr2); }
-    #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+    #if defined(FLAT_ARRAYS)
       inline array_fetch1<type> operator[](size_t n2){
         check_bounds(n2, S2);
         return array_fetch1<type>(arr, n2*S1, S1);
@@ -597,7 +597,7 @@ namespace iPic3D
       size_t dim1() const { return S3; }
       size_t dim2() const { return S2; }
       size_t dim3() const { return S1; }
-    #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+    #if defined(FLAT_ARRAYS)
       const const_array_get2<type> operator[](size_t n3)const{
         check_bounds(n3, S3);
         return const_array_get2<type>(arr, n3*S2, S2, S1);
@@ -664,7 +664,7 @@ namespace iPic3D
         const_array_ref3<type>(in,s3,s2,s1)
       { }
       void free(){ delArray3<type>((type***)arr3); }
-    #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+    #if defined(FLAT_ARRAYS)
       inline array_fetch2<type> operator[](size_t n3){
         check_bounds(n3, S3);
         return array_fetch2<type>(arr, n3*S2, S2, S1);
@@ -723,7 +723,7 @@ namespace iPic3D
       size_t dim2() const { return S3; }
       size_t dim3() const { return S2; }
       size_t dim4() const { return S1; }
-    #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+    #if defined(FLAT_ARRAYS)
       const const_array_get3<type> operator[](size_t n4)const{
         check_bounds(n4, S4);
         return const_array_get3<type>(arr, n4*S3, S3, S2, S1);
@@ -797,7 +797,7 @@ namespace iPic3D
         size_t s4, size_t s3, size_t s2, size_t s1) :
         const_array_ref4<type>(in,s4,s3,s2,s1)
       { }
-    #if defined(FLAT_ARRAYS) || defined(CHECK_BOUNDS)
+    #if defined(FLAT_ARRAYS)
       inline array_fetch3<type> operator[](size_t n4){
         check_bounds(n4, S4);
         return array_fetch3<type>(arr, n4*S3, S3, S2, S1);
