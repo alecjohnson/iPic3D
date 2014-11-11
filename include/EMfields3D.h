@@ -181,7 +181,7 @@ class EMfields3D                // :public Field
     double getBy(int X, int Y, int Z) const { return Byn.get(X,Y,Z);}
     double getBz(int X, int Y, int Z) const { return Bzn.get(X,Y,Z);}
     //
-    const_arr4_pfloat get_fieldForPcls() { return fieldForPcls; }
+    const_arr4_double get_fieldForPcls() { return fieldForPcls; }
     arr3_double getEx() { return Ex; }
     arr3_double getEy() { return Ey; }
     arr3_double getEz() { return Ez; }
@@ -341,7 +341,7 @@ class EMfields3D                // :public Field
     // Electric field component used to move particles
     // organized for rapid access in mover_PC()
     // [This is the information transferred from cluster to booster].
-    array4_pfloat fieldForPcls;
+    array4_double fieldForPcls;
 
     // Electric field components defined on nodes
     //

@@ -394,12 +394,12 @@ void Particles3D::mover_PC(Field * EMf) {
       const double zeta1 = grid->getZN(iz) - zavg;
 
       double weights[8] ALLOC_ALIGNED;
-      const pfloat weight0 = invVOL*xi0;
-      const pfloat weight1 = invVOL*xi1;
-      const pfloat weight00 = weight0*eta0;
-      const pfloat weight01 = weight0*eta1;
-      const pfloat weight10 = weight1*eta0;
-      const pfloat weight11 = weight1*eta1;
+      const double weight0 = invVOL*xi0;
+      const double weight1 = invVOL*xi1;
+      const double weight00 = weight0*eta0;
+      const double weight01 = weight0*eta1;
+      const double weight10 = weight1*eta0;
+      const double weight11 = weight1*eta1;
       weights[0] = weight00*zeta0; // weight000
       weights[1] = weight00*zeta1; // weight001
       weights[2] = weight01*zeta0; // weight010
@@ -460,14 +460,14 @@ void Particles3D::mover_PC(Field * EMf) {
       const double Omz = qdto2mc*Bzl;
 
       // end interpolation
-      const pfloat omsq = (Omx * Omx + Omy * Omy + Omz * Omz);
-      const pfloat denom = 1.0 / (1.0 + omsq);
+      const double omsq = (Omx * Omx + Omy * Omy + Omz * Omz);
+      const double denom = 1.0 / (1.0 + omsq);
       // solve the position equation
-      const pfloat ut = uorig + qdto2mc * Exl;
-      const pfloat vt = vorig + qdto2mc * Eyl;
-      const pfloat wt = worig + qdto2mc * Ezl;
-      //const pfloat udotb = ut * Bxl + vt * Byl + wt * Bzl;
-      const pfloat udotOm = ut * Omx + vt * Omy + wt * Omz;
+      const double ut = uorig + qdto2mc * Exl;
+      const double vt = vorig + qdto2mc * Eyl;
+      const double wt = worig + qdto2mc * Ezl;
+      //const double udotb = ut * Bxl + vt * Byl + wt * Bzl;
+      const double udotOm = ut * Omx + vt * Omy + wt * Omz;
       // solve the velocity equation 
       uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
       vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
@@ -496,7 +496,7 @@ void Particles3D::mover_PC_AoS(Field * EMf)
   if (vct->getCartesian_rank() == 0) {
     cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
   }
-  const_arr4_pfloat fieldForPcls = EMf->get_fieldForPcls();
+  const_arr4_double fieldForPcls = EMf->get_fieldForPcls();
 
   #pragma omp master
   { timeTasks_begin_task(TimeTasks::MOVER_PCL_MOVING); }
@@ -567,14 +567,14 @@ void Particles3D::mover_PC_AoS(Field * EMf)
       const double Omz = qdto2mc*Bzl;
 
       // end interpolation
-      const pfloat omsq = (Omx * Omx + Omy * Omy + Omz * Omz);
-      const pfloat denom = 1.0 / (1.0 + omsq);
+      const double omsq = (Omx * Omx + Omy * Omy + Omz * Omz);
+      const double denom = 1.0 / (1.0 + omsq);
       // solve the position equation
-      const pfloat ut = uorig + qdto2mc * Exl;
-      const pfloat vt = vorig + qdto2mc * Eyl;
-      const pfloat wt = worig + qdto2mc * Ezl;
-      //const pfloat udotb = ut * Bxl + vt * Byl + wt * Bzl;
-      const pfloat udotOm = ut * Omx + vt * Omy + wt * Omz;
+      const double ut = uorig + qdto2mc * Exl;
+      const double vt = vorig + qdto2mc * Eyl;
+      const double wt = worig + qdto2mc * Ezl;
+      //const double udotb = ut * Bxl + vt * Byl + wt * Bzl;
+      const double udotOm = ut * Omx + vt * Omy + wt * Omz;
       // solve the velocity equation 
       uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
       vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
@@ -649,7 +649,7 @@ void Particles3D::mover_PC_AoS_vec_intr(Field * EMf)
   if (vct->getCartesian_rank() == 0) {
     cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
   }
-  const_arr4_pfloat fieldForPcls = EMf->get_fieldForPcls();
+  const_arr4_double fieldForPcls = EMf->get_fieldForPcls();
 
   SpeciesParticle * pcls = &_pcls[0];
   ALIGNED(pcls);
@@ -749,7 +749,7 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
   if (vct->getCartesian_rank() == 0) {
     cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
   }
-  const_arr4_pfloat fieldForPcls = EMf->get_fieldForPcls();
+  const_arr4_double fieldForPcls = EMf->get_fieldForPcls();
 
   const int NUM_PCLS_MOVED_AT_A_TIME = 8;
   // make sure that we won't overrun memory
@@ -892,7 +892,7 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 //  if (vct->getCartesian_rank() == 0) {
 //    cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
 //  }
-//  const_arr4_pfloat fieldForPcls = EMf->get_fieldForPcls();
+//  const_arr4_double fieldForPcls = EMf->get_fieldForPcls();
 //
 //  SpeciesParticle * pcls = fetch_pcls();
 //  #pragma omp master
@@ -922,12 +922,12 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 //      SpeciesParticle* pcl = &pcls[pidx];
 //      ALIGNED(pcl);
 //      // copy the particle
-//      const pfloat xorig = pcl->get_x();
-//      const pfloat yorig = pcl->get_y();
-//      const pfloat zorig = pcl->get_z();
-//      const pfloat uorig = pcl->get_u();
-//      const pfloat vorig = pcl->get_v();
-//      const pfloat worig = pcl->get_w();
+//      const double xorig = pcl->get_x();
+//      const double yorig = pcl->get_y();
+//      const double zorig = pcl->get_z();
+//      const double uorig = pcl->get_u();
+//      const double vorig = pcl->get_v();
+//      const double worig = pcl->get_w();
 //      double xavg = xorig;
 //      double yavg = yorig;
 //      double zavg = zorig;
@@ -969,12 +969,12 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 //        //   assert_eq(cz,cz_);
 //        //}
 //
-//        pfloat Exl = 0.0;
-//        pfloat Eyl = 0.0;
-//        pfloat Ezl = 0.0;
-//        pfloat Bxl = 0.0;
-//        pfloat Byl = 0.0;
-//        pfloat Bzl = 0.0;
+//        double Exl = 0.0;
+//        double Eyl = 0.0;
+//        double Ezl = 0.0;
+//        double Bxl = 0.0;
+//        double Byl = 0.0;
+//        double Bzl = 0.0;
 //        for(int c=0; c<8; c++)
 //        {
 //          Bxl += weights[c] * field_components[c][0];
@@ -989,14 +989,14 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 //        const double Omz = qdto2mc*Bzl;
 //
 //        // end interpolation
-//        const pfloat omsq = (Omx * Omx + Omy * Omy + Omz * Omz);
-//        const pfloat denom = 1.0 / (1.0 + omsq);
+//        const double omsq = (Omx * Omx + Omy * Omy + Omz * Omz);
+//        const double denom = 1.0 / (1.0 + omsq);
 //        // solve the position equation
-//        const pfloat ut = uorig + qdto2mc * Exl;
-//        const pfloat vt = vorig + qdto2mc * Eyl;
-//        const pfloat wt = worig + qdto2mc * Ezl;
-//        //const pfloat udotb = ut * Bxl + vt * Byl + wt * Bzl;
-//        const pfloat udotOm = ut * Omx + vt * Omy + wt * Omz;
+//        const double ut = uorig + qdto2mc * Exl;
+//        const double vt = vorig + qdto2mc * Eyl;
+//        const double wt = worig + qdto2mc * Ezl;
+//        //const double udotb = ut * Bxl + vt * Byl + wt * Bzl;
+//        const double udotOm = ut * Omx + vt * Omy + wt * Omz;
 //        // solve the velocity equation 
 //        uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
 //        vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
@@ -1030,7 +1030,7 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 //  if (vct->getCartesian_rank() == 0) {
 //    cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
 //  }
-//  const_arr4_pfloat fieldForPcls = EMf->get_fieldForPcls();
+//  const_arr4_double fieldForPcls = EMf->get_fieldForPcls();
 //
 //  // initialize average positions
 //  #pragma omp for schedule(static)
@@ -1041,7 +1041,7 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 //    _zavg[pidx] = z[pidx];
 //  }
 //
-//  const pfloat dto2 = .5 * dt, qdto2mc = qom * dto2 / c;
+//  const double dto2 = .5 * dt, qdto2mc = qom * dto2 / c;
 //  for(int niter=1; niter<=NiterMover; niter++)
 //  {
 //    // sort particles based on the time-averaged position
@@ -1135,12 +1135,12 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 //        //}
 //
 //        // copy the particle
-//        const pfloat xorig = x[pidx];
-//        const pfloat yorig = y[pidx];
-//        const pfloat zorig = z[pidx];
-//        const pfloat uorig = u[pidx];
-//        const pfloat vorig = v[pidx];
-//        const pfloat worig = w[pidx];
+//        const double xorig = x[pidx];
+//        const double yorig = y[pidx];
+//        const double zorig = z[pidx];
+//        const double uorig = u[pidx];
+//        const double vorig = v[pidx];
+//        const double worig = w[pidx];
 //
 //        // compute weights for field components
 //        //
@@ -1181,12 +1181,12 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 //        weights[6] = weight11*w0z; // weight110
 //        weights[7] = weight11*w1z; // weight111
 //
-//        pfloat Exl = 0.0;
-//        pfloat Eyl = 0.0;
-//        pfloat Ezl = 0.0;
-//        pfloat Bxl = 0.0;
-//        pfloat Byl = 0.0;
-//        pfloat Bzl = 0.0;
+//        double Exl = 0.0;
+//        double Eyl = 0.0;
+//        double Ezl = 0.0;
+//        double Bxl = 0.0;
+//        double Byl = 0.0;
+//        double Bzl = 0.0;
 //
 //        // would expanding this out help to vectorize?
 //        for(int c=0; c<8; c++)
@@ -1203,18 +1203,18 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 //        const double Omz = qdto2mc*Bzl;
 //
 //        // end interpolation
-//        const pfloat omsq = (Omx * Omx + Omy * Omy + Omz * Omz);
-//        const pfloat denom = 1.0 / (1.0 + omsq);
+//        const double omsq = (Omx * Omx + Omy * Omy + Omz * Omz);
+//        const double denom = 1.0 / (1.0 + omsq);
 //        // solve the position equation
-//        const pfloat ut = uorig + qdto2mc * Exl;
-//        const pfloat vt = vorig + qdto2mc * Eyl;
-//        const pfloat wt = worig + qdto2mc * Ezl;
-//        //const pfloat udotb = ut * Bxl + vt * Byl + wt * Bzl;
-//        const pfloat udotOm = ut * Omx + vt * Omy + wt * Omz;
+//        const double ut = uorig + qdto2mc * Exl;
+//        const double vt = vorig + qdto2mc * Eyl;
+//        const double wt = worig + qdto2mc * Ezl;
+//        //const double udotb = ut * Bxl + vt * Byl + wt * Bzl;
+//        const double udotOm = ut * Omx + vt * Omy + wt * Omz;
 //        // solve the velocity equation 
-//        const pfloat uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
-//        const pfloat vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
-//        const pfloat wavg = (wt + (ut * Omy - vt * Omx + udotOm * Omz)) * denom;
+//        const double uavg = (ut + (vt * Omz - wt * Omy + udotOm * Omx)) * denom;
+//        const double vavg = (vt + (wt * Omx - ut * Omz + udotOm * Omy)) * denom;
+//        const double wavg = (wt + (ut * Omy - vt * Omx + udotOm * Omz)) * denom;
 //        // update average position
 //        _xavg[pidx] = xorig + uavg * dto2;
 //        _yavg[pidx] = yorig + vavg * dto2;

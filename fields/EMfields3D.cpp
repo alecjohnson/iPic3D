@@ -3076,12 +3076,12 @@ void EMfields3D::set_fieldForPcls()
   for(int j=0;j<nyn;j++)
   for(int k=0;k<nzn;k++)
   {
-    fieldForPcls[i][j][k][0] = (pfloat) Bxn[i][j][k];
-    fieldForPcls[i][j][k][1] = (pfloat) Byn[i][j][k];
-    fieldForPcls[i][j][k][2] = (pfloat) Bzn[i][j][k];
-    fieldForPcls[i][j][k][0+DFIELD_3or4] = (pfloat) Ex[i][j][k];
-    fieldForPcls[i][j][k][1+DFIELD_3or4] = (pfloat) Ey[i][j][k];
-    fieldForPcls[i][j][k][2+DFIELD_3or4] = (pfloat) Ez[i][j][k];
+    fieldForPcls[i][j][k][0] = Bxn[i][j][k];
+    fieldForPcls[i][j][k][1] = Byn[i][j][k];
+    fieldForPcls[i][j][k][2] = Bzn[i][j][k];
+    fieldForPcls[i][j][k][0+DFIELD_3or4] = Ex[i][j][k];
+    fieldForPcls[i][j][k][1+DFIELD_3or4] = Ey[i][j][k];
+    fieldForPcls[i][j][k][2+DFIELD_3or4] = Ez[i][j][k];
   }
 }
 

@@ -1709,9 +1709,9 @@ void Particles3Dcomm::sort_particles_serial_AoS()
 //    {
 //      // get the cell indices of the particle
 //      // (should change this to use xavg[pidx])
-//      const pfloat xpos = xpos[pidx];
-//      const pfloat ypos = ypos[pidx];
-//      const pfloat zpos = zpos[pidx];
+//      const double xpos = xpos[pidx];
+//      const double ypos = ypos[pidx];
+//      const double zpos = zpos[pidx];
 //      int cx,cy,cz;
 //      get_safe_cell_for_pos(cx,cy,cz,xpos,ypos,zpos);
 //

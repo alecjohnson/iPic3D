@@ -24,6 +24,8 @@
   for(int i=0;i<(numel-1);i++) std::cout << var[i] << ", "; \
   std::cout << var[numel-1] << ")" << std::endl;
 
+typedef double pfloat;
+
 inline void get_field_components_for_cell(
   arr1_double_get field_components[8],
   const_arr4_double fieldForPcls,
