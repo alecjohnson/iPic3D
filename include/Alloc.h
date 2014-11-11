@@ -18,7 +18,7 @@
 
     Compiler options:
     -DCHECK_BOUNDS: check bounds when performing array access
-      (major performance penalty).
+      (major performance penalty; implies -DFLAT_ARRAYS).
     -DFLAT_ARRAYS: use calculated 1d subscript to dereference
       even for arr[i][j][k] notation.
     -DCHAINED_ARRAYS: use hierarchy of pointers to dereference
@@ -29,10 +29,30 @@
     we don't care about performance anyway), and calculated 1d
     subscript is used for arr.get(i,j,k) notation.
 
-    An alternative would have been use boost arrays.  Use of our
-    own array class allows flexibility for our choice of array
-    implementation, including the possibility of using boost
-    for the implementation, while avoiding boost as an external
+    Design requirement for this array class included
+    backward compatibility with chained pointer arrays,
+    support for bounds checking, support for flat array
+    access (use of an underlying aligned one-dimensional
+    array with calculated one-dimensional subscript),
+    and support for selecting the type of access under
+    the hood without changing the usage syntax.
+    Therefore this class supports the ability to return
+    a chained pointer and the ability to retain chained
+    pointer access syntax even if flat arrays are used.
+
+    If the design requirements had included allowing
+    the user to specify nonzero starting indices then the
+    array_fetch3 class (for example) would not have been
+    implemented and array_ref4::operator[](int) would simply
+    return an instance of array_ref3.  In this case beginning
+    indices would need to be passed to constructors for
+    bounds-checking purposes.
+
+    An alternative would have been use boost arrays. 
+    Use of our own carefully restricted array class allows
+    flexibility for our choice of array implementation,
+    including the possibility of using boost for the
+    implementation, while avoiding boost as an external
     dependency.  On some systems, it may be preferable to use
     native arrays with hard-coded dimensions; this could suit us
     well, since all arrays are approximately the same size, but
@@ -852,42 +872,9 @@ namespace iPic3D
       array4(size_t s4, size_t s3, size_t s2, size_t s1)
         : array_ref4<type>(s4,s3,s2,s1) { }
   };
-
-  template < class type >
-  inline const type**** get_arr4(const_array_ref4<type>& in)
-  { return in.get_arr4(); }
-  template < class type >
-  inline type**** fetch_arr4(array_ref4<type>& in)
-  { return in.fetch_arr4(); }
-
-  template < class type >
-  inline const type*** get_arr3(const_array_ref3<type>& in)
-  { return in.get_arr3(); }
-  template < class type >
-  inline type*** fetch_arr3(array_ref3<type>& in)
-  { return in.fetch_arr3(); }
-
-  template < class type >
-  inline const type** get_arr2(const_array_ref2<type>& in)
-  { return in.get_arr2(); }
-  template < class type >
-  inline type** fetch_arr2(array_ref2<type>& in)
-  { return in.fetch_arr2(); }
-
-  template < class type >
-  inline type* fetch_arr(array_ref1<type>& in)
-  { return in.get_arr(); }
-  template < class type >
-  inline type* fetch_arr(array_fetch1<type>& in)
-  { return in.fetch_arr(); }
 }
 
-// Unfortunately we cannot make an arr_fetch3<type> automatically
-// convert itself to a type***, since it overrides its methods,
-// so the user must use an explicit conversion routine.
-// to a ***
 #define newArr4(type,sz1,sz2,sz3,sz4) newArray4<type>((sz1),(sz2),(sz3),(sz4))
 #define newArr3(type,sz1,sz2,sz3) newArray3<type>((sz1),(sz2),(sz3))
 #define newArr2(type,sz1,sz2) newArray2<type>((sz1),(sz2))
-/*** end Array classes with flexible dimensions ***/
 #endif
