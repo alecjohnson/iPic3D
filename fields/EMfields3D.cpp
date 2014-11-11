@@ -3279,16 +3279,16 @@ void EMfields3D::communicateGhostP2G(int ns)
 
   const VirtualTopology3D *vct = &get_vct();
 
-  double ***moment0 = convert_to_arr3(rhons[ns]);
-  double ***moment1 = convert_to_arr3(Jxs  [ns]);
-  double ***moment2 = convert_to_arr3(Jys  [ns]);
-  double ***moment3 = convert_to_arr3(Jzs  [ns]);
-  double ***moment4 = convert_to_arr3(pXXsn[ns]);
-  double ***moment5 = convert_to_arr3(pXYsn[ns]);
-  double ***moment6 = convert_to_arr3(pXZsn[ns]);
-  double ***moment7 = convert_to_arr3(pYYsn[ns]);
-  double ***moment8 = convert_to_arr3(pYZsn[ns]);
-  double ***moment9 = convert_to_arr3(pZZsn[ns]);
+  double ***moment0 = rhons.fetch_arr4()[ns];
+  double ***moment1 = Jxs  .fetch_arr4()[ns];
+  double ***moment2 = Jys  .fetch_arr4()[ns];
+  double ***moment3 = Jzs  .fetch_arr4()[ns];
+  double ***moment4 = pXXsn.fetch_arr4()[ns];
+  double ***moment5 = pXYsn.fetch_arr4()[ns];
+  double ***moment6 = pXZsn.fetch_arr4()[ns];
+  double ***moment7 = pYYsn.fetch_arr4()[ns];
+  double ***moment8 = pYZsn.fetch_arr4()[ns];
+  double ***moment9 = pZZsn.fetch_arr4()[ns];
   // add the values for the shared nodes
   //
   communicateInterp(nxn, nyn, nzn, moment0, vct);

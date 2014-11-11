@@ -207,7 +207,7 @@ class EMfields3D                // :public Field
     //
     double getRHOcs(int X,int Y,int Z,int is)const{return rhocs.get(is,X,Y,Z);}
     double getRHOns(int X,int Y,int Z,int is)const{return rhons.get(is,X,Y,Z);}
-    double*** getRHOns(int is){return &rhons[is][0];}
+    double*** getRHOns(int is){return rhons.fetch_arr4()[is];}
     arr4_double getRHOns(){return rhons;}
     /* density on cells without ghost cells */
     arr3_double getRHOcs(int is);
@@ -618,14 +618,14 @@ inline void get_field_components_for_cell(
   arr2_double_get field01 = field0[cy];
   arr2_double_get field10 = field1[iy];
   arr2_double_get field11 = field1[cy];
-  field_components[0] = field00[iz]; // field000 
-  field_components[1] = field00[cz]; // field001 
-  field_components[2] = field01[iz]; // field010 
-  field_components[3] = field01[cz]; // field011 
-  field_components[4] = field10[iz]; // field100 
-  field_components[5] = field10[cz]; // field101 
-  field_components[6] = field11[iz]; // field110 
-  field_components[7] = field11[cz]; // field111 
+  field_components[0] = &(field00[iz][0]); // field000 
+  field_components[1] = &(field00[cz][0]); // field001 
+  field_components[2] = &(field01[iz][0]); // field010 
+  field_components[3] = &(field01[cz][0]); // field011 
+  field_components[4] = &(field10[iz][0]); // field100 
+  field_components[5] = &(field10[cz][0]); // field101 
+  field_components[6] = &(field11[iz][0]); // field110 
+  field_components[7] = &(field11[cz][0]); // field111 
 }
 
 typedef EMfields3D Field;
