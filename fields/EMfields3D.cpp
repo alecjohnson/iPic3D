@@ -4636,15 +4636,6 @@ void EMfields3D::perfectConductorRightS(arr3_double vectorX, arr3_double vectorY
 }
 
 
-// OpenBCs
-
-injInfoFields* EMfields3D::get_InfoFieldsTop() {return injFieldsTop;}
-injInfoFields* EMfields3D::get_InfoFieldsBottom() {return injFieldsBottom;}
-injInfoFields* EMfields3D::get_InfoFieldsLeft() {return injFieldsLeft;}
-injInfoFields* EMfields3D::get_InfoFieldsRight() {return injFieldsRight;}
-injInfoFields* EMfields3D::get_InfoFieldsFront() {return injFieldsFront;}
-injInfoFields* EMfields3D::get_InfoFieldsRear() {return injFieldsRear;}
-
 // Open Boundary conditions implementation
 
 void EMfields3D::updateInfoFields()

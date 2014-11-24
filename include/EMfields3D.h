@@ -477,13 +477,6 @@ class EMfields3D                // :public Field
 
     injInfoFields *injFieldsLeft, *injFieldsRight, *injFieldsTop, *injFieldsBottom, *injFieldsFront, *injFieldsRear;
 
-    injInfoFields* get_InfoFieldsLeft();
-    injInfoFields* get_InfoFieldsTop();
-    injInfoFields* get_InfoFieldsBottom();
-    injInfoFields* get_InfoFieldsFront();
-    injInfoFields* get_InfoFieldsRear();
-    injInfoFields* get_InfoFieldsRight();
-
     void BoundaryConditionsB(arr3_double vectorX, arr3_double vectorY, arr3_double vectorZ,
       int nx, int ny, int nz);
     void BoundaryConditionsE(arr3_double vectorX, arr3_double vectorY, arr3_double vectorZ,
