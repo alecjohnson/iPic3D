@@ -38,6 +38,9 @@ public:
   //void deallocate();
   /** print grid info */
   void print()const;
+
+  // differentiation operators
+
   /** calculate a derivative along a direction on nodes */
   //void derivN(arr3_double derN,
   //  const_arr4_double scFieldC, int ns, int dir)const;
@@ -99,6 +102,7 @@ public:
   void derBC(arr3_double derBC,
     const_arr3_double vector, int leftActiveNode, int dirDER)const;
 
+  // interpolation operators
 
   /** interpolate on nodes from central points */
   void interpC2N(arr3_double vecFieldN, const_arr3_double vecFieldC)const;
@@ -106,6 +110,13 @@ public:
   void interpN2C(arr3_double vecFieldC, const_arr3_double vecFieldN)const;
   /** interpolate on central points from nodes */
   void interpN2C(arr4_double vecFieldC, int ns, const_arr4_double vecFieldN)const;
+
+  // smoothing operators
+
+  /*! Smoothing after the interpolation* */
+  void smooth(double value, arr3_double vector, int type);
+  /*! SPECIES: Smoothing after the interpolation for species fields* */
+  void smooth(double value, arr4_double vector, int is, int type);
 
 private:
   void init_derived_parameters();
@@ -226,9 +237,9 @@ private:
   int czlast; // nzc-1;
   // number of cells excluding guard cells
   // (i.e. restricted to proper subdomain)
-  int nxc_r;
-  int nyc_r;
-  int nzc_r;
+  int nxc_r; // nxc-2
+  int nyc_r; // nyc-2
+  int nzc_r; // nzc-2
   // number of subdomain cells in a regular (untruncated) subdomain grid
   int num_cells_rr;
   /** local grid boundaries coordinate of proper subdomain */
@@ -241,19 +252,32 @@ private:
 
 public: // accessors (inline)
   const VirtualTopology3D& get_vct()const{return _vct;}
+  // deprecated
   int getNXC()const{ return (nxc); }
   int getNXN()const{ return (nxn); }
   int getNYC()const{ return (nyc); }
   int getNYN()const{ return (nyn); }
   int getNZC()const{ return (nzc); }
   int getNZN()const{ return (nzn); }
-  int get_nxc_r()const{return nxc_r;}
-  int get_nyc_r()const{return nyc_r;}
-  int get_nzc_r()const{return nzc_r;}
+  // preferred accessors
+  int get_nxc()const{ return nxc; }
+  int get_nxn()const{ return nxn; }
+  int get_nyc()const{ return nyc; }
+  int get_nyn()const{ return nyn; }
+  int get_nzc()const{ return nzc; }
+  int get_nzn()const{ return nzn; }
+  int get_nxc_r()const{return nxc_r;} // nxc-2
+  int get_nyc_r()const{return nyc_r;} // nyc-2
+  int get_nzc_r()const{return nzc_r;} // nzc-2
   int get_num_cells_rr()const{return num_cells_rr;}
+  // deprecated
   double getDX()const{ return (dx); }
   double getDY()const{ return (dy); }
   double getDZ()const{ return (dz); }
+  // preferred
+  double get_dx()const{ return dx; }
+  double get_dy()const{ return dy; }
+  double get_dz()const{ return dz; }
   double get_invdx()const{ return (invdx); }
   double get_invdy()const{ return (invdy); }
   double get_invdz()const{ return (invdz); }
@@ -506,6 +530,25 @@ public: // accessors (inline)
       w000, w001, w010, w011,
       w100, w101, w110, w111);
   }
+};
+
+// get centered array by interpolating and stripping ghosts as needed
+class CAgetter
+{
+  private:
+    array3_double arr;
+    Grid3DCU*grid;
+
+    CAgetter(Grid3DCU*grid_):
+      grid(grid_),
+      arr(grid->get_nxc_r(),
+          grid->get_nyc_r(),
+          grid->get_nzc_r())
+    {}
+  public:
+    arr3_double CAgetter::get_no_ghosts(const_arr3_double inarr);
+    arr3_double CAgetter::get_N2C_no_ghosts(const_arr3_double inarr);
+    arr3_double CAgetter::get_N2C_no_ghosts(int is, const_arr4_double inarr);
 };
 
 typedef Grid3DCU Grid;

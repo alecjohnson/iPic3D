@@ -11,7 +11,7 @@ using std::stringstream;
 // === methods to write restart files ===
 
 /** write the restart file at any RESTART_CYCLE, useful for reading intermediate results */
-void writeRESTART(const string& SaveDirName, int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part) {
+void writeRESTART(int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part) {
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
   // Create an Output Agent for HDF5 output
@@ -38,7 +38,7 @@ void writeRESTART(const string& SaveDirName, int myrank, int cycle, int ns, VCto
 }
 
 /** this restart function writes the last restart with the last cycle */
-void writeRESTART(const string& SaveDirName, int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part, bool fool) {
+void writeRESTART(int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part, bool fool) {
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
   // Create an Output Agent for HDF5 output
@@ -52,7 +52,7 @@ void writeRESTART(const string& SaveDirName, int myrank, int cycle, int ns, VCto
   // Print Collective informations
   stringstream ss;
   ss << myrank;
-  hdf5_agent.open(SaveDirName + "/restart" + ss.str() + ".hdf");
+  hdf5_agent.open(col->getRestartDirName() + "/restart" + ss.str() + ".hdf");
   output_mgr.output("proc_topology ", 0);
   output_mgr.output("Eall + Ball + rhos", 0);
   output_mgr.output("position + velocity + q ", 0, 0);
@@ -78,7 +78,7 @@ void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, int ns, V
   stringstream ss;
   ss << myrank;
 
-  printf("%s/restart%s.hdf\n", SaveDirName.c_str(), ss.str().c_str());
+  printf("%s/restart%s.hdf\n", col->getRestartDirName().c_str(), ss.str().c_str());
   //cout << SaveDirName + "/restart" + ss.str() + ".hdf" << endl;
 
   hdf5_agent.open_append(SaveDirName + "/restart" + ss.str().c_str() + ".hdf");
@@ -122,8 +122,7 @@ void read_field_restart(
     const VCtopology3D* vct,
     const Grid* grid,
     arr3_double Bxn, arr3_double Byn, arr3_double Bzn,
-    arr3_double Ex, arr3_double Ey, arr3_double Ez,
-    array4_double* rhons_, int ns)
+    arr3_double Ex, arr3_double Ey, arr3_double Ez)
 {
     const int nxn = grid->getNXN();
     const int nyn = grid->getNYN();
@@ -232,12 +231,57 @@ void read_field_restart(
 
     status = H5Dclose(dataset_id);
 
+    // close the hdf file
+    status = H5Fclose(file_id);
+    delete[]temp_storage;
+    delete[]species_name;
+}
+
+// extracted from EMfields3D.cpp
+//
+void read_moments_restart(
+    const Collective* col,
+    const VCtopology3D* vct,
+    const Grid* grid,
+    array4_double* rhons_, int ns)
+{
+    const int nxn = grid->getNXN();
+    const int nyn = grid->getNYN();
+    const int nzn = grid->getNZN();
+    if (vct->getCartesian_rank() == 0)
+    {
+      printf("LOADING MOMENTS FROM RESTART FILES %s/restart[N].hdf\n",
+        col->getRestartDirName().c_str());
+    }
+    stringstream ss;
+    ss << vct->getCartesian_rank();
+    string name_file = col->getRestartDirName() + "/restart" + ss.str() + ".hdf";
+
+    // hdf stuff 
+    herr_t status;
+
+    // open the hdf file
+    hid_t file_id = H5Fopen(name_file.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+    if (file_id < 0) {
+      eprintf("couldn't open file: %s\n"
+        "\tRESTART NOT POSSIBLE", name_file.c_str());
+      //cout << "couldn't open file: " << name_file << endl;
+      //cout << "RESTART NOT POSSIBLE" << endl;
+    }
+
+    hid_t dataset_id = H5Dopen2(file_id, "/moments/species_0/rho/cycle_0", H5P_DEFAULT);
+    hid_t datatype = H5Dget_type(dataset_id);
+    size_t size = H5Tget_size(datatype);
+    hid_t dataspace = H5Dget_space(dataset_id);
+    hsize_t dims_out[3]; /* dataset dimensions */
+    int status_n = H5Sget_simple_extent_dims(dataspace, dims_out, NULL);
+
     // open the charge density for species
 
-    stringstream *species_name = new stringstream[ns];
+    double *temp_storage = new double[dims_out[0] * dims_out[1] * dims_out[2]];
     for (int is = 0; is < ns; is++) {
-      species_name[is] << is;
-      string name_dataset = "/moments/species_" + species_name[is].str() + "/rho/cycle_0";
+      stringstream species_name << is;
+      string name_dataset = "/moments/species_" + species_name.str() + "/rho/cycle_0";
       dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
       status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, temp_storage);
       status = H5Dclose(dataset_id);
@@ -252,7 +296,6 @@ void read_field_restart(
     // close the hdf file
     status = H5Fclose(file_id);
     delete[]temp_storage;
-    delete[]species_name;
 }
 
 // extracted from Particles3Dcomm.cpp
@@ -372,27 +415,6 @@ void read_particles_restart(
     dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
     status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &q[0]);
     status = H5Dclose(dataset_id);
-    // ID 
-    //if (TrackParticleID) {
-    //  // herr_t (*old_func)(void*); // HDF 1.6
-    //  H5E_auto2_t old_func;      // HDF 1.8.8
-    //  void *old_client_data;
-    //  H5Eget_auto2(H5E_DEFAULT, &old_func, &old_client_data);  // HDF 1.8.8
-    //  /* Turn off error handling */
-    //  // H5Eset_auto(NULL, NULL); // HDF 1.6
-    //  H5Eset_auto2(H5E_DEFAULT, 0, 0); // HDF 1.8
-    //  name_dataset = "/particles/species_" + species_name.str() + "/ID/cycle_0";
-    //  dataset_id = H5Dopen2(file_id, name_dataset.c_str(), H5P_DEFAULT); // HDF 1.8.8
-    //
-    //  // H5Eset_auto(old_func, old_client_data); // HDF 1.6
-    //  H5Eset_auto2(H5E_DEFAULT, old_func, old_client_data);
-    //  if (dataset_id > 0)
-    //    status = H5Dread(dataset_id, H5T_NATIVE_ULONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, ParticleID);
-    //  //else {
-    //  //  for (int counter = 0; counter < nop; counter++)
-    //  //    fetch_ParticleID(counter) = particleIDgenerator.get_ID();
-    //  //}
-    //}
     // close the hdf file
     status = H5Fclose(file_id);
 }

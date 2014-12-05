@@ -12,7 +12,8 @@ developers           : Stefano Markidis, Giovanni Lapenta
 
 #include "arraysfwd.h"
 #include "ipicfwd.h"
-//#include "ComBasic3D.h"
+
+class Setting;
 
 // boundary condition for fields
 //#include "BcFields3D.h"
@@ -49,8 +50,12 @@ void communicateNodeBoxStencilBC_P(int nx, int ny, int nz, arr3_double vector, i
 
 // /////////// communication + BC ////////////////////////////
 void communicateCenterBC(int nx, int ny, int nz, arr3_double vector, int bcFaceXright, int bcFaceXleft, int bcFaceYright, int bcFaceYleft, int bcFaceZright, int bcFaceZleft, const VirtualTopology3D * vct);
+// version with fewer arguments
+void communicateCenterBC(arr3_double _vector, const Setting& setting);
 
 // /////////// communication + BC ////////////////////////////
 void communicateCenterBC_P(int nx, int ny, int nz, arr3_double vector, int bcFaceXright, int bcFaceXleft, int bcFaceYright, int bcFaceYleft, int bcFaceZright, int bcFaceZleft, const VirtualTopology3D * vct);
+// version with fewer arguments
+void communicateCenterBC_P(arr3_double _vector, const Setting& setting);
 
 #endif

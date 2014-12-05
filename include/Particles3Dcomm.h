@@ -28,14 +28,9 @@ class Particles3Dcomm // :public Particles
 {
 public:
   /** constructor */
-  Particles3Dcomm(int species, CollectiveIO * col,
-    VirtualTopology3D * vct, Grid * grid);
+  Particles3Dcomm(int species, const Setting& setting_);
   /** destructor */
   ~Particles3Dcomm();
-
-  /** interpolation method GRID->PARTICLE order 1: CIC */
-  // This does not belong in this class and is no longer in use.
-  void interpP2G(Field * EMf);
 
  public: // handle boundary conditions
   // apply boundary conditions to all particles at the
@@ -235,6 +230,7 @@ protected:
   // pointers to topology and grid information
   // (should be const)
   //
+  const Setting& setting;
   const VirtualTopology3D * vct;
   const Grid * grid;
   //

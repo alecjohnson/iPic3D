@@ -69,6 +69,8 @@ public:
 
   // new interface
   //
+  bool is_rank0()const{ return (0==cartesian_rank); }
+  int get_rank()const{ return (cartesian_rank); }
   int getXleft()const{ return (xleft_neighbor); }
   int getXrght()const{ return (xright_neighbor); }
   int getYleft()const{ return (yleft_neighbor); }
@@ -177,18 +179,6 @@ private:
   int zleft_neighbor;
   /** cartesian rank of ZLEFT neighbor */
   int zright_neighbor;
-  /** cartesian rank of XLEFT neighbor */
-  //int xleft_neighbor_P;
-  /** cartesian rank of XRIGHT neighbor */
-  //int xright_neighbor_P;
-  /** cartesian rank of YLEFT neighbor */
-  //int yleft_neighbor_P;
-  /** cartesian rank of YRIGHT neighbor */
-  //int yright_neighbor_P;
-  /** cartesian rank of ZRIGHT neighbor */
-  //int zleft_neighbor_P;
-  /** cartesian rank of ZLEFT neighbor */
-  //int zright_neighbor_P;
   
   /** indicators of whether this is a periodic boundary */
   bool _isPeriodicXlower;

@@ -1,6 +1,9 @@
 #ifndef __IPIC_DEFS_H__
 #define __IPIC_DEFS_H__
 
+// I think that we should use double for longid.
+// double can distinguish 10^53 particles, which
+// is good enough for exascale.
 typedef unsigned long long longid;
 //typedef uint64_t longid; // requires #include <stdint.h>
 
@@ -101,5 +104,8 @@ const int VECBYTES = VECBITS/8;
 // the number of doubles that fill a vector
 const int DVECWIDTH = VECBYTES/sizeof(double);
 const int SVECWIDTH = VECBYTES/sizeof(float);
+
+// dimension of vectors used in aosEMfield
+const int DFIELD_3or4=4; // 4 pads with garbage but is needed for alignment
 
 #endif

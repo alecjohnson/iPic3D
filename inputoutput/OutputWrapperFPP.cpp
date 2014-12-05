@@ -9,9 +9,6 @@
 #include "Particles3D.h"
 
 void OutputWrapperFPP::init_output_files(
-    Collective    *col,
-    VCtopology3D  *vct,
-    Grid3DCU      *grid,
     EMfields3D    *EMf,
     Particles3D   *part,
     int ns)

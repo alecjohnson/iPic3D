@@ -112,13 +112,12 @@ Particles3Dcomm::~Particles3Dcomm() {
 // was Particles3Dcomm::allocate()
 Particles3Dcomm::Particles3Dcomm(
   int species_number,
-  CollectiveIO * col,
-  VirtualTopology3D * vct_,
-  Grid * grid_)
+  const Setting& setting_)
  :
   ns(species_number),
-  vct(vct_),
-  grid(grid_),
+  setting(setting_),
+  vct(&setting.vct()),
+  grid(&setting.grid()),
   pclIDgenerator(),
   particleType(ParticleType::AoS)
 {
@@ -153,6 +152,7 @@ Particles3Dcomm::Particles3Dcomm(
 
   // info from collectiveIO
   //
+  const Collective* col = &setting.col();
   npcel = col->getNpcel(get_species_num());
   npcelx = col->getNpcelx(get_species_num());
   npcely = col->getNpcely(get_species_num());
@@ -1425,9 +1425,15 @@ double Particles3Dcomm::getMaxVelocity() {
 
 /** get energy spectrum */
 //
-// this ignores the weight of the charges. -eaj
+// I think that we should be using double rather than long
+// long.  This method ignores the weight of the charges.
+// This method should be changed to sum the amount of charge
+// with each velocity range, which is a double, not an
+// integer.  Even in the case that we are counting, double
+// precision will work fine.
 //
-long long *Particles3Dcomm::getVelocityDistribution(int nBins, double maxVel) {
+long long *Particles3Dcomm::getVelocityDistribution(int nBins, double maxVel)
+{
   long long *f = new long long[nBins];
   for (int i = 0; i < nBins; i++)
     f[i] = 0;
@@ -1496,6 +1502,12 @@ void Particles3Dcomm::PrintNp()  const
 
 /***** particle sorting routines *****/
 
+void Particles3Dcomm::sort_particles()
+{
+  timeTasks_begin_task(TimeTasks::MOMENT_PCL_SORTING);
+    sort_particles_serial();
+  timeTasks_end_task(TimeTasks::MOMENT_PCL_SORTING);
+}
 void Particles3Dcomm::sort_particles_serial()
 {
   switch(particleType)

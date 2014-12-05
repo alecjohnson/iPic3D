@@ -11,12 +11,7 @@ struct injInfoFields;
 
 /*! Electromagnetic fields and sources defined for each local grid, and for an implicit maxwell's solver @date May 2008 @par Copyright: (C) 2008 KUL @author Stefano Markidis, Giovanni Lapenta. @version 3.0 */
 
-// dimension of vectors used in fieldForPcls
-const int DFIELD_3or4=4; // 4 pads with garbage but is needed for alignment
-
-class Particles3Dcomm;
-class Moments10;
-class EMfields3D                // :public Field
+class EMfields3D
 {
   public:
     /*! constructor */
@@ -25,7 +20,8 @@ class EMfields3D                // :public Field
     ~EMfields3D();
 
     /*! initialize the electromagnetic fields with constant values */
-    void init();
+    virtual void init();
+
     /*! init beam */
     void initBEAM(double x_center, double y_center, double z_center, double radius);
     /*! initialize GEM challenge */
@@ -68,57 +64,20 @@ class EMfields3D                // :public Field
     /*! Impose a constant charge in the OpenBC boundaries */
     void ConstantChargeOpenBCv2();
     /*! Calculate Magnetic field with the implicit solver: calculate B defined on nodes With E(n+ theta) computed, the magnetic field is evaluated from Faraday's law */
-    void calculateB();
+    void advanceB();
     /*! fix B on the boundary for gem challange */
     void fixBgem();
     /*! fix B on the boundary for gem challange */
     void fixBforcefree();
 
-    /*! Calculate the three components of Pi(implicit pressure) cross image vector */
-    void PIdot(arr3_double PIdotX, arr3_double PIdotY, arr3_double PIdotZ,
-      const_arr3_double vectX, const_arr3_double vectY, const_arr3_double vectZ, int ns);
-    /*! Calculate the three components of mu (implicit permeattivity) cross image vector */
+    /*! Calculate the three components of mu (implicit permeattivity)
+        cross image vector */
+    // access to this is needed in the fields solver
     void MUdot(arr3_double MUdotX, arr3_double MUdotY, arr3_double MUdotZ,
       const_arr3_double vectX, const_arr3_double vectY, const_arr3_double vectZ);
-    /*! Calculate rho hat, Jx hat, Jy hat, Jz hat */
-    void calculateHatFunctions();
-
-
-    /*! communicate ghost for densities and interp rho from node to center */
-    void interpDensitiesN2C();
-    /*! set to 0 all the densities fields */
-    void setZeroDensities();
-    /*! set to 0 primary moments */
-    void setZeroPrimaryMoments();
-    /*! set to 0 all densities derived from primary moments */
-    void setZeroDerivedMoments();
-    /*! Sum rhon over species */
-    void sumOverSpecies();
-    /*! Sum current over different species */
-    void sumOverSpeciesJ();
-    /*! Smoothing after the interpolation* */
-    void smooth(double value, arr3_double vector, int type);
-    /*! SPECIES: Smoothing after the interpolation for species fields* */
-    void smooth(double value, arr4_double vector, int is, int type);
-    /*! smooth the electric field */
-    void smoothE(double value);
 
     /*! copy the field data to the array used to move the particles */
     void set_fieldForPcls();
-    /*! communicate ghost for grid -> Particles interpolation */
-    void communicateGhostP2G(int ns);
-    /*! sum moments (interp_P2G) versions */
-    void sumMoments(const Particles3Dcomm* part);
-    void sumMoments_vec(const Particles3Dcomm* part);
-    void sumMoments_AoS(const Particles3Dcomm* part);
-    void sumMoments_AoS_intr(const Particles3Dcomm* part);
-    void sumMoments_vectorized(const Particles3Dcomm* part);
-    void sumMoments_vectorized_AoS(const Particles3Dcomm* part);
-    void sumMomentsOld(const Particles3Dcomm& pcls);
-
-    /*! adjust densities on boundaries that are not periodic */
-    void adjustNonPeriodicDensities(int is);
-
 
     /*! Perfect conductor boundary conditions LEFT wall */
     void perfectConductorLeft(arr3_double imageX, arr3_double imageY, arr3_double imageZ,
@@ -158,7 +117,6 @@ class EMfields3D                // :public Field
     double getBy(int X, int Y, int Z) const { return Byn.get(X,Y,Z);}
     double getBz(int X, int Y, int Z) const { return Bzn.get(X,Y,Z);}
     //
-    const_arr4_double get_fieldForPcls() { return fieldForPcls; }
     arr3_double getEx() { return Ex; }
     arr3_double getEy() { return Ey; }
     arr3_double getEz() { return Ez; }
@@ -175,69 +133,17 @@ class EMfields3D                // :public Field
     arr3_double getByc();
     arr3_double getBzc();
 
-    arr3_double getRHOc() { return rhoc; }
-    arr3_double getRHOn() { return rhon; }
-    double getRHOc(int X, int Y, int Z) const { return rhoc.get(X,Y,Z);}
-    double getRHOn(int X, int Y, int Z) const { return rhon.get(X,Y,Z);}
-
-    // densities per species:
-    //
-    double getRHOcs(int X,int Y,int Z,int is)const{return rhocs.get(is,X,Y,Z);}
-    double getRHOns(int X,int Y,int Z,int is)const{return rhons.get(is,X,Y,Z);}
-    double*** getRHOns(int is){return rhons.fetch_arr4()[is];}
-    arr4_double getRHOns(){return rhons;}
-    /* density on cells without ghost cells */
-    arr3_double getRHOcs(int is);
-
-    double getBx_ext(int X, int Y, int Z) const{return Bx_ext.get(X,Y,Z);}
-    double getBy_ext(int X, int Y, int Z) const{return By_ext.get(X,Y,Z);}
-    double getBz_ext(int X, int Y, int Z) const{return Bz_ext.get(X,Y,Z);}
-    
-    arr3_double getBx_ext() { return Bx_ext; }
-    arr3_double getBy_ext() { return By_ext; }
-    arr3_double getBz_ext() { return Bz_ext; }
-
-    arr4_double getpXXsn() { return pXXsn; }
-    arr4_double getpXYsn() { return pXYsn; }
-    arr4_double getpXZsn() { return pXZsn; }
-    arr4_double getpYYsn() { return pYYsn; }
-    arr4_double getpYZsn() { return pYZsn; }
-    arr4_double getpZZsn() { return pZZsn; }
-
-    double getJx(int X, int Y, int Z) const { return Jx.get(X,Y,Z);}
-    double getJy(int X, int Y, int Z) const { return Jy.get(X,Y,Z);}
-    double getJz(int X, int Y, int Z) const { return Jz.get(X,Y,Z);}
-    arr3_double getJx() { return Jx; }
-    arr3_double getJy() { return Jy; }
-    arr3_double getJz() { return Jz; }
-    arr4_double getJxs() { return Jxs; }
-    arr4_double getJys() { return Jys; }
-    arr4_double getJzs() { return Jzs; }
-
-    double getJxs(int X,int Y,int Z,int is)const{return Jxs.get(is,X,Y,Z);}
-    double getJys(int X,int Y,int Z,int is)const{return Jys.get(is,X,Y,Z);}
-    double getJzs(int X,int Y,int Z,int is)const{return Jzs.get(is,X,Y,Z);}
-
-    /*** accessor that require computing ***/
-
-    // get current for species in all cells except ghost
-    //
-    arr3_double getJxsc(int is);
-    arr3_double getJysc(int is);
-    arr3_double getJzsc(int is);
+    double getBx_ext(int X, int Y, int Z) const{return Bx_ext? Bx_ext->get(X,Y,Z):0.;}
+    double getBy_ext(int X, int Y, int Z) const{return By_ext? By_ext->get(X,Y,Z):0.;}
+    double getBz_ext(int X, int Y, int Z) const{return Bz_ext? Bz_ext->get(X,Y,Z):0.;}
+    //arr3_double getBx_ext() { assert(Bx_ext); return *Bx_ext; }
+    //arr3_double getBy_ext() { assert(By_ext); return *By_ext; }
+    //arr3_double getBz_ext() { assert(Bz_ext); return *Bz_ext; }
 
     /*! get the electric field energy */
     double getEenergy();
     /*! get the magnetic field energy */
     double getBenergy();
-
-    /*! fetch array for summing moments of thread i */
-    Moments10& fetch_moments10Array(int i){
-      assert_le(0,i);
-      assert_lt(i,sizeMomentsArray);
-      return *(moments10Array[i]);
-    }
-    int get_sizeMomentsArray() { return sizeMomentsArray; }
 
     /*! print electromagnetic fields info */
     void print(void) const;
@@ -246,16 +152,23 @@ class EMfields3D                // :public Field
     void updateInfoFields();
 
   public: // accessors
+    const Setting& get_setting()const{return _setting;}
     const Collective& get_col()const{return _col;}
     const Grid& get_grid()const{return _grid;};
     const VirtualTopology3D& get_vct()const{return _vct;}
     /* ********************************* // VARIABLES ********************************* */
-    
+
   private:
     // access to global data
+    const Setting& _setting;
     const Collective& _col;
-    const Grid& _grid;
     const VirtualTopology3D&_vct;
+    const Grid& _grid;
+    //
+    // copies of Collective parameters
+    // (We should try to get ride of these and instead
+    // access this stuff via get_col().)
+    //
     /*! light speed */
     double c;
     /* 4*PI for normalization */
@@ -264,8 +177,6 @@ class EMfields3D                // :public Field
     double dt;
     /*! decentering parameter */
     double th;
-    /*! Smoothing value */
-    double Smooth;
     /*! delt = c*th*dt */
     double delt;
     /*! number of particles species */
@@ -276,9 +187,6 @@ class EMfields3D                // :public Field
     double B1x, B1y, B1z;
     /*! charge to mass ratio array for different species */
     double *qom;
-    /*! Boundary electron speed */
-    double ue0, ve0, we0;
-
 
     // KEEP IN MEMORY GUARD CELLS ARE INCLUDED
     /*! number of cells - X direction, including + 2 (guard cells) */
@@ -293,32 +201,9 @@ class EMfields3D                // :public Field
     int nzc;
     /*! number of nodes - Z direction, including + 2 extra nodes for guard cells */
     int nzn;
-    /*! local grid boundaries coordinate */
-    double xStart, xEnd, yStart, yEnd, zStart, zEnd;
-    /*! grid spacing */
-    double dx, dy, dz, invVOL;
-    /*! simulation box length - X direction */
-    double Lx;
-    /*! simulation box length - Y direction */
-    double Ly;
-    /*! simulation box length - Z direction */
-    double Lz;
-    /** source center - X direction   */
-    double x_center;
-    /** source center - Y direction   */
-    double y_center;
-    /** source center - Z direction   */
-    double z_center;
-    /** Characteristic length */
-    double L_square;
 
     /*! PHI: electric potential (indexX, indexY, indexZ), defined on central points between nodes */
     array3_double PHI;
-
-    // Electric field component used to move particles
-    // organized for rapid access in mover_PC()
-    // [This is the information transferred from cluster to booster].
-    array4_double fieldForPcls;
 
     // Electric field components defined on nodes
     //
@@ -347,13 +232,6 @@ class EMfields3D                // :public Field
     // *************************************
     // TEMPORARY ARRAY
     // ************************************
-    /*!some temporary arrays (for calculate hat functions) */
-    array3_double tempXC;
-    array3_double tempYC;
-    array3_double tempZC;
-    array3_double tempXN;
-    array3_double tempYN;
-    array3_double tempZN;
     /*! other temporary arrays (in MaxwellSource) */
     array3_double tempC;
     array3_double tempX;
@@ -374,61 +252,27 @@ class EMfields3D                // :public Field
     array3_double vectZ;
     array3_double divC;
     array3_double arr;
-    /* temporary arrays for summing moments */
-    int sizeMomentsArray;
-    Moments10 **moments10Array;
 
-    // *******************************************************************************
-    // *********** SOURCES **
-    // *******************************************************************************
+    // *********** SOURCES *************
 
-    /*! Charge density, defined on central points of the cell */
-    array3_double rhoc;
-    /*! Charge density, defined on nodes */
-    array3_double rhon;
+    // implicit moments obtained from Moments integrator
+    //Imoments *iMoments;
+    //array3_double rhoc;
     /*! Implicit charge density, defined on central points of the cell */
-    array3_double rhoh;
-    /*! SPECIES: charge density for each species, defined on nodes */
-    array4_double rhons;
-    /*! SPECIES: charge density for each species, defined on central points of the cell */
-    array4_double rhocs;
+    //array3_double rhoh;
 
-    // current density defined on nodes
+    // external magnetic field defined on nodes
     //
-    array3_double Jx;
-    array3_double Jy;
-    array3_double Jz;
-
-    // implicit current density defined on nodes
-    //
-    array3_double Jxh;
-    array3_double Jyh;
-    array3_double Jzh;
-
-    // species-specific current densities defined on nodes
-    //
-    array4_double Jxs;
-    array4_double Jys;
-    array4_double Jzs;
-
-    // magnetic field components defined on nodes
-    //
-    array3_double   Bx_ext;
-    array3_double   By_ext;
-    array3_double   Bz_ext;
+    array3_double  *Bx_ext;
+    array3_double  *By_ext;
+    array3_double  *Bz_ext;
 
     // external current, defined on nodes
-    array3_double   Jx_ext;
-    array3_double   Jy_ext;
-    array3_double   Jz_ext;
+    // (only used for reporting net current)
+    arr3_double  *Jx_ext;
+    arr3_double  *Jy_ext;
+    arr3_double  *Jz_ext;
 
-    // pressure tensor components, defined on nodes
-    array4_double pXXsn;
-    array4_double pXYsn;
-    array4_double pXZsn;
-    array4_double pYYsn;
-    array4_double pYZsn;
-    array4_double pZZsn;
 
     /*! Field Boundary Condition
       0 = Dirichlet Boundary Condition: specifies the
@@ -488,7 +332,7 @@ class EMfields3D                // :public Field
 
 inline void get_field_components_for_cell(
   const double* field_components[8],
-  const_arr4_double fieldForPcls,
+  const_arr4_double aosEMfield,
   int cx,int cy,int cz)
 {
   // interface to the right of cell
@@ -498,22 +342,22 @@ inline void get_field_components_for_cell(
 
   // is this faster?
   //
-  //field_components[0] = fieldForPcls[ix][iy][iz]; // field000
-  //field_components[1] = fieldForPcls[ix][iy][cz]; // field001
-  //field_components[2] = fieldForPcls[ix][cy][iz]; // field010
-  //field_components[3] = fieldForPcls[ix][cy][cz]; // field011
-  //field_components[4] = fieldForPcls[cx][iy][iz]; // field100
-  //field_components[5] = fieldForPcls[cx][iy][cz]; // field101
-  //field_components[6] = fieldForPcls[cx][cy][iz]; // field110
-  //field_components[7] = fieldForPcls[cx][cy][cz]; // field111
+  //field_components[0] = aosEMfield[ix][iy][iz]; // field000
+  //field_components[1] = aosEMfield[ix][iy][cz]; // field001
+  //field_components[2] = aosEMfield[ix][cy][iz]; // field010
+  //field_components[3] = aosEMfield[ix][cy][cz]; // field011
+  //field_components[4] = aosEMfield[cx][iy][iz]; // field100
+  //field_components[5] = aosEMfield[cx][iy][cz]; // field101
+  //field_components[6] = aosEMfield[cx][cy][iz]; // field110
+  //field_components[7] = aosEMfield[cx][cy][cz]; // field111
   //
   // or is this?
   //
   // creating these aliases seems to accelerate this method (by about 30%?)
   // on the Xeon host processor, suggesting deficiency in the optimizer.
   //
-  arr3_double_get field0 = fieldForPcls[ix];
-  arr3_double_get field1 = fieldForPcls[cx];
+  arr3_double_get field0 = aosEMfield[ix];
+  arr3_double_get field1 = aosEMfield[cx];
   arr2_double_get field00 = field0[iy];
   arr2_double_get field01 = field0[cy];
   arr2_double_get field10 = field1[iy];

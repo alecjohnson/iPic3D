@@ -10,28 +10,29 @@ using namespace iPic3D;
 int main(int argc, char **argv) {
 
  MPIdata::init(&argc, &argv);
+ Parameters::init_parameters();
  {
-  iPic3D::c_Solver KCode;
-  KCode.Init(argc, argv);
+  iPic3D::c_Solver solver(argc, argv);
+  solver.Init();
 
   timeTasks.resetCycle();
-  KCode.CalculateMoments();
-  for (int i = KCode.FirstCycle(); i < KCode.LastCycle(); i++) {
-
-    if (KCode.get_myrank() == 0)
+  solver.computeMoments();
+  for (int i = solver.FirstCycle(); i <= solver.FinalCycle(); i++)
+  {
+    if (solver.is_rank0())
       printf(" ======= Cycle %d ======= \n",i);
 
     timeTasks.resetCycle();
-    KCode.CalculateField();
-    KCode.ParticlesMover();
-    KCode.CalculateB();
-    KCode.CalculateMoments();
-    KCode.WriteOutput(i);
+    solver.advanceEfield();
+    solver.moveParticles();
+    solver.advanceBfield();
+    solver.computeMoments();
+    solver.WriteOutput(i);
     // print out total time for all tasks
     timeTasks.print_cycle_times(i);
   }
 
-  KCode.Finalize();
+  solver.Finalize();
  }
  // close MPI
  MPIdata::instance().finalize_mpi();

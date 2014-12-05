@@ -958,6 +958,13 @@ void communicateCenterBC(int nx, int ny, int nz, arr3_double _vector,
   delete[]ghostXleftYleftZsameEdge;
   delete[]ghostXleftYrghtZsameEdge;
 }
+// version with fewer arguments
+void communicateCenterBC(int nx, int ny, int nz, arr3_double vector,
+  int bc[6], const VirtualTopology3D * vct)
+{
+  communicateCenterBC(nx, ny, nz, vector,
+  bc[0], bc[1], bc[2], bc[3], bc[4], bc[5], vct);
+}
 // /////////// communication + BC ////////////////////////////
 void communicateCenterBC_P(int nx, int ny, int nz, arr3_double _vector,
   int bcFaceXrght, int bcFaceXleft,
@@ -1068,4 +1075,11 @@ void communicateCenterBC_P(int nx, int ny, int nz, arr3_double _vector,
   delete[]ghostXrghtYrghtZsameEdge;
   delete[]ghostXleftYleftZsameEdge;
   delete[]ghostXleftYrghtZsameEdge;
+}
+// version with fewer arguments
+void communicateCenterBC_P(int nx, int ny, int nz, arr3_double vector,
+  int bc[6], const VirtualTopology3D * vct)
+{
+  communicateCenterBC_P(nx, ny, nz, vector,
+  bc[0], bc[1], bc[2], bc[3], bc[4], bc[5], vct);
 }

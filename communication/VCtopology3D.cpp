@@ -51,6 +51,22 @@ VCtopology3D::VCtopology3D(const Collective& col) {
 /** Within CART_COMM, processes find about their new rank numbers, their cartesian coordinates,
   and their neighbors  */
 void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
+
+  if(getNprocs() != MPIdata::get_nprocs())
+  {
+    if(MPIdata::get_rank() == 0)
+    {
+      cout << "Error: " << MPIdata::get_nprocs()
+        << " processes can't be mapped to a "
+        << getXLEN() << "x"
+        << getYLEN() << "x"
+        << getZLEN()
+        << " matrix: Change XLEN, YLEN, or ZLEN in .inp file"
+        << endl;
+      MPIdata::instance().finalize_mpi();
+      abort();
+    }
+  }
   // create a matrix with ranks, and neighbours for fields
   MPI_Cart_create(old_comm, 3, dims, periods, reorder, &CART_COMM);
   // create a matrix with ranks, and neighbours for Particles
@@ -126,6 +142,7 @@ void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
     _noYrghtNeighbor ||
     _noZleftNeighbor ||
     _noZrghtNeighbor;
+  
 }
 /** destructor */
 VCtopology3D::~VCtopology3D() {

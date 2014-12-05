@@ -55,7 +55,7 @@ static bool cap_velocity(){return false;}
  */
 
 /** particles are uniformly distributed with zero velocity   */
-void Particles3D::uniform_background(Field * EMf)
+void Particles3D::uniform_background(int is, const_arr4_double rhocs);
 {
   for (int i = 1; i < grid->getNXC() - 1; i++)
   for (int j = 1; j < grid->getNYC() - 1; j++)
@@ -71,7 +71,7 @@ void Particles3D::uniform_background(Field * EMf)
       double u = 0.0;
       double v = 0.0;
       double w = 0.0;
-      double q = (qom / fabs(qom)) * (EMf->getRHOcs(i, j, k, ns) / npcel) * (1.0 / grid->getInvVOL());
+      double q = (qom / fabs(qom)) * (rhocs.get(is, i, j, k) / npcel) * (1.0 / grid->getInvVOL());
       _pcls.push_back(SpeciesParticle(u,v,w,q,x,y,z,0));
     }
   }
@@ -85,7 +85,7 @@ void Particles3D::uniform_background(Field * EMf)
   </ul>
 
 */
-void Particles3D::constantVelocity(double vel, int dim, Field * EMf) {
+void Particles3D::constantVelocity(double vel, int dim) {
   switch (dim) {
     case 0:
       for (int i = 0; i < getNOP(); i++)
@@ -116,14 +116,9 @@ void Particles3D::constantVelocity(double vel, int dim, Field * EMf) {
 
 }
 
-/** alternative routine maxellian random velocity and uniform spatial distribution */
-void Particles3D::alt_maxwellian(Field * EMf) {
-  eprintf("unimplemented");
-}
-
 #ifdef BATSRUS
 /** Maxellian random velocity and uniform spatial distribution */
-void Particles3D::MaxwellianFromFluid(Field* EMf,Collective *col, int is){
+void Particles3D::MaxwellianFromFluid(Collective *col, int is){
 
   /*
    * Constuctiong the distrebution function from a Fluid model
@@ -177,7 +172,7 @@ void Particles3D::MaxwellianFromFluidCell(Collective *col, int is, int i, int j,
 #endif
 
 /** Maxellian random velocity and uniform spatial distribution */
-void Particles3D::maxwellian(Field * EMf)
+void Particles3D::maxwellian(int is, const_arr4_double rhocs)
 {
   /* initialize random generator with different seed on different processor */
   srand(vct->getCartesian_rank() + 2);
@@ -193,7 +188,7 @@ void Particles3D::maxwellian(Field * EMf)
   for (int j = 1; j < grid->getNYC() - 1; j++)
   for (int k = 1; k < grid->getNZC() - 1; k++)
   {
-    const double q = q_factor * EMf->getRHOcs(i, j, k, ns);
+    const double q = q_factor * rhocs.get(is, i, j, k);
     for (int ii = 0; ii < npcelx; ii++)
     for (int jj = 0; jj < npcely; jj++)
     for (int kk = 0; kk < npcelz; kk++)
@@ -214,7 +209,7 @@ void Particles3D::maxwellian(Field * EMf)
   }
   if(0)
   {
-    dprintf("number of particles of species %d: %d", ns, getNOP());
+    dprintf("number of particles of species %d: %d", is, getNOP());
     const int num_ids = 1;
     longid id_list[num_ids] = {0};
     print_pcls(_pcls,ns,id_list, num_ids);
@@ -222,7 +217,7 @@ void Particles3D::maxwellian(Field * EMf)
 }
 
 /** Force Free initialization (JxB=0) for particles */
-void Particles3D::force_free(Field * EMf)
+void Particles3D::force_free(int is, const_arr4_double rhocs)
 {
   eprintf("this function was not properly implemented and needs to be revised.");
 #if 0
@@ -240,7 +235,7 @@ void Particles3D::force_free(Field * EMf)
       double y = (jj + .5) * (dy / npcely) + grid->getYN(i, j, k);
       double z = (kk + .5) * (dz / npcelz) + grid->getZN(i, j, k);
       // q = charge
-      double q = (qom / fabs(qom)) * (EMf->getRHOcs(i, j, k, ns) / npcel) * (1.0 / invVOL);
+      double q = (qom / fabs(qom)) * (rhocs.get(is, i, j, k) / npcel) * (1.0 / invVOL);
       double shaperx = tanh((y - Ly / 2) / delta) / cosh((y - Ly / 2) / delta) / delta;
       double shaperz = 1.0 / (cosh((y - Ly / 2) / delta) * cosh((y - Ly / 2) / delta)) / delta;
       eprintf("shapery needs to be initialized.");
@@ -266,26 +261,6 @@ void Particles3D::force_free(Field * EMf)
 #endif
 }
 
-/**Add a periodic perturbation in J exp i(kx - \omega t); deltaBoB is the ratio (Delta B / B0) **/
-void Particles3D::AddPerturbationJ(double deltaBoB, double kx, double ky, double Bx_mod, double By_mod, double Bz_mod, double jx_mod, double jx_phase, double jy_mod, double jy_phase, double jz_mod, double jz_phase, double B0) {
-
-  // rescaling of amplitudes according to deltaBoB //
-  double alpha;
-  alpha = deltaBoB * B0 / sqrt(Bx_mod * Bx_mod + By_mod * By_mod + Bz_mod * Bz_mod);
-  jx_mod *= alpha;
-  jy_mod *= alpha;
-  jz_mod *= alpha;
-  for (int i = 0; i < getNOP(); i++) {
-    fetchU(i) += jx_mod / q[i] / npcel / invVOL * cos(kx * x[i] + ky * y[i] + jx_phase);
-    fetchV(i) += jy_mod / q[i] / npcel / invVOL * cos(kx * x[i] + ky * y[i] + jy_phase);
-    fetchW(i) += jz_mod / q[i] / npcel / invVOL * cos(kx * x[i] + ky * y[i] + jz_phase);
-  }
-}
-
-/** explicit mover */
-void Particles3D::mover_explicit(Field * EMf) {
-  eprintf("unimplemented");
-}
 //
 // Create a vectorized version of this mover as follows.
 //
@@ -334,13 +309,12 @@ void Particles3D::mover_explicit(Field * EMf) {
 // Compare the vectorization notes at the top of sumMoments()
 //
 /** mover with a Predictor-Corrector scheme */
-void Particles3D::mover_PC(Field * EMf) {
+void Particles3D::mover_PC(const_arr4_double fieldForPcls) {
   convertParticlesToSoA();
   #pragma omp master
   if (vct->getCartesian_rank() == 0) {
     cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
   }
-  const_arr4_double fieldForPcls = EMf->get_fieldForPcls();
 
   #pragma omp master
   { timeTasks_begin_task(TimeTasks::MOVER_PCL_MOVING); }
@@ -489,14 +463,13 @@ void Particles3D::mover_PC(Field * EMf) {
   { timeTasks_end_task(TimeTasks::MOVER_PCL_MOVING); }
 }
 
-void Particles3D::mover_PC_AoS(Field * EMf)
+void Particles3D::mover_PC_AoS(const_arr4_double fieldForPcls)
 {
   convertParticlesToAoS();
   #pragma omp master
   if (vct->getCartesian_rank() == 0) {
     cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
   }
-  const_arr4_double fieldForPcls = EMf->get_fieldForPcls();
 
   #pragma omp master
   { timeTasks_begin_task(TimeTasks::MOVER_PCL_MOVING); }
@@ -616,7 +589,7 @@ void Particles3D::mover_PC_AoS(Field * EMf)
 }
 
 // move the particle using MIC vector intrinsics
-void Particles3D::mover_PC_AoS_vec_intr(Field * EMf)
+void Particles3D::mover_PC_AoS_vec_intr(const_arr4_double fieldForPcls)
 {
  #ifndef __MIC__
   //eprintf("not implemented");
@@ -649,7 +622,6 @@ void Particles3D::mover_PC_AoS_vec_intr(Field * EMf)
   if (vct->getCartesian_rank() == 0) {
     cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
   }
-  const_arr4_double fieldForPcls = EMf->get_fieldForPcls();
 
   SpeciesParticle * pcls = &_pcls[0];
   ALIGNED(pcls);
@@ -742,14 +714,13 @@ void Particles3D::mover_PC_AoS_vec_intr(Field * EMf)
  #endif
 }
 
-void Particles3D::mover_PC_AoS_vec(Field * EMf)
+void Particles3D::mover_PC_AoS_vec(const_arr4_double fieldForPcls)
 {
   convertParticlesToAoS();
   #pragma omp master
   if (vct->getCartesian_rank() == 0) {
     cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
   }
-  const_arr4_double fieldForPcls = EMf->get_fieldForPcls();
 
   const int NUM_PCLS_MOVED_AT_A_TIME = 8;
   // make sure that we won't overrun memory
@@ -885,14 +856,13 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 // sort by xavg with each iteration like in mover_PC_vectorized.
 // But in fact this does not run any faster than mover_PC_AoS
 //
-//void Particles3D::mover_PC_AoS_vec_onesort(Field * EMf)
+//void Particles3D::mover_PC_AoS_vec_onesort(const_arr4_double fieldForPcls)
 //{
 //  convertParticlesToAoS();
 //  #pragma omp master
 //  if (vct->getCartesian_rank() == 0) {
 //    cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
 //  }
-//  const_arr4_double fieldForPcls = EMf->get_fieldForPcls();
 //
 //  SpeciesParticle * pcls = fetch_pcls();
 //  #pragma omp master
@@ -1020,7 +990,7 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 //}
 
 ///** mover with a Predictor-Corrector scheme */
-//void Particles3D::mover_PC_vectorized(Field * EMf)
+//void Particles3D::mover_PC_vectorized(const_arr4_double fieldForPcls)
 //{
 //  convertParticlesToSoA();
 //  assert_eq(nxc,nxn-1);
@@ -1030,7 +1000,6 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 //  if (vct->getCartesian_rank() == 0) {
 //    cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
 //  }
-//  const_arr4_double fieldForPcls = EMf->get_fieldForPcls();
 //
 //  // initialize average positions
 //  #pragma omp for schedule(static)
@@ -1239,7 +1208,7 @@ void Particles3D::mover_PC_AoS_vec(Field * EMf)
 //}
 
 /** relativistic mover with a Predictor-Corrector scheme */
-int Particles3D::mover_relativistic(Field * EMf)
+int Particles3D::mover_relativistic(const_arr4_double fieldForPcls)
 {
   eprintf("not implemented");
   return (0);
@@ -1455,174 +1424,6 @@ void Particles3D::repopulate_particles()
   //if (vct->getCartesian_rank()==0){
   //  cout << "*** number of particles " << getNOP() << " ***" << endl;
   //}
-}
-
-/** apply a linear perturbation to particle distribution */
-//
-// This was not being used, so I took it out. -eaj
-//
-//void Particles3D::linear_perturbation(double deltaBoB, double kx, double ky, double angle, double omega_r, double omega_i, double Ex_mod, double Ex_phase, double Ey_mod, double Ey_phase, double Ez_mod, double Ez_phase, double Bx_mod, double Bx_phase, double By_mod, double By_phase, double Bz_mod, double Bz_phase, Field * EMf) {
-//
-//  double value1 = 0.0, value2 = 0.0, max_value = 0.0, min_value = 0.0, phi, n;
-//  // rescaling of amplitudes according to deltaBoB //
-//
-//  const double alpha = deltaBoB * sqrt(EMf->getBx(1, 1, 0) * EMf->getBx(1, 1, 0) + EMf->getBy(1, 1, 0) * EMf->getBy(1, 1, 0) + EMf->getBz(1, 1, 0) * EMf->getBz(1, 1, 0)) / sqrt(Bx_mod * Bx_mod + By_mod * By_mod + Bz_mod * Bz_mod);
-//
-//  Ex_mod *= alpha;
-//  Ey_mod *= alpha;
-//  Ez_mod *= alpha;
-//  Bx_mod *= alpha;
-//  By_mod *= alpha;
-//  Bz_mod *= alpha;
-//
-//
-//
-//  // find the maximum value of f=1+delta_f/f0
-//  for (register double vpar = -2 * uth; vpar <= 2 * uth; vpar += 0.0005)
-//    for (register double vperp = 1e-10; vperp <= 2 * vth; vperp += 0.0005)
-//      for (register double X = xstart; X <= xend; X += 2 * grid->getDX())
-//        for (register double Y = ystart; Y <= yend; Y += 2 * grid->getDY()) {
-//          value1 = 1 + delta_f(vpar, vperp, 0.0, X, Y, kx, ky, omega_r, omega_i, Ex_mod, Ex_phase, Ey_mod, Ey_phase, Ez_mod, Ez_phase, angle, EMf) / f0(vpar, vperp);
-//
-//          if (value1 > max_value)
-//            max_value = value1;
-//
-//
-//        }
-//
-//
-//
-//  max_value *= 3.2;
-//  phi = 1.48409;
-//  n = 2.948687;                 // security factor...
-//  if (ns == 1) {
-//    max_value *= 3.0;
-//    phi = -1.65858;
-//    n = 2.917946;
-//  }                             // security factor...
-//  cout << "max-value=" << max_value << " min-value=" << min_value << endl;
-//
-//  /* initialize random generator */
-//  srand(vct->getCartesian_rank() + 2);
-//
-//  int counter = 0;
-//  int total_generated = 0;
-//  const double q_value = (qom / fabs(qom)) * ((0.19635) / npcel) * (1.0 / invVOL);
-//  for (int i = 1; i < grid->getNXC() - 1; i++)
-//  for (int j = 1; j < grid->getNYC() - 1; j++)
-//  {
-//    const double x_factor = (dx / (npcelx + (int) (2 * n * (cos(2 * M_PI * 0.4125 * grid->getXN(i, j, 0) + phi))))) + grid->getXN(i, j, 0);
-//    const double y_factor = (dy / npcely) + grid->getYN(i, j, 0);
-//    for (int ii = 0; ii < npcelx + (int) (2 * n * (cos(2 * M_PI * 0.4125 * grid->getXN(i, j, 0) + phi))); ii++)
-//    for (int jj = 0; jj < npcely; jj++)
-//    {
-//      const double x = (ii + .5) * x_factor;
-//      const double y = (jj + .5) * y_factor;
-//      eprintf("this was not being initialized.");
-//      const double z = 0.;
-//
-//      // apply rejection method in velocity space
-//      double u,v,w;
-//      bool rejected = true;
-//      while (rejected) {
-//        total_generated++;
-//        sample_maxwellian(
-//          u,v,w,
-//          uth,vth,wth,
-//          u0,v0,w0);
-//
-//        // test: if rand < (1+delta_f/f0)/max_value --> accepted
-//        if (rand() / (double) RAND_MAX <= (1 + delta_f(u, v, w, x, y, kx, ky, omega_r, omega_i, Ex_mod, Ex_phase, Ey_mod, Ey_phase, Ez_mod, Ez_phase, angle, EMf) / f0(u, sqrt(v * v + w * w))) / max_value)
-//          rejected = false;
-//      }
-//      counter++;
-//      add_new_particle(u,v,w,q_value,x,y,z,0.);
-//    }
-//  }
-//  assert_eq(getNOP(),counter+1);
-//  // if (vct->getCartesian_rank()==0)
-//  cout << "Rejection method: " << getNOP() / double (total_generated) * 100 << " % of particles are accepted for species " << ns << " counter=" << counter << endl;
-//}
-
-/** Linear delta f for bi-maxwellian plasma */
-double Particles3D::delta_f(double u, double v, double w, double x, double y, double kx, double ky, double omega_re, double omega_i, double Ex_mod, double Ex_phase, double Ey_mod, double Ey_phase, double Ez_mod, double Ez_phase, double theta, Field * EMf) {
-  const complex < double >I(0.0, 1.0);
-  const double vperp = sqrt(v * v + w * w);
-  const double vpar = u;
-  const double kpar = kx;
-  double kperp;
-  if (ky == 0.0)                // because this formula is not valid for exactly parallel
-    kperp = 1e-9;
-  else
-    kperp = ky;
-  const double om_c = qom / c * sqrt(EMf->getBx(1, 1, 0) * EMf->getBx(1, 1, 0) + EMf->getBy(1, 1, 0) * EMf->getBy(1, 1, 0)) / 2 / M_PI;
-  const double phi = atan2(w, v);
-  const double lambda = kperp * vperp / om_c;
-  const complex < double >omega(omega_re, omega_i);
-
-  const int lmax = 5;           // sum from -lmax to lmax
-
-  double bessel_Jn_array[lmax + 2];
-  double bessel_Jn_prime_array[lmax + 1];
-  complex < double >a1[2 * lmax + 1], a2[2 * lmax + 1], a3[2 * lmax + 1];
-  complex < double >factor, deltaf;
-
-  // rotation of x,y
-  double temp;
-  temp = x;
-  x = x * cos(theta) - y * sin(theta);
-  y = temp * sin(theta) + y * cos(theta);
-
-
-  /** for compilation issues comment this part: PUT in the math stuff */
-  // calc_bessel_Jn_seq(lambda, lmax, bessel_Jn_array, bessel_Jn_prime_array);
-  factor = (kpar * vperp / omega * df0_dvpar(vpar, vperp) + (1.0 - (kpar * vpar / omega)) * df0_dvperp(vpar, vperp));
-  for (register int l = -lmax; l < 0; l++) {  // negative index
-    a1[l + lmax] = factor / lambda * pow(-1.0, -l) * bessel_Jn_array[-l];
-    a1[l + lmax] *= (double) l;
-    a2[l + lmax] = factor * I * 0.5 * pow(-1.0, -l) * (bessel_Jn_array[-l - 1] - bessel_Jn_array[-l + 1]);
-    a3[l + lmax] = kperp / omega * (vpar * df0_dvperp(vpar, vperp) - vperp * df0_dvpar(vpar, vperp)) / lambda * pow(-1.0, -l) * bessel_Jn_array[-l];
-    a3[l + lmax] *= (double) l;
-    a3[l + lmax] += df0_dvpar(vpar, vperp) * pow(-1.0, -l) * bessel_Jn_array[-l];
-  }
-
-  for (register int l = 0; l < lmax + 1; l++) { // positive index
-    a1[l + lmax] = factor / lambda * bessel_Jn_array[l];
-    a1[l + lmax] *= (double) l;
-    a2[l + lmax] = factor * I * bessel_Jn_prime_array[l];
-    a3[l + lmax] = kperp / omega * (vpar * df0_dvperp(vpar, vperp) - vperp * df0_dvpar(vpar, vperp)) / lambda * bessel_Jn_array[l];
-    a3[l + lmax] *= (double) l;
-    a3[l + lmax] += df0_dvpar(vpar, vperp) * bessel_Jn_array[l];
-  }
-
-  deltaf = (0.0, 0.0);
-  for (register int l = -lmax; l < lmax + 1; l++) {
-    deltaf += (a3[l + lmax] * Ex_mod * exp(I * Ex_phase) + a1[l + lmax] * Ey_mod * exp(I * Ey_phase) + a2[l + lmax] * Ez_mod * exp(I * Ez_phase)) / (kpar * vpar + l * om_c - omega) * exp(-I * phi * (double) l);
-  }
-  deltaf *= I * qom * exp(I * lambda * sin(phi)) * exp(I * (2 * M_PI * kx * x + 2 * M_PI * ky * y));
-
-  return (real(deltaf));
-}
-
-double Particles3D::df0_dvpar(double vpar, double vperp) {
-  double result;
-  result = -2 * (vpar - u0) / uth / uth * exp(-(vperp * vperp / vth / vth + (vpar - u0) * (vpar - u0) / uth / uth));
-  result *= 3.92e6 / pow(M_PI, 3 / 2) / vth / vth / uth;
-  return (result);
-}
-
-double Particles3D::df0_dvperp(double vpar, double vperp) {
-  double result;
-  result = -2 * (vperp) / vth / vth * exp(-(vperp * vperp / vth / vth + (vpar - u0) * (vpar - u0) / uth / uth));
-  result *= 3.92e6 / pow(M_PI, 3 / 2) / vth / vth / uth;
-  return (result);
-}
-
-double Particles3D::f0(double vpar, double vperp) {
-  double result;
-  result = exp(-(vperp * vperp / vth / vth + (vpar - u0) * (vpar - u0) / uth / uth));
-  result *= 3.92e6 / pow(M_PI, 3 / 2) / vth / vth / uth;
-  return (result);
 }
 
 void Particles3D::RotatePlaneXY(double theta) {

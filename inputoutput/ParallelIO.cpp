@@ -10,8 +10,16 @@
 #include "Particles3Dcomm.h"
 #include "EMfields3D.h"
 
-/*! Function used to write the EM fields using the parallel HDF5 library */
-void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, Particles3Dcomm *part, CollectiveIO *col, VCtopology3D *vct, int cycle){
+/*! Function used to write the fields using the parallel HDF5 library */
+void WriteOutputParallel(
+  CollectiveIO *col,
+  VCtopology3D *vct,
+  Grid3DCU *grid,
+  Particles3Dcomm *part,
+  Pmoments *pMoments,
+  EMfields3D *EMf,
+  int cycle)
+{
 
 #ifdef PHDF5
   timeTasks_set_task(TimeTasks::WRITE_FIELDS);
@@ -32,12 +40,12 @@ void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, Particles3Dcomm *part,
   /* Define the number of cells in the globa and local mesh and set the mesh size */
   /* ---------------------------------------------------------------------------- */
 
-  int nxc = grid->getNXC();
-  int nyc = grid->getNYC();
-  int nzc = grid->getNZC();
+  const int nxc_r = grid->get_nxc_r();
+  const int nyc_r = grid->get_nyc_r();
+  const int nzc_r = grid->get_nzc_r();
 
   int    dglob[3] = { col ->getNxc()  , col ->getNyc()  , col ->getNzc()   };
-  int    dlocl[3] = { nxc-2,            nyc-2,            nzc-2 };
+  int    dlocl[3] = { nxc_r,            nyc_r,            nzc_r };
   double L    [3] = { col ->getLx ()  , col ->getLy ()  , col ->getLz ()   };
 
   /* --------------------------------------- */
@@ -53,12 +61,12 @@ void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, Particles3Dcomm *part,
 
   // write electromagnetic field
   //
-  outputfile.WritePHDF5dataset("Fields", "Ex", EMf->getExc(), nxc-2, nyc-2, nzc-2);
-  outputfile.WritePHDF5dataset("Fields", "Ey", EMf->getEyc(), nxc-2, nyc-2, nzc-2);
-  outputfile.WritePHDF5dataset("Fields", "Ez", EMf->getEzc(), nxc-2, nyc-2, nzc-2);
-  outputfile.WritePHDF5dataset("Fields", "Bx", EMf->getBxc(), nxc-2, nyc-2, nzc-2);
-  outputfile.WritePHDF5dataset("Fields", "By", EMf->getByc(), nxc-2, nyc-2, nzc-2);
-  outputfile.WritePHDF5dataset("Fields", "Bz", EMf->getBzc(), nxc-2, nyc-2, nzc-2);
+  outputfile.WritePHDF5dataset("Fields", "Ex", EMf->getExc(), nxc_r, nyc_r, nzc_r);
+  outputfile.WritePHDF5dataset("Fields", "Ey", EMf->getEyc(), nxc_r, nyc_r, nzc_r);
+  outputfile.WritePHDF5dataset("Fields", "Ez", EMf->getEzc(), nxc_r, nyc_r, nzc_r);
+  outputfile.WritePHDF5dataset("Fields", "Bx", EMf->getBxc(), nxc_r, nyc_r, nzc_r);
+  outputfile.WritePHDF5dataset("Fields", "By", EMf->getByc(), nxc_r, nyc_r, nzc_r);
+  outputfile.WritePHDF5dataset("Fields", "Bz", EMf->getBzc(), nxc_r, nyc_r, nzc_r);
 
   /* ---------------------------------------- */
   /* Write the charge moments for each species */
@@ -71,11 +79,11 @@ void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, Particles3Dcomm *part,
     string s_is = ss.str();
 
     // charge density
-    outputfile.WritePHDF5dataset("Fields", "rho_"+s_is, EMf->getRHOcs(is), nxc-2, nyc-2, nzc-2);
+    outputfile.WritePHDF5dataset("Fields", "rho_"+s_is, pMoments->ret_rhocs(is), nxc_r, nyc_r, nzc_r);
     // current
-    //outputfile.WritePHDF5dataset("Fields", "Jx_"+s_is, EMf->getJxsc(is), nxc-2, nyc-2, nzc-2);
-    //outputfile.WritePHDF5dataset("Fields", "Jy_"+s_is, EMf->getJysc(is), nxc-2, nyc-2, nzc-2);
-    //outputfile.WritePHDF5dataset("Fields", "Jz_"+s_is, EMf->getJzsc(is), nxc-2, nyc-2, nzc-2);
+    //outputfile.WritePHDF5dataset("Fields", "Jx_"+s_is, EMf->ret_Jxsc(is), nxc_r, nyc_r, nzc_r);
+    //outputfile.WritePHDF5dataset("Fields", "Jy_"+s_is, EMf->ret_Jysc(is), nxc_r, nyc_r, nzc_r);
+    //outputfile.WritePHDF5dataset("Fields", "Jz_"+s_is, EMf->ret_Jzsc(is), nxc_r, nyc_r, nzc_r);
   }
 
   outputfile.ClosePHDF5file();
@@ -141,7 +149,7 @@ void WriteFieldsH5hut(int nspec, Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *
 //    stringstream  ss;
 //    ss << is;
 //    string s_is = ss.str();
-//    file.WriteFields(EMf->getRHOcs(is), "rhoc_"+ s_is, grid->getNXC(), grid->getNYC(), grid->getNZC());
+//    file.WriteFields(pMoments->ret_rhocs(is), "rhoc_"+ s_is, grid->getNXC(), grid->getNYC(), grid->getNZC());
 //  }
 //
 //  file.CloseFieldsFile();

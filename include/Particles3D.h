@@ -24,56 +24,40 @@ class Particles3D:public Particles3Dcomm {
   public:
     /** constructor */
     //Particles3D();
-    Particles3D(int species, CollectiveIO *col, VirtualTopology3D *vct, Grid * grid):
-      Particles3Dcomm(species, col, vct, grid)
+    Particles3D(int species, const Setting& setting_)
+      Particles3Dcomm(species, setting_)
     {}
     /** destructor */
     ~Particles3D(){}
     /** Initial condition: uniform in space and motionless */
-    void uniform_background(Field * EMf);
+    void uniform_background(int is, const_arr4_double rhocs);
     /** Initialize particles with a constant velocity in dim direction. Depending on the value of dim:
       <ul>
       <li> dim = 0 --> constant velocity on X direction </li>
       <li> dim = 1 --> constant velocity on Y direction </li>
       </ul>
       */
-    void constantVelocity(double vel, int dim, Field * EMf);
+    void constantVelocity(double vel, int dim);
     /** Initial condition: uniform in space and maxwellian in velocity */
-    void maxwellian(Field * EMf);
+    void maxwellian(int is, const_arr4_double rhocs);
     /** Force Free initialization (JxB=0) for particles */
-    void force_free(Field * EMf);
-    /** Initial condition: uniform in space and maxwellian in velocity */
-    void alt_maxwellian(Field * EMf);
-    /** Linear_perturbation */
-    //void linear_perturbation(double deltaBX, double kx, double ky, double theta, double omega_r, double omega_i, double Ex_mod, double Ex_phase, double Ey_mod, double Ey_phase, double Ez_mod, double Ez_phase, double Bx_mod, double Bx_phase, double By_mod, double By_phase, double Bz_mod, double Bz_phase, Field * EMf);
-    /**Add a periodic perturbation in velocity exp i(kx - \omega t); deltaBoB is the ratio (Delta B / B0) **/
-    void AddPerturbationJ(double deltaBoB, double kx, double ky, double Bx_mod, double By_mod, double Bz_mod, double jx_mod, double jx_phase, double jy_mod, double jy_phase, double jz_mod, double jz_phase, double B0);
-    /** Linear delta f for bi-maxwellian plasma */
-    double delta_f(double u, double v, double w, double x, double y, double kx, double ky, double omega_re, double omega_i, double Ex_ampl, double Ex_phase, double Ey_ampl, double Ey_phase, double Ez_ampl, double Ez_phase, double theta, Field * EMf);
-    /** Derivative of f0 wrt vpar */
-    double df0_dvpar(double vpar, double vperp);
-    /** Derivative of f0 wrt vperp */
-    double df0_dvperp(double vpar, double vperp);
-    /** Equilibrium bi-maxwellian f0 */
-    double f0(double vpar, double vperp);
+    void force_free(int is, const_arr4_double rhocs);
     /** Rotate velocities in plane XY of angle theta */
     void RotatePlaneXY(double theta);
-    /** mover with the esplicit non relativistic scheme */
-    void mover_explicit(Field * EMf);
     /** mover with a Predictor-Corrector Scheme */
-    void mover_PC(Field * EMf);
+    void mover_PC(const_arr4_double aosEMfield);
     /** array-of-structs version of mover_PC */
-    void mover_PC_AoS(Field * EMf);
+    void mover_PC_AoS(const_arr4_double aosEMfield);
     /* vectorized version of previous */
-    void mover_PC_AoS_vec(Field * EMf);
+    void mover_PC_AoS_vec(const_arr4_double aosEMfield);
     /* mic particle mover */
-    void mover_PC_AoS_vec_intr(Field * EMf);
+    void mover_PC_AoS_vec_intr(const_arr4_double aosEMfield);
     /* this computes garbage */
-    void mover_PC_AoS_vec_onesort(Field * EMf);
+    void mover_PC_AoS_vec_onesort(const_arr4_double aosEMfield);
     /** vectorized version of mover_PC **/
-    void mover_PC_vectorized(Field * EMf);
+    void mover_PC_vectorized(const_arr4_double aosEMfield);
     /** relativistic mover with a Predictor-Corrector scheme */
-    int mover_relativistic(Field * EMf);
+    int mover_relativistic(const_arr4_double aosEMfield);
    private:
     /** repopulate particles in a single cell */
     void populate_cell_with_particles(int i, int j, int k, double q,
@@ -86,7 +70,7 @@ class Particles3D:public Particles3Dcomm {
 
 #ifdef BATSRUS
     /*! Initial condition: given a fluid model (BATSRUS) */
-    void MaxwellianFromFluid(Field* EMf,Collective *col, int is);
+    void MaxwellianFromFluid(Collective *col, int is);
     /*! Initiate dist. func. for a single cell form a fluid model (BATSRUS) */
     void MaxwellianFromFluidCell(Collective *col, int is, int i, int j, int k, int &ip, double *x, double *y, double *z, double *q, double *vx, double *vy, double *vz, longid* ParticleID);
 #endif

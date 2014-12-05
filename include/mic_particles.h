@@ -119,7 +119,7 @@
   inline void get_field_components_for_cell(
     F64vec8 field_components0[8],
     F64vec8 field_components1[8],
-    const_arr4_double fieldForPcls,
+    const_arr4_double aosEMfield,
     I32vec16 cx_)
   {
     // interface to the right of cell
@@ -149,14 +149,14 @@
       const I32vec16 cZ1 = I32vec16(cx[2+4]);
       // for each particle we want:
       //
-      //   field_components[0] = fieldForPcls[iX][iY][iZ]; // field000
-      //   field_components[1] = fieldForPcls[iX][iY][cZ]; // field001
-      //   field_components[2] = fieldForPcls[iX][cY][iZ]; // field010
-      //   field_components[3] = fieldForPcls[iX][cY][cZ]; // field011
-      //   field_components[4] = fieldForPcls[cX][iY][iZ]; // field100
-      //   field_components[5] = fieldForPcls[cX][iY][cZ]; // field101
-      //   field_components[6] = fieldForPcls[cX][cY][iZ]; // field110
-      //   field_components[7] = fieldForPcls[cX][cY][cZ]; // field111
+      //   field_components[0] = aosEMfield[iX][iY][iZ]; // field000
+      //   field_components[1] = aosEMfield[iX][iY][cZ]; // field001
+      //   field_components[2] = aosEMfield[iX][cY][iZ]; // field010
+      //   field_components[3] = aosEMfield[iX][cY][cZ]; // field011
+      //   field_components[4] = aosEMfield[cX][iY][iZ]; // field100
+      //   field_components[5] = aosEMfield[cX][iY][cZ]; // field101
+      //   field_components[6] = aosEMfield[cX][cY][iZ]; // field110
+      //   field_components[7] = aosEMfield[cX][cY][cZ]; // field111
       //
       // broadcast coordinates of first and second particle to low and high end of I32vec16
       const __mmask16 rmask_00ff = _mm512_int2mask(0xff00); // mask=1111111100000000
@@ -175,10 +175,10 @@
       const I32vec16 sY = _mm512_mask_blend_epi32(rmask_00110011x2,iY,cY);
       const I32vec16 sZ = _mm512_mask_blend_epi32(rmask_01010101x2,iZ,cZ);
       // compute the starting 1-dimensional index for the 8 corners
-      const int nxn = fieldForPcls.dim1();
-      const int nyn = fieldForPcls.dim2();
-      const int nzn = fieldForPcls.dim3();
-      const int nnn = fieldForPcls.dim4();
+      const int nxn = aosEMfield.dim1();
+      const int nyn = aosEMfield.dim2();
+      const int nzn = aosEMfield.dim3();
+      const int nnn = aosEMfield.dim4();
       const I32vec16 nXn(nxn);
       const I32vec16 nYn(nyn);
       const I32vec16 nZn(nzn);
@@ -192,8 +192,8 @@
       const I32vec16 subs = multiply(s2,nNn);
       //printexpr(subs);
       int const*const subs_arr = (int*)&subs;
-      // access underlying 1D array of fieldForPcls
-      const double* fieldForPcls1d = fieldForPcls.get_arr();
+      // access underlying 1D array of aosEMfield
+      const double* fieldForPcls1d = aosEMfield.get_arr();
       #pragma unroll
       for(int i=0; i<8; i++)
       {

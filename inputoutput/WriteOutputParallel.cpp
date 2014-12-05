@@ -12,8 +12,15 @@
 #include <iomanip>
 using std::string;
 
-void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCtopology3D *vct, int cycle){
-
+void WriteOutputParallel(
+  CollectiveIO *col,
+  VCtopology3D *vct,
+  Grid3DCU *grid,
+  Particles3Dcomm *part,
+  Pmoments *pMoments,
+  EMfields3D *EMf,
+  int cycle)
+{
 #ifdef PHDF5
   string       grpname;
   string       dtaname;
@@ -32,12 +39,12 @@ void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCt
   /* Define the number of cells in the globa and local mesh and set the mesh size */
   /* ---------------------------------------------------------------------------- */
 
-  int nxc = grid->getNXC();
-  int nyc = grid->getNYC();
-  int nzc = grid->getNZC();
+  int nxc_r = grid->get_nxc_r();
+  int nyc_r = grid->get_nyc_r();
+  int nzc_r = grid->get_nzc_r();
 
   int    dglob[3] = { col ->getNxc()  , col ->getNyc()  , col ->getNzc()   };
-  int    dlocl[3] = { nxc-2,            nyc-2,            nzc-2 };
+  int    dlocl[3] = { nxc_r,            nyc_r,            nzc_r };
   double L    [3] = { col ->getLx ()  , col ->getLy ()  , col ->getLz ()   };
 
   /* --------------------------------------- */
@@ -52,17 +59,17 @@ void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCt
   /* Write the Electric field */
   /* ------------------------ */
 
-  outputfile.WritePHDF5dataset("Fields", "Ex", EMf->getExc(), nxc-2, nyc-2, nzc-2);
-  outputfile.WritePHDF5dataset("Fields", "Ey", EMf->getEyc(), nxc-2, nyc-2, nzc-2);
-  outputfile.WritePHDF5dataset("Fields", "Ez", EMf->getEzc(), nxc-2, nyc-2, nzc-2);
+  outputfile.WritePHDF5dataset("Fields", "Ex", EMf->ret_Exc(), nxc_r, nyc_r, nzc_r);
+  outputfile.WritePHDF5dataset("Fields", "Ey", EMf->ret_Eyc(), nxc_r, nyc_r, nzc_r);
+  outputfile.WritePHDF5dataset("Fields", "Ez", EMf->ret_Ezc(), nxc_r, nyc_r, nzc_r);
 
   /* ------------------------ */
   /* Write the Magnetic field */
   /* ------------------------ */
 
-  outputfile.WritePHDF5dataset("Fields", "Bx", EMf->getBxc(), nxc-2, nyc-2, nzc-2);
-  outputfile.WritePHDF5dataset("Fields", "By", EMf->getByc(), nxc-2, nyc-2, nzc-2);
-  outputfile.WritePHDF5dataset("Fields", "Bz", EMf->getBzc(), nxc-2, nyc-2, nzc-2);
+  outputfile.WritePHDF5dataset("Fields", "Bx", EMf->ret_Bxc(), nxc_r, nyc_r, nzc_r);
+  outputfile.WritePHDF5dataset("Fields", "By", EMf->ret_Byc(), nxc_r, nyc_r, nzc_r);
+  outputfile.WritePHDF5dataset("Fields", "Bz", EMf->ret_Bzc(), nxc_r, nyc_r, nzc_r);
 
   /* ----------------------------------------------- */
   /* Write the moments for each species */
@@ -75,11 +82,11 @@ void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCt
     const string num = snmbr.str();
 
     // Charge Density
-    outputfile.WritePHDF5dataset("Fields", string("Rho_")+num , EMf->getRHOcs(is), nxc-2, nyc-2, nzc-2);
+    outputfile.WritePHDF5dataset("Fields", string("Rho_")+num , pMoments->ret_rhocs(is), nxc_r, nyc_r, nzc_r);
     // Current
-    outputfile.WritePHDF5dataset("Fields", string("Jx_")+num, EMf->getJxsc(is), nxc-2, nyc-2, nzc-2);
-    outputfile.WritePHDF5dataset("Fields", string("Jy_")+num, EMf->getJysc(is), nxc-2, nyc-2, nzc-2);
-    outputfile.WritePHDF5dataset("Fields", string("Jz_")+num, EMf->getJzsc(is), nxc-2, nyc-2, nzc-2);
+    outputfile.WritePHDF5dataset("Fields", string("Jx_")+num, pMoments->ret_Jxsc(is), nxc_r, nyc_r, nzc_r);
+    outputfile.WritePHDF5dataset("Fields", string("Jy_")+num, pMoments->ret_Jysc(is), nxc_r, nyc_r, nzc_r);
+    outputfile.WritePHDF5dataset("Fields", string("Jz_")+num, pMoments->ret_Jzsc(is), nxc_r, nyc_r, nzc_r);
   }
 
   outputfile.ClosePHDF5file();

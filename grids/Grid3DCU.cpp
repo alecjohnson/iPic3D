@@ -9,6 +9,8 @@
 #include "debug.h"
 #include "ipicmath.h"
 
+// *** Grid3DCU_methods ***
+
 /*! constructor */
 Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct):
   _vct(*vct)
@@ -497,4 +499,39 @@ void Grid3DCU::interpN2C(arr4_double vecFieldC, int ns, const_arr4_double vecFie
         vecFieldC[ns][i][j][k] = .125 * (vecFieldN[ns][i][j][k] + vecFieldN[ns][i + 1][j][k] + vecFieldN[ns][i][j + 1][k] + vecFieldN[ns][i][j][k + 1] + vecFieldN[ns][i + 1][j + 1][k] + vecFieldN[ns][i + 1][j][k + 1] + vecFieldN[ns][i][j + 1][k + 1] + vecFieldN[ns][i + 1][j + 1][k + 1]);
 }
 
+// *** end Grid3DCU_methods ***
 
+// *** CAgetter_methods ***
+
+arr3_double CAgetter::get_no_ghosts(const_arr3_double inarr)
+{
+  for (int i = 1; i < nxc-1; i++)
+  for (int j = 1; j < nyc-1; j++)
+  for (int k = 1; k < nzc-1; k++)
+    arr[i-1][j-1][k-1]=inarr[i][j][k];
+  return arr;
+}
+arr3_double CAgetter::get_N2C_no_ghosts(const_arr3_double inarr)
+{
+  array3_double tmp(nxc,nyc,nzc);
+  grid->interpN2C(tmp, inarr);
+
+  for (int i = 1; i < nxc-1; i++)
+  for (int j = 1; j < nyc-1; j++)
+  for (int k = 1; k < nzc-1; k++)
+    arr[i-1][j-1][k-1]=inarr[i][j][k];
+  return arr;
+}
+arr3_double CAgetter::get_N2C_no_ghosts(int is, const_arr4_double inarr)
+{
+  array4_double tmp(ns,nxc,nyc,nzc);
+  grid->interpN2C(tmp, is, inarr);
+
+  for (int i = 1; i < nxc-1; i++)
+  for (int j = 1; j < nyc-1; j++)
+  for (int k = 1; k < nzc-1; k++)
+    arr[i-1][j-1][k-1]=tmp[is][i][j][k];
+  return arr;
+}
+
+// *** end CAgetter_methods ***

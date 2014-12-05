@@ -294,6 +294,13 @@ def ipic_make(args):
     #issue_shell_command(' '.join(make_command))
     issue_command(make_command)
 
+def ipic_grep(args):
+    # create tags file using ctags
+    create_grep_command = \
+        '''find . -name '*.cpp' -or -name '*.h' | grep -v unused | xargs grep'''
+    # should fix this to handle quotes properly
+    issue_shell_command(create_grep_command+' '+' '.join(args))
+
 def ipic_ctags(args):
     # create tags file using ctags
     create_tags_command = \
@@ -612,6 +619,8 @@ def ipic_command(argv1):
 
     if command == "help":
         ipic_help(args)
+    elif command == "grep":
+        ipic_grep(args)
     elif command == "ctags":
         ipic_ctags(args)
     elif command == "cmake":
