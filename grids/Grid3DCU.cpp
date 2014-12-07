@@ -499,6 +499,70 @@ void Grid3DCU::interpN2C(arr4_double vecFieldC, int ns, const_arr4_double vecFie
         vecFieldC[ns][i][j][k] = .125 * (vecFieldN[ns][i][j][k] + vecFieldN[ns][i + 1][j][k] + vecFieldN[ns][i][j + 1][k] + vecFieldN[ns][i][j][k + 1] + vecFieldN[ns][i + 1][j + 1][k] + vecFieldN[ns][i + 1][j][k + 1] + vecFieldN[ns][i][j + 1][k + 1] + vecFieldN[ns][i + 1][j + 1][k + 1]);
 }
 
+/* Interpolation smoothing: Smoothing (vector must already have ghost cells)
+   value: if 1 nothing is done; else smoothing is done and value is ignored.
+   type = 0 --> center based vector ;
+   type = 1 --> node based vector ; */
+void Grid3DCU::smooth(double value, arr3_double vector,
+  int type, const int* BCs_)
+{
+  int BCs[6];
+  // default BCs use 2 for every component
+  for(int i=0;i<6;i++) BCs[i]=BC_ ? BCs_[i] : 2;
+  int nvolte = 6;
+  for (int icount = 1; icount < nvolte + 1; icount++)
+  {
+    if (value != 1.0) {
+      double alpha;
+      int nx, ny, nz;
+      switch (type) {
+        default:
+          unsupported_value_error(type);
+        case (0): // cell-centered
+          nx = getNXC();
+          ny = getNYC();
+          nz = getNZC();
+          communicateCenterBoxStencilBC_P(nx,ny,nz, vector,BCs, &get_vct());
+
+          break;
+        case (1): // node array
+          nx = getNXN();
+          ny = getNYN();
+          nz = getNZN();
+          communicateNodeBoxStencilBC_P(nx,ny,nz, vector,BCs, &get_vct());
+          break;
+      }
+      double ***temp = newArr3(double, nx, ny, nz);
+      if (icount % 2 == 1) {
+        value = 0.;
+      }
+      else {
+        value = 0.5;
+      }
+      alpha = (1.0 - value) / 6;
+      for (int i = 1; i < nx - 1; i++)
+      for (int j = 1; j < ny - 1; j++)
+      for (int k = 1; k < nz - 1; k++)
+      {
+          temp[i][j][k] = value * vector[i][j][k] + alpha *
+             (vector[i - 1][j][k]
+            + vector[i + 1][j][k]
+            + vector[i][j - 1][k]
+            + vector[i][j + 1][k]
+            + vector[i][j][k - 1]
+            + vector[i][j][k + 1]);
+      }
+      for (int i = 1; i < nx - 1; i++)
+      for (int j = 1; j < ny - 1; j++)
+      for (int k = 1; k < nz - 1; k++)
+      {
+          vector[i][j][k] = temp[i][j][k];
+      }
+      delArr3(temp, nx, ny);
+    }
+  }
+}
+
 // *** end Grid3DCU_methods ***
 
 // *** CAgetter_methods ***

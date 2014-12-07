@@ -38,5 +38,7 @@ namespace Parameters
   int get_blockSize();
   int get_numBlocks();
   bool get_doWriteOutput();
+  bool use_original_smoothing(){return !use_correct_smoothing();}
+  bool use_correct_smoothing();
 }
 #endif

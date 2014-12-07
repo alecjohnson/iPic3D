@@ -39,24 +39,20 @@
     Therefore this class supports the ability to return
     a chained pointer and the ability to retain chained
     pointer access syntax even if flat arrays are used.
+    Use of this feature is strongly deprecated (see below).
 
     If the design requirements had included allowing
     the user to specify nonzero starting indices then the
     array_fetch3 class (for example) would not have been
     implemented and array_ref4::operator[](int) would simply
-    return an instance of array_ref3.  In this case beginning
-    indices would need to be passed to constructors for
-    bounds-checking purposes.
+    return an instance of array_ref3.
 
     An alternative would have been use boost arrays. 
     Use of our own carefully restricted array class allows
     flexibility for our choice of array implementation,
     including the possibility of using boost for the
     implementation, while avoiding boost as an external
-    dependency.  On some systems, it may be preferable to use
-    native arrays with hard-coded dimensions; this could suit us
-    well, since all arrays are approximately the same size, but
-    would require a recompile when changing the maximum array size.
+    dependency.
 
     Rather than using these templates directly, the typedefs
     declared in "arraysfwd.h" should be used:
@@ -72,15 +68,42 @@
     type (double, int, possibly float) if we go to use of mixed
     precision).  Support for templates is notoriously buggy in
     compilers, particularly when it comes to inheritance, and I
-    in fact had to eliminate inheriting from the base_arr class
-    and use the "protected" hack below in order to get this
-    code to compile on the latest intel compiler (2013) and on
+    in fact had to use the "protected" hack below in order to get
+    this code to compile on the latest intel compiler (2013) and on
     g++ 4.0 (2005); g++ 4.2 (2007) compiled (but unfortunately,
     for my g++ 4.2, iPic3D suffered from stack frame corruption.)
     //
     Note that the directive
       #if defined(FLAT_ARRAYS)
     appears not only here but also in arraysfwd.h
+   
+    Proposed improvements:
+    - allow shifting of the base. issues:
+      - either need "double shift" in each class
+        or need to give up on asserting alignment of arr
+        (is this benefiting us in any way?)
+      - need to implement "arr3.set_bases(b1,b2,b3);"
+        which calculates "shift".
+      - need "const size_t b1, b2, b3;" for beginning indices
+        to allow bounds checking.  Should not incur run-time
+        penalty unless CHECK_BOUNDS is used.
+      - give up on support for chained pointer arrays,
+        especially if we also do the following, which shifting
+        of the base naturally goes along with:
+    - make array_fetchN identical with array_refN
+    - support component-wise arithmetic. issues:
+      - omp parallelization:
+        need a mechanism to specify that an array is private
+        to a thread versus shared among threads.
+      - checking that dimensions match. how strict?
+
+    Support for chained pointers has hampered and polluted
+    the design of this array class and needs to be eliminated.
+    Use of a shifted base will allow to widen subdomain halos
+    without modifying code that assumes specific index ranges.
+    A wide halo in the particle solver would help in pushing
+    fast particles properly. -eaj
+
 */
 #define ALIGNMENT (64)
 #ifdef __INTEL_COMPILER
@@ -420,16 +443,6 @@ namespace iPic3D
   //   // arr.free(); // should not do both this and next line.
   //   delArray2<int>(array);
   // }
-  //
-  // proposed improvements:
-  // - allow shifting of the base:
-  //   - need "double shift" in each class
-  //   - need to implement "arr3.set_bases(b1,b2,b3);"
-  //     which calculates "shift".
-  //   - need "const size_t b1, b2, b3;" for beginning indices
-  //     to allow bounds checking.  Should not incur run-time
-  //     penalty, but it so then condition on CHECK_BOUNDS.
-  // - methods that use parallel arithmetic for omp and vectorized code
   
   template <class type>
   class array_ref1
@@ -708,7 +721,10 @@ namespace iPic3D
         // #pragma omp for
         for(size_t i=0;i<size;i++) arr[i]=val;
       }
+      // methods to convert self to other array types
       type*** fetch_arr3(){ return (type***) arr3; }
+      inline array_fetch3<type> fetch()
+      { return array_fetch3<type>(arr, 0, S3, S2, S1); }
   };
   
   // inheriting from base_arr<type> causes problems in g++ 4.0 (2005).

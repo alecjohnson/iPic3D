@@ -284,7 +284,7 @@ template < class Toa > class myOutputAgent:public PSK::OutputAgent < Toa > {
   Collective *_col;
   int ns;
   // std::vector<Particles1DX*> _part;
-  std::vector < Particles * >_part;
+  std::vector < Particles3Dcomm * >_part;
 
 public:
   myOutputAgent(void) {;
@@ -297,7 +297,7 @@ public:
     _col = col;
   }
 
-  void set_simulation_pointers_part(Particles * part) {
+  void set_simulation_pointers_part(Particles3Dcomm * part) {
     _part.push_back(part);
   }
 

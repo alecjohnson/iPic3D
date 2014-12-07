@@ -16,10 +16,8 @@ Kinetics::~Kinetics()
   }
 }
 
-Kinetics::Kinetics(const Setting& setting_, Imoments* iMoments_)
-: setting(setting_),
-  iMoments(iMoments_),
-  pMoments(setting_)
+Kinetics::Kinetics(const Setting& setting_)
+: setting(setting_)
 {
   // Allocation of particles
   // part = new Particles3D[ns];
@@ -34,7 +32,7 @@ Kinetics::Kinetics(const Setting& setting_, Imoments* iMoments_)
 /*  -------------- */
 /*!  Particle mover */
 /*  -------------- */
-bool Kinetics::moveParticles(const_arr4_double aosEMfield)
+bool Kinetics::moveParticles(const_arr4_double fieldForPcls)
 {
   // move all species of particles
   {
@@ -52,22 +50,22 @@ bool Kinetics::moveParticles(const_arr4_double aosEMfield)
       switch(Parameters::get_MOVER_TYPE())
       {
         case Parameters::SoA:
-          part[i].mover_PC(aosEMfield);
+          part[i].mover_PC(fieldForPcls);
           break;
         //case Parameters::SoA_vec_resort:
-        //  part[i].mover_PC_vectorized(aosEMfield);
+        //  part[i].mover_PC_vectorized(fieldForPcls);
         //  break;
         case Parameters::AoS:
-          part[i].mover_PC_AoS(aosEMfield);
+          part[i].mover_PC_AoS(fieldForPcls);
           break;
         case Parameters::AoSintr:
-          part[i].mover_PC_AoS_vec_intr(aosEMfield);
+          part[i].mover_PC_AoS_vec_intr(fieldForPcls);
           break;
         case Parameters::AoSvec:
-          part[i].mover_PC_AoS_vec(aosEMfield);
+          part[i].mover_PC_AoS_vec(fieldForPcls);
           break;
         //case Parameters::AoS_vec_onesort:
-        //  part[i].mover_PC_AoS_vec_onesort(aosEMfield);
+        //  part[i].mover_PC_AoS_vec_onesort(fieldForPcls);
         //  break;
         default:
           unsupported_value_error(Parameters::get_MOVER_TYPE());
@@ -113,12 +111,6 @@ void Kinetics::sortParticles() {
     part[species_idx].sort_particles();
 }
 
-void Kinetics::pad_particle_capacities()
-{
-  for (int i = 0; i < ns; i++)
-    part[i].pad_capacities();
-}
-
 // convert particle to struct of arrays (assumed by I/O)
 void Kinetics::convertParticlesToSoA()
 {
@@ -142,3 +134,11 @@ void Kinetics::convertParticlesToSynched()
     part[i].convertParticlesToSynched();
 }
 
+void Kinetics::compute_pMoments(Pmoments& pMoments)
+{
+  timeTasks_set_main_task(TimeTasks::MOMENTS);
+  // to be performed on booster
+  fetch_Pmoments().accumulateMoments(part);
+  // to be performed on cluster
+  fetch_Pmoments().communicateGhostP2G();
+}

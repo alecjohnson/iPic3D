@@ -158,6 +158,14 @@ class Collective
     /*! Boundary condition selection for BCFace for the magnetic field components */
     int bcBx[6], bcBy[6], bcBz[6];
 
+  public: // accessors
+    const int* get_bcEx(){return bcEx;}
+    const int* get_bcEy(){return bcEy;}
+    const int* get_bcEz(){return bcEz;}
+    const int* get_bcBx(){return bcBx;}
+    const int* get_bcBy(){return bcBy;}
+    const int* get_bcBz(){return bcBz;}
+
   private:
     /*! inputfile */
     string inputfile;

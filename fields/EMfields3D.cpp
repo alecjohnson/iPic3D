@@ -63,17 +63,29 @@ EMfields3D::EMfields3D(const Setting& setting_, Imoments *iMoments_)
   //
   // array allocation: nodes
   //
-  fieldForPcls  (nxn, nyn, nzn, 2*DFIELD_3or4),
+  //fieldForPcls  (nxn, nyn, nzn, 2*DFIELD_3or4),
   Ex   (nxn, nyn, nzn),
   Ey   (nxn, nyn, nzn),
   Ez   (nxn, nyn, nzn),
-  Exth (nxn, nyn, nzn),
-  Eyth (nxn, nyn, nzn),
-  Ezth (nxn, nyn, nzn),
+  Exth (nxn, nyn, nzn), // eliminate?
+  Eyth (nxn, nyn, nzn), // eliminate?
+  Ezth (nxn, nyn, nzn), // eliminate?
+  Ex_smooth(nxn, nyn, nzn),
+  Ey_smooth(nxn, nyn, nzn),
+  Ez_smooth(nxn, nyn, nzn),
   Bxn  (nxn, nyn, nzn),
   Byn  (nxn, nyn, nzn),
   Bzn  (nxn, nyn, nzn),
-  rhon (nxn, nyn, nzn),
+  Bx_tot(nxn, nyn, nzn),
+  By_tot(nxn, nyn, nzn),
+  Bz_tot(nxn, nyn, nzn),
+  Bx_ext(nxn, nyn, nzn),
+  By_ext(nxn, nyn, nzn),
+  Bz_ext(nxn, nyn, nzn),
+  Bx_smooth(nxn, nyn, nzn),
+  By_smooth(nxn, nyn, nzn),
+  Bz_smooth(nxn, nyn, nzn),
+  //rhon (nxn, nyn, nzn),
 
   // array allocation: central points 
   //
@@ -81,8 +93,8 @@ EMfields3D::EMfields3D(const Setting& setting_, Imoments *iMoments_)
   Bxc  (nxc, nyc, nzc),
   Byc  (nxc, nyc, nzc),
   Bzc  (nxc, nyc, nzc),
-  //rhoc (nxc, nyc, nzc),
-  //rhoh (nxc, nyc, nzc),
+  rhoc (nxc, nyc, nzc),
+  rhoh (nxc, nyc, nzc),
 
   // temporary arrays
   //
@@ -104,27 +116,13 @@ EMfields3D::EMfields3D(const Setting& setting_, Imoments *iMoments_)
   vectZ (nxn, nyn, nzn),
   divC  (nxc, nyc, nzc),
   // B_ext and J_ext should not be allocated unless used.
-  Bx_ext(0),
-  By_ext(0),
-  Bz_ext(0),
-  Jx_ext(0),
-  Jy_ext(0),
-  Jz_ext(0) 
+  J_ext(0),
 {
   // External imposed fields
   //
-  B1x = col->getB1x();
-  B1y = col->getB1y();
-  B1z = col->getB1z();
-  if(B1x!=0. || B1y !=0. || B1z!=0.)
-  {
-    if(!Bx_ext) Bx_ext = new array3_double(nxn,nyn,nzn);
-    if(!By_ext) By_ext = new array3_double(nxn,nyn,nzn);
-    if(!Bz_ext) Bz_ext = new array3_double(nxn,nyn,nzn);
-    Bx_ext.setall(B1x);
-    By_ext.setall(B1y);
-    Bz_ext.setall(B1z);
-  }
+  Bx_ext.setall(col->getB1x());
+  By_ext.setall(col->getB1y());
+  Bz_ext.setall(col->getB1z());
   //
   PoissonCorrection = false;
   if (col->getPoissonCorrection()=="yes") PoissonCorrection = true;
@@ -185,45 +183,35 @@ EMfields3D::EMfields3D(const Setting& setting_, Imoments *iMoments_)
 //  setZeroPrimaryMoments();
 //}
 
-/*!SPECIES: Sum the charge density of different species on NODES */
-void EMfields3D::sumOverSpecies()
-{
-  for (int is = 0; is < ns; is++)
-    for (register int i = 0; i < nxn; i++)
-      for (register int j = 0; j < nyn; j++)
-        for (register int k = 0; k < nzn; k++)
-          rhon[i][j][k] += rhons[is][i][j][k];
-}
-
-
-// === Section: external_exchange_routines ===
-
 /*! Populate the field data used to push particles */
 // 
 // One could add a background magnetic field B_ext at this point,
 // which was incompletely implemented in commit 05082fc8ad688
 //
-void EMfields3D::set_fieldForPcls(arr4_double fieldForPcls)
-{
-  #pragma omp parallel for collapse(3)
-  for(int i=0;i<nxn;i++)
-  for(int j=0;j<nyn;j++)
-  for(int k=0;k<nzn;k++)
-  {
-    fieldForPcls[i][j][k][0] = Bxn[i][j][k];
-    fieldForPcls[i][j][k][1] = Byn[i][j][k];
-    fieldForPcls[i][j][k][2] = Bzn[i][j][k];
-    dprintf("should be using Exth here");
-    // we should be using Exth here
-    // (otherwise the particle push is not consistent
-    // with the computation of implicit moments);
-    // but note that currently smoothE is applied
-    // only to Ex, not Exth
-    fieldForPcls[i][j][k][0+DFIELD_3or4] = Ex[i][j][k];
-    fieldForPcls[i][j][k][1+DFIELD_3or4] = Ey[i][j][k];
-    fieldForPcls[i][j][k][2+DFIELD_3or4] = Ez[i][j][k];
-  }
-}
+//void MIsolver::set_fieldForPcls(
+//  arr4_double fieldForPcls,
+//  vector_array3_double Bsmooth,
+//  vector_array3_double Esmooth)
+//{
+//  #pragma omp parallel for collapse(2)
+//  for(int i=0;i<nxn;i++)
+//  for(int j=0;j<nyn;j++)
+//  for(int k=0;k<nzn;k++)
+//  {
+//    fieldForPcls[i][j][k][0] = Bsmooth[0][i][j][k];
+//    fieldForPcls[i][j][k][1] = Bsmooth[1][i][j][k];
+//    fieldForPcls[i][j][k][2] = Bsmooth[2][i][j][k];
+//    dprintf("should be using Exth here");
+//    // we should be using Exth here
+//    // (otherwise the particle push is not consistent
+//    // with the computation of implicit moments);
+//    // but note that currently smoothing is applied
+//    // only to Ex, not Exth
+//    fieldForPcls[i][j][k][0+DFIELD_3or4] = Esmooth[0][i][j][k];
+//    fieldForPcls[i][j][k][1+DFIELD_3or4] = Esmooth[1][i][j][k];
+//    fieldForPcls[i][j][k][2+DFIELD_3or4] = Esmooth[2][i][j][k];
+//  }
+//}
 
 // === Section: methods_to_solve_fields ===
 
@@ -264,6 +252,11 @@ void phys2solver(double *vectSolver, const arr3_double vectPhys1, const arr3_dou
 /*! Calculate Electric field with the implicit solver: the Maxwell solver method is called here */
 void EMfields3D::calculateE(const Imoments& iMoments)
 {
+  eprintf("iMoments is not even used here.");
+  // define fields to use at open boundaries
+  // based on magnetic field and Ohm's law
+  updateInfoFields();
+
   const Collective *col = &get_col();
   const VirtualTopology3D * vct = &get_vct();
   const Grid *grid = &get_grid();
@@ -294,19 +287,6 @@ void EMfields3D::calculateE(const Imoments& iMoments)
   if (PoissonCorrection) {
     if (get_vct().getCartesian_rank() == 0)
       cout << "*** DIVERGENCE CLEANING ***" << endl;
-    // compute cell-centered charge density
-    array3_double rhoc(nxc,nyc,nzc);
-    {
-      array3_double rhon(nxn,nyn,nzn);
-      // accumulate net charge
-      for (int is = 0; is < ns; is++)
-      for (register int i = 0; i < nxn; i++)
-      for (register int j = 0; j < nyn; j++)
-      for (register int k = 0; k < nzn; k++)
-        rhon[i][j][k] += rhons[is][i][j][k];
-      // interpolate it to the cell centers
-      get_grid().interpN2C(rhoc, rhon);
-    }
     grid->divN2C(divE, Ex, Ey, Ez);
     scale(tempC, rhoc, -FourPI, nxc, nyc, nzc);
     sum(divE, tempC, nxc, nyc, nzc);
@@ -345,25 +325,75 @@ void EMfields3D::calculateE(const Imoments& iMoments)
   addscale(1 / th, -(1.0 - th) / th, Ey, Eyth, nxn, nyn, nzn);
   addscale(1 / th, -(1.0 - th) / th, Ez, Ezth, nxn, nyn, nzn);
 
-  // apply to smooth to electric field 3 times
+  // The original smoothing:
+  // - smooths the evolved electric field E (incorrect)
+  // - avoids smoothing the field used to update the fields (correct)
+  // - uses the smoothed electric field used to push particles
   //
-  // why don't we apply this smoothing to Exth
-  // (e.g. before it is used to update E)?
-  smoothE(Smooth, Ex, Ey, Ez, &get_col(), &get_vct());
-  smoothE(Smooth, Ex, Ey, Ez, &get_col(), &get_vct());
-  smoothE(Smooth, Ex, Ey, Ez, &get_col(), &get_vct());
+  // E rather than Eth is used to push particles in order to
+  // damp artificial Chernikov radiation generated due to
+  // the fact that the implicit moment method artificially
+  // slows the speed of light.
+  //
+  if(Parameters::use_original_smoothing())
+  {
+    for(int i=0;i<Parameters::get_num_smoothings();i++)
+    {
+      smooth(Smooth, Ex, 1, get_col().get_bcEx());
+      smooth(Smooth, Ey, 1, get_col().get_bcEy());
+      smooth(Smooth, Ez, 1, get_col().get_bcEz());
+    }
+    // copy E to E_smooth
+    for(int i=0;i<nxn;i++)
+    for(int j=0;j<nyn;j++)
+    for(int k=0;k<nzn;k++)
+    {
+      Ex_smooth[i][j][k] = Ex[i][j][k];
+      Ey_smooth[i][j][k] = Ey[i][j][k];
+      Ez_smooth[i][j][k] = Ez[i][j][k];
+    }
+  }
 
   // communicate so the interpolation can have good values
-  communicateNodeBC(nxn, nyn, nzn, Exth, col->bcEx[0],col->bcEx[1],col->bcEx[2],col->bcEx[3],col->bcEx[4],col->bcEx[5], vct);
-  communicateNodeBC(nxn, nyn, nzn, Eyth, col->bcEy[0],col->bcEy[1],col->bcEy[2],col->bcEy[3],col->bcEy[4],col->bcEy[5], vct);
-  communicateNodeBC(nxn, nyn, nzn, Ezth, col->bcEz[0],col->bcEz[1],col->bcEz[2],col->bcEz[3],col->bcEz[4],col->bcEz[5], vct);
-  communicateNodeBC(nxn, nyn, nzn, Ex,   col->bcEx[0],col->bcEx[1],col->bcEx[2],col->bcEx[3],col->bcEx[4],col->bcEx[5], vct);
-  communicateNodeBC(nxn, nyn, nzn, Ey,   col->bcEy[0],col->bcEy[1],col->bcEy[2],col->bcEy[3],col->bcEy[4],col->bcEy[5], vct);
-  communicateNodeBC(nxn, nyn, nzn, Ez,   col->bcEz[0],col->bcEz[1],col->bcEz[2],col->bcEz[3],col->bcEz[4],col->bcEz[5], vct);
+  communicateNodeBC(nxn, nyn, nzn, Exth, col->bcEx, vct);
+  communicateNodeBC(nxn, nyn, nzn, Eyth, col->bcEy, vct);
+  communicateNodeBC(nxn, nyn, nzn, Ezth, col->bcEz, vct);
+  communicateNodeBC(nxn, nyn, nzn, Ex,   col->bcEx, vct);
+  communicateNodeBC(nxn, nyn, nzn, Ey,   col->bcEy, vct);
+  communicateNodeBC(nxn, nyn, nzn, Ez,   col->bcEz, vct);
 
   // OpenBC
   BoundaryConditionsE(Exth, Eyth, Ezth, nxn, nyn, nzn);
   BoundaryConditionsE(Ex, Ey, Ez, nxn, nyn, nzn);
+
+  // correct smoothing:
+  // - avoids smoothing the field used in subsequent field evolution
+  // - uses the smoothed field used to push particles
+  // - uses Eth rather than E for particles.
+  //
+  // note that theta=1 (i.e. Eth=E) is recommended to damp
+  // artificial Chernikov radiation generated due to the
+  // fact that the implicit moment method artificially slows
+  // the speed of light.
+  //
+  if(Parameters::use_correct_smoothing())
+  {
+    // copy E to E_smooth
+    for(int i=0;i<nxn;i++)
+    for(int j=0;j<nyn;j++)
+    for(int k=0;k<nzn;k++)
+    {
+      Ex_smooth[i][j][k] = Exth[i][j][k];
+      Ey_smooth[i][j][k] = Eyth[i][j][k];
+      Ez_smooth[i][j][k] = Ezth[i][j][k];
+    }
+    for(int i=0;i<Parameters::get_num_smoothings();i++)
+    {
+      smooth(Smooth, Ex_smooth, 1, get_col().get_bcEx());
+      smooth(Smooth, Ey_smooth, 1, get_col().get_bcEy());
+      smooth(Smooth, Ez_smooth, 1, get_col().get_bcEz());
+    }
+  }
 
   // deallocate temporary arrays
   delete[]xkrylov;
@@ -414,7 +444,8 @@ void EMfields3D::MaxwellSource(double *bkrylov)
   scale(temp2Y, delt, nxn, nyn, nzn);
   scale(temp2Z, delt, nxn, nyn, nzn);
 
-  communicateCenterBC_P(nxc, nyc, nzc, rhoh, 2, 2, 2, 2, 2, 2, vct);
+  const int BCs[6] = {2,2,2,2,2,2};
+  communicateCenterBC_P(nxc, nyc, nzc, rhoh, BCs, vct);
   grid->gradC2N(tempX, tempY, tempZ, rhoh);
 
   scale(tempX, -delt * delt * FourPI, nxn, nyn, nzn);
@@ -619,9 +650,9 @@ void EMfields3D::MUdot(
     for (int j = 1; j < nyn - 1; j++)
     for (int k = 1; k < nzn - 1; k++)
     {
-      const double omcx = beta * Bxtotn[i][j][k];
-      const double omcy = beta * Bytotn[i][j][k];
-      const double omcz = beta * Bztotn[i][j][k];
+      const double omcx = beta * Btot[0][i][j][k];
+      const double omcy = beta * Btot[1][i][j][k];
+      const double omcz = beta * Btot[2][i][j][k];
       const double edotb = vectX.get(i,j,k) * omcx + vectY.get(i,j,k) * omcy + vectZ.get(i,j,k) * omcz;
       const double denom = FourPI / 2 * delt * dt / c * qom[is] * rhons[is][i][j][k] / (1.0 + omcx * omcx + omcy * omcy + omcz * omcz);
       MUdotX.fetch(i,j,k) += (vectX.get(i,j,k) + (vectY.get(i,j,k) * omcz - vectZ.get(i,j,k) * omcy + edotb * omcx)) * denom;
@@ -728,11 +759,38 @@ void EMfields3D::advanceB()
   grid->interpC2N(Byn, Byc);
   grid->interpC2N(Bzn, Bzc);
 
-  communicateNodeBC(nxn, nyn, nzn, Bxn, col->bcBx[0],col->bcBx[1],col->bcBx[2],col->bcBx[3],col->bcBx[4],col->bcBx[5], vct);
-  communicateNodeBC(nxn, nyn, nzn, Byn, col->bcBy[0],col->bcBy[1],col->bcBy[2],col->bcBy[3],col->bcBy[4],col->bcBy[5], vct);
-  communicateNodeBC(nxn, nyn, nzn, Bzn, col->bcBz[0],col->bcBz[1],col->bcBz[2],col->bcBz[3],col->bcBz[4],col->bcBz[5], vct);
-}
+  communicateNodeBC(nxn, nyn, nzn, Bxn, col->bcBx, vct);
+  communicateNodeBC(nxn, nyn, nzn, Byn, col->bcBy, vct);
+  communicateNodeBC(nxn, nyn, nzn, Bzn, col->bcBz, vct);
 
+  // compute magnetic field used to push partices
+  // or compute implicit moments
+  {
+    for(int i=0;i<nxn;i++)
+    for(int j=0;j<nyn;j++)
+    for(int k=0;k<nzn;k++)
+    {
+      // unsmoothed version: apply only to smoothed moments
+      Bx_tot[i][j][k] = Bxn[i][j][k]+Bx_ext[i][j][k];
+      By_tot[i][j][k] = Byn[i][j][k]+By_ext[i][j][k];
+      Bz_tot[i][j][k] = Bzn[i][j][k]+Bz_ext[i][j][k];
+
+      // smoothed version: apply only to unsmoothed moments or particles
+      Bx_smooth[i][j][k] = Bx_tot[i][j][k];
+      By_smooth[i][j][k] = By_tot[i][j][k];
+      Bz_smooth[i][j][k] = Bz_tot[i][j][k];
+    }
+    if(Parameters::use_correct_smoothing())
+    {
+      for(int i=0;i<Parameters::get_num_smoothings();i++)
+      {
+        smooth(Smooth, Bx_smooth, get_col().get_bcBx(), &get_vct());
+        smooth(Smooth, By_smooth, get_col().get_bcBy(), &get_vct());
+        smooth(Smooth, Bz_smooth, get_col().get_bcBz(), &get_vct());
+      }
+    }
+  }
+}
 
 // this has been split into calculateJhat and calculateRhoHat()
 void EMfields3D::calculateHatFunctions()
@@ -742,8 +800,24 @@ void EMfields3D::calculateHatFunctions()
 /*! Calculate rho hat */
 void EMfields3D::calculateRhoHat()
 {
-  // smoothing
-  smooth(Smooth, rhoc, 0, &get_vct(), &get_grid());
+  // sum charge density over species and interpolate to cell centers
+  // (also needed for Poisson solve)
+  {
+    array3_double rhon(nxn,nyn,nzn);
+    for (int is = 0; is < ns; is++)
+    for (register int i = 0; i < nxn; i++)
+    for (register int j = 0; j < nyn; j++)
+    for (register int k = 0; k < nzn; k++)
+      rhon[i][j][k] += rhons[is][i][j][k];
+    // calculate densities on centers from nodes
+    get_grid().interpN2C(rhoc, rhon);
+  }
+
+  if(Parameters::use_original_smoothing())
+  // otherwise rhon is already smoothed
+  {
+    smooth(Smooth, rhoc, 0);
+  }
 
   // calculate rho hat = rho - (dt*theta)div(jhat)
   get_grid().divN2C(tempXC, Jxh, Jyh, Jzh);
@@ -751,7 +825,8 @@ void EMfields3D::calculateRhoHat()
   sum(tempXC, rhoc, nxc, nyc, nzc);
   eq(rhoh, tempXC, nxc, nyc, nzc);
   // communicate rhoh
-  communicateCenterBC_P(nxc, nyc, nzc, rhoh, 2, 2, 2, 2, 2, 2, &get_vct());
+  const int BCs[6] = {2,2,2,2,2,2};
+  communicateCenterBC_P(nxc, nyc, nzc, rhoh, BCs, &get_vct());
 }
 
 /*! Image of Poisson Solver */
@@ -836,20 +911,14 @@ void MIsolver::init_from_restart()
   read_field_restart(&get_col(),vct,grid,Bxn,Byn,Bzn,Ex,Ey,Ez);
   {
     // communicate ghost
-    communicateNodeBC(nxn, nyn, nzn, Bxn,
-      col->bcBx[0],col->bcBx[1],col->bcBx[2],col->bcBx[3],col->bcBx[4],col->bcBx[5], vct);
-    communicateNodeBC(nxn, nyn, nzn, Byn,
-      col->bcBy[0],col->bcBy[1],col->bcBy[2],col->bcBy[3],col->bcBy[4],col->bcBy[5], vct);
-    communicateNodeBC(nxn, nyn, nzn, Bzn,
-      col->bcBz[0],col->bcBz[1],col->bcBz[2],col->bcBz[3],col->bcBz[4],col->bcBz[5], vct);
+    communicateNodeBC(nxn, nyn, nzn, Bxn, col->bcBx, vct);
+    communicateNodeBC(nxn, nyn, nzn, Byn, col->bcBy, vct);
+    communicateNodeBC(nxn, nyn, nzn, Bzn, col->bcBz, vct);
 
     // communicate E
-    communicateNodeBC(nxn, nyn, nzn, Ex,
-      col->bcEx[0],col->bcEx[1],col->bcEx[2],col->bcEx[3],col->bcEx[4],col->bcEx[5], vct);
-    communicateNodeBC(nxn, nyn, nzn, Ey,
-      col->bcEy[0],col->bcEy[1],col->bcEy[2],col->bcEy[3],col->bcEy[4],col->bcEy[5], vct);
-    communicateNodeBC(nxn, nyn, nzn, Ez,
-      col->bcEz[0],col->bcEz[1],col->bcEz[2],col->bcEz[3],col->bcEz[4],col->bcEz[5], vct);
+    communicateNodeBC(nxn, nyn, nzn, Ex, col->bcEx, vct);
+    communicateNodeBC(nxn, nyn, nzn, Ey, col->bcEy, vct);
+    communicateNodeBC(nxn, nyn, nzn, Ez, col->bcEz, vct);
   }
   #endif // NO_HDF5
   // initialize B on centers
@@ -1160,9 +1229,9 @@ void c_Solver::initDoublePeriodicHarrisWithGaussianHumpPerturbation()
           Bzn[i][j][k] = B0z;
         }
     // communicate ghost
-    communicateNodeBC(nxn, nyn, nzn, Bxn, col->bcBx[0],col->bcBx[1],col->bcBx[2],col->bcBx[3],col->bcBx[4],col->bcBx[5], vct);
-    communicateNodeBC(nxn, nyn, nzn, Byn, col->bcBy[0],col->bcBy[1],col->bcBy[2],col->bcBy[3],col->bcBy[4],col->bcBy[5], vct);
-    communicateNodeBC(nxn, nyn, nzn, Bzn, col->bcBz[0],col->bcBz[1],col->bcBz[2],col->bcBz[3],col->bcBz[4],col->bcBz[5], vct);
+    communicateNodeBC(nxn, nyn, nzn, Bxn, col->bcBx, vct);
+    communicateNodeBC(nxn, nyn, nzn, Byn, col->bcBy, vct);
+    communicateNodeBC(nxn, nyn, nzn, Bzn, col->bcBz, vct);
     // initialize B on centers
     for (int i = 0; i < nxc; i++)
       for (int j = 0; j < nyc; j++)
@@ -1491,17 +1560,23 @@ void c_Solver::initRandomField()
 	    }
 	}
 	  // communicate ghost
-	  communicateNodeBC(nxn, nyn, nzn, Bxn, 1, 1, 2, 2, 1, 1, vct);
-	  communicateNodeBC(nxn, nyn, nzn, Byn, 1, 1, 1, 1, 1, 1, vct);
-	  communicateNodeBC(nxn, nyn, nzn, Bzn, 1, 1, 2, 2, 1, 1, vct);
+	  const int BCnx[6] = { 1, 1, 2, 2, 1, 1};
+	  const int BCny[6] = { 1, 1, 1, 1, 1, 1};
+	  const int BCnz[6] = { 1, 1, 2, 2, 1, 1};
+	  communicateNodeBC(nxn, nyn, nzn, Bxn, BCnx, vct);
+	  communicateNodeBC(nxn, nyn, nzn, Byn, BCny, vct);
+	  communicateNodeBC(nxn, nyn, nzn, Bzn, BCnz, vct);
 	  // initialize B on centers
 	  grid->interpN2C(Bxc, Bxn);
 	  grid->interpN2C(Byc, Byn);
 	  grid->interpN2C(Bzc, Bzn);
 	  // communicate ghost
-	  communicateCenterBC(nxc, nyc, nzc, Bxc, 2, 2, 2, 2, 2, 2, vct);
-	  communicateCenterBC(nxc, nyc, nzc, Byc, 1, 1, 1, 1, 1, 1, vct);
-	  communicateCenterBC(nxc, nyc, nzc, Bzc, 2, 2, 2, 2, 2, 2, vct);
+	  const int BCcx = {2, 2, 2, 2, 2, 2};
+	  const int BCcy = {1, 1, 1, 1, 1, 1};
+	  const int BCcz = {2, 2, 2, 2, 2, 2};
+	  communicateCenterBC(nxc, nyc, nzc, Bxc, BCcx, vct);
+	  communicateCenterBC(nxc, nyc, nzc, Byc, BCcy, vct);
+	  communicateCenterBC(nxc, nyc, nzc, Bzc, BCcz, vct);
 	  for (int is=0 ; is<ns; is++)
             grid->interpN2C(rhocs,is,rhons);
     }
@@ -2727,9 +2802,9 @@ double EMfields3D::getBenergy(void) {
   for (int i = 1; i < nxn - 2; i++)
     for (int j = 1; j < nyn - 2; j++)
       for (int k = 1; k < nzn - 2; k++){
-        Bxt = Bxn[i][j][k]+Bx_ext[i][j][k];
-        Byt = Byn[i][j][k]+By_ext[i][j][k];
-        Bzt = Bzn[i][j][k]+Bz_ext[i][j][k];
+        Bxt = Bxn[i][j][k]+get_Bx_ext(i,j,k);
+        Byt = Byn[i][j][k]+get_By_ext(i,j,k);
+        Bzt = Bzn[i][j][k]+get_Bz_ext(i,j,k);
         localBenergy += .5*grid->getVOL()*(Bxt*Bxt + Byt*Byt + Bzt*Bzt)/(FourPI);
       }
 

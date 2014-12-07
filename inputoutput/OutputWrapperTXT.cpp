@@ -91,6 +91,24 @@ void outputWrapperTXT::append_to_velocity_distribution(
   my_file.close();
 }
 
+OutputWrapperTXT::write_velocity_distribution(int cycle,
+  const Particles3Dcomm& pcls)
+{
+  if(!do_write_velocity_distribution()) return;
+
+  const ns = col->getNs();
+  for (int is = 0; is < ns; is++) {
+    double maxVel = part[is].getMaxVelocity();
+    const int nbins = get_number_of_distribution_bins();
+    long long *VelocityDist = part[is].getVelocityDistribution(nbins, maxVel);
+    if (vct->is_rank0())
+    {
+      append_to_velocity_distribution(cycle, is, maxVel, VelocityDist);
+    }
+    delete [] VelocityDist;
+  }
+}
+
 // this assumes 4 species used in a certain way
 //
 void outputWrapperTXT::append_to_satellite_traces(Grid3DCU *grid,

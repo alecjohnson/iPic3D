@@ -121,9 +121,7 @@ void communicateNode(int nx, int ny, int nz, arr3_double _vector,
 }
 /** communicate ghost cells (FOR NODES) */
 void communicateNodeBC(int nx, int ny, int nz, arr3_double _vector,
-  int bcFaceXrght, int bcFaceXleft,
-  int bcFaceYrght, int bcFaceYleft,
-  int bcFaceZrght, int bcFaceZleft,
+  const int BCs[6],
   const VirtualTopology3D * vct)
 {
   timeTasks_set_communicating();
@@ -209,7 +207,7 @@ void communicateNodeBC(int nx, int ny, int nz, arr3_double _vector,
   // ////////////////////////////////////////////////////////////////////////
   // ///////////////// APPLY the boundary conditions ////////////////////////
   // ////////////////////////////////////////////////////////////////////////
-  BCface(nx, ny, nz, vector, bcFaceXrght, bcFaceXleft, bcFaceYrght, bcFaceYleft, bcFaceZrght, bcFaceZleft, vct);
+  BCface(nx, ny, nz, vector, BCs, vct);
 
   delete[]ghostXrghtFace;
   delete[]ghostXleftFace;
@@ -623,10 +621,7 @@ void communicateCenter(int nx, int ny, int nz, arr3_double _vector,
 }
 /** communicate ghost cells (FOR CENTERS) with BOX stencil*/
 void communicateCenterBoxStencilBC(int nx, int ny, int nz, arr3_double _vector,
-  int bcFaceXrght, int bcFaceXleft,
-  int bcFaceYrght, int bcFaceYleft,
-  int bcFaceZrght, int bcFaceZleft,
-  const VirtualTopology3D * vct)
+  int BCs[6], const VirtualTopology3D * vct)
 {
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
@@ -650,7 +645,7 @@ void communicateCenterBoxStencilBC(int nx, int ny, int nz, arr3_double _vector,
   // ////////////////////////////////////////////////////////////////////////
   // ///////////////// APPLY the boundary conditions ////////////////////////
   // ////////////////////////////////////////////////////////////////////////
-  BCface(nx, ny, nz, vector, bcFaceXrght, bcFaceXleft, bcFaceYrght, bcFaceYleft, bcFaceZrght, bcFaceZleft, vct);
+  BCface(nx, ny, nz, vector, BCs, vct);
 
 
   // deallocate
@@ -663,10 +658,9 @@ void communicateCenterBoxStencilBC(int nx, int ny, int nz, arr3_double _vector,
 }
 // particles
 /** communicate ghost cells (FOR CENTERS) with BOX stencil*/
-void communicateCenterBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector,
-  int bcFaceXrght, int bcFaceXleft,
-  int bcFaceYrght, int bcFaceYleft,
-  int bcFaceZrght, int bcFaceZleft,
+static void communicateCenterBoxStencilBC_P(int nx, int ny, int nz,
+  arr3_double _vector,
+  const int BCs[6],
   const VirtualTopology3D * vct)
 {
   timeTasks_set_communicating();
@@ -691,7 +685,7 @@ void communicateCenterBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector
   // ////////////////////////////////////////////////////////////////////////
   // ///////////////// APPLY the boundary conditions ////////////////////////
   // ////////////////////////////////////////////////////////////////////////
-  BCface_P(nx, ny, nz, vector, bcFaceXrght, bcFaceXleft, bcFaceYrght, bcFaceYleft, bcFaceZrght, bcFaceZleft, vct);
+  BCface_P(nx, ny, nz, vector, BCs, vct);
 
 
   // deallocate
@@ -701,6 +695,12 @@ void communicateCenterBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector
   delete[]ghostYleftFace;
   delete[]ghostZrghtFace;
   delete[]ghostZleftFace;
+}
+void communicateCenterBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector,
+  int BCs[6], const VirtualTopology3D * vct)
+{
+  communicateCenterBoxStencilBC_P(nx, ny, nz, _vector,
+    BCs[0], BCs[1], BCs[2], BCs[3], BCs[4], BCs[5], vct);
 }
 
 // 
@@ -745,6 +745,12 @@ void communicateNodeBoxStencilBC(int nx, int ny, int nz, arr3_double _vector,
   delete[]ghostZrghtFace;
   delete[]ghostZleftFace;
 }
+void communicateNodeBoxStencilBC(int nx, int ny, int nz, arr3_double _vector,
+  const int BCs[6],
+  const VirtualTopology3D * vct)
+{
+  communicateNodeBoxStencilBC(nx, ny, nz, _vector, BCs, vct);
+}
 
 void communicateNodeBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector,
   int bcFaceXrght, int bcFaceXleft,
@@ -788,11 +794,8 @@ void communicateNodeBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector,
 
 
 // /////////// communication + BC ////////////////////////////
-void communicateCenterBC(int nx, int ny, int nz, arr3_double _vector,
-  int bcFaceXrght, int bcFaceXleft,
-  int bcFaceYrght, int bcFaceYleft,
-  int bcFaceZrght, int bcFaceZleft,
-  const VirtualTopology3D * vct)
+void communicateCenterBC(int nx, int ny, int nz, arr3_double vector,
+  int BCs[6], const VirtualTopology3D * vct)
 {
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
@@ -934,7 +937,7 @@ void communicateCenterBC(int nx, int ny, int nz, arr3_double _vector,
   // ////////////////////////////////////////////////////////////////////////
   // ///////////////// APPLY the boundary conditions ////////////////////////
   // ////////////////////////////////////////////////////////////////////////
-  BCface(nx, ny, nz, vector, bcFaceXrght, bcFaceXleft, bcFaceYrght, bcFaceYleft, bcFaceZrght, bcFaceZleft, vct);
+  BCface(nx, ny, nz, vector, BCs, vct);
 
   delete[]ghostXrghtFace;
   delete[]ghostXleftFace;
@@ -958,19 +961,21 @@ void communicateCenterBC(int nx, int ny, int nz, arr3_double _vector,
   delete[]ghostXleftYleftZsameEdge;
   delete[]ghostXleftYrghtZsameEdge;
 }
-// version with fewer arguments
-void communicateCenterBC(int nx, int ny, int nz, arr3_double vector,
-  int bc[6], const VirtualTopology3D * vct)
-{
-  communicateCenterBC(nx, ny, nz, vector,
-  bc[0], bc[1], bc[2], bc[3], bc[4], bc[5], vct);
-}
-// /////////// communication + BC ////////////////////////////
-void communicateCenterBC_P(int nx, int ny, int nz, arr3_double _vector,
+void communicateCenterBC(int nx, int ny, int nz, arr3_double _vector,
   int bcFaceXrght, int bcFaceXleft,
   int bcFaceYrght, int bcFaceYleft,
   int bcFaceZrght, int bcFaceZleft,
   const VirtualTopology3D * vct)
+{
+  const int BCs[6] = {
+    bcFaceXrght, bcFaceXleft,
+    bcFaceYrght, bcFaceYleft,
+    bcFaceZrght, bcFaceZleft};
+  communicateCenterBC(nx, ny, nz, vector, BCs, vct);
+}
+// /////////// communication + BC ////////////////////////////
+void communicateCenterBC_P(int nx, int ny, int nz, arr3_double _vector,
+  const int BCs[6], const VirtualTopology3D * vct)
 {
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
@@ -1052,7 +1057,7 @@ void communicateCenterBC_P(int nx, int ny, int nz, arr3_double _vector,
   // ////////////////////////////////////////////////////////////////////////
   // ///////////////// APPLY the boundary conditions ////////////////////////
   // ////////////////////////////////////////////////////////////////////////
-  BCface_P(nx, ny, nz, vector, bcFaceXrght, bcFaceXleft, bcFaceYrght, bcFaceYleft, bcFaceZrght, bcFaceZleft, vct);
+  BCface_P(nx, ny, nz, vector, BCs, vct);
 
   delete[]ghostXrghtFace;
   delete[]ghostXleftFace;
@@ -1076,10 +1081,15 @@ void communicateCenterBC_P(int nx, int ny, int nz, arr3_double _vector,
   delete[]ghostXleftYleftZsameEdge;
   delete[]ghostXleftYrghtZsameEdge;
 }
-// version with fewer arguments
-void communicateCenterBC_P(int nx, int ny, int nz, arr3_double vector,
-  int bc[6], const VirtualTopology3D * vct)
+void communicateCenterBC_P(int nx, int ny, int nz, arr3_double _vector,
+  int bcFaceXrght, int bcFaceXleft,
+  int bcFaceYrght, int bcFaceYleft,
+  int bcFaceZrght, int bcFaceZleft,
+  const VirtualTopology3D * vct)
 {
-  communicateCenterBC_P(nx, ny, nz, vector,
-  bc[0], bc[1], bc[2], bc[3], bc[4], bc[5], vct);
+  const int BCs[6] = {
+    bcFaceXrght, bcFaceXleft,
+    bcFaceYrght, bcFaceYleft,
+    bcFaceZrght, bcFaceZleft};
+  communicateCenterBC_P(nx, ny, nz, vector, BCs, vct);
 }

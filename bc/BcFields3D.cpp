@@ -188,7 +188,6 @@ void BCface(int nx, int ny, int nz, double ***vector,
 
 }
 
-
 // / particles
 /** set the boundary condition on boundaries */
 void BCface_P(int nx, int ny, int nz, double ***vector,

@@ -310,7 +310,7 @@ Particles3Dcomm::Particles3Dcomm(
 //
 void Particles3Dcomm::pad_capacities()
 {
- #pragma omp master
+ #pragma omp single
  {
   _pcls.reserve(roundup_to_multiple(_pcls.size(),DVECWIDTH));
   u.reserve(roundup_to_multiple(u.size(),DVECWIDTH));

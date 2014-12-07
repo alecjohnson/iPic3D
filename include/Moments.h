@@ -17,7 +17,7 @@ class Imoments
     const int ns;
   private: // moments
     // densities of each species
-    array4_double rhons;
+    array3_double_list rhons;
 
     // implicit current density defined on nodes
     //
@@ -170,14 +170,6 @@ class Pmoments
     //double getRHOc(int X, int Y, int Z) const { return rhoc.get(X,Y,Z);}
     //double getRHOn(int X, int Y, int Z) const { return rhon.get(X,Y,Z);}
 
-    arr3_double getJx() { return Jx; }
-    arr3_double getJy() { return Jy; }
-    arr3_double getJz() { return Jz; }
-
-    double getJx(int X, int Y, int Z) const { return Jx.get(X,Y,Z);}
-    double getJy(int X, int Y, int Z) const { return Jy.get(X,Y,Z);}
-    double getJz(int X, int Y, int Z) const { return Jz.get(X,Y,Z);}
-
     /*** accessors that require computing ***/
 
     // get current for species in all cells except ghost
@@ -188,9 +180,9 @@ class Pmoments
 
   Pmoments(const Setting& setting_)
     setting(setting_),
-    nxn(setting_.grid().getNXN()),
-    nyn(setting_.grid().getNYN()),
-    nzn(setting_.grid().getNZN()),
+    nxn(setting_.grid().get_nxn()),
+    nyn(setting_.grid().get_nyn()),
+    nzn(setting_.grid().get_nzn()),
     ns(setting_.col().getNs()),
     //
     // species-specific quantities
@@ -239,9 +231,6 @@ class Pmoments
     /*! communicate ghost for grid -> Particles interpolation */
     void communicateGhostP2G(int ns);
     //
-    //virtual virtual_sumMoments(const Particles3Dcomm* part);
-    // the following alternative versions should be
-    // defined in a class that inherits from this class.
     /*! sum moments (interp_P2G) versions */
     void sumMoments(const Particles3Dcomm* part);
     void sumMoments_vec(const Particles3Dcomm* part);

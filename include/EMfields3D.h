@@ -133,13 +133,6 @@ class EMfields3D
     arr3_double getByc();
     arr3_double getBzc();
 
-    double getBx_ext(int X, int Y, int Z) const{return Bx_ext? Bx_ext->get(X,Y,Z):0.;}
-    double getBy_ext(int X, int Y, int Z) const{return By_ext? By_ext->get(X,Y,Z):0.;}
-    double getBz_ext(int X, int Y, int Z) const{return Bz_ext? Bz_ext->get(X,Y,Z):0.;}
-    //arr3_double getBx_ext() { assert(Bx_ext); return *Bx_ext; }
-    //arr3_double getBy_ext() { assert(By_ext); return *By_ext; }
-    //arr3_double getBz_ext() { assert(Bz_ext); return *Bz_ext; }
-
     /*! get the electric field energy */
     double getEenergy();
     /*! get the magnetic field energy */
@@ -228,18 +221,19 @@ class EMfields3D
     array3_double Bxn;
     array3_double Byn;
     array3_double Bzn;
+    array3_double* Bxtot;
 
     // *************************************
     // TEMPORARY ARRAY
     // ************************************
     /*! other temporary arrays (in MaxwellSource) */
-    array3_double tempC;
-    array3_double tempX;
-    array3_double tempY;
-    array3_double tempZ;
-    array3_double temp2X;
-    array3_double temp2Y;
-    array3_double temp2Z;
+    //array3_double tempC;
+    //array3_double tempX;
+    //array3_double tempY;
+    //array3_double tempZ;
+    //array3_double temp2X;
+    //array3_double temp2Y;
+    //array3_double temp2Z;
     /*! and some for MaxwellImage */
     array3_double imageX;
     array3_double imageY;
@@ -263,17 +257,20 @@ class EMfields3D
 
     // external magnetic field defined on nodes
     //
-    array3_double  *Bx_ext;
-    array3_double  *By_ext;
-    array3_double  *Bz_ext;
+    array3_double Bx_tot;
+    array3_double By_tot;
+    array3_double Bz_tot;
+    array3_double Bx_ext;
+    array3_double By_ext;
+    array3_double Bz_ext;
+
+    array3_double Bx_smooth;
+    array3_double By_smooth;
+    array3_double Bz_smooth;
 
     // external current, defined on nodes
     // (only used for reporting net current)
-    arr3_double  *Jx_ext;
-    arr3_double  *Jy_ext;
-    arr3_double  *Jz_ext;
-
-
+    arr3_double  *J_ext;
     /*! Field Boundary Condition
       0 = Dirichlet Boundary Condition: specifies the
           value on the boundary of the domain

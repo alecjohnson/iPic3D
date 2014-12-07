@@ -29,162 +29,7 @@
 
 using namespace iPic3D;
 
-/* Interpolation smoothing: Smoothing (vector must already have ghost cells)
-   value: if 1 nothing is done; else smoothing is done and value is ignored.
-   type = 0 --> center based vector ;
-   type = 1 --> node based vector ; */
-void smooth(double value, arr3_double vector, int type,
-  const VirtualTopology3D *vct,
-  const Grid *grid)
-{
-  int nvolte = 6;
-  for (int icount = 1; icount < nvolte + 1; icount++) {
-
-    if (value != 1.0) {
-      double alpha;
-      int nx, ny, nz;
-      switch (type) {
-        case (0):
-          nx = grid->getNXC();
-          ny = grid->getNYC();
-          nz = grid->getNZC();
-          communicateCenterBoxStencilBC_P(nx, ny, nz, vector, 2, 2, 2, 2, 2, 2, vct);
-
-          break;
-        case (1):
-          nx = grid->getNXN();
-          ny = grid->getNYN();
-          nz = grid->getNZN();
-          communicateNodeBoxStencilBC_P(nx, ny, nz, vector, 2, 2, 2, 2, 2, 2, vct);
-          break;
-      }
-      double ***temp = newArr3(double, nx, ny, nz);
-      if (icount % 2 == 1) {
-        value = 0.;
-      }
-      else {
-        value = 0.5;
-      }
-      alpha = (1.0 - value) / 6;
-      for (int i = 1; i < nx - 1; i++)
-      for (int j = 1; j < ny - 1; j++)
-      for (int k = 1; k < nz - 1; k++)
-      {
-          temp[i][j][k] = value * vector[i][j][k] + alpha *
-             (vector[i - 1][j][k]
-            + vector[i + 1][j][k]
-            + vector[i][j - 1][k]
-            + vector[i][j + 1][k]
-            + vector[i][j][k - 1]
-            + vector[i][j][k + 1]);
-      }
-      for (int i = 1; i < nx - 1; i++)
-      for (int j = 1; j < ny - 1; j++)
-      for (int k = 1; k < nz - 1; k++)
-      {
-          vector[i][j][k] = temp[i][j][k];
-      }
-      delArr3(temp, nx, ny);
-    }
-  }
-}
-/* Interpolation smoothing of 3-component node-based vector that has ghost nodes
-   value: if 1 nothing is done; else smoothing is done and value is ignored.
-   (could just call smooth three times, once for each component, passing in
-   boundary conditions for electric field...)
- */
-void smoothE(double value,
-  arr3_double Ex;
-  arr3_double Ey;
-  arr3_double Ez;
-  const Collective *col,
-  const VirtualTopology3D *vct)
-{
-  const int nxn = grid->get_nxn();
-  const int nyn = grid->get_nyn();
-  const int nzn = grid->get_nzn();
-  int nvolte = 6;
-  for (int icount = 1; icount < nvolte + 1; icount++) {
-    if (value != 1.0) {
-      double alpha;
-      communicateNodeBoxStencilBC(nxn, nyn, nzn, Ex, col->bcEx[0],col->bcEx[1],col->bcEx[2],col->bcEx[3],col->bcEx[4],col->bcEx[5], vct);
-      communicateNodeBoxStencilBC(nxn, nyn, nzn, Ey, col->bcEy[0],col->bcEy[1],col->bcEy[2],col->bcEy[3],col->bcEy[4],col->bcEy[5], vct);
-      communicateNodeBoxStencilBC(nxn, nyn, nzn, Ez, col->bcEz[0],col->bcEz[1],col->bcEz[2],col->bcEz[3],col->bcEz[4],col->bcEz[5], vct);
-
-      double ***temp = newArr3(double, nxn, nyn, nzn);
-      if (icount % 2 == 1) {
-        value = 0.;
-      }
-      else {
-        value = 0.5;
-      }
-      alpha = (1.0 - value) / 6;
-      // Exth
-      for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++)
-      for (int k = 1; k < nzn - 1; k++)
-          temp[i][j][k] = value * Ex[i][j][k] + alpha *
-              (Ex[i - 1][j][k]
-             + Ex[i + 1][j][k]
-             + Ex[i][j - 1][k]
-             + Ex[i][j + 1][k]
-             + Ex[i][j][k - 1]
-             + Ex[i][j][k + 1]);
-      for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++)
-      for (int k = 1; k < nzn - 1; k++)
-          Ex[i][j][k] = temp[i][j][k];
-      // Eyth
-      for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++)
-      for (int k = 1; k < nzn - 1; k++)
-          temp[i][j][k] = value * Ey[i][j][k] + alpha *
-              (Ey[i - 1][j][k]
-             + Ey[i + 1][j][k]
-             + Ey[i][j - 1][k]
-             + Ey[i][j + 1][k]
-             + Ey[i][j][k - 1]
-             + Ey[i][j][k + 1]);
-      for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++)
-      for (int k = 1; k < nzn - 1; k++)
-          Ey[i][j][k] = temp[i][j][k];
-      // Ezth
-      for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++)
-      for (int k = 1; k < nzn - 1; k++)
-          temp[i][j][k] = value * Ez[i][j][k] + alpha *
-              (Ez[i - 1][j][k]
-             + Ez[i + 1][j][k]
-             + Ez[i][j - 1][k]
-             + Ez[i][j + 1][k]
-             + Ez[i][j][k - 1]
-             + Ez[i][j][k + 1]);
-      for (int i = 1; i < nxn - 1; i++)
-      for (int j = 1; j < nyn - 1; j++)
-      for (int k = 1; k < nzn - 1; k++)
-          Ez[i][j][k] = temp[i][j][k];
-
-
-      delArr3(temp, nxn, nyn);
-    }
-  }
-}
-
 // === Section: MIsolver_routines ===
-
-MIsolver::~MIsolver()
-{
-  delete pMoments;
-  delete EMf; // field
-  delete kinetics;
-  delete fieldForPcls;
-  #ifndef NO_HDF5
-  delete outputWrapperFPP;
-  delete outputWrapperTXT;
-  #endif
-  delete my_clock;
-}
 
 // todo: separate out this problem-specific code
 //
@@ -253,31 +98,55 @@ void MIsolver::initialize_output()
   outputWrapperTXT = new OutputWrapperTXT(col,vct);
 }
 
+MIsolver::~MIsolver()
+{
+  delete pMoments;
+  delete EMf; // field
+  delete kinetics;
+  delete fieldForPcls;
+  #ifndef NO_HDF5
+  delete outputWrapperFPP;
+  delete outputWrapperTXT;
+  #endif
+  delete my_clock;
+  delete &setting;
+}
+
+
+// MIsolver::MIsolver(int argc, char **argv)
+// : setting(argc, argv),
+//   iMoments(*new Imoments(setting)),
+//   EMf(*new EMfields3D(setting, iMoments)),
+//   pMoments(*new Pmoments(setting)),
+//   kinetics(*new Kinetics(setting)),
+//   fieldForPcls(*new array4_double(
+//     setting.grid().get_nxn(),
+//     setting.grid().get_nyn(),
+//     setting.grid().get_nzn(),
+//     2*DFIELD_3or4)),
+//   my_clock(0)
 MIsolver::MIsolver(int argc, char **argv)
-: setting(argc, argv),
+: setting(*new Setting(argc, argv)),
   iMoments(0),
   EMf(0),
+  pMoments(0),
   kinetics(0),
   fieldForPcls(0),
   my_clock(0),
 {
-  ns = col->getNs(); // get the number of particle species involved in simulation
-
   #ifdef BATSRUS
   // set index offset for each processor
   setGlobalStartIndex(vct);
   #endif
-}
 
-int MIsolver::Init()
-{
   #if defined(__MIC__)
   assert_eq(DVECWIDTH,8);
   #endif
 
   iMoments = new Imoments(setting);
-  EMf = new EMfields3D(col, grid, vct);
+  EMf = new EMfields3D(setting, iMoments);
   kinetics = new Kinetics(setting);
+  pMoments = new Pmoments(setting);
 
   set_initial_conditions();
 
@@ -288,41 +157,11 @@ int MIsolver::Init()
   return 0;
 }
 
-Imoments::compute_from_primitive_moments(const Pmoments& pMoments,
-  arr3_double Bx, arr3_double By, arr3_double Bz)
+void MIsolver::compute_moments()
 {
-  //setZero();
-  // sum all over the species
-  //iMoments.sumOverSpecies();
+  get_kinetics().compute_pMoments(pMoments);
 
-  // copy the charge densities from the primitive moments
-  for(int is=0;is<ns;is++)
-  for(int i=0;i<nxn;i++)
-  for(int j=0;j<nyn;j++)
-  for(int k=0;k<nzn;k++)
-  {
-    rhons[is][i][j][k] = pMoments->get_rhons()[is][i][j][k];
-  }
-
-  // modify the charge density used to drive the electromagnetic
-  // field based on non-kinetic influences.
-  {
-    // Fill with constant charge the planet
-    if (setting.get_col().getCase()=="Dipole") {
-      ConstantChargePlanet();
-    }
-    // Set a constant charge in the OpenBC boundaries
-    ConstantChargeOpenBC();
-  }
-
-  calculateJhat(Bx, By, Bz);
-}
-
-void MIsolver::computeMoments()
-{
-  kinetics->compute_pMoments();
-
-  // iMoments are the moments needed to drive the field
+  // iMoments are the moments needed to drive the implicit field
   // solver, which are separated out from EMfields3D in case
   // we someday wish to communicate these 3+num_species
   // moments instead of the 10*num_species primitive
@@ -333,38 +172,23 @@ void MIsolver::computeMoments()
   // synchronizations, for the present we prefer to avoid
   // all exchange of boundary data on the booster.
   //
-  iMoments.compute_from_primitive_moments(pMoments);
+  // by default we smooth after applying magnetic field
+  const_arr3_double Bx = EMf->get_Bx_smooth();
+  const_arr3_double By = EMf->get_By_smooth();
+  const_arr3_double Bz = EMf->get_Bz_smooth();
+  // smooth before applying magnetic field
+  if(Parameters::use_perfect_smoothing())
+  {
+    Bx = EMf->get_Bx_tot();
+    By = EMf->get_By_tot();
+    Bz = EMf->get_Bz_tot();
+  }
+  iMoments->compute_from_primitive_moments(pMoments, Bx, By, Bz);
 
-  // calculate densities on centers from nodes
-  // (only needed for the Poisson
-  // solve in the divergence cleaning, so probably
-  // it would be better to do it there).
-  EMf->interpDensitiesN2C();
+  // could wait to do this until field solve
+  //
   // calculate the hat quantities for the implicit method
   EMf->calculateRhoHat();
-}
-void Kinetics::compute_pMoments()
-{
-  timeTasks_set_main_task(TimeTasks::MOMENTS);
-
-  // to be performed on booster
-  {
-    pad_particle_capacities();
-    #pragma omp parallel
-    for (int is = 0; is < ns; is++)
-    {
-      pMoments.accumulateMoments(part[is]);
-      //#pragma omp master
-      //[...send accumulated moments to cluster...]
-    }
-  }
-
-  // to be performed on cluster
-  for (int is = 0; is < ns; is++)
-  {
-    //[...wait for communicated moments to be received from booster...]
-    pMoments.communicateGhostP2G(is);
-  }
 }
 
 // This method should send or receive field
@@ -392,26 +216,40 @@ void Kinetics::compute_pMoments()
 //
 void MIsolver::send_field_to_kinetic_solver()
 {
-  EMf->set_fieldForPcls(kinetics.fetch_fieldForPcls());
+  set_fieldForPcls();
+}
+void MIsolver::set_fieldForPcls()
+{
+  //EMf->set_fieldForPcls(fetch_fieldForPcls());
+  #pragma omp parallel for collapse(2)
+  for(int i=0;i<nxn;i++)
+  for(int j=0;j<nyn;j++)
+  for(int k=0;k<nzn;k++)
+  {
+    fieldForPcls[i][j][k][0] = Bx_smooth[i][j][k];
+    fieldForPcls[i][j][k][1] = By_smooth[i][j][k];
+    fieldForPcls[i][j][k][2] = Bz_smooth[i][j][k];
+    fieldForPcls[i][j][k][0+DFIELD_3or4] = Ex_smooth[i][j][k];
+    fieldForPcls[i][j][k][1+DFIELD_3or4] = Ey_smooth[i][j][k];
+    fieldForPcls[i][j][k][2+DFIELD_3or4] = Ez_smooth[i][j][k];
+  }
 }
 
 //! MAXWELL SOLVER for Efield
-void MIsolver::advanceEfield() {
+void MIsolver::advance_Efield() 
+{
   timeTasks_set_main_task(TimeTasks::FIELDS);
   if(I_am_field_solver())
   {
-    // define fields to use at open boundaries
-    // based on magnetic field and Ohm's law
-    EMf->updateInfoFields();
     // advance the E field
-    EMf->calculateE();
+    EMf->calculateE(get_iMoments());
   }
   send_field_to_kinetic_solver();
 }
 
 //! update Bfield (assuming Eth has already been calculated)
 //  B^{n+1} = B^n - curl(Eth)
-void MIsolver::advanceBfield() {
+void MIsolver::advance_Bfield() {
   timeTasks_set_main_task(TimeTasks::FIELDS);
   timeTasks_set_task(TimeTasks::BFIELD); // subtask
   // calculate the B field
@@ -423,7 +261,7 @@ void MIsolver::advanceBfield() {
 }
 
 // this method should be a no-op on the cluster
-void MIsolver::moveParticles()
+void MIsolver::move_particles()
 {
   //[...receive field from fieldsolver...]
   kinetics->moveParticles();
@@ -441,7 +279,7 @@ void MIsolver::WriteRestart(int cycle)
   kinetics->convertParticlesToSynched(); // hack
   // write the RESTART file
   // without 0 add to restart file
-  writeRESTART(vct->get_rank(), cycle, ns, vct, col, grid, EMf, part, 0);
+  writeRESTART(vct->get_rank(), cycle, vct, col, grid, EMf, part, 0);
   #endif
 }
 
@@ -465,21 +303,7 @@ void MIsolver::WriteConserved(int cycle) {
 
 void MIsolver::WriteVelocityDistribution(int cycle)
 {
-  // Velocity distribution
-  if(!do_write_velocity_distribution()) return;
-  //if(cycle % col->getVelocityDistributionOutputCycle() == 0)
-  {
-    for (int is = 0; is < ns; is++) {
-      double maxVel = part[is].getMaxVelocity();
-      const int nbins = OutputWrapperTXT::get_number_of_distribution_bins();
-      long long *VelocityDist = part[is].getVelocityDistribution(nbins, maxVel);
-      if (vct->is_rank0())
-      {
-        outputWrapperTXT->append_to_velocity_distribution(cycle, is, maxVel, VelocityDist);
-      }
-      delete [] VelocityDist;
-    }
-  }
+  outputWrapperTXT->write_velocity_distribution(cycle, part);
 }
 
 // This seems to record values at a grid of sample points
@@ -628,7 +452,7 @@ void MIsolver::Finalize() {
   {
     #ifndef NO_HDF5
     get_kinetics().convertParticlesToSynched();
-    writeRESTART(vct->get_rank(), col->getNcycles() + col->getLast_cycle(), ns, vct, col, grid, EMf, part, 0);
+    writeRESTART(vct->get_rank(), col->getNcycles() + col->getLast_cycle(), vct, col, grid, EMf, part, 0);
     #endif
   }
 
@@ -636,3 +460,77 @@ void MIsolver::Finalize() {
   my_clock->stopTiming();
 }
 
+// Flow structure of application.
+// C = "lives on Cluster"
+// B = "lives on Booster"
+//
+// C    En          = advance(dt, En, Bn, Btot, Jhat, rhon)
+// C    Bc          = advance(dt, Bc, En)
+// C    Bn          = interpolate_to_nodes(Bc)
+// C    Btot        = Bn + Bext
+// C B  B_smooth    = smooth(Btot)
+// C B  E_smooth    = smooth(En)
+//   B  BEaos       = soa2aos(B_smooth,E_smooth)
+//   B  particles   = advance(dt, particles, BEaos)
+// C B  pMoments    = sumMoments(particles)
+// C    Jhat_coarse = compute_Jhat(pMoments, B_smooth)
+// C    Jhat        = smooth(compute_Jhat(pMoments, B_smooth)
+// C    rhon        = smooth(pMoments.rhon)
+//
+// remarks:
+//  
+// * we could transfer Jhat_coarse rather than pMoments
+// * a more correct way to compute Jhat is:
+//   C    Jhat        = compute_Jhat(smooth(Pmoments), Btot)
+// * Btot is used to compute MUdot in En.advance().
+// * Btot or B_smooth is used in Jhat.smooth() to compute PIdot.
+// * Jhat could be transferred from B to C rather than Pmoments.
+// * smoothing requires exchange of boundary data.
+// * computing Jhat requires exchange of boundary data.
+//
+// Class organization:
+// MIsolver:
+//   EMfields3D:
+//     En, Bc, Bn, Btot
+//   B_smooth
+//   E_smooth
+//   BEaos
+//   pMoments
+//   particles
+// FieldSolver:
+//   EMfields3D:
+//     En, Bc, Bn, Btot
+//   B_smooth
+//   E_smooth
+//   pMoments
+//   Jhat_coarse
+//   Jhat
+//   rhon
+// KineticSolver:
+//   B_smooth
+//   E_smooth
+//   BEaos
+//   particles
+//   pMoments
+//
+void MIsolver::run()
+{
+  timeTasks.resetCycle();
+  compute_moments();
+  for (int i = FirstCycle(); i <= FinalCycle(); i++)
+  {
+    if (is_rank0())
+      printf(" ======= Cycle %d ======= \n",i);
+
+    timeTasks.resetCycle();
+    advance_Efield();
+    move_particles();
+    advance_Bfield();
+    compute_moments();
+    WriteOutput(i);
+    // print out total time for all tasks
+    timeTasks.print_cycle_times(i);
+  }
+
+  Finalize();
+}

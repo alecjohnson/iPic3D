@@ -114,9 +114,9 @@ public:
   // smoothing operators
 
   /*! Smoothing after the interpolation* */
-  void smooth(double value, arr3_double vector, int type);
-  /*! SPECIES: Smoothing after the interpolation for species fields* */
-  void smooth(double value, arr4_double vector, int is, int type);
+  void smooth(double value, arr3_double vector, int type, int*BCs=0);
+  // for smoothing species densities
+  //void smooth(double value, arr4_double vector, int is, int type);
 
 private:
   void init_derived_parameters();

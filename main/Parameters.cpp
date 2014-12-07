@@ -64,3 +64,7 @@ bool Parameters::get_USING_AOS() { return USING_AOS; }
 //bool Parameters::get_USING_AOS() { return true; }
 //
 bool Parameters::get_doWriteOutput() { return false; }
+//
+bool Parameters::use_correct_smoothing() {return false; };
+// ignored unless previous returns true
+bool Parameters::get_num_smoothings() {return 3;}

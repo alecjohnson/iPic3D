@@ -116,10 +116,10 @@ void Pmoments::PIdot(
   const_arr3_double vectX,
   const_arr3_double vectY,
   const_arr3_double vectZ,
-  const_arr3_double Bxtotn,
-  const_arr3_double Bytotn,
-  const_arr3_double Bztotn,
-  double qom_);
+  const_arr3_double Bx,
+  const_arr3_double By,
+  const_arr3_double Bz,
+  double qom_)
 {
   const Grid *grid = &get_grid();
   double beta, edotb, omcx, omcy, omcz, denom;
@@ -128,9 +128,9 @@ void Pmoments::PIdot(
   for (int j = 1; j < nyn - 1; j++)
   for (int k = 1; k < nzn - 1; k++)
   {
-    omcx = beta * Bxtotn[i][j][k];
-    omcy = beta * Bytotn[i][j][k];
-    omcz = beta * Bztotn[i][j][k];
+    omcx = beta * Bx[i][j][k];
+    omcy = beta * By[i][j][k];
+    omcz = beta * Bz[i][j][k];
     edotb = vectX.get(i,j,k) * omcx + vectY.get(i,j,k) * omcy + vectZ.get(i,j,k) * omcz;
     denom = 1 / (1.0 + omcx * omcx + omcy * omcy + omcz * omcz);
     PIdotX.fetch(i,j,k) += (vectX.get(i,j,k) + (vectY.get(i,j,k) * omcz - vectZ.get(i,j,k) * omcy + edotb * omcx)) * denom;
@@ -140,7 +140,10 @@ void Pmoments::PIdot(
 }
 
 /*! Calculate Jx hat, Jy hat, Jz hat */
-void Imoments::calculateJhat(
+void Pmoments::calculateJhat(
+  arr3_double Jxh,
+  arr3_double Jyh,
+  arr3_double Jzh,
   const_arr3_double Bx,
   const_arr3_double By,
   const_arr3_double Bz)
@@ -156,6 +159,10 @@ void Imoments::calculateJhat(
   array3_double tempXN (nxn, nyn, nzn);
   array3_double tempYN (nxn, nyn, nzn);
   array3_double tempZN (nxn, nyn, nzn);
+
+  Jxh.setall(0.);
+  Jyh.setall(0.);
+  Jzh.setall(0.);
 
   for (int is = 0; is < ns; is++) {
     grid->divSymmTensorN2C(tempXC, tempYC, tempZC, pXXsn, pXYsn, pXZsn, pYYsn, pYZsn, pZZsn, is);
@@ -174,14 +181,41 @@ void Imoments::calculateJhat(
     sum(tempXN, Jxs, nxn, nyn, nzn, is);
     sum(tempYN, Jys, nxn, nyn, nzn, is);
     sum(tempZN, Jzs, nxn, nyn, nzn, is);
-    // PIDOT
+
+    if(Parameters::use_perfect_smoothing())
+    {
+      // smooth before applying magnetic field
+      // (requires smoothing num_species times as many quantities
+      // as if we wait to smooth until after computing Jhat).
+      for(int i=0; i<Parameters::get_num_smoothings(); i++);
+      {
+        smooth(Smooth, tempXN, 1);
+        smooth(Smooth, tempYN, 1);
+        smooth(Smooth, tempZN, 1);
+      }
+    }
     PIdot(Jxh, Jyh, Jzh, tempXN, tempYN, tempZN,
       Bx, By, Bz, qom[is])
   }
-  // smooth j
-  smooth(Smooth, Jxh, 1);
-  smooth(Smooth, Jyh, 1);
-  smooth(Smooth, Jzh, 1);
+  // This original way smooths the current only once; this
+  // could explain why it becomes necessary to retain
+  // smoothing in the electric field.
+  if(Parameters::use_original_smoothing())
+  {
+    smooth(Smooth, Jxh, 1);
+    smooth(Smooth, Jyh, 1);
+    smooth(Smooth, Jzh, 1);
+  }
+  else if(Parameters::use_correct_smoothing()
+      && !Parameters::use_perfect_smoothing())
+  {
+    for(int i=0; i<Parameters::get_num_smoothings(); i++);
+    {
+      smooth(Smooth, Jxh, 1);
+      smooth(Smooth, Jyh, 1);
+      smooth(Smooth, Jzh, 1);
+    }
+  }
 }
 
 // === section: methods_to_accumulate_moments ===
@@ -190,8 +224,10 @@ void Imoments::calculateJhat(
 // so boundary nodes contain only the portion that
 // this process contributes to.
 //
-void Pmoments.accumulateMoments(const Particles3Dcomm& pcls)
+void Pmoments::accumulateMoments(const Particles3Dcomm& pcls)
 {
+  pcls.pad_capacities();
+
   const int is = pcls.get_species_num();
   if(Parameters::get_VECTORIZE_MOMENTS())
   {
@@ -239,6 +275,16 @@ void Pmoments.accumulateMoments(const Particles3Dcomm& pcls)
       default:
         unsupported_value_error(Parameters::get_MOMENTS_TYPE());
     }
+  }
+}
+void Pmoments::accumulateMoments(const Particles3Dcomm* pcls)
+{
+  #pragma omp parallel
+  for (int is = 0; is < ns; is++)
+  {
+    pMoments.accumulateMoments(part[is]);
+    //#pragma omp master
+    //[...send accumulated moments to cluster...]
   }
 }
 
@@ -2161,12 +2207,6 @@ inline void add_moments_for_pcl_vec(double momentsAccVec[8][10][8],
 
 // === end of methods_to_accumulate_moments ===
 
-/*! interpolate charge density and pressure density from node to center */
-void EMfields::interpDensitiesN2C()
-{
-  // do we need communication or not really?
-  get_grid().interpN2C(rhoc, rhon);
-}
 // This method assumes mirror boundary conditions;
 // we therefore need to double the density on the boundary
 // nodes to incorporate the mirror particles from the mirror
@@ -2320,6 +2360,14 @@ void Pmoments::communicateGhostP2G(int ns)
   communicateNode_P(nxn, nyn, nzn, moment8, vct);
   communicateNode_P(nxn, nyn, nzn, moment9, vct);
 }
+void Pmoments::communicateGhostP2G(ns)
+{
+  for (int is = 0; is < ns; is++)
+  {
+    //[...wait for communicated moments to be received from booster...]
+    pMoments.communicateGhostP2G(is);
+  }
+}
 
 void Imoments::setZero()
 {
@@ -2401,4 +2449,42 @@ arr3_double Pmoments::ret_Jxsc(int is) { return ca.get_N2C_no_ghosts(is, Jxs); }
 arr3_double Pmoments::ret_Jysc(int is) { return ca.get_N2C_no_ghosts(is, Jys); }
 arr3_double Pmoments::ret_Jzsc(int is) { return ca.get_N2C_no_ghosts(is, Jzs); }
 
+// === section: Imoments methods ===
+
+Imoments::compute_from_primitive_moments(const Pmoments& pMoments,
+  const_arr3_double Bx, const_arr3_double By, const_arr3_double Bz)
+{
+  //setZero();
+  // sum all over the species
+  //iMoments.sumOverSpecies();
+
+  // copy the charge densities from the primitive moments
+  const_arr3_double prim_rhons = pMoments.get_rhons();
+  for(int is=0;is<ns;is++)
+  for(int i=0;i<nxn;i++)
+  for(int j=0;j<nyn;j++)
+  for(int k=0;k<nzn;k++)
+  {
+    rhons[is][i][j][k] = prim_rhons[is][i][j][k];
+  }
+  if(Parameters::use_correct_smoothing())
+  {
+    for(int i=0;i<Parameters::get_num_smoothings();i++)
+    for(int is=0;is<setting.col().getNs();is++)
+      smooth(Smooth, rhons[is], 1);
+  }
+
+  // modify the charge density used to drive the electromagnetic
+  // field based on non-kinetic influences.
+  {
+    // Fill with constant charge the planet
+    if (setting.get_col().getCase()=="Dipole") {
+      ConstantChargePlanet();
+    }
+    // Set a constant charge in the OpenBC boundaries
+    ConstantChargeOpenBC();
+  }
+
+  pMoments.calculateJhat(Jxh, Jyh, Jzh, Bx, By, Bz);
+}
 

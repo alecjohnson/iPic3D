@@ -11,7 +11,8 @@ using std::stringstream;
 // === methods to write restart files ===
 
 /** write the restart file at any RESTART_CYCLE, useful for reading intermediate results */
-void writeRESTART(int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part) {
+void writeRESTART(int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part) {
+  const int ns = col->getNs();
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
   // Create an Output Agent for HDF5 output
@@ -38,7 +39,8 @@ void writeRESTART(int myrank, int cycle, int ns, VCtopology3D * vct, Collective 
 }
 
 /** this restart function writes the last restart with the last cycle */
-void writeRESTART(int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part, bool fool) {
+void writeRESTART(int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part, bool fool) {
+  const int ns = col->getNs();
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
   // Create an Output Agent for HDF5 output
@@ -63,7 +65,8 @@ void writeRESTART(int myrank, int cycle, int ns, VCtopology3D * vct, Collective 
 
 
 /** write the restart file at any RESTART_CYCLE, useful for reading intermediate results */
-void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles * part) {
+void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part) {
+  const int ns = col->getNs();
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
   // Create an Output Agent for HDF5 output
@@ -90,7 +93,8 @@ void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, int ns, V
 }
 
 /** this restart function writes the last restart with the last cycle */
-void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles * part, bool fool) {
+void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part, bool fool) {
+  const int ns = col->getNs();
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
   // Create an Output Agent for HDF5 output
@@ -243,8 +247,9 @@ void read_moments_restart(
     const Collective* col,
     const VCtopology3D* vct,
     const Grid* grid,
-    array4_double* rhons_, int ns)
+    array4_double* rhons_)
 {
+    const int ns = col->getNs();
     const int nxn = grid->getNXN();
     const int nyn = grid->getNYN();
     const int nzn = grid->getNZN();

@@ -40,9 +40,7 @@ void communicateCenterBoxStencilBC(int nx, int ny, int nz, arr3_double vector, i
 
 // particles
 /** communicate ghost cells (FOR CENTERS) with BOX stencil*/
-void communicateCenterBoxStencilBC_P(int nx, int ny, int nz, arr3_double vector, int bcFaceXright, int bcFaceXleft, int bcFaceYright, int bcFaceYleft, int bcFaceZright, int bcFaceZleft, const VirtualTopology3D * vct);
-
-// 
+void communicateCenterBoxStencilBC_P(int nx, int ny, int nz, arr3_double vector, const int BCs[6], const VirtualTopology3D * vct);
 
 void communicateNodeBoxStencilBC(int nx, int ny, int nz, arr3_double vector, int bcFaceXright, int bcFaceXleft, int bcFaceYright, int bcFaceYleft, int bcFaceZright, int bcFaceZleft, const VirtualTopology3D * vct);
 
