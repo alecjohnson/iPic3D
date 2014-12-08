@@ -10,7 +10,7 @@ developers: Stefano Markidis, Giovanni Lapenta
 //#include "CollectiveIO.h"
 //#include "VirtualTopology3D.h"
 //#include "Grid.h"
-//#include "Field.h"
+//#include "EMfields3D.h"
 
 /**
  * 
@@ -27,7 +27,7 @@ developers: Stefano Markidis, Giovanni Lapenta
 //  /** allocate particles */
 //  virtual void allocate(int species, CollectiveIO * col, VirtualTopology3D * vct, Grid * grid) = 0;
 //  /** interpolation Particle -> grid */
-//  virtual void interpP2G(Field * EMf, Grid * grid, VirtualTopology3D * vct) = 0;
+//  virtual void interpP2G(EMfields3D * EMf, Grid * grid, VirtualTopology3D * vct) = 0;
 //
 //
 //  /** get X-position array for all the particles */

@@ -19,7 +19,7 @@ developers: Stefano Markidis, Giovanni Lapenta
 #include "BcParticles.h"
 #include "Grid.h"
 #include "Grid3DCU.h"
-#include "Field.h"
+//#include "EMfields3D.h"
 #include "MPIdata.h"
 #include "ipicdefs.h"
 #include "TimeTasks.h"

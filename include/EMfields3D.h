@@ -359,6 +359,6 @@ class EMfields3D
 void PoissonImage(double *image, double *vector, void** registered_data);
 
 // deprecated
-typedef EMfields3D Field;
+//typedef EMfields3D Field;
 
 #endif

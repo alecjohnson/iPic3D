@@ -11,7 +11,7 @@ using std::stringstream;
 // === methods to write restart files ===
 
 /** write the restart file at any RESTART_CYCLE, useful for reading intermediate results */
-void writeRESTART(int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part) {
+void writeRESTART(int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, EMfields3D * field, Particles3Dcomm * part) {
   const int ns = col->getNs();
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
@@ -39,7 +39,7 @@ void writeRESTART(int myrank, int cycle, VCtopology3D * vct, Collective * col, G
 }
 
 /** this restart function writes the last restart with the last cycle */
-void writeRESTART(int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part, bool fool) {
+void writeRESTART(int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, EMfields3D * field, Particles3Dcomm * part, bool fool) {
   const int ns = col->getNs();
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
@@ -65,7 +65,7 @@ void writeRESTART(int myrank, int cycle, VCtopology3D * vct, Collective * col, G
 
 
 /** write the restart file at any RESTART_CYCLE, useful for reading intermediate results */
-void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part) {
+void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, EMfields3D * field, Particles3Dcomm * part) {
   const int ns = col->getNs();
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
@@ -93,7 +93,7 @@ void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, VCtopolog
 }
 
 /** this restart function writes the last restart with the last cycle */
-void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, Field * field, Particles3Dcomm * part, bool fool) {
+void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, EMfields3D * field, Particles3Dcomm * part, bool fool) {
   const int ns = col->getNs();
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;

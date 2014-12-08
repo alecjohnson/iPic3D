@@ -17,7 +17,7 @@ developers: D. Burgess, June/July 2006
 #include "Grid.h"
 #include "PSKException.h"
 #include "Particles3Dcomm.h"
-#include "Field.h"
+#include "EMfields3D.h"
 #include "Collective.h"
 #include "VCtopology3D.h"
 #include "MPIdata.h"
@@ -278,7 +278,7 @@ template < class Toa > class OutputAgent:public OutputAgentBase {
 
 
 template < class Toa > class myOutputAgent:public PSK::OutputAgent < Toa > {
-  Field *_field;
+  EMfields3D *_field;
   Grid *_grid;
   VCtopology3D *_vct;
   Collective *_col;
@@ -290,7 +290,7 @@ public:
   myOutputAgent(void) {;
   }
 
-  void set_simulation_pointers(Field * field, Grid * grid, VCtopology3D * vct, Collective * col) {
+  void set_simulation_pointers(EMfields3D * field, Grid * grid, VCtopology3D * vct, Collective * col) {
     _field = field;
     _grid = grid;
     _vct = vct;
