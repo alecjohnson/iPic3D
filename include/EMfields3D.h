@@ -276,7 +276,7 @@ class EMfields3D
     // *********** SOURCES *************
 
     // implicit moments obtained from Moments integrator
-    //Imoments *iMoments;
+    //MImoments *miMoments;
     //array3_double rhoc;
     /*! Implicit charge density, defined on central points of the cell */
     //array3_double rhoh;

@@ -80,7 +80,7 @@ void MIsolver::initialize_output()
 MIsolver::~MIsolver()
 {
   delete speciesMoms;
-  delete iMoments;
+  delete miMoments;
   delete EMf; // field
   delete kinetics;
   delete fieldForPcls;
@@ -95,8 +95,8 @@ MIsolver::~MIsolver()
 
 // MIsolver::MIsolver(int argc, char **argv)
 // : setting(argc, argv),
-//   iMoments(*new Imoments(setting)),
-//   EMf(*new EMfields3D(setting, iMoments)),
+//   miMoments(*new MImoments(setting)),
+//   EMf(*new EMfields3D(setting, miMoments)),
 //   speciesMoms(*new SpeciesMoms(setting)),
 //   kinetics(*new Kinetics(setting)),
 //   fieldForPcls(*new array4_double(
@@ -107,7 +107,7 @@ MIsolver::~MIsolver()
 //   my_clock(0)
 MIsolver::MIsolver(int argc, char **argv)
 : setting(*new Setting(argc, argv)),
-  iMoments(0),
+  miMoments(0),
   speciesMoms(0),
   EMf(0),
   speciesMoms(0),
@@ -129,8 +129,8 @@ MIsolver::MIsolver(int argc, char **argv)
   const int nzn = setting.grid().get_nzn();
   kinetics = new Kinetics(setting);
   speciesMoms = new SpeciesMoms(setting);
-  iMoments = new Imoments(setting);
-  EMf = new EMfields3D(setting, iMoments);
+  miMoments = new MImoments(setting);
+  EMf = new EMfields3D(setting, miMoments);
   fieldsForPcls = new array4_double(nxn,nyn,nzn,2*DFIELD_3or4);
 
   my_clock = new Timing(vct->get_rank());
@@ -155,7 +155,7 @@ void MIsolver::compute_moments()
 {
   get_kinetics().compute_speciesMoms(speciesMoms);
 
-  // iMoments are the moments needed to drive the implicit field
+  // miMoments are the moments needed to drive the implicit field
   // solver, which are separated out from EMfields3D in case
   // we someday wish to communicate these 3+num_species
   // moments instead of the 10*num_species primitive
@@ -177,7 +177,7 @@ void MIsolver::compute_moments()
     By = EMf->get_By_tot();
     Bz = EMf->get_Bz_tot();
   }
-  iMoments->compute_from_primitive_moments(speciesMoms, Bx, By, Bz);
+  miMoments->compute_from_speciesMoms(speciesMoms, Bx, By, Bz);
 }
 
 // This method should send or receive field

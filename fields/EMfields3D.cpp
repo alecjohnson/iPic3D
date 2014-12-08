@@ -60,12 +60,12 @@ EMfields3D::~EMfields3D() {
 // in particular, nxc, nyc, nzc and nxn, nyn, nzn are assumed
 // initialized when subsequently used.
 //
-EMfields3D::EMfields3D(const Setting& setting_, Imoments *iMoments_)
+EMfields3D::EMfields3D(const Setting& setting_, MImoments *iMoments_)
 : _setting(setting_),
   _col(setting_.col()),
   _vct(setting_.vct()),
   _grid(setting_.grid()),
-  iMoments(iMoments_),
+  miMoments(iMoments_),
   nxc(grid->getNXC()),
   nxn(grid->getNXN()),
   nyc(grid->getNYC()),
@@ -238,7 +238,7 @@ void phys2solver(double *vectSolver, const arr3_double vectPhys1, const arr3_dou
       }
 }
 /*! Calculate Electric field with the implicit solver: the Maxwell solver method is called here */
-void EMfields3D::calculateE(const Imoments& iMoments)
+void EMfields3D::calculateE(const MImoments& miMoments)
 {
   // define fields to use at open boundaries
   // based on magnetic field and Ohm's law
@@ -304,7 +304,7 @@ void EMfields3D::calculateE(const Imoments& iMoments)
   MaxwellSource(bkrylov);
   phys2solver(xkrylov, Ex, Ey, Ez, nxn, nyn, nzn);
   // solver
-  const void* registered_data[2] = {this, &iMoments.get_rhons()};
+  const void* registered_data[2] = {this, &miMoments.get_rhons()};
   GMRES(&::MaxwellImage, xkrylov, 3 * (nxn - 2) * (nyn - 2) * (nzn - 2),
     bkrylov, 20, 200, GMREStol, registered_data);
   // move from krylov space to physical space
@@ -423,9 +423,9 @@ void EMfields3D::MaxwellSource(double *bkrylov)
 
   // prepare curl of B for known term of Maxwell solver: for the source term
   grid->curlC2N(tempXN, tempYN, tempZN, Bxc, Byc, Bzc);
-  scale(temp2X, iMoments.get_Jxh(), -FourPI / c, nxn, nyn, nzn);
-  scale(temp2Y, iMoments.get_Jyh(), -FourPI / c, nxn, nyn, nzn);
-  scale(temp2Z, iMoments.get_Jzh(), -FourPI / c, nxn, nyn, nzn);
+  scale(temp2X, miMoments.get_Jxh(), -FourPI / c, nxn, nyn, nzn);
+  scale(temp2Y, miMoments.get_Jyh(), -FourPI / c, nxn, nyn, nzn);
+  scale(temp2Z, miMoments.get_Jzh(), -FourPI / c, nxn, nyn, nzn);
 
   sum(temp2X, tempXN, nxn, nyn, nzn);
   sum(temp2Y, tempYN, nxn, nyn, nzn);
@@ -808,12 +808,12 @@ void EMfields3D::calculateHatFunctions()
   eprintf("defunct");
 }
 /*! Calculate rho hat */
-void EMfields3D::calculateRhoHat(const Imoments& iMoments)
+void EMfields3D::calculateRhoHat(const MImoments& miMoments)
 {
-  const vector_array3_double& rhons = iMoments.get_rhons();
-  const_arr3_double Jxh = iMoments.get_Jxh();
-  const_arr3_double Jyh = iMoments.get_Jyh();
-  const_arr3_double Jzh = iMoments.get_Jzh();
+  const vector_array3_double& rhons = miMoments.get_rhons();
+  const_arr3_double Jxh = miMoments.get_Jxh();
+  const_arr3_double Jyh = miMoments.get_Jyh();
+  const_arr3_double Jzh = miMoments.get_Jzh();
   // sum charge density over species and interpolate to cell centers
   // (also needed for Poisson solve)
   {
@@ -2857,7 +2857,7 @@ void EMfields3D::ConstantChargeOpenBCv2()
 
 }
 
-void Imoments::ConstantChargeOpenBC()
+void MImoments::ConstantChargeOpenBC()
 {
   const VirtualTopology3D *vct = &get_vct();
   const Grid *grid = &get_grid();
@@ -2937,7 +2937,7 @@ void Imoments::ConstantChargeOpenBC()
 
 }
 
-void Imoments::ConstantChargePlanet()
+void MImoments::ConstantChargePlanet()
 {
   const Collective *col = &setting.get_col();
   const double R = col->getL_square();

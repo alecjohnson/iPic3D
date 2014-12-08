@@ -3,7 +3,7 @@
 #define MIsolver_h
 
 class OutputWrapperFPP;
-class Imoments;
+class MImoments;
 class EMfields3D;
 class Kinetics;
 
@@ -14,7 +14,7 @@ namespace iPic3D
   {
   private:
     const Setting &setting;
-    Imoments      *iMoments;
+    MImoments      *miMoments;
     SpeciesMoms      *speciesMoms;
     EMfields3D    *EMf; // implicit field solver
     Kinetics      *kinetics;
@@ -65,7 +65,7 @@ namespace iPic3D
 
   protected: // accessors
     EMfields3D& fetch_EMfields(){return *EMf;}
-    Imoments& fetch_iMoments(){return *iMoments;}
+    MImoments& fetch_miMoments(){return *miMoments;}
     SpeciesMoms& fetch_speciesMoms(){return speciesMoms;}
     const Kinetics& get_kinetics()const{return *kinetics;}
     const Collective& get_col()const{return setting.col()}

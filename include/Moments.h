@@ -6,7 +6,7 @@ class Particles3Dcomm;
 
 // moments that must be communicated from the kinetic solver
 // to the field solver of the moment-implicit method.
-class Imoments
+class MImoments
 {
   private: // parameters
     // access to global data
@@ -32,7 +32,7 @@ class Imoments
     const_arr3_double get_Jzh()const{return Jzh;}
 
   public:
-    Imoments(const Setting& setting_)
+    MImoments(const Setting& setting_)
     : setting(setting_),
       nxn(setting.grid().getNXN()),
       nyn(setting.grid().getNYN()),

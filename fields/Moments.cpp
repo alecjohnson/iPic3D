@@ -2370,7 +2370,7 @@ void SpeciesMoms::communicateGhostP2G(ns)
   }
 }
 
-void Imoments::setZero()
+void MImoments::setZero()
 {
   for (register int i = 0; i < nxn; i++)
   for (register int j = 0; j < nyn; j++)
@@ -2450,14 +2450,14 @@ arr3_double SpeciesMoms::ret_Jxsc(int is) { return ca.get_N2C_no_ghosts(is, Jxs)
 arr3_double SpeciesMoms::ret_Jysc(int is) { return ca.get_N2C_no_ghosts(is, Jys); }
 arr3_double SpeciesMoms::ret_Jzsc(int is) { return ca.get_N2C_no_ghosts(is, Jzs); }
 
-// === section: Imoments methods ===
+// === section: MImoments methods ===
 
-Imoments::compute_from_primitive_moments(const SpeciesMoms& speciesMoms,
+MImoments::compute_from_speciesMoms(const SpeciesMoms& speciesMoms,
   const_arr3_double Bx, const_arr3_double By, const_arr3_double Bz)
 {
   //setZero();
   // sum all over the species
-  //iMoments.sumOverSpecies();
+  //miMoments.sumOverSpecies();
 
   // copy the charge densities from the primitive moments
   const_arr3_double prim_rhons = speciesMoms.get_rhons();
