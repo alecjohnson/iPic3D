@@ -14,7 +14,7 @@ void Moments10::set_to_zero()
   //}
 }
 
-Pmoments::~Pmoments()
+SpeciesMoms::~SpeciesMoms()
 {
   for(int i=0;i<sizeMomentsArray;i++) { delete moments10Array[i]; }
   delete [] moments10Array;
@@ -40,7 +40,7 @@ ReportedMoments::ReportedMoments(const Setting& setting_)
 {
 }
 
-Pmoments::Pmoments(const Setting& setting_, arr4_double rhons_)
+SpeciesMoms::SpeciesMoms(const Setting& setting_, arr4_double rhons_)
 : setting(setting_),
   grid(&setting.get_grid()),
   col(&setting.get_col()),
@@ -109,7 +109,7 @@ Pmoments::Pmoments(const Setting& setting_, arr4_double rhons_)
 // === section: methods_to_compute_implicit_moments ===
 
 /*! Calculate PI dot (vectX, vectY, vectZ) */
-void Pmoments::PIdot(
+void SpeciesMoms::PIdot(
   arr3_double PIdotX,
   arr3_double PIdotY,
   arr3_double PIdotZ,
@@ -140,7 +140,7 @@ void Pmoments::PIdot(
 }
 
 /*! Calculate Jx hat, Jy hat, Jz hat */
-void Pmoments::calculateJhat(
+void SpeciesMoms::calculateJhat(
   arr3_double Jxh,
   arr3_double Jyh,
   arr3_double Jzh,
@@ -225,7 +225,7 @@ void Pmoments::calculateJhat(
 // so boundary nodes contain only the portion that
 // this process contributes to.
 //
-void Pmoments::accumulateMoments(const Particles3Dcomm& pcls)
+void SpeciesMoms::accumulateMoments(const Particles3Dcomm& pcls)
 {
   pcls.pad_capacities();
 
@@ -278,19 +278,19 @@ void Pmoments::accumulateMoments(const Particles3Dcomm& pcls)
     }
   }
 }
-void Pmoments::accumulateMoments(const Particles3Dcomm* pcls)
+void SpeciesMoms::accumulateMoments(const Particles3Dcomm* pcls)
 {
   #pragma omp parallel
   for (int is = 0; is < ns; is++)
   {
-    pMoments.accumulateMoments(part[is]);
+    speciesMoms.accumulateMoments(part[is]);
     //#pragma omp master
     //[...send accumulated moments to cluster...]
   }
 }
 
 // This was Particles3Dcomm::interpP2G()
-void Pmoments::sumMomentsOld(const Particles3Dcomm& pcls)
+void SpeciesMoms::sumMomentsOld(const Particles3Dcomm& pcls)
 {
   const Grid *grid = &get_grid();
 
@@ -496,7 +496,7 @@ void Pmoments::sumMomentsOld(const Particles3Dcomm& pcls)
 //   but even without these steps, step 4 is not expected to dominate
 //   unless the number of particles per mesh cell is small.
 //
-void Pmoments::sumMoments_vec(const Particles3Dcomm& pcls)
+void SpeciesMoms::sumMoments_vec(const Particles3Dcomm& pcls)
 {
   // Process N:=sizeof(vector_unit)/sizeof(double) particles at a time:
   const int Np=8;
@@ -780,7 +780,7 @@ void Pmoments::sumMoments_vec(const Particles3Dcomm& pcls)
 // Compare the vectorization notes at the top of mover_PC().
 //
 // This was Particles3Dcomm::interpP2G()
-void Pmoments::sumMoments(const Particles3Dcomm& pcls)
+void SpeciesMoms::sumMoments(const Particles3Dcomm& pcls)
 {
   const Grid *grid = &get_grid();
 
@@ -987,7 +987,7 @@ void Pmoments::sumMoments(const Particles3Dcomm& pcls)
   }
 }
 
-void Pmoments::sumMoments_AoS(const Particles3Dcomm& pcls)
+void SpeciesMoms::sumMoments_AoS(const Particles3Dcomm& pcls)
 {
   const Grid *grid = &get_grid();
 
@@ -1212,7 +1212,7 @@ inline void addto_cell_moments(
 //
 // See notes at the top of sumMoments().
 //
-void Pmoments::sumMoments_AoS_intr(const Particles3Dcomm& pcls)
+void SpeciesMoms::sumMoments_AoS_intr(const Particles3Dcomm& pcls)
 {
 #ifndef __MIC__
   eprintf("not implemented");
@@ -1833,7 +1833,7 @@ inline void add_moments_for_pcl_vec(double momentsAccVec[8][10][8],
   }
 }
 
-//void Pmoments::sumMoments_vectorized(const Particles3Dcomm* part)
+//void SpeciesMoms::sumMoments_vectorized(const Particles3Dcomm* part)
 //{
 //  const Grid *grid = &get_grid();
 //
@@ -1994,7 +1994,7 @@ inline void add_moments_for_pcl_vec(double momentsAccVec[8][10][8],
 //  }
 //}
 //
-//void Pmoments::sumMoments_vectorized_AoS(const Particles3Dcomm* part)
+//void SpeciesMoms::sumMoments_vectorized_AoS(const Particles3Dcomm* part)
 //{
 //  const Grid *grid = &get_grid();
 //
@@ -2316,7 +2316,7 @@ void EMfields3D::adjustNonPeriodicDensities(int is)
 }
 
 /*! communicate ghost for grid -> Particles interpolation */
-void Pmoments::communicateGhostP2G(int ns)
+void SpeciesMoms::communicateGhostP2G(int ns)
 {
   // interpolate adding common nodes among processors
   timeTasks_set_communicating();
@@ -2361,12 +2361,12 @@ void Pmoments::communicateGhostP2G(int ns)
   communicateNode_P(nxn, nyn, nzn, moment8, vct);
   communicateNode_P(nxn, nyn, nzn, moment9, vct);
 }
-void Pmoments::communicateGhostP2G(ns)
+void SpeciesMoms::communicateGhostP2G(ns)
 {
   for (int is = 0; is < ns; is++)
   {
     //[...wait for communicated moments to be received from booster...]
-    pMoments.communicateGhostP2G(is);
+    speciesMoms.communicateGhostP2G(is);
   }
 }
 
@@ -2393,7 +2393,7 @@ void Imoments::setZero()
   //}
 }
 
-void Pmoments::setZeroPrimaryMoments(int is)
+void SpeciesMoms::setZeroPrimaryMoments(int is)
 {
   // set primary moments to zero
   //
@@ -2415,7 +2415,7 @@ void Pmoments::setZeroPrimaryMoments(int is)
   }
 }
 /*! set to 0 all the densities fields */
-void Pmoments::setZeroDensities() {
+void SpeciesMoms::setZeroDensities() {
   setZeroDerivedMoments();
   setZeroPrimaryMoments();
 }
@@ -2432,7 +2432,7 @@ void EMfields3D::sumOverSpecies()
 }
 
 /*! sum current density for different species */
-void Pmoments::sumOverSpeciesJ()
+void SpeciesMoms::sumOverSpeciesJ()
 {
   for (int is = 0; is < ns; is++)
   for (register int i = 0; i < nxn; i++)
@@ -2445,14 +2445,14 @@ void Pmoments::sumOverSpeciesJ()
   }
 }
 
-arr3_double Pmoments::ret_rhocs(int is) { return ca.get_N2C_no_ghosts(is, rhons); }
-arr3_double Pmoments::ret_Jxsc(int is) { return ca.get_N2C_no_ghosts(is, Jxs); }
-arr3_double Pmoments::ret_Jysc(int is) { return ca.get_N2C_no_ghosts(is, Jys); }
-arr3_double Pmoments::ret_Jzsc(int is) { return ca.get_N2C_no_ghosts(is, Jzs); }
+arr3_double SpeciesMoms::ret_rhocs(int is) { return ca.get_N2C_no_ghosts(is, rhons); }
+arr3_double SpeciesMoms::ret_Jxsc(int is) { return ca.get_N2C_no_ghosts(is, Jxs); }
+arr3_double SpeciesMoms::ret_Jysc(int is) { return ca.get_N2C_no_ghosts(is, Jys); }
+arr3_double SpeciesMoms::ret_Jzsc(int is) { return ca.get_N2C_no_ghosts(is, Jzs); }
 
 // === section: Imoments methods ===
 
-Imoments::compute_from_primitive_moments(const Pmoments& pMoments,
+Imoments::compute_from_primitive_moments(const SpeciesMoms& speciesMoms,
   const_arr3_double Bx, const_arr3_double By, const_arr3_double Bz)
 {
   //setZero();
@@ -2460,7 +2460,7 @@ Imoments::compute_from_primitive_moments(const Pmoments& pMoments,
   //iMoments.sumOverSpecies();
 
   // copy the charge densities from the primitive moments
-  const_arr3_double prim_rhons = pMoments.get_rhons();
+  const_arr3_double prim_rhons = speciesMoms.get_rhons();
   for(int is=0;is<ns;is++)
   for(int i=0;i<nxn;i++)
   for(int j=0;j<nyn;j++)
@@ -2486,6 +2486,6 @@ Imoments::compute_from_primitive_moments(const Pmoments& pMoments,
     ConstantChargeOpenBC();
   }
 
-  pMoments.calculateJhat(Jxh, Jyh, Jzh, Bx, By, Bz);
+  speciesMoms.calculateJhat(Jxh, Jyh, Jzh, Bx, By, Bz);
 }
 

@@ -79,7 +79,7 @@ void MIsolver::initialize_output()
 
 MIsolver::~MIsolver()
 {
-  delete pMoments;
+  delete speciesMoms;
   delete iMoments;
   delete EMf; // field
   delete kinetics;
@@ -97,7 +97,7 @@ MIsolver::~MIsolver()
 // : setting(argc, argv),
 //   iMoments(*new Imoments(setting)),
 //   EMf(*new EMfields3D(setting, iMoments)),
-//   pMoments(*new Pmoments(setting)),
+//   speciesMoms(*new SpeciesMoms(setting)),
 //   kinetics(*new Kinetics(setting)),
 //   fieldForPcls(*new array4_double(
 //     setting.grid().get_nxn(),
@@ -108,9 +108,9 @@ MIsolver::~MIsolver()
 MIsolver::MIsolver(int argc, char **argv)
 : setting(*new Setting(argc, argv)),
   iMoments(0),
-  pMoments(0),
+  speciesMoms(0),
   EMf(0),
-  pMoments(0),
+  speciesMoms(0),
   kinetics(0),
   fieldForPcls(0),
   my_clock(0),
@@ -128,7 +128,7 @@ MIsolver::MIsolver(int argc, char **argv)
   const int nyn = setting.grid().get_nyn();
   const int nzn = setting.grid().get_nzn();
   kinetics = new Kinetics(setting);
-  pMoments = new Pmoments(setting);
+  speciesMoms = new SpeciesMoms(setting);
   iMoments = new Imoments(setting);
   EMf = new EMfields3D(setting, iMoments);
   fieldsForPcls = new array4_double(nxn,nyn,nzn,2*DFIELD_3or4);
@@ -153,7 +153,7 @@ void MIsolver::initialize()
 
 void MIsolver::compute_moments()
 {
-  get_kinetics().compute_pMoments(pMoments);
+  get_kinetics().compute_speciesMoms(speciesMoms);
 
   // iMoments are the moments needed to drive the implicit field
   // solver, which are separated out from EMfields3D in case
@@ -177,7 +177,7 @@ void MIsolver::compute_moments()
     By = EMf->get_By_tot();
     Bz = EMf->get_Bz_tot();
   }
-  iMoments->compute_from_primitive_moments(pMoments, Bx, By, Bz);
+  iMoments->compute_from_primitive_moments(speciesMoms, Bx, By, Bz);
 }
 
 // This method should send or receive field
@@ -237,9 +237,20 @@ void MIsolver::advance_Efield()
   send_field_to_kinetic_solver();
 }
 
+void MIsolver::send_Bsmooth_to_kinetic_solver(
+  arr3_double Bx_smooth,
+  arr3_double By_smooth,
+  arr3_double Bz_smooth)
+{
+  // send(EMf->fetch_Bx_smooth(),
+  //      EMf->fetch_By_smooth(),
+  //      EMf->fetch_Bz_smooth());
+}
+
 //! update Bfield (assuming Eth has already been calculated)
 //  B^{n+1} = B^n - curl(Eth)
-void MIsolver::advance_Bfield() {
+void MIsolver::advance_Bfield()
+{
   timeTasks_set_main_task(TimeTasks::FIELDS);
   timeTasks_set_task(TimeTasks::BFIELD); // subtask
   // calculate the B field
@@ -248,14 +259,18 @@ void MIsolver::advance_Bfield() {
   if(I_am_field_solver())
   {
     // begin sending of B_smooth to kinetic solver
+    send_Bsmooth_to_kinetic_solver();
   }
 }
 
 // this method should be a no-op on the cluster
 void MIsolver::move_particles()
 {
-  //[...receive field from fieldsolver...]
-  kinetics->moveParticles();
+  if(I_am_kinetic_solver())
+  {
+    //[...receive field from fieldsolver...]
+    kinetics->moveParticles();
+  }
 }
 
 // --- section: output methods ---
@@ -463,19 +478,19 @@ void MIsolver::Finalize() {
 // C B  E_smooth    = smooth(En)
 //   B  BEaos       = soa2aos(B_smooth,E_smooth)
 //   B  particles   = advance(dt, particles, BEaos)
-// C B  pMoments    = sumMoments(particles)
-// C    Jhat_coarse = compute_Jhat(pMoments, B_smooth)
-// C    Jhat        = smooth(compute_Jhat(pMoments, B_smooth)
-// C    rhons       = smooth(pMoments.rhons)
+// C B  speciesMoms    = sumMoments(particles)
+// C    Jhat_coarse = compute_Jhat(speciesMoms, B_smooth)
+// C    Jhat        = smooth(compute_Jhat(speciesMoms, B_smooth)
+// C    rhons       = smooth(speciesMoms.rhons)
 //
 // remarks:
 //  
-// * we could transfer Jhat_coarse rather than pMoments
+// * we could transfer Jhat_coarse rather than speciesMoms
 // * a more correct way to compute Jhat is:
-//   C    Jhat        = compute_Jhat(smooth(Pmoments), Btot)
+//   C    Jhat        = compute_Jhat(smooth(SpeciesMoms), Btot)
 // * Btot is used to compute MUdot in En.advance().
 // * Btot or B_smooth is used in Jhat.smooth() to compute PIdot.
-// * Jhat could be transferred from B to C rather than Pmoments.
+// * Jhat could be transferred from B to C rather than SpeciesMoms.
 // * smoothing requires exchange of boundary data.
 // * computing Jhat requires exchange of boundary data.
 //
@@ -486,14 +501,14 @@ void MIsolver::Finalize() {
 //   B_smooth
 //   E_smooth
 //   BEaos
-//   pMoments
+//   speciesMoms
 //   particles
 // FieldSolver:
 //   EMfields3D:
 //     En, Bc, Bn, Btot
 //   B_smooth
 //   E_smooth
-//   pMoments
+//   speciesMoms
 //   Jhat_coarse
 //   Jhat
 //   rhon
@@ -502,7 +517,7 @@ void MIsolver::Finalize() {
 //   E_smooth
 //   BEaos
 //   particles
-//   pMoments
+//   speciesMoms
 //
 void MIsolver::run()
 {

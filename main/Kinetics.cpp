@@ -134,11 +134,11 @@ void Kinetics::convertParticlesToSynched()
     part[i].convertParticlesToSynched();
 }
 
-void Kinetics::compute_pMoments(Pmoments& pMoments)
+void Kinetics::compute_speciesMoms(SpeciesMoms& speciesMoms)
 {
   timeTasks_set_main_task(TimeTasks::MOMENTS);
   // to be performed on booster
-  fetch_Pmoments().accumulateMoments(part);
+  fetch_speciesMoms().accumulateMoments(part);
   // to be performed on cluster
-  fetch_Pmoments().communicateGhostP2G();
+  fetch_speciesMoms().communicateGhostP2G();
 }

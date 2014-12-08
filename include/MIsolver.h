@@ -15,7 +15,7 @@ namespace iPic3D
   private:
     const Setting &setting;
     Imoments      *iMoments;
-    Pmoments      *pMoments;
+    SpeciesMoms      *speciesMoms;
     EMfields3D    *EMf; // implicit field solver
     Kinetics      *kinetics;
     array4_double *fieldForPcls;
@@ -66,7 +66,7 @@ namespace iPic3D
   protected: // accessors
     EMfields3D& fetch_EMfields(){return *EMf;}
     Imoments& fetch_iMoments(){return *iMoments;}
-    Pmoments& fetch_pMoments(){return pMoments;}
+    SpeciesMoms& fetch_speciesMoms(){return speciesMoms;}
     const Kinetics& get_kinetics()const{return *kinetics;}
     const Collective& get_col()const{return setting.col()}
     const Grid& get_grid()const{return setting.grid();};

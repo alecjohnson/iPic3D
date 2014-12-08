@@ -16,7 +16,7 @@ void WriteOutputParallel(
   VCtopology3D *vct,
   Grid3DCU *grid,
   Particles3Dcomm *part,
-  Pmoments *pMoments,
+  SpeciesMoms *speciesMoms,
   EMfields3D *EMf,
   int cycle)
 {
@@ -79,7 +79,7 @@ void WriteOutputParallel(
     string s_is = ss.str();
 
     // charge density
-    outputfile.WritePHDF5dataset("Fields", "rho_"+s_is, pMoments->ret_rhocs(is), nxc_r, nyc_r, nzc_r);
+    outputfile.WritePHDF5dataset("Fields", "rho_"+s_is, speciesMoms->ret_rhocs(is), nxc_r, nyc_r, nzc_r);
     // current
     //outputfile.WritePHDF5dataset("Fields", "Jx_"+s_is, EMf->ret_Jxsc(is), nxc_r, nyc_r, nzc_r);
     //outputfile.WritePHDF5dataset("Fields", "Jy_"+s_is, EMf->ret_Jysc(is), nxc_r, nyc_r, nzc_r);
@@ -149,7 +149,7 @@ void WriteFieldsH5hut(int nspec, Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *
 //    stringstream  ss;
 //    ss << is;
 //    string s_is = ss.str();
-//    file.WriteFields(pMoments->ret_rhocs(is), "rhoc_"+ s_is, grid->getNXC(), grid->getNYC(), grid->getNZC());
+//    file.WriteFields(speciesMoms->ret_rhocs(is), "rhoc_"+ s_is, grid->getNXC(), grid->getNYC(), grid->getNZC());
 //  }
 //
 //  file.CloseFieldsFile();

@@ -17,7 +17,7 @@ void WriteOutputParallel(
   VCtopology3D *vct,
   Grid3DCU *grid,
   Particles3Dcomm *part,
-  Pmoments *pMoments,
+  SpeciesMoms *speciesMoms,
   EMfields3D *EMf,
   int cycle)
 {
@@ -82,11 +82,11 @@ void WriteOutputParallel(
     const string num = snmbr.str();
 
     // Charge Density
-    outputfile.WritePHDF5dataset("Fields", string("Rho_")+num , pMoments->ret_rhocs(is), nxc_r, nyc_r, nzc_r);
+    outputfile.WritePHDF5dataset("Fields", string("Rho_")+num , speciesMoms->ret_rhocs(is), nxc_r, nyc_r, nzc_r);
     // Current
-    outputfile.WritePHDF5dataset("Fields", string("Jx_")+num, pMoments->ret_Jxsc(is), nxc_r, nyc_r, nzc_r);
-    outputfile.WritePHDF5dataset("Fields", string("Jy_")+num, pMoments->ret_Jysc(is), nxc_r, nyc_r, nzc_r);
-    outputfile.WritePHDF5dataset("Fields", string("Jz_")+num, pMoments->ret_Jzsc(is), nxc_r, nyc_r, nzc_r);
+    outputfile.WritePHDF5dataset("Fields", string("Jx_")+num, speciesMoms->ret_Jxsc(is), nxc_r, nyc_r, nzc_r);
+    outputfile.WritePHDF5dataset("Fields", string("Jy_")+num, speciesMoms->ret_Jysc(is), nxc_r, nyc_r, nzc_r);
+    outputfile.WritePHDF5dataset("Fields", string("Jz_")+num, speciesMoms->ret_Jzsc(is), nxc_r, nyc_r, nzc_r);
   }
 
   outputfile.ClosePHDF5file();

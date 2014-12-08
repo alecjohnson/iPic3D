@@ -26,21 +26,19 @@ class Kinetics
     //
     // put these in MIsolver
     //
-    //Pmoments      pMoments;
+    //SpeciesMoms      speciesMoms;
     //array4_double fieldForPcls; // rename BEaos?
     // Electric field component used to move particles
     // organized in AoS format for rapid random access in particle mover.
     //array4_double fieldForPcls;
 
   private: // accessors
-    //Pmoments& fetch_pMoments(){return pMoments;}
-    //arr4_double& fetch_fieldForPcls(){return fieldForPcls;}
 
   public:
     ~Kinetics();
     Kinetics(const Setting& setting_);
     // get hatted moments for field solver
-    void compute_pMoments(Pmoments& pMoments)const;
+    void compute_speciesMoms(SpeciesMoms& speciesMoms)const;
     //void calculateMoments();
     // advance particles in response to electromagnetic field
     bool moveParticles(const_arr4_double fieldForPcls);

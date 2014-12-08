@@ -78,7 +78,7 @@ class Moments10
 //
 // (This code was previously embedded in the EMfields class.)
 //
-class Pmoments
+class SpeciesMoms
 {
     const Setting& setting;
     const int nxn;
@@ -184,7 +184,7 @@ class Pmoments
     arr3_double ret_Jysc(int is);
     arr3_double ret_Jzsc(int is);
 
-  Pmoments(const Setting& setting_)
+  SpeciesMoms(const Setting& setting_)
     setting(setting_),
     nxn(setting_.grid().get_nxn()),
     nyn(setting_.grid().get_nyn()),

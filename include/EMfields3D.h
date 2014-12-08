@@ -146,6 +146,9 @@ class EMfields3D
     const_arr3_double get_Bxc()const{ return Bxc; }
     const_arr3_double get_Byc()const{ return Byc; }
     const_arr3_double get_Bzc()const{ return Bzc; }
+    const_arr3_double get_Bx_smooth()const{ return Bx_smooth; }
+    const_arr3_double get_By_smooth()const{ return By_smooth; }
+    const_arr3_double get_Bz_smooth()const{ return Bz_smooth; }
 
     // field components without ghost cells
     //
