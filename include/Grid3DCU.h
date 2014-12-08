@@ -202,6 +202,7 @@ private:
 private:
   const static bool suppress_runaway_particle_instability = true;
   const VirtualTopology3D& _vct;
+  const double Smooth;
   /** number of cells - X direction, including + 2 (guard cells) */
   int nxc;
   /** number of nodes - X direction, including + 2 extra nodes for guard cells */

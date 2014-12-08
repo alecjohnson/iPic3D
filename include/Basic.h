@@ -169,8 +169,4 @@ inline void cross_product(double a1, double a2, double a3, double b1, double b2,
   c[2] = a1 * b2 - a2 * b1;
 }
 
-void loopX(double *b, double z, double x, double y, double a, double zc, double xc, double yc, double m);
-void loopY(double *b, double y, double z, double x, double a, double yc, double zc, double xc, double m);
-void loopZ(double *b, double x, double y, double z, double a, double xc, double yc, double zc, double m);
-
 #endif

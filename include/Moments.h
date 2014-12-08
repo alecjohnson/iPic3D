@@ -17,13 +17,19 @@ class Imoments
     const int ns;
   private: // moments
     // densities of each species
-    array3_double_list rhons;
+    vector_array3_double rhons;
 
     // implicit current density defined on nodes
     //
     array3_double Jxh;
     array3_double Jyh;
     array3_double Jzh;
+
+  public:
+    const vector_array3_double& get_rhons()const{return rhons;}
+    const_arr3_double get_Jxh()const{return Jxh;}
+    const_arr3_double get_Jyh()const{return Jyh;}
+    const_arr3_double get_Jzh()const{return Jzh;}
 
   public:
     Imoments(const Setting& setting_)

@@ -33,6 +33,23 @@ using std::cout;
 using std::endl;
 using namespace iPic3D;
 
+/*! destructor*/
+EMfields3D::~EMfields3D() {
+  delete [] qom;
+  delete [] rhoINIT;
+  delete injFieldsLeft;
+  delete injFieldsRight;
+  delete injFieldsTop;
+  delete injFieldsBottom;
+  delete injFieldsFront;
+  delete injFieldsRear;
+  delete Jx_ext,
+  delete Jy_ext,
+  delete Jz_ext,
+  for(int i=0;i<sizeMomentsArray;i++) { delete moments10Array[i]; }
+  delete [] moments10Array;
+}
+
 /*! constructor */
 //
 // We rely on the following rule from the C++ standard, section 12.6.2.5:
@@ -70,22 +87,24 @@ EMfields3D::EMfields3D(const Setting& setting_, Imoments *iMoments_)
   Exth (nxn, nyn, nzn), // eliminate?
   Eyth (nxn, nyn, nzn), // eliminate?
   Ezth (nxn, nyn, nzn), // eliminate?
-  Ex_smooth(nxn, nyn, nzn),
-  Ey_smooth(nxn, nyn, nzn),
-  Ez_smooth(nxn, nyn, nzn),
   Bxn  (nxn, nyn, nzn),
   Byn  (nxn, nyn, nzn),
   Bzn  (nxn, nyn, nzn),
-  Bx_tot(nxn, nyn, nzn),
-  By_tot(nxn, nyn, nzn),
-  Bz_tot(nxn, nyn, nzn),
+  // make these pointers that are only allocated if needed
   Bx_ext(nxn, nyn, nzn),
   By_ext(nxn, nyn, nzn),
   Bz_ext(nxn, nyn, nzn),
+  // needed in MUdot
+  Bx_tot(nxn, nyn, nzn),
+  By_tot(nxn, nyn, nzn),
+  Bz_tot(nxn, nyn, nzn),
+  // smoothed components for particles or coarse moments
   Bx_smooth(nxn, nyn, nzn),
   By_smooth(nxn, nyn, nzn),
   Bz_smooth(nxn, nyn, nzn),
-  //rhon (nxn, nyn, nzn),
+  Ex_smooth(nxn, nyn, nzn),
+  Ey_smooth(nxn, nyn, nzn),
+  Ez_smooth(nxn, nyn, nzn),
 
   // array allocation: central points 
   //
@@ -115,8 +134,10 @@ EMfields3D::EMfields3D(const Setting& setting_, Imoments *iMoments_)
   vectY (nxn, nyn, nzn),
   vectZ (nxn, nyn, nzn),
   divC  (nxc, nyc, nzc),
-  // B_ext and J_ext should not be allocated unless used.
-  J_ext(0),
+  // J_ext should not be allocated unless used.
+  Jx_ext(0),
+  Jy_ext(0),
+  Jz_ext(0)
 {
   // External imposed fields
   //
@@ -150,7 +171,6 @@ EMfields3D::EMfields3D(const Setting& setting_, Imoments *iMoments_)
   B0y = col->getB0y();
   B0z = col->getB0z();
   delta = col->getDelta();
-  Smooth = col->getSmooth();
   // get the density background for the gem Challange
   rhoINIT = new double[ns];
   DriftSpecies = new bool[ns];
@@ -163,8 +183,6 @@ EMfields3D::EMfields3D(const Setting& setting_, Imoments *iMoments_)
   }
   /*! parameters for GEM challenge */
   FourPI = 16 * atan(1.0);
-  /*! Restart */
-  restart1 = col->getRestart_status();
 
   // OpenBC
   injFieldsLeft   = new injInfoFields(nxn, nyn, nzn);
@@ -181,36 +199,6 @@ EMfields3D::EMfields3D(const Setting& setting_, Imoments *iMoments_)
 //void EMfields3D::setZeroDensities() {
 //  setZeroDerivedMoments();
 //  setZeroPrimaryMoments();
-//}
-
-/*! Populate the field data used to push particles */
-// 
-// One could add a background magnetic field B_ext at this point,
-// which was incompletely implemented in commit 05082fc8ad688
-//
-//void MIsolver::set_fieldForPcls(
-//  arr4_double fieldForPcls,
-//  vector_array3_double Bsmooth,
-//  vector_array3_double Esmooth)
-//{
-//  #pragma omp parallel for collapse(2)
-//  for(int i=0;i<nxn;i++)
-//  for(int j=0;j<nyn;j++)
-//  for(int k=0;k<nzn;k++)
-//  {
-//    fieldForPcls[i][j][k][0] = Bsmooth[0][i][j][k];
-//    fieldForPcls[i][j][k][1] = Bsmooth[1][i][j][k];
-//    fieldForPcls[i][j][k][2] = Bsmooth[2][i][j][k];
-//    dprintf("should be using Exth here");
-//    // we should be using Exth here
-//    // (otherwise the particle push is not consistent
-//    // with the computation of implicit moments);
-//    // but note that currently smoothing is applied
-//    // only to Ex, not Exth
-//    fieldForPcls[i][j][k][0+DFIELD_3or4] = Esmooth[0][i][j][k];
-//    fieldForPcls[i][j][k][1+DFIELD_3or4] = Esmooth[1][i][j][k];
-//    fieldForPcls[i][j][k][2+DFIELD_3or4] = Esmooth[2][i][j][k];
-//  }
 //}
 
 // === Section: methods_to_solve_fields ===
@@ -252,9 +240,10 @@ void phys2solver(double *vectSolver, const arr3_double vectPhys1, const arr3_dou
 /*! Calculate Electric field with the implicit solver: the Maxwell solver method is called here */
 void EMfields3D::calculateE(const Imoments& iMoments)
 {
-  eprintf("iMoments is not even used here.");
   // define fields to use at open boundaries
   // based on magnetic field and Ohm's law
+  // (this also updates boundaries for the magnetic field,
+  // which is updated based on the updated electric field).
   updateInfoFields();
 
   const Collective *col = &get_col();
@@ -293,11 +282,11 @@ void EMfields3D::calculateE(const Imoments& iMoments)
     // move to krylov space 
     phys2solver(bkrylovPoisson, divE, nxc, nyc, nzc);
     // use conjugate gradient first
-    if (!CG(xkrylovPoisson, (nxc - 2) * (nyc - 2) * (nzc - 2), bkrylovPoisson, 3000, CGtol, &Field::PoissonImage, this)) {
+    if (!CG(xkrylovPoisson, (nxc - 2) * (nyc - 2) * (nzc - 2), bkrylovPoisson, 3000, CGtol, &::PoissonImage, this)) {
       if (get_vct().getCartesian_rank() == 0)
         cout << "CG not Converged. Trying with GMRes. Consider to increase the number of the CG iterations" << endl;
       eqValue(0.0, xkrylovPoisson, (nxc - 2) * (nyc - 2) * (nzc - 2));
-      GMRES(&Field::PoissonImage, xkrylovPoisson, (nxc - 2) * (nyc - 2) * (nzc - 2), bkrylovPoisson, 20, 200, GMREStol, this);
+      GMRES(&::PoissonImage, xkrylovPoisson, (nxc - 2) * (nyc - 2) * (nzc - 2), bkrylovPoisson, 20, 200, GMREStol, this);
     }
     solver2phys(PHI, xkrylovPoisson, nxc, nyc, nzc);
     communicateCenterBC(nxc, nyc, nzc, PHI, 2, 2, 2, 2, 2, 2, vct);
@@ -315,8 +304,9 @@ void EMfields3D::calculateE(const Imoments& iMoments)
   MaxwellSource(bkrylov);
   phys2solver(xkrylov, Ex, Ey, Ez, nxn, nyn, nzn);
   // solver
-  GMRES(&Field::MaxwellImage, xkrylov, 3 * (nxn - 2) * (nyn - 2) * (nzn - 2),
-    bkrylov, 20, 200, GMREStol, this);
+  const void* registered_data[2] = {this, &iMoments.get_rhons()};
+  GMRES(&::MaxwellImage, xkrylov, 3 * (nxn - 2) * (nyn - 2) * (nzn - 2),
+    bkrylov, 20, 200, GMREStol, registered_data);
   // move from krylov space to physical space
   solver2phys(Exth, Eyth, Ezth, xkrylov, nxn, nyn, nzn);
 
@@ -339,9 +329,9 @@ void EMfields3D::calculateE(const Imoments& iMoments)
   {
     for(int i=0;i<Parameters::get_num_smoothings();i++)
     {
-      smooth(Smooth, Ex, 1, get_col().get_bcEx());
-      smooth(Smooth, Ey, 1, get_col().get_bcEy());
-      smooth(Smooth, Ez, 1, get_col().get_bcEz());
+      grid->smooth(Ex, 1, get_col().get_bcEx());
+      grid->smooth(Ey, 1, get_col().get_bcEy());
+      grid->smooth(Ez, 1, get_col().get_bcEz());
     }
     // copy E to E_smooth
     for(int i=0;i<nxn;i++)
@@ -389,9 +379,9 @@ void EMfields3D::calculateE(const Imoments& iMoments)
     }
     for(int i=0;i<Parameters::get_num_smoothings();i++)
     {
-      smooth(Smooth, Ex_smooth, 1, get_col().get_bcEx());
-      smooth(Smooth, Ey_smooth, 1, get_col().get_bcEy());
-      smooth(Smooth, Ez_smooth, 1, get_col().get_bcEz());
+      grid->smooth(Ex_smooth, 1, get_col().bcEx);
+      grid->smooth(Ey_smooth, 1, get_col().bcEy);
+      grid->smooth(Ez_smooth, 1, get_col().bcEz);
     }
   }
 
@@ -433,9 +423,9 @@ void EMfields3D::MaxwellSource(double *bkrylov)
 
   // prepare curl of B for known term of Maxwell solver: for the source term
   grid->curlC2N(tempXN, tempYN, tempZN, Bxc, Byc, Bzc);
-  scale(temp2X, Jxh, -FourPI / c, nxn, nyn, nzn);
-  scale(temp2Y, Jyh, -FourPI / c, nxn, nyn, nzn);
-  scale(temp2Z, Jzh, -FourPI / c, nxn, nyn, nzn);
+  scale(temp2X, iMoments.get_Jxh(), -FourPI / c, nxn, nyn, nzn);
+  scale(temp2Y, iMoments.get_Jyh(), -FourPI / c, nxn, nyn, nzn);
+  scale(temp2Z, iMoments.get_Jzh(), -FourPI / c, nxn, nyn, nzn);
 
   sum(temp2X, tempXN, nxn, nyn, nzn);
   sum(temp2Y, tempYN, nxn, nyn, nzn);
@@ -548,7 +538,15 @@ void EMfields3D::MaxwellSource(double *bkrylov)
 // desired, to give duplicated nodes equal weight by
 // rescaling their values in these two methods.
 // 
-void EMfields3D::MaxwellImage(double *im, double* vector)
+// callback for generic GMRES solver
+void ::MaxwellImage(double *im, double* vector, void** registered_data)
+{
+  EMfields3D* EMf = (EMfields3D*) registered_data[0];
+  const vector_array3_double& rhons =
+    *(const vector_array3_double*)(registered_data[1]);
+  EMf->MaxwellImage(im, vector, rhons);
+}
+void EMfields3D::MaxwellImage(double *im, double* vector, const vector_array3_double& rhons)
 {
   const Collective *col = &get_col();
   const VirtualTopology3D *vct = &get_vct();
@@ -573,12 +571,14 @@ void EMfields3D::MaxwellImage(double *im, double* vector)
   neg(imageY, nxn, nyn, nzn);
   neg(imageZ, nxn, nyn, nzn);
   // grad(div(mu dot E(n + theta)) mu dot E(n + theta) = D
-  MUdot(Dx, Dy, Dz, vectX, vectY, vectZ);
+  MUdot(Dx, Dy, Dz, vectX, vectY, vectZ, rhons);
   grid->divN2C(divC, Dx, Dy, Dz);
   // communicate you should put BC 
   // think about the Physics 
-  // communicateCenterBC(nxc,nyc,nzc,divC,1,1,1,1,1,1,vct);
-  communicateCenterBC(nxc, nyc, nzc, divC, 2, 2, 2, 2, 2, 2, vct);  // GO with Neumann, now then go with rho
+  //const int BCs[6] = {1,1,1,1,1,1};
+  const int BCs[6] = {2,2,2,2,2,2};
+  // GO with Neumann, now then go with rho
+  communicateCenterBC(nxc, nyc, nzc, divC, BCs, vct);
 
   grid->gradC2N(tempX, tempY, tempZ, divC);
 
@@ -633,7 +633,8 @@ void EMfields3D::MUdot(
   arr3_double MUdotZ,
   const_arr3_double vectX,
   const_arr3_double vectY,
-  const_arr3_double vectZ)
+  const_arr3_double vectZ,
+  const vector_array3_double& rhons)
 {
   for (int i = 1; i < nxn - 1; i++)
   for (int j = 1; j < nyn - 1; j++)
@@ -650,9 +651,9 @@ void EMfields3D::MUdot(
     for (int j = 1; j < nyn - 1; j++)
     for (int k = 1; k < nzn - 1; k++)
     {
-      const double omcx = beta * Btot[0][i][j][k];
-      const double omcy = beta * Btot[1][i][j][k];
-      const double omcz = beta * Btot[2][i][j][k];
+      const double omcx = beta * Bx_tot[i][j][k];
+      const double omcy = beta * By_tot[i][j][k];
+      const double omcz = beta * Bz_tot[i][j][k];
       const double edotb = vectX.get(i,j,k) * omcx + vectY.get(i,j,k) * omcy + vectZ.get(i,j,k) * omcz;
       const double denom = FourPI / 2 * delt * dt / c * qom[is] * rhons[is][i][j][k] / (1.0 + omcx * omcx + omcy * omcy + omcz * omcz);
       MUdotX.fetch(i,j,k) += (vectX.get(i,j,k) + (vectY.get(i,j,k) * omcz - vectZ.get(i,j,k) * omcy + edotb * omcx)) * denom;
@@ -726,6 +727,39 @@ void EMfields3D::fixBforcefree()
 
 // === Section: field_solver_routines ===
 
+// update B_tot and B_smooth based on Bn and B_ext
+//
+void EMfield::update_total_B()
+{
+  // compute magnetic field used to push partices
+  // or compute implicit moments
+  {
+    for(int i=0;i<nxn;i++)
+    for(int j=0;j<nyn;j++)
+    for(int k=0;k<nzn;k++)
+    {
+      // unsmoothed version: apply only to smoothed moments
+      fetch_Bx_tot()[i][j][k] = Bxn[i][j][k]+fetch_Bx_ext()[i][j][k];
+      fetch_By_tot()[i][j][k] = Byn[i][j][k]+fetch_By_ext()[i][j][k];
+      fetch_Bz_tot()[i][j][k] = Bzn[i][j][k]+fetch_Bz_ext()[i][j][k];
+
+      // smoothed version: apply only to unsmoothed moments or particles
+      Bx_smooth[i][j][k] = fetch_Bx_tot()[i][j][k];
+      By_smooth[i][j][k] = fetch_By_tot()[i][j][k];
+      Bz_smooth[i][j][k] = fetch_Bz_tot()[i][j][k];
+    }
+    if(Parameters::use_correct_smoothing())
+    {
+      for(int i=0;i<Parameters::get_num_smoothings();i++)
+      {
+        grid->smooth(Bx_smooth, get_col().get_bcBx());
+        grid->smooth(By_smooth, get_col().get_bcBy());
+        grid->smooth(Bz_smooth, get_col().get_bcBz());
+      }
+    }
+  }
+}
+
 /*! update the magnetic field using E(n+ theta) in Faraday's law */
 void EMfields3D::advanceB()
 {
@@ -763,33 +797,9 @@ void EMfields3D::advanceB()
   communicateNodeBC(nxn, nyn, nzn, Byn, col->bcBy, vct);
   communicateNodeBC(nxn, nyn, nzn, Bzn, col->bcBz, vct);
 
-  // compute magnetic field used to push partices
-  // or compute implicit moments
-  {
-    for(int i=0;i<nxn;i++)
-    for(int j=0;j<nyn;j++)
-    for(int k=0;k<nzn;k++)
-    {
-      // unsmoothed version: apply only to smoothed moments
-      Bx_tot[i][j][k] = Bxn[i][j][k]+Bx_ext[i][j][k];
-      By_tot[i][j][k] = Byn[i][j][k]+By_ext[i][j][k];
-      Bz_tot[i][j][k] = Bzn[i][j][k]+Bz_ext[i][j][k];
-
-      // smoothed version: apply only to unsmoothed moments or particles
-      Bx_smooth[i][j][k] = Bx_tot[i][j][k];
-      By_smooth[i][j][k] = By_tot[i][j][k];
-      Bz_smooth[i][j][k] = Bz_tot[i][j][k];
-    }
-    if(Parameters::use_correct_smoothing())
-    {
-      for(int i=0;i<Parameters::get_num_smoothings();i++)
-      {
-        smooth(Smooth, Bx_smooth, get_col().get_bcBx(), &get_vct());
-        smooth(Smooth, By_smooth, get_col().get_bcBy(), &get_vct());
-        smooth(Smooth, Bz_smooth, get_col().get_bcBz(), &get_vct());
-      }
-    }
-  }
+  // update B_tot and B_smooth
+  // (needed for particles, implicit moments, and MUdot).
+  update_total_B();
 }
 
 // this has been split into calculateJhat and calculateRhoHat()
@@ -798,12 +808,17 @@ void EMfields3D::calculateHatFunctions()
   eprintf("defunct");
 }
 /*! Calculate rho hat */
-void EMfields3D::calculateRhoHat()
+void EMfields3D::calculateRhoHat(const Imoments& iMoments)
 {
+  const vector_array3_double& rhons = iMoments.get_rhons();
+  const_arr3_double Jxh = iMoments.get_Jxh();
+  const_arr3_double Jyh = iMoments.get_Jyh();
+  const_arr3_double Jzh = iMoments.get_Jzh();
   // sum charge density over species and interpolate to cell centers
   // (also needed for Poisson solve)
   {
     array3_double rhon(nxn,nyn,nzn);
+    rhon.setall(0.);
     for (int is = 0; is < ns; is++)
     for (register int i = 0; i < nxn; i++)
     for (register int j = 0; j < nyn; j++)
@@ -816,7 +831,7 @@ void EMfields3D::calculateRhoHat()
   if(Parameters::use_original_smoothing())
   // otherwise rhon is already smoothed
   {
-    smooth(Smooth, rhoc, 0);
+    smooth(rhoc, 0);
   }
 
   // calculate rho hat = rho - (dt*theta)div(jhat)
@@ -829,10 +844,15 @@ void EMfields3D::calculateRhoHat()
   communicateCenterBC_P(nxc, nyc, nzc, rhoh, BCs, &get_vct());
 }
 
+// generic callback for GMRES or CG solver
+void PoissonImage(double *image, double *vector, void** registered_data)
+{
+  EMfields3D* EMf = (EMfields3D*) registered_data[0];
+  EMf->PoissonImage(image,vector);
+}
 /*! Image of Poisson Solver */
 void EMfields3D::PoissonImage(double *image, double *vector)
 {
-  const VirtualTopology3D *vct = &get_vct();
   const Grid *grid = &get_grid();
 
   // allocate 2 three dimensional service vectors
@@ -852,26 +872,28 @@ void EMfields3D::PoissonImage(double *image, double *vector)
 // === Section: initialization_routines ===
 
 /*! initialize Moments with initial configuration */
-void MIsolver::set_initial_conditions()
+void MIsolver::init_from_restart(EMfields3D& EMf, Particles3Dcomm* part)
 {
-  arr4_double rhons = moments.get_rhons();
-  arr4_double rhocs = moments.get_rhocs();
+  array4_double rhons(ns,nxn,nyn,nzn);
+  array4_double rhocs(ns,nxc,nyc,nzc);
+
+  arr3_double Ex = EMf->fetch_Ex();
+  arr3_double Ey = EMf->fetch_Ey();
+  arr3_double Ez = EMf->fetch_Ez();
+  arr3_double Bxc = EMf->fetch_Bxc();
+  arr3_double Byc = EMf->fetch_Byc();
+  arr3_double Bzc = EMf->fetch_Bzc();
+  arr3_double Bxn = EMf->fetch_Bxn();
+  arr3_double Byn = EMf->fetch_Byn();
+  arr3_double Bzn = EMf->fetch_Bzn();
 
   const Collective *col = &get_col();
   const VirtualTopology3D *vct = &get_vct();
   const Grid *grid = &get_grid();
 
-  if(col->getRestart_status()==0)
+  assert(col->getRestart_status()!=0)
+  // READING FROM RESTART
   {
-    for (int is = 0; is < ns; is++)
-    for (int i = 0; i < nxn; i++)
-    for (int j = 0; j < nyn; j++)
-    for (int k = 0; k < nzn; k++)
-    {
-       rhons[is][i][j][k] = rhoINIT[is] / FourPI;
-    }
-  }
-  else {                        // READING FROM RESTART
   #ifdef NO_HDF5
     eprintf("restart requires compiling with HDF5");
   #else
@@ -880,7 +902,7 @@ void MIsolver::set_initial_conditions()
     // communicate species densities to ghost nodes
     for (int is = 0; is < ns; is++)
     {
-      double ***moment0 = convert_to_arr3(rhons[ns]);
+      double ***moment0 = rhons.fetch_arr4()[is];
       communicateNode_P(nxn, nyn, nzn, moment0, vct);
     }
 
@@ -894,15 +916,29 @@ void MIsolver::set_initial_conditions()
   }
 
   for (int is = 0; is < ns; is++)
+  {
     grid->interpN2C(rhocs, is, rhons);
+    eprintf("need to read particles too. unimplemented.");
+    //part[i].maxwellian(rhocs);
+  }
 }
 
 /*! initialize Magnetic and Electric Field with initial configuration */
-void MIsolver::init_from_restart()
+void MIsolver::init_from_restart(EMfields3D& EMf, Particles3Dcomm* part)
 {
   const Collective *col = &get_col();
   const VirtualTopology3D *vct = &get_vct();
   const Grid *grid = &get_grid();
+
+  arr3_double Ex = EMf->fetch_Ex();
+  arr3_double Ey = EMf->fetch_Ey();
+  arr3_double Ez = EMf->fetch_Ez();
+  arr3_double Bxc = EMf->fetch_Bxc();
+  arr3_double Byc = EMf->fetch_Byc();
+  arr3_double Bzc = EMf->fetch_Bzc();
+  arr3_double Bxn = EMf->fetch_Bxn();
+  arr3_double Byn = EMf->fetch_Byn();
+  arr3_double Bzn = EMf->fetch_Bzn();
 
   assert(col->getRestart_status());
   #ifdef NO_HDF5
@@ -935,7 +971,7 @@ void MIsolver::init_from_restart()
 
 #ifdef BATSRUS
 /*! initiliaze EM for GEM challange */
-void c_Solver::initBATSRUS()
+void MIsolver::initBATSRUS(EMfields3D& EMf, Particles3Dcomm* part)
 {
   const Collective *col = &get_col();
   const Grid *grid = &get_grid();
@@ -943,10 +979,20 @@ void c_Solver::initBATSRUS()
   cout << "         Initialize from BATSRUS          " << endl;
   cout << "------------------------------------------" << endl;
 
-  arr4_double rhocs = fetch_rhocs();
-  arr3_double Bxc = fetch_Bxc();
-  arr3_double Byc = fetch_Byc();
-  arr3_double Bzc = fetch_Bzc();
+  // populating these does nothing so has been removed.
+  //
+  //array4_double rhons(ns,nxn,nyn,nzn);
+  //array4_double rhocs(ns,nxc,nyc,nzc);
+
+  arr3_double Ex = EMf->fetch_Ex();
+  arr3_double Ey = EMf->fetch_Ey();
+  arr3_double Ez = EMf->fetch_Ez();
+  arr3_double Bxc = EMf->fetch_Bxc();
+  arr3_double Byc = EMf->fetch_Byc();
+  arr3_double Bzc = EMf->fetch_Bzc();
+  arr3_double Bxn = EMf->fetch_Bxn();
+  arr3_double Byn = EMf->fetch_Byn();
+  arr3_double Bzn = EMf->fetch_Bzn();
 
   // these are node-centered values.
   array3_double Exc(nxc,nyc,nzc);
@@ -954,14 +1000,14 @@ void c_Solver::initBATSRUS()
   array3_double Ezc(nxc,nyc,nzc);
 
   // loop over species and cell centers: fill in charge density
-  for (int is=0; is < ns; is++)
-    for (int i=0; i < nxc; i++)
-      for (int j=0; j < nyc; j++)
-        for (int k=0; k < nzc; k++)
-        {
-          // WARNING getFluidRhoCenter contains "case" statment
-          rhocs[is][i][j][k] = col->getFluidRhoCenter(i,j,k,is);
-        }
+  //for (int is=0; is < ns; is++)
+  //  for (int i=0; i < nxc; i++)
+  //    for (int j=0; j < nyc; j++)
+  //      for (int k=0; k < nzc; k++)
+  //      {
+  //        // WARNING getFluidRhoCenter contains "case" statment
+  //        rhocs[is][i][j][k] = col->getFluidRhoCenter(i,j,k,is);
+  //      }
 
   // loop over cell centers and fill in magnetic and electric fields
   for (int i=0; i < nxc; i++)
@@ -982,41 +1028,46 @@ void c_Solver::initBATSRUS()
             &Bxc[i][j][k],&Byc[i][j][k],&Bzc[i][j][k],i,j,k);
       }
 
-  // interpolate from cell centers to nodes (corners of cells)
-  arr4_double rhons = fetch_rhons();
-  arr3_double Bxn = fetch_Bxn();
-  arr3_double Byn = fetch_Byn();
-  arr3_double Bzn = fetch_Bzn();
-  arr3_double Exn = fetch_Ex();
-  arr3_double Eyn = fetch_Ey();
-  arr3_double Ezn = fetch_Ez();
-  for (int is=0 ; is<ns; is++)
-    grid->interpC2N(rhons[is],rhocs[is]);
   grid->interpC2N(Bxn,Bxc);
   grid->interpC2N(Byn,Byc);
   grid->interpC2N(Bzn,Bzc);
-  grid->interpC2N(Exn,Exc);
-  grid->interpC2N(Eyn,Eyc);
-  grid->interpC2N(Ezn,Ezc);
+  grid->interpC2N(Ex,Exc);
+  grid->interpC2N(Ey,Eyc);
+  grid->interpC2N(Ez,Ezc);
+
+  for (int i = 0; i < ns; i++)
+  {
+    //grid->interpC2N(rhons[is],rhocs[is]);
+    part[i].MaxwellianFromFluid(col,i);
+  }
 }
 #endif
 
-void c_Solver::initGEM()
+/*! initiliaze EM for GEM challange */
+void MIsolver::initGEM(EMfields3D& EMf, Particles3Dcomm* part)
 {
-  arr4_double rhons = fetch_rhons();
-  arr3_double Bxn = fetch_Bxn();
-  arr3_double Byn = fetch_Byn();
-  arr3_double Bzn = fetch_Bzn();
-  arr3_double Exn = fetch_Ex();
-  arr3_double Eyn = fetch_Ey();
-  arr3_double Ezn = fetch_Ez();
+  array4_double rhons(ns,nxn,nyn,nzn);
+  array4_double rhocs(ns,nxc,nyc,nzc);
+
+  arr3_double Ex = EMf->fetch_Ex();
+  arr3_double Ey = EMf->fetch_Ey();
+  arr3_double Ez = EMf->fetch_Ez();
+  arr3_double Bxc = EMf->fetch_Bxc();
+  arr3_double Byc = EMf->fetch_Byc();
+  arr3_double Bzc = EMf->fetch_Bzc();
+  arr3_double Bxn = EMf->fetch_Bxn();
+  arr3_double Byn = EMf->fetch_Byn();
+  arr3_double Bzn = EMf->fetch_Bzn();
+
   const VirtualTopology3D *vct = &get_vct();
   const Grid *grid = &get_grid();
   // perturbation localized in X
   double pertX = 0.4;
   double xpert, ypert, exp_pert;
+  assert(col->getRestart_status()==0);
   // initialize
   {
+    // initialize
     if (get_vct().getCartesian_rank() == 0) {
       cout << "------------------------------------------" << endl;
       cout << "Initialize GEM Challenge with Pertubation" << endl;
@@ -1025,11 +1076,25 @@ void c_Solver::initGEM()
       cout << "B0y                              = " << B0y << endl;
       cout << "B0z                              = " << B0z << endl;
       cout << "Delta (current sheet thickness) = " << delta << endl;
+      for (int i = 0; i < ns; i++) {
+        cout << "rho species " << i << " = " << rhoINIT[i];
+        if (DriftSpecies[i])
+          cout << " DRIFTING " << endl;
+        else
+          cout << " BACKGROUND " << endl;
+      }
       cout << "-------------------------" << endl;
     }
     for (int i = 0; i < nxn; i++)
       for (int j = 0; j < nyn; j++)
         for (int k = 0; k < nzn; k++) {
+          // initialize the density for species
+          for (int is = 0; is < ns; is++) {
+            if (DriftSpecies[is])
+              rhons[is][i][j][k] = ((rhoINIT[is] / (cosh((grid->getYN(i, j, k) - Ly / 2) / delta) * cosh((grid->getYN(i, j, k) - Ly / 2) / delta)))) / FourPI;
+            else
+              rhons[is][i][j][k] = rhoINIT[is] / FourPI;
+          }
           // electric field
           Ex[i][j][k] = 0.0;
           Ey[i][j][k] = 0.0;
@@ -1068,17 +1133,24 @@ void c_Solver::initGEM()
 
         }
   }
+  for (int i = 0; i < ns; i++)
+  {
+    grid->interpN2C(rhocs, is, rhons);
+    part[i].maxwellian(rhocs);
+  }
 }
 
 void c_Solver::initOriginalGEM()
 {
-  arr4_double rhons = fetch_rhons();
+  array4_double rhons(ns,nxn,nyn,nzn);
+  array4_double rhocs(ns,nxc,nyc,nzc);
+
   arr3_double Bxn = fetch_Bxn();
   arr3_double Byn = fetch_Byn();
   arr3_double Bzn = fetch_Bzn();
-  arr3_double Exn = fetch_Ex();
-  arr3_double Eyn = fetch_Ey();
-  arr3_double Ezn = fetch_Ez();
+  arr3_double Ex = fetch_Ex();
+  arr3_double Ey = fetch_Ey();
+  arr3_double Ez = fetch_Ez();
   const Grid *grid = &get_grid();
   const double Lx = get_col().getLx();
   const double Ly = get_col().getLy();
@@ -1142,17 +1214,319 @@ void c_Solver::initOriginalGEM()
           Bzc[i][j][k] = B0z;
         }
   }
+  for (int i = 0; i < ns; i++)
+  {
+    grid->interpN2C(rhocs, is, rhons);
+    part[i].maxwellian(rhocs);
+  }
 }
 
-void c_Solver::initDoublePeriodicHarrisWithGaussianHumpPerturbation()
+void EMfields3D::set_Jext()
 {
-  arr4_double rhons = fetch_rhons();
+  // calculate the external current for reporting purposes
+  //
+  // set Bxn including Bx_ext
+  for (int i=0; i < nxn; i++)
+  for (int j=0; j < nyn; j++)
+  for (int k=0; k < nzn; k++)
+  {
+    // We want a well-balanced sheme, where the equilibrium is an
+    // exact solution of the discretized equations, so
+    // Bx_ext should not be included in Bxn.
+    // But we initially include it here as a means to
+    // compute Jx_ext (to be used only for reporting purposes)
+    // and then reset it.
+    //
+    Bxn[i][j][k] = B0x + fetch_Bx_ext()[i][j][k];
+    Byn[i][j][k] = B0y + fetch_By_ext()[i][j][k];
+    Bzn[i][j][k] = B0z + fetch_Bz_ext()[i][j][k];
+  }
+  //
+  grid->interpN2C(Bxc,Bxn);
+  grid->interpN2C(Byc,Byn);
+  grid->interpN2C(Bzc,Bzn);
+  //
+  communicateCenterBC_P(nxc, nyc, nzc, Bxc, col->bcBx, vct);
+  communicateCenterBC_P(nxc, nyc, nzc, Byc, col->bcBy, vct);
+  communicateCenterBC_P(nxc, nyc, nzc, Bzc, col->bcBz, vct);
+  //
+  // initialize J_ext =c/4*pi curl(B) on nodes (current due to the dipole)
+  //
+  // the external current plays no part in the algorithm;
+  // it is only for reporting the net current.
+  assert(!Jx_ext);
+  assert(!Jy_ext);
+  assert(!Jz_ext);
+  Jx_ext = new array3_double(nxn,nyn,nzn);
+  Jy_ext = new array3_double(nxn,nyn,nzn);
+  Jz_ext = new array3_double(nxn,nyn,nzn);
+  grid->curlC2N(tempXN,tempYN,tempZN,Bxc,Byc,Bzc);
+  scale(Jx_ext,tempXN,c/FourPI,nxn,nyn,nzn);
+  scale(Jy_ext,tempYN,c/FourPI,nxn,nyn,nzn);
+  scale(Jz_ext,tempZN,c/FourPI,nxn,nyn,nzn);
+}
+
+static void loopX(double *b, double z, double x, double y, double a,
+  double zc, double xc, double yc, double m)
+{
+  double r = sqrt((x-xc)*(x-xc)+(y-yc)*(y-yc)+(z-zc)*(z-zc));
+  double theta = acos((z-zc+1e-10)/(r+1e-10));
+  double phi = atan2(y-yc,x-xc);
+  //double Rho = r * sin(theta);
+  double Rho = sqrt((x-xc)*(x-xc)+(y-yc)*(y-yc));
+
+  double Alpha = Rho/a;
+  double Beta = (z-zc)/a;
+  double Gamma = (z-zc+1e-10)/(Rho+1e-10);
+
+  double Q = ((1 + Alpha)*(1 + Alpha) + Beta*Beta);
+  double k = sqrt(4*Alpha/Q);
+  double B0 = m / (2*a); //m * (C_LIGHT * MU0)/(2*a*a*a*M_PI);
+
+  int err = 0;
+
+  double Bz = B0*(EllipticE(k,err)*(1-Alpha*Alpha-Beta*Beta)/(Q-4*Alpha)+EllipticF(k,err))/(M_PI*sqrt(Q));
+  double BRho = B0*Gamma*(EllipticE(k,err)*(1+Alpha*Alpha+Beta*Beta)/(Q-4*Alpha)-EllipticF(k,err))/(M_PI*sqrt(Q));
+
+  if (err)
+    eprintf("Err came back :%d", err);
+
+  if ( isnan(BRho) )
+    BRho = 0;
+  if ( isnan(Bz) )
+    Bz = 0;
+
+  double Bx = BRho * cos(phi);
+  double By = BRho * sin(phi);
+
+  //for debugging
+  /*cout << "\n\nAt (" << x << "," << y << "," << z << "), the field is :" << endl;
+    cout << "Bx: " << Bx << " T" << endl;
+    cout << "By: " << By << " T" << endl;
+    cout << "Bz: " << Bz << " T" << endl;
+    cout << "BRho: " << BRho << " T" << endl;*/
+
+  b[1] = Bx;
+  b[2] = By;
+  b[0] = Bz;
+}
+
+static void loopY(double *b, double y, double z, double x,
+  double a, double yc, double zc, double xc, double m)
+{
+  double r = sqrt((x-xc)*(x-xc)+(y-yc)*(y-yc)+(z-zc)*(z-zc));
+  double theta = acos((z-zc+1e-10)/(r+1e-10));
+  double phi = atan2(y-yc,x-xc);
+  //double Rho = r * sin(theta);
+  double Rho = sqrt((x-xc)*(x-xc)+(y-yc)*(y-yc));
+
+  double Alpha = Rho/a;
+  double Beta = (z-zc)/a;
+  double Gamma = (z-zc+1e-10)/(Rho+1e-10);
+
+  double Q = ((1 + Alpha)*(1 + Alpha) + Beta*Beta);
+  double k = sqrt(4*Alpha/Q);
+  double B0 = m / (2*a); //m * (C_LIGHT * MU0)/(2*a*a*a*M_PI);
+
+  int err = 0;
+
+  double Bz = B0*(EllipticE(k,err)*(1-Alpha*Alpha-Beta*Beta)/(Q-4*Alpha)+EllipticF(k,err))/(M_PI*sqrt(Q));
+  double BRho = B0*Gamma*(EllipticE(k,err)*(1+Alpha*Alpha+Beta*Beta)/(Q-4*Alpha)-EllipticF(k,err))/(M_PI*sqrt(Q));
+
+  if (err)
+    eprintf("Err came back :%d", err);
+
+  if ( isnan(BRho) )
+    BRho = 0;
+  if ( isnan(Bz) )
+    Bz = 0;
+
+  double Bx = BRho * cos(phi);
+  double By = BRho * sin(phi);
+
+  //for debugging
+  /*cout << "\n\nAt (" << x << "," << y << "," << z << "), the field is :" << endl;
+    cout << "Bx: " << Bx << " T" << endl;
+    cout << "By: " << By << " T" << endl;
+    cout << "Bz: " << Bz << " T" << endl;
+    cout << "BRho: " << BRho << " T" << endl;*/
+
+  b[2] = Bx;
+  b[0] = By;
+  b[1] = Bz;
+}
+
+static void loopZ(double *b, double x, double y, double z,
+  double a, double xc, double yc, double zc, double m)
+{
+
+  double r = sqrt((x-xc)*(x-xc)+(y-yc)*(y-yc)+(z-zc)*(z-zc));
+  double theta = acos((z-zc+1e-10)/(r+1e-10));
+  double phi = atan2(y-yc,x-xc);
+
+  double Rho = sqrt((x-xc)*(x-xc)+(y-yc)*(y-yc));
+
+  double Alpha = Rho/a;
+  double Beta = (z-zc)/a;
+  double Gamma = (z-zc+1e-10)/(Rho+1e-10);
+
+  double Q = ((1 + Alpha)*(1 + Alpha) + Beta*Beta);
+  double k = sqrt(4*Alpha/Q);
+  double B0 = m / (2*a); //m * (C_LIGHT * MU0)/(2*a*a*a*M_PI);
+
+  int err = 0;
+
+  double Bz = B0*(EllipticE(k,err)*(1-Alpha*Alpha-Beta*Beta)/(Q-4*Alpha)+EllipticF(k,err))/(M_PI*sqrt(Q));
+  double BRho = B0*Gamma*(EllipticE(k,err)*(1+Alpha*Alpha+Beta*Beta)/(Q-4*Alpha)-EllipticF(k,err))/(M_PI*sqrt(Q));
+
+  if (err)
+    eprintf("Err came back :%d", err);
+
+  if ( isnan(BRho) )
+    BRho = 0;
+  if ( isnan(Bz) )
+    Bz = 0;
+
+  double Bx = BRho * cos(phi);
+  double By = BRho * sin(phi);
+
+  b[0] = Bx;
+  b[1] = By;
+  b[2] = Bz;
+}
+
+/*! Initialise a combination of magnetic dipoles */
+void MIsolver::initDipole(EMfields3D& EMf, Particles3Dcomm* part)
+{
+  array4_double rhons(ns,nxn,nyn,nzn);
+  array4_double rhocs(ns,nxc,nyc,nzc);
+
+  arr3_double Ex = EMf->fetch_Ex();
+  arr3_double Ey = EMf->fetch_Ey();
+  arr3_double Ez = EMf->fetch_Ez();
+  arr3_double Bxc = EMf->fetch_Bxc();
+  arr3_double Byc = EMf->fetch_Byc();
+  arr3_double Bzc = EMf->fetch_Bzc();
+  arr3_double Bxn = EMf->fetch_Bxn();
+  arr3_double Byn = EMf->fetch_Byn();
+  arr3_double Bzn = EMf->fetch_Bzn();
+  arr3_double Bx_ext = EMf->fetch_Bx_ext();
+  arr3_double By_ext = EMf->fetch_By_ext();
+  arr3_double Bz_ext = EMf->fetch_Bz_ext();
+
+  const Collective *col = &get_col();
+  const VirtualTopology3D *vct = &get_vct();
+  const Grid *grid = &get_grid();
+
+  const int B0x = col->getB0x();
+  const int B0y = col->getB0y();
+  const int B0z = col->getB0z();
+  const int B1x = col->getB1x();
+  const int B1y = col->getB1y();
+  const int B1z = col->getB1z();
+
+  double ebc[3];
+  cross_product(ue0,ve0,we0,B0x,B0y,B0z,ebc);
+  scale(ebc,-1.0,3);
+
+  // initialize rhons and E
+  for (int i=0; i < nxn; i++)
+  for (int j=0; j < nyn; j++)
+  for (int k=0; k < nzn; k++)
+  {
+    for (int is=0; is < ns; is++){
+      rhons[is][i][j][k] = rhoINIT[is]/FourPI;
+    }
+    Ex[i][j][k] = ebc[0];
+    Ey[i][j][k] = ebc[1];
+    Ez[i][j][k] = ebc[2];
+  }
+
+  // Compute dipolar field B_ext
+  //
+  Bx_ext.setall(0.);
+  By_ext.setall(0.);
+  Bz_ext.setall(0.);
+  // initialize external magnetic field
+  for (int i=0; i < nxn; i++)
+  for (int j=0; j < nyn; j++)
+  for (int k=0; k < nzn; k++)
+  {
+    double blp[3];
+    // Set coil diameter
+    double a=delta;
+
+    double xc=x_center;
+    double yc=y_center;
+    double zc=z_center;
+
+    double x = grid->getXN(i,j,k);
+    double y = grid->getYN(i,j,k);
+    double z = grid->getZN(i,j,k);
+
+    loopZ(blp, x, y, z, a, xc, yc, zc, B1z);
+    Bx_ext[i][j][k]  += blp[0];
+    By_ext[i][j][k]  += blp[1];
+    Bz_ext[i][j][k]  += blp[2];
+    loopX(blp, x, y, z, a, xc, yc, zc, B1x);
+    Bx_ext[i][j][k] += blp[0];
+    By_ext[i][j][k] += blp[1];
+    Bz_ext[i][j][k] += blp[2];
+    loopY(blp, x, y, z, a, xc, yc, zc, B1y);
+    Bx_ext[i][j][k] += blp[0];
+    By_ext[i][j][k] += blp[1];
+    Bz_ext[i][j][k] += blp[2];
+  }
+
+  // this sets Bxn to include Bx_ext
+  EMf->set_Jext();
+
+  // reset Bxn, excluding Bx_ext
+  for (int i=0; i < nxn; i++)
+  for (int j=0; j < nyn; j++)
+  for (int k=0; k < nzn; k++)
+  {
+    Bxn[i][j][k] = B0x;
+    Byn[i][j][k] = B0y;
+    Bzn[i][j][k] = B0z;
+  }
+  // update Bxc
+  {
+    grid->interpN2C(Bxc,Bxn);
+    grid->interpN2C(Byc,Byn);
+    grid->interpN2C(Bzc,Bzn);
+    //
+    communicateCenterBC_P(nxc, nyc, nzc, Bxc, col->bcBx, vct);
+    communicateCenterBC_P(nxc, nyc, nzc, Byc, col->bcBy, vct);
+    communicateCenterBC_P(nxc, nyc, nzc, Bzc, col->bcBz, vct);
+  }
+
+  for (int is=0 ; is<ns; is++)
+  {
+    grid->interpN2C(rhocs,is,rhons);
+    part[i].maxwellian(rhocs);
+  }
+
+  if (col->getRestart_status()!=0)
+    init_from_restart(rhocs);  // use the fields from restart file
+  }
+}
+
+//#if 0 // other_initialization_routines
+
+void MIsolver::initDoublePeriodicHarrisWithGaussianHumpPerturbation(
+  EMfields3D& EMf, Particles3Dcomm* part)
+{
+  array4_double rhons(ns,nxn,nyn,nzn);
+  array4_double rhocs(ns,nxc,nyc,nzc);
+
   arr3_double Bxn = fetch_Bxn();
   arr3_double Byn = fetch_Byn();
   arr3_double Bzn = fetch_Bzn();
-  arr3_double Exn = fetch_Ex();
-  arr3_double Eyn = fetch_Ey();
-  arr3_double Ezn = fetch_Ez();
+  arr3_double Ex = fetch_Ex();
+  arr3_double Ey = fetch_Ey();
+  arr3_double Ez = fetch_Ez();
+
   const Collective *col = &get_col();
   const VirtualTopology3D *vct = &get_vct();
   const Grid *grid = &get_grid();
@@ -1264,21 +1638,28 @@ void c_Solver::initDoublePeriodicHarrisWithGaussianHumpPerturbation()
     communicateCenterBC(nxc, nyc, nzc, Byc, col->bcBy, vct);
     communicateCenterBC(nxc, nyc, nzc, Bzc, col->bcBz, vct);
     for (int is = 0; is < ns; is++)
+    {
       grid->interpN2C(rhocs, is, rhons);
+      part[i].maxwellian(rhocs);
+    }
   }
 }
 
 
 /*! initialize GEM challenge with no Perturbation with dipole-like tail topology */
-void c_Solver::initGEMDipoleLikeTailNoPert()
+void MIsolver::initGEMDipoleLikeTailNoPert(
+  EMfields3D& EMf, Particles3Dcomm* part)
 {
-  arr4_double rhons = fetch_rhons();
+  array4_double rhons(ns,nxn,nyn,nzn);
+  array4_double rhocs(ns,nxc,nyc,nzc);
+
   arr3_double Bxn = fetch_Bxn();
   arr3_double Byn = fetch_Byn();
   arr3_double Bzn = fetch_Bzn();
-  arr3_double Exn = fetch_Ex();
-  arr3_double Eyn = fetch_Ey();
-  arr3_double Ezn = fetch_Ez();
+  arr3_double Ex = fetch_Ex();
+  arr3_double Ey = fetch_Ey();
+  arr3_double Ez = fetch_Ez();
+
   const Grid *grid = &get_grid();
   const double Lx = get_col().getLx();
   const double Ly = get_col().getLy();
@@ -1286,6 +1667,7 @@ void c_Solver::initGEMDipoleLikeTailNoPert()
   const double B0x = get_col().getB0x();
   const double B0y = get_col().getB0y();
   const double B0z = get_col().getB0z();
+  const Grid *grid = &get_grid();
   // parameters controling the field topology
   // e.g., x1=Lx/5,x2=Lx/4 give 'separated' fields, x1=Lx/4,x2=Lx/3 give 'reconnected' topology
 
@@ -1297,6 +1679,7 @@ void c_Solver::initGEMDipoleLikeTailNoPert()
   double pi = 3.1415927;
   double r1, r2, delta_x1x2;
 
+  assert(col->getRestart_status()==0);
   // initialize
   {
     if (get_vct().getCartesian_rank() == 0) {
@@ -1365,25 +1748,30 @@ void c_Solver::initGEMDipoleLikeTailNoPert()
 
         }
     for (int is = 0; is < ns; is++)
+    {
       grid->interpN2C(rhocs, is, rhons);
-  }
-  else {
-    init_from_restart();
+      part[i].maxwellian(rhocs);
+    }
   }
 }
 
 /*! initialize GEM challenge with no Perturbation */
-void c_Solver::initGEMnoPert()
+void MIsolver::initGEMnoPert(EMfields3D& EMf, Particles3Dcomm* part)
 {
+  array4_double rhons(ns,nxn,nyn,nzn);
+  array4_double rhocs(ns,nxc,nyc,nzc);
+
+  arr3_double Bxn = fetch_Bxn();
+  arr3_double Byn = fetch_Byn();
+  arr3_double Bzn = fetch_Bzn();
+  arr3_double Ex = fetch_Ex();
+  arr3_double Ey = fetch_Ey();
+  arr3_double Ez = fetch_Ez();
+
   const Collective *col = &get_col();
   const VirtualTopology3D *vct = &get_vct();
   const Grid *grid = &get_grid();
-  const double Lx = get_col().getLx();
-  const double Ly = get_col().getLy();
-  const double Lz = get_col().getLz();
-  const double B0x = get_col().getB0x();
-  const double B0y = get_col().getB0y();
-  const double B0z = get_col().getB0z();
+  assert(col->getRestart_status()==0);
   // initialize
   {
     if (get_vct().getCartesian_rank() == 0) {
@@ -1435,22 +1823,33 @@ void c_Solver::initGEMnoPert()
 
         }
     for (int is = 0; is < ns; is++)
+    {
       grid->interpN2C(rhocs, is, rhons);
+      part[i].maxwellian(rhocs);
+    }
   }
 }
 
 // new init, random problem
-void c_Solver::initRandomField()
+void MIsolver::initRandomField(EMfields3D& EMf, Particles3Dcomm* part)
 {
+  array4_double rhons(ns,nxn,nyn,nzn);
+  array4_double rhocs(ns,nxc,nyc,nzc);
+
+  arr3_double Ex = EMf->fetch_Ex();
+  arr3_double Ey = EMf->fetch_Ey();
+  arr3_double Ez = EMf->fetch_Ez();
+  arr3_double Bxc = EMf->fetch_Bxc();
+  arr3_double Byc = EMf->fetch_Byc();
+  arr3_double Bzc = EMf->fetch_Bzc();
+  arr3_double Bxn = EMf->fetch_Bxn();
+  arr3_double Byn = EMf->fetch_Byn();
+  arr3_double Bzn = EMf->fetch_Bzn();
+
   const VirtualTopology3D *vct = &get_vct();
   const Grid *grid = &get_grid();
-  const double Lx = get_col().getLx();
-  const double Ly = get_col().getLy();
-  const double Lz = get_col().getLz();
-  const double B0x = get_col().getB0x();
-  const double B0y = get_col().getB0y();
-  const double B0z = get_col().getB0z();
   double **modes_seed = newArr2(double, 7, 7);
+  assert(col->getRestart_status()!=0)
   // initialize
   {
     if (get_vct().getCartesian_rank() ==0){
@@ -1560,41 +1959,43 @@ void c_Solver::initRandomField()
 	    }
 	}
 	  // communicate ghost
-	  const int BCnx[6] = { 1, 1, 2, 2, 1, 1};
-	  const int BCny[6] = { 1, 1, 1, 1, 1, 1};
-	  const int BCnz[6] = { 1, 1, 2, 2, 1, 1};
-	  communicateNodeBC(nxn, nyn, nzn, Bxn, BCnx, vct);
-	  communicateNodeBC(nxn, nyn, nzn, Byn, BCny, vct);
-	  communicateNodeBC(nxn, nyn, nzn, Bzn, BCnz, vct);
+	  communicateNodeBC(nxn, nyn, nzn, Bxn, 1, 1, 2, 2, 1, 1, vct);
+	  communicateNodeBC(nxn, nyn, nzn, Byn, 1, 1, 1, 1, 1, 1, vct);
+	  communicateNodeBC(nxn, nyn, nzn, Bzn, 1, 1, 2, 2, 1, 1, vct);
 	  // initialize B on centers
 	  grid->interpN2C(Bxc, Bxn);
 	  grid->interpN2C(Byc, Byn);
 	  grid->interpN2C(Bzc, Bzn);
 	  // communicate ghost
-	  const int BCcx = {2, 2, 2, 2, 2, 2};
-	  const int BCcy = {1, 1, 1, 1, 1, 1};
-	  const int BCcz = {2, 2, 2, 2, 2, 2};
-	  communicateCenterBC(nxc, nyc, nzc, Bxc, BCcx, vct);
-	  communicateCenterBC(nxc, nyc, nzc, Byc, BCcy, vct);
-	  communicateCenterBC(nxc, nyc, nzc, Bzc, BCcz, vct);
+	  communicateCenterBC(nxc, nyc, nzc, Bxc, 2, 2, 2, 2, 2, 2, vct);
+	  communicateCenterBC(nxc, nyc, nzc, Byc, 1, 1, 1, 1, 1, 1, vct);
+	  communicateCenterBC(nxc, nyc, nzc, Bzc, 2, 2, 2, 2, 2, 2, vct);
 	  for (int is=0 ; is<ns; is++)
             grid->interpN2C(rhocs,is,rhons);
-    }
+  }
   delArr2(modes_seed, 7);
 }
 
 
 /*! Init Force Free (JxB=0) */
-void c_Solver::initForceFree()
+void MIsolver::initForceFree(EMfields3D& EMf, Particles3Dcomm* part)
 {
+  array4_double rhons(ns,nxn,nyn,nzn);
+  array4_double rhocs(ns,nxc,nyc,nzc);
+
+  arr3_double Ex = EMf->fetch_Ex();
+  arr3_double Ey = EMf->fetch_Ey();
+  arr3_double Ez = EMf->fetch_Ez();
+  arr3_double Bxc = EMf->fetch_Bxc();
+  arr3_double Byc = EMf->fetch_Byc();
+  arr3_double Bzc = EMf->fetch_Bzc();
+  arr3_double Bxn = EMf->fetch_Bxn();
+  arr3_double Byn = EMf->fetch_Byn();
+  arr3_double Bzn = EMf->fetch_Bzn();
+
   const VirtualTopology3D *vct = &get_vct();
   const Grid *grid = &get_grid();
-  const double Lx = get_col().getLx();
-  const double Ly = get_col().getLy();
-  const double Lz = get_col().getLz();
-  const double B0x = get_col().getB0x();
-  const double B0y = get_col().getB0y();
-  const double B0z = get_col().getB0z();
+  assert (col->getRestart_status() == 0);
   // initialize
   {
     if (get_vct().getCartesian_rank() == 0) {
@@ -1642,216 +2043,13 @@ void c_Solver::initForceFree()
         }
 
     for (int is = 0; is < ns; is++)
+    {
       grid->interpN2C(rhocs, is, rhons);
-  }
-}
-/*! Initialize the EM field with constants values or from restart */
-void EMfields3D::initBEAM(double x_center, double y_center, double z_center,
-  double radius)
-{
-  const Grid *grid = &get_grid();
-
-  double distance;
-  // initialize E and rhos on nodes
-  {
-    for (int i = 0; i < nxn; i++)
-      for (int j = 0; j < nyn; j++)
-        for (int k = 0; k < nzn; k++) {
-          Ex[i][j][k] = 0.0;
-          Ey[i][j][k] = 0.0;
-          Ez[i][j][k] = 0.0;
-          Bxn[i][j][k] = 0.0;
-          Byn[i][j][k] = 0.0;
-          Bzn[i][j][k] = 0.0;
-          distance = (grid->getXN(i, j, k) - x_center) * (grid->getXN(i, j, k) - x_center) / (radius * radius) + (grid->getYN(i, j, k) - y_center) * (grid->getYN(i, j, k) - y_center) / (radius * radius) + (grid->getZN(i, j, k) - z_center) * (grid->getZN(i, j, k) - z_center) / (4 * radius * radius);
-          // plasma
-          rhons[0][i][j][k] = rhoINIT[0] / FourPI;  // initialize with constant density
-          // electrons
-          rhons[1][i][j][k] = rhoINIT[1] / FourPI;
-          // beam
-          if (distance < 1.0)
-            rhons[2][i][j][k] = rhoINIT[2] / FourPI;
-          else
-            rhons[2][i][j][k] = 0.0;
-        }
-    // initialize B on centers
-    for (int i = 0; i < nxc; i++)
-      for (int j = 0; j < nyc; j++)
-        for (int k = 0; k < nzc; k++) {
-          // Magnetic field
-          Bxc[i][j][k] = 0.0;
-          Byc[i][j][k] = 0.0;
-          Bzc[i][j][k] = 0.0;
-        }
-    for (int is = 0; is < ns; is++)
-      grid->interpN2C(rhocs, is, rhons);
-  }
-}
-
-/*! Initialise a combination of magnetic dipoles */
-void EMfields3D::initDipole()
-{
-  const Collective *col = &get_col();
-  const VirtualTopology3D *vct = &get_vct();
-  const Grid *grid = &get_grid();
-
-  double distance;
-
-  double ebc[3];
-  cross_product(ue0,ve0,we0,B0x,B0y,B0z,ebc);
-  scale(ebc,-1.0,3);
-
-  // initialize rhons and E
-  for (int i=0; i < nxn; i++)
-  for (int j=0; j < nyn; j++)
-  for (int k=0; k < nzn; k++)
-  {
-    for (int is=0; is < ns; is++){
-      rhons[is][i][j][k] = rhoINIT[is]/FourPI;
+      part[i].force_free(is, rhocs);
     }
-    Ex[i][j][k] = ebc[0];
-    Ey[i][j][k] = ebc[1];
-    Ez[i][j][k] = ebc[2];
   }
-
-  // Compute dipolar field B_ext
-  //
-  // allocate external magnetic field
-  {
-    if(!Bx_ext) Bx_ext = new array3_double(nxn,nyn,nzn);
-    if(!By_ext) By_ext = new array3_double(nxn,nyn,nzn);
-    if(!Bz_ext) Bz_ext = new array3_double(nxn,nyn,nzn);
-    Bx_ext->setall(0.);
-    By_ext->setall(0.);
-    Bz_ext->setall(0.);
-  }
-  // initialize external magnetic field
-  for (int i=0; i < nxn; i++)
-  for (int j=0; j < nyn; j++)
-  for (int k=0; k < nzn; k++)
-  {
-    double blp[3];
-    // Set coil diameter
-    double a=delta;
-
-    double xc=x_center;
-    double yc=y_center;
-    double zc=z_center;
-
-    double x = grid->getXN(i,j,k);
-    double y = grid->getYN(i,j,k);
-    double z = grid->getZN(i,j,k);
-
-    loopZ(blp, x, y, z, a, xc, yc, zc, B1z);
-    (*Bx_ext)[i][j][k]  += blp[0];
-    (*By_ext)[i][j][k]  += blp[1];
-    (*Bz_ext)[i][j][k]  += blp[2];
-    loopX(blp, x, y, z, a, xc, yc, zc, B1x);
-    (*Bx_ext)[i][j][k] += blp[0];
-    (*By_ext)[i][j][k] += blp[1];
-    (*Bz_ext)[i][j][k] += blp[2];
-    loopY(blp, x, y, z, a, xc, yc, zc, B1y);
-    (*Bx_ext)[i][j][k] += blp[0];
-    (*By_ext)[i][j][k] += blp[1];
-    (*Bz_ext)[i][j][k] += blp[2];
-  }
-
-  // calculate the external current for reporting purposes
-  //
-  // set Bxn including Bx_ext
-  for (int i=0; i < nxn; i++)
-  for (int j=0; j < nyn; j++)
-  for (int k=0; k < nzn; k++)
-  {
-    // We want a well-balanced sheme, where the equilibrium is an
-    // exact solution of the discretized equations, so
-    // Bx_ext should not be included in Bxn.
-    // But we initially include it here as a means to
-    // compute Jx_ext (to be used only for reporting purposes)
-    // and then reset it.
-    //
-    Bxn[i][j][k] = B0x + (*Bx_ext)[i][j][k];
-    Byn[i][j][k] = B0y + (*By_ext)[i][j][k];
-    Bzn[i][j][k] = B0z + (*Bz_ext)[i][j][k];
-  }
-  //
-  grid->interpN2C(Bxc,Bxn);
-  grid->interpN2C(Byc,Byn);
-  grid->interpN2C(Bzc,Bzn);
-  //
-  communicateCenterBC_P(nxc, nyc, nzc, Bxc, col->bcBx, vct);
-  communicateCenterBC_P(nxc, nyc, nzc, Byc, col->bcBy, vct);
-  communicateCenterBC_P(nxc, nyc, nzc, Bzc, col->bcBz, vct);
-  //
-  // initialize J_ext =c/4*pi curl(B) on nodes (current due to the dipole)
-  //
-  // the external current plays no part in the algorithm;
-  // it is only for reporting the net current.
-  Jx_ext = new array3_double(nxn,nyn,nzn);
-  Jy_ext = new array3_double(nxn,nyn,nzn);
-  Jz_ext = new array3_double(nxn,nyn,nzn);
-  grid->curlC2N(tempXN,tempYN,tempZN,Bxc,Byc,Bzc);
-  scale(Jx_ext,tempXN,c/FourPI,nxn,nyn,nzn);
-  scale(Jy_ext,tempYN,c/FourPI,nxn,nyn,nzn);
-  scale(Jz_ext,tempZN,c/FourPI,nxn,nyn,nzn);
-
-  // reset Bxn, excluding Bx_ext
-  for (int i=0; i < nxn; i++)
-  for (int j=0; j < nyn; j++)
-  for (int k=0; k < nzn; k++)
-  {
-    Bxn[i][j][k] = B0x;
-    Byn[i][j][k] = B0y;
-    Bzn[i][j][k] = B0z;
-  }
-  // update Bxc
-  {
-    grid->interpN2C(Bxc,Bxn);
-    grid->interpN2C(Byc,Byn);
-    grid->interpN2C(Bzc,Bzn);
-    //
-    communicateCenterBC_P(nxc, nyc, nzc, Bxc, col->bcBx, vct);
-    communicateCenterBC_P(nxc, nyc, nzc, Byc, col->bcBy, vct);
-    communicateCenterBC_P(nxc, nyc, nzc, Bzc, col->bcBz, vct);
-  }
-
-  for (int is=0 ; is<ns; is++)
-    grid->interpN2C(rhocs,is,rhons);
-
-  if (restart1 != 0) {
-    init();  // use the fields from restart file
-  }
-
 }
-
-/*! initialize EM field with transverse electric waves 1D and rotate anticlockwise (theta degrees) */
-void c_Solver::initEM_rotate(double B, double theta)
-{
-  const Grid *grid = &get_grid();
-
-  // initialize E and rhos on nodes
-  for (int i = 0; i < nxn; i++)
-    for (int j = 0; j < nyn; j++) {
-      Ex[i][j][0] = 0.0;
-      Ey[i][j][0] = 0.0;
-      Ez[i][j][0] = 0.0;
-      Bxn[i][j][0] = B * cos(theta * M_PI / 180);
-      Byn[i][j][0] = B * sin(theta * M_PI / 180);
-      Bzn[i][j][0] = 0.0;
-      rhons[0][i][j][0] = 0.07957747154595; // electrons: species is now first index
-      rhons[1][i][j][0] = 0.07957747154595; // protons: species is now first index
-    }
-  // initialize B on centers
-  grid->interpN2C(Bxc, Bxn);
-  grid->interpN2C(Byc, Byn);
-  grid->interpN2C(Bzc, Bzn);
-
-
-  for (int is = 0; is < ns; is++)
-    grid->interpN2C(rhocs, is, rhons);
-}
-
-// === end initialization_routines ===
+//#endif // other_initialization_routines
 
 // === Section boundary_condition_routines ===
 
@@ -2772,12 +2970,12 @@ void Imoments::ConstantChargePlanet()
 
 // === Section output_reporting_routines ===
 
-arr3_double EMfields3D::getBxc() { return ca.get_no_ghosts(Bxc); }
-arr3_double EMfields3D::getByc() { return ca.get_no_ghosts(Byc); }
-arr3_double EMfields3D::getBzc() { return ca.get_no_ghosts(Bzc); }
-arr3_double EMfields3D::getExc() { return ca.get_N2C_no_ghosts(Ex); }
-arr3_double EMfields3D::getEyc() { return ca.get_N2C_no_ghosts(Ey); }
-arr3_double EMfields3D::getEzc() { return ca.get_N2C_no_ghosts(Ez); }
+arr3_double EMfields3D::ret_Bxc() { return ca.get_no_ghosts(Bxc); }
+arr3_double EMfields3D::ret_Byc() { return ca.get_no_ghosts(Byc); }
+arr3_double EMfields3D::ret_Bzc() { return ca.get_no_ghosts(Bzc); }
+arr3_double EMfields3D::ret_Exc() { return ca.get_N2C_no_ghosts(Ex); }
+arr3_double EMfields3D::ret_Eyc() { return ca.get_N2C_no_ghosts(Ey); }
+arr3_double EMfields3D::ret_Ezc() { return ca.get_N2C_no_ghosts(Ez); }
 
 /*! get the electric field energy */
 double EMfields3D::getEenergy(void) {
@@ -2814,16 +3012,3 @@ double EMfields3D::getBenergy(void) {
 
 // === Section output_reporting_routines ===
 
-/*! destructor*/
-EMfields3D::~EMfields3D() {
-  delete [] qom;
-  delete [] rhoINIT;
-  delete injFieldsLeft;
-  delete injFieldsRight;
-  delete injFieldsTop;
-  delete injFieldsBottom;
-  delete injFieldsFront;
-  delete injFieldsRear;
-  for(int i=0;i<sizeMomentsArray;i++) { delete moments10Array[i]; }
-  delete [] moments10Array;
-}

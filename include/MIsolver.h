@@ -15,11 +15,11 @@ namespace iPic3D
   private:
     const Setting &setting;
     Imoments      *iMoments;
+    Pmoments      *pMoments;
     EMfields3D    *EMf; // implicit field solver
     Kinetics      *kinetics;
     array4_double *fieldForPcls;
-    //array4_double fieldForPcls;
-    Timing        *my_clock;
+    Timing        *my_clock; // deprecated
     //
     // output
     //
@@ -29,13 +29,7 @@ namespace iPic3D
     // convenience variables
     //const int ns;
 
-    // accessors
-
-  public:
-    //EMfields3D& fetch_fieldSolver() {return *EMf;}
-    //Kinetics& fetch_kinetics() {return *kinetics;}
-    
-    //
+  public: // accessors
     OutputWrapperFPP& fetch_outputWrapperFPP(){
       assert(outputWrapperFPP);
       return *outputWrapperFPP;

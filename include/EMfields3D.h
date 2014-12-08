@@ -117,21 +117,44 @@ class EMfields3D
     double getBy(int X, int Y, int Z) const { return Byn.get(X,Y,Z);}
     double getBz(int X, int Y, int Z) const { return Bzn.get(X,Y,Z);}
     //
-    arr3_double getEx() { return Ex; }
-    arr3_double getEy() { return Ey; }
-    arr3_double getEz() { return Ez; }
-    arr3_double getBx() { return Bxn; }
-    arr3_double getBy() { return Byn; }
-    arr3_double getBz() { return Bzn; }
+    //arr3_double getEx() { return Ex; }
+    //arr3_double getEy() { return Ey; }
+    //arr3_double getEz() { return Ez; }
+    //arr3_double getBx() { return Bxn; }
+    //arr3_double getBy() { return Byn; }
+    //arr3_double getBz() { return Bzn; }
+
+    arr3_double fetch_Ex() { return Ex; }
+    arr3_double fetch_Ey() { return Ey; }
+    arr3_double fetch_Ez() { return Ez; }
+    arr3_double fetch_Bxn() { return Bxn; }
+    arr3_double fetch_Byn() { return Byn; }
+    arr3_double fetch_Bzn() { return Bzn; }
+    arr3_double fetch_Bxc() { return Bxc; }
+    arr3_double fetch_Byc() { return Byc; }
+    arr3_double fetch_Bzc() { return Bzc; }
+    arr3_double fetch_Bx_ext() { return Bx_ext; }
+    arr3_double fetch_By_ext() { return By_ext; }
+    arr3_double fetch_Bz_ext() { return Bz_ext; }
+
+    const_arr3_double get_Ex()const{ return Ex; }
+    const_arr3_double get_Ey()const{ return Ey; }
+    const_arr3_double get_Ez()const{ return Ez; }
+    const_arr3_double get_Bxn()const{ return Bxn; }
+    const_arr3_double get_Byn()const{ return Byn; }
+    const_arr3_double get_Bzn()const{ return Bzn; }
+    const_arr3_double get_Bxc()const{ return Bxc; }
+    const_arr3_double get_Byc()const{ return Byc; }
+    const_arr3_double get_Bzc()const{ return Bzc; }
 
     // field components without ghost cells
     //
-    arr3_double getExc();
-    arr3_double getEyc();
-    arr3_double getEzc();
-    arr3_double getBxc();
-    arr3_double getByc();
-    arr3_double getBzc();
+    //arr3_double getExc();
+    //arr3_double getEyc();
+    //arr3_double getEzc();
+    //arr3_double getBxc();
+    //arr3_double getByc();
+    //arr3_double getBzc();
 
     /*! get the electric field energy */
     double getEenergy();
@@ -270,7 +293,9 @@ class EMfields3D
 
     // external current, defined on nodes
     // (only used for reporting net current)
-    arr3_double  *J_ext;
+    array3_double  *Jx_ext;
+    array3_double  *Jy_ext;
+    array3_double  *Jz_ext;
     /*! Field Boundary Condition
       0 = Dirichlet Boundary Condition: specifies the
           value on the boundary of the domain
@@ -327,48 +352,10 @@ class EMfields3D
       int nx, int ny, int nz);
 };
 
-inline void get_field_components_for_cell(
-  const double* field_components[8],
-  const_arr4_double aosEMfield,
-  int cx,int cy,int cz)
-{
-  // interface to the right of cell
-  const int ix = cx+1;
-  const int iy = cy+1;
-  const int iz = cz+1;
+// called by GMRES and CG
+void PoissonImage(double *image, double *vector, void** registered_data);
 
-  // is this faster?
-  //
-  //field_components[0] = aosEMfield[ix][iy][iz]; // field000
-  //field_components[1] = aosEMfield[ix][iy][cz]; // field001
-  //field_components[2] = aosEMfield[ix][cy][iz]; // field010
-  //field_components[3] = aosEMfield[ix][cy][cz]; // field011
-  //field_components[4] = aosEMfield[cx][iy][iz]; // field100
-  //field_components[5] = aosEMfield[cx][iy][cz]; // field101
-  //field_components[6] = aosEMfield[cx][cy][iz]; // field110
-  //field_components[7] = aosEMfield[cx][cy][cz]; // field111
-  //
-  // or is this?
-  //
-  // creating these aliases seems to accelerate this method (by about 30%?)
-  // on the Xeon host processor, suggesting deficiency in the optimizer.
-  //
-  arr3_double_get field0 = aosEMfield[ix];
-  arr3_double_get field1 = aosEMfield[cx];
-  arr2_double_get field00 = field0[iy];
-  arr2_double_get field01 = field0[cy];
-  arr2_double_get field10 = field1[iy];
-  arr2_double_get field11 = field1[cy];
-  field_components[0] = &(field00[iz][0]); // field000 
-  field_components[1] = &(field00[cz][0]); // field001 
-  field_components[2] = &(field01[iz][0]); // field010 
-  field_components[3] = &(field01[cz][0]); // field011 
-  field_components[4] = &(field10[iz][0]); // field100 
-  field_components[5] = &(field10[cz][0]); // field101 
-  field_components[6] = &(field11[iz][0]); // field110 
-  field_components[7] = &(field11[cz][0]); // field111 
-}
-
+// deprecated
 typedef EMfields3D Field;
 
 #endif

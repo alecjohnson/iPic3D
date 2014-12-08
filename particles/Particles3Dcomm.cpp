@@ -53,9 +53,9 @@ using std::endl;
 
 static bool print_pcl_comm_counts = false;
 
-static void print_pcl(SpeciesParticle& pcl, int ns)
+static void print_pcl(SpeciesParticle& pcl, int is)
 {
-  dprintf("--- pcl spec %d ---", ns);
+  dprintf("--- pcl spec %d ---", is);
   dprintf("u = %+6.4f", pcl.get_u());
   dprintf("v = %+6.4f", pcl.get_v());
   dprintf("w = %+6.4f", pcl.get_w());
@@ -66,11 +66,11 @@ static void print_pcl(SpeciesParticle& pcl, int ns)
   dprintf("t = %5.0f", pcl.get_t());
 }
 
-static void print_pcls(vector_SpeciesParticle& pcls, int start, int ns)
+static void print_pcls(vector_SpeciesParticle& pcls, int start, int is)
 {
   for(int pidx=start; pidx<pcls.size();pidx++)
   {
-    dprintf("--- particle %d.%d ---", ns,pidx);
+    dprintf("--- particle %d.%d ---", is,pidx);
     dprintf("u[%d] = %+6.4f", pidx, pcls[pidx].get_u());
     dprintf("v[%d] = %+6.4f", pidx, pcls[pidx].get_v());
     dprintf("w[%d] = %+6.4f", pidx, pcls[pidx].get_w());
@@ -81,14 +81,14 @@ static void print_pcls(vector_SpeciesParticle& pcls, int start, int ns)
     dprintf("t[%d] = %5.0f", pidx, pcls[pidx].get_t());
   }
 }
-void print_pcls(vector_SpeciesParticle& pcls, int ns, longid* id_list, int num_ids)
+void print_pcls(vector_SpeciesParticle& pcls, int is, longid* id_list, int num_ids)
 {
-  dprintf("=== species %d, with %d pcls ===", ns, pcls.size());
+  dprintf("=== species %d, with %d pcls ===", is, pcls.size());
   for(int pidx=0; pidx<pcls.size();pidx++)
   for(int i=0;i<num_ids;i++)
   if(pcls[pidx].get_ID()==id_list[i])
   {
-    dprintf("--- particle %d.%d ---", ns,pidx);
+    dprintf("--- particle %d.%d ---", is,pidx);
     dprintf("u[%d] = %+6.4f", pidx, pcls[pidx].get_u());
     dprintf("v[%d] = %+6.4f", pidx, pcls[pidx].get_v());
     dprintf("w[%d] = %+6.4f", pidx, pcls[pidx].get_w());
@@ -114,7 +114,7 @@ Particles3Dcomm::Particles3Dcomm(
   int species_number,
   const Setting& setting_)
  :
-  ns(species_number),
+  is(species_number),
   setting(setting_),
   vct(&setting.vct()),
   grid(&setting.grid()),
@@ -299,7 +299,7 @@ Particles3Dcomm::Particles3Dcomm(
   if(false && is_output_thread())
   {
     printf("species %d velocity cap: umax=%g,vmax=%g,wmax=%g\n",
-      ns, umax,vmax,wmax);
+      get_species_num(), umax,vmax,wmax);
   }
 }
 
@@ -663,7 +663,7 @@ void Particles3Dcomm::apply_BCs_globally(vector_SpeciesParticle& pcl_list)
     // (e.g. we have a runaway particle).
     if(i>=100)
     {
-      print_pcls(pcl_list,pstart, ns);
+      print_pcls(pcl_list,pstart, get_species_num());
       dprint(pstart);
       dprint(pcl_list.size());
       eprintf("something went wrong.")
@@ -914,7 +914,7 @@ int Particles3Dcomm::handle_received_particles(int pclCommMode)
           num_pcls_resent++;
           if(pclCommMode&print_sent_pcls)
           {
-            print_pcl(pcl,ns);
+            print_pcl(pcl,get_species_num());
           }
         }
         else
@@ -933,10 +933,10 @@ int Particles3Dcomm::handle_received_particles(int pclCommMode)
 
   if(print_pcl_comm_counts)
   {
-    dprintf("spec %d recved_count: %d+%d+%d+%d+%d+%d=%d", ns,
+    dprintf("spec %d recved_count: %d+%d+%d+%d+%d+%d=%d", get_species_num(),
       recv_count[0], recv_count[1], recv_count[2],
       recv_count[3], recv_count[4], recv_count[5], num_pcls_recved);
-    dprintf("spec %d resent_count: %d+%d+%d+%d+%d+%d=%d", ns,
+    dprintf("spec %d resent_count: %d+%d+%d+%d+%d+%d=%d", get_species_num(),
       send_count[0], send_count[1], send_count[2],
       send_count[3], send_count[4], send_count[5], num_pcls_resent);
   }
@@ -1180,7 +1180,7 @@ int Particles3Dcomm::separate_and_send_particles()
   // why does it happen that multiple particles have an ID of 0?
   const int num_ids = 1;
   longid id_list[num_ids] = {0};
-  //print_pcls(_pcls,ns,id_list, num_ids);
+  //print_pcls(_pcls,get_species_num(),id_list, num_ids);
   timeTasks_set_communicating(); // communicating until end of scope
 
   convertParticlesToAoS();
@@ -1232,7 +1232,7 @@ int Particles3Dcomm::separate_and_send_particles()
   const int num_pcls_sent = num_pcls_initially - num_pcls_unsent;
   if(print_pcl_comm_counts)
   {
-    dprintf("spec %d send_count: %d+%d+%d+%d+%d+%d=%d",ns,
+    dprintf("spec %d send_count: %d+%d+%d+%d+%d+%d=%d",get_species_num(),
       send_count[0], send_count[1], send_count[2],
       send_count[3], send_count[4], send_count[5],num_pcls_sent);
   }
@@ -1294,7 +1294,7 @@ void Particles3Dcomm::recommunicate_particles_until_done(int min_num_iterations)
   {
     flush_send(); // flush sending of particles
     num_pcls_sent = handle_received_particles();
-    //dprintf("spec %d #pcls sent = %d", ns, num_pcls_sent);
+    //dprintf("spec %d #pcls sent = %d", get_species_num(), num_pcls_sent);
   }
 
   // apply boundary conditions to incoming particles
@@ -1323,7 +1323,7 @@ void Particles3Dcomm::recommunicate_particles_until_done(int min_num_iterations)
   long long total_num_pcls_sent = mpi_global_sum(num_pcls_sent);
   if(print_pcl_comm_counts)
     dprintf("spec %d pcls sent: %d, %d",
-      ns, num_pcls_sent, total_num_pcls_sent);
+      get_species_num(), num_pcls_sent, total_num_pcls_sent);
 
   // the maximum number of neighbor communications that would
   // be needed to put a particle in the correct mesh cell

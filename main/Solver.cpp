@@ -31,56 +31,35 @@ using namespace iPic3D;
 
 // === Section: MIsolver_routines ===
 
+/*! initialize Moments with initial configuration */
 // todo: separate out this problem-specific code
 //
-void c_Solver::set_initial_conditions()
+void MIsolver::set_initial_conditions()
 {
-  if (col->getCase()=="Dipole")         initDipole();
+  string Case = col->getCase;
+  int restart_status = col->getRestart_status();
+
+  if (Case()=="Dipole")       initDipole(EMf, part);
   // cases prior to this point are responsible for their own restarts
-  else if(col->getRestart_status())     init_from_restart();
+  else if(restart_status)     init_from_restart(EMf, part);
   // cases that use rhon to set rhoc
-  else if (col->getCase()=="restart")   init_from_restart();
-  else if (col->getCase()=="GEM")       initGEM();
-  else if (col->getCase()=="GEMnoPert") initGEMnoPert();
-  else if (col->getCase()=="ForceFree") initForceFree();
-  else if (col->getCase()=="GEM")       initGEM();
+  //else if (col->getCase()=="restart")   init_from_restart();
+  else if (Case=="GEM")       initGEM(EMf, part);
+  //else if (Case=="GEMnoPert") initGEMnoPert();
+  else if (Case=="ForceFree") initForceFree(EMf, part);
   // cases that use rhoc to set rhon
 #ifdef BATSRUS
-  else if (col->getCase()=="BATSRUS")   initBATSRUS();
+  else if (Case=="BATSRUS")   initBATSRUS(EMf, part);
 #endif
-  else if (col->getCase()=="RandomCase")initRandomField();
+  //else if (Case=="RandomCase")initRandomField();
   else {
-    eprintf("Case=%s in inputfile is not supported.", col->getCase());
+    eprintf("Case=%s in inputfile is not supported.", Case);
   }
-  //if (myrank==0) {
-  //  cout << "Case is " << col->getCase() <<"\n";
-  //  cout <<"total # of particle per cell is " << col->getNpcel(0) << "\n";
-  //}
 
-  // OpenBC
-  EMf->updateInfoFields();
-
-  // Allocation of particles
-  // part = new Particles3D[ns];
-  part = (Particles3D*) malloc(sizeof(Particles3D)*ns);
-  for (int i = 0; i < ns; i++)
-  {
-    new(&part[i]) Particles3D(i,col,vct,grid);
-  }
-  //particleSolver = new ParticleSolver(col,vct,grid);
-
-  // Initial Condition for PARTICLES if you are not starting from RESTART
   if(col->getRestart_status() == 0)
   {
-    // wave = new Planewave(col, EMf, grid, vct);
-    // wave->Wave_Rotated(part); // Single Plane Wave
     for (int i = 0; i < ns; i++)
     {
-      if      (col->getCase()=="ForceFree") part[i].force_free(EMf);
-#ifdef BATSRUS
-      else if (col->getCase()=="BATSRUS")   part[i].MaxwellianFromFluid(col,i);
-#endif
-      else                                  part[i].maxwellian(EMf);
       part[i].reserve_remaining_particle_IDs();
     }
   }
@@ -101,6 +80,7 @@ void MIsolver::initialize_output()
 MIsolver::~MIsolver()
 {
   delete pMoments;
+  delete iMoments;
   delete EMf; // field
   delete kinetics;
   delete fieldForPcls;
@@ -128,6 +108,7 @@ MIsolver::~MIsolver()
 MIsolver::MIsolver(int argc, char **argv)
 : setting(*new Setting(argc, argv)),
   iMoments(0),
+  pMoments(0),
   EMf(0),
   pMoments(0),
   kinetics(0),
@@ -143,18 +124,31 @@ MIsolver::MIsolver(int argc, char **argv)
   assert_eq(DVECWIDTH,8);
   #endif
 
-  iMoments = new Imoments(setting);
-  EMf = new EMfields3D(setting, iMoments);
+  const int nxn = setting.grid().get_nxn();
+  const int nyn = setting.grid().get_nyn();
+  const int nzn = setting.grid().get_nzn();
   kinetics = new Kinetics(setting);
   pMoments = new Pmoments(setting);
-
-  set_initial_conditions();
-
-  initialize_output();
+  iMoments = new Imoments(setting);
+  EMf = new EMfields3D(setting, iMoments);
+  fieldsForPcls = new array4_double(nxn,nyn,nzn,2*DFIELD_3or4);
 
   my_clock = new Timing(vct->get_rank());
 
   return 0;
+}
+
+// sets:
+//  * En, Bc, Bn, Bext, Btot,
+//  * rhocs [should set full set of moments]
+//  * particles
+void MIsolver::initialize()
+{
+  set_initial_conditions();
+
+  EMf->update_total_B();
+
+  initialize_output();
 }
 
 void MIsolver::compute_moments()
@@ -184,11 +178,6 @@ void MIsolver::compute_moments()
     Bz = EMf->get_Bz_tot();
   }
   iMoments->compute_from_primitive_moments(pMoments, Bx, By, Bz);
-
-  // could wait to do this until field solve
-  //
-  // calculate the hat quantities for the implicit method
-  EMf->calculateRhoHat();
 }
 
 // This method should send or receive field
@@ -241,6 +230,7 @@ void MIsolver::advance_Efield()
   timeTasks_set_main_task(TimeTasks::FIELDS);
   if(I_am_field_solver())
   {
+    EMf->calculateRhoHat(get_iMoments());
     // advance the E field
     EMf->calculateE(get_iMoments());
   }
@@ -254,10 +244,11 @@ void MIsolver::advance_Bfield() {
   timeTasks_set_task(TimeTasks::BFIELD); // subtask
   // calculate the B field
   EMf->advanceB();
-  // coupling: send_Bfield_to_kinetics();
-  // (This communication should be easily hidden,
-  // since the solver does not need to receive Bfield
-  // until just prior to the particle move.)
+
+  if(I_am_field_solver())
+  {
+    // begin sending of B_smooth to kinetic solver
+  }
 }
 
 // this method should be a no-op on the cluster
@@ -464,7 +455,7 @@ void MIsolver::Finalize() {
 // C = "lives on Cluster"
 // B = "lives on Booster"
 //
-// C    En          = advance(dt, En, Bn, Btot, Jhat, rhon)
+// C    En          = advance(dt, En, Bn, Btot, Jhat, rhons)
 // C    Bc          = advance(dt, Bc, En)
 // C    Bn          = interpolate_to_nodes(Bc)
 // C    Btot        = Bn + Bext
@@ -475,7 +466,7 @@ void MIsolver::Finalize() {
 // C B  pMoments    = sumMoments(particles)
 // C    Jhat_coarse = compute_Jhat(pMoments, B_smooth)
 // C    Jhat        = smooth(compute_Jhat(pMoments, B_smooth)
-// C    rhon        = smooth(pMoments.rhon)
+// C    rhons       = smooth(pMoments.rhons)
 //
 // remarks:
 //  
@@ -516,6 +507,7 @@ void MIsolver::Finalize() {
 void MIsolver::run()
 {
   timeTasks.resetCycle();
+  initialize();
   compute_moments();
   for (int i = FirstCycle(); i <= FinalCycle(); i++)
   {

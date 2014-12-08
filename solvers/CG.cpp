@@ -4,16 +4,9 @@
 #include "Basic.h"
 #include "parallel.h"
 
-/**
- * 
- * Electrostatic Field with 3 components(x,y,z) defined on a 2-D grid
- * @date Fri Jun 4 2007
- * @author Stefano Markidis, Giovanni Lapenta, Enrico Camporeale, David Burgess
- * @version 2.0
- *
- */
-
-bool CG(double *xkrylov, int xkrylovlen, double *b, int maxit, double tol, FIELD_IMAGE FunctionImage, Field * field) {
+bool CG(double *xkrylov, int xkrylovlen, double *b, int maxit, double tol,
+  CG_CALLBACK callback_function, void * registered_data)
+{
   // allocate residual, image, p, b, calculated on central points
   double *r = new double[xkrylovlen];
   double *v = new double[xkrylovlen];
@@ -31,7 +24,7 @@ bool CG(double *xkrylov, int xkrylovlen, double *b, int maxit, double tol, FIELD
   // initial guess for x: all the components are equal to 0
   eqValue(0, xkrylov, xkrylovlen);
   // Compute r = b -Ax
-  (field->*FunctionImage) (im, xkrylov);
+  (*callback_function) (im, xkrylov, registered_data);
   sub(r, b, im, xkrylovlen);
   // v = r
   eq(v, r, xkrylovlen);
@@ -43,7 +36,7 @@ bool CG(double *xkrylov, int xkrylovlen, double *b, int maxit, double tol, FIELD
   if (initial_error < 1E-16)
     return (true);
   while (i < maxit) {
-    (field->*FunctionImage) (z, v);
+    (*callback_function) (z, v, registered_data);
     t = c / dotP(v, z, xkrylovlen);
     // x(i+1) = x + t*v
     addscale(t, xkrylov, v, xkrylovlen);

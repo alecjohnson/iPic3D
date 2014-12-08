@@ -13,9 +13,9 @@
 
 /*! constructor */
 Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct):
-  _vct(*vct)
+  _vct(*vct),
+  Smooth(col->getSmooth())
 {
-
   // get number of cells restricted to regular (untruncated) subdomain
   //
   //const int nxc_rr = ceil(col->getNxc() / double(col->getXLEN()));
@@ -503,10 +503,10 @@ void Grid3DCU::interpN2C(arr4_double vecFieldC, int ns, const_arr4_double vecFie
    value: if 1 nothing is done; else smoothing is done and value is ignored.
    type = 0 --> center based vector ;
    type = 1 --> node based vector ; */
-void Grid3DCU::smooth(double value, arr3_double vector,
-  int type, const int* BCs_)
+void Grid3DCU::smooth(arr3_double vector, int type, const int* BCs_)
 {
   int BCs[6];
+  double value = Smooth;
   // default BCs use 2 for every component
   for(int i=0;i<6;i++) BCs[i]=BC_ ? BCs_[i] : 2;
   int nvolte = 6;

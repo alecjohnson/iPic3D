@@ -218,9 +218,9 @@ public:
 
 public:
   // accessors
-  //int get_ns()const{return ns;}
+  //int get_ns()const{return is;}
   // return number of this species
-  int get_species_num()const{return ns;}
+  int get_species_num()const{return is;}
   int get_numpcls_in_bucket(int cx, int cy, int cz)const
   { return (*numpcls_in_bucket)[cx][cy][cz]; }
   int get_bucket_offset(int cx, int cy, int cz)const
@@ -235,7 +235,7 @@ protected:
   const Grid * grid;
   //
   /** number of this species */
-  int ns;
+  int is; // renamed this from "ns" to avoid confusion.
   /** maximum number of particles of this species on this domain. used for memory allocation */
   //int npmax;
   /** number of particles of this species on this domain */
@@ -418,7 +418,7 @@ protected:
 };
 
 // find the particles with particular IDs and print them
-void print_pcls(vector_SpeciesParticle& pcls, int ns, longid* id_list, int num_ids);
+void print_pcls(vector_SpeciesParticle& pcls, int is, longid* id_list, int num_ids);
 
 // typedef Particles3Dcomm Particles;
 

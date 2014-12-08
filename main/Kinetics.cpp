@@ -25,7 +25,7 @@ Kinetics::Kinetics(const Setting& setting_)
   for (int i = 0; i < ns; i++)
   {
     // placement new
-    new(&part[i]) Particles3D(i,col,vct,grid);
+    new(&part[i]) Particles3D(i,setting);
   }
 }
 

@@ -165,7 +165,8 @@ void Pmoments::calculateJhat(
   Jzh.setall(0.);
 
   for (int is = 0; is < ns; is++) {
-    grid->divSymmTensorN2C(tempXC, tempYC, tempZC, pXXsn, pXYsn, pXZsn, pYYsn, pYZsn, pZZsn, is);
+    grid->divSymmTensorN2C(tempXC, tempYC, tempZC,
+      pXXsn, pXYsn, pXZsn, pYYsn, pYZsn, pZZsn, is);
 
     scale(tempXC, -dt / 2.0, nxc, nyc, nzc);
     scale(tempYC, -dt / 2.0, nxc, nyc, nzc);
@@ -189,9 +190,9 @@ void Pmoments::calculateJhat(
       // as if we wait to smooth until after computing Jhat).
       for(int i=0; i<Parameters::get_num_smoothings(); i++);
       {
-        smooth(Smooth, tempXN, 1);
-        smooth(Smooth, tempYN, 1);
-        smooth(Smooth, tempZN, 1);
+        get_grid().smooth(tempXN, 1);
+        get_grid().smooth(tempYN, 1);
+        get_grid().smooth(tempZN, 1);
       }
     }
     PIdot(Jxh, Jyh, Jzh, tempXN, tempYN, tempZN,
@@ -202,18 +203,18 @@ void Pmoments::calculateJhat(
   // smoothing in the electric field.
   if(Parameters::use_original_smoothing())
   {
-    smooth(Smooth, Jxh, 1);
-    smooth(Smooth, Jyh, 1);
-    smooth(Smooth, Jzh, 1);
+    get_grid().smooth(Jxh, 1);
+    get_grid().smooth(Jyh, 1);
+    get_grid().smooth(Jzh, 1);
   }
   else if(Parameters::use_correct_smoothing()
       && !Parameters::use_perfect_smoothing())
   {
     for(int i=0; i<Parameters::get_num_smoothings(); i++);
     {
-      smooth(Smooth, Jxh, 1);
-      smooth(Smooth, Jyh, 1);
-      smooth(Smooth, Jzh, 1);
+      get_grid().smooth(Jxh, 1);
+      get_grid().smooth(Jyh, 1);
+      get_grid().smooth(Jzh, 1);
     }
   }
 }
@@ -2469,9 +2470,9 @@ Imoments::compute_from_primitive_moments(const Pmoments& pMoments,
   }
   if(Parameters::use_correct_smoothing())
   {
-    for(int i=0;i<Parameters::get_num_smoothings();i++)
     for(int is=0;is<setting.col().getNs();is++)
-      smooth(Smooth, rhons[is], 1);
+    for(int i=0;i<Parameters::get_num_smoothings();i++)
+      get_grid().smooth(rhons[is], 1);
   }
 
   // modify the charge density used to drive the electromagnetic
