@@ -24,7 +24,7 @@ developers: Stefano Markidis, Giovanni Lapenta
  * @version 2.0
  *
  */
-class Particles3Dcomm // :public Particles
+class Particles3Dcomm
 {
 public:
   /** constructor */
@@ -419,7 +419,5 @@ protected:
 
 // find the particles with particular IDs and print them
 void print_pcls(vector_SpeciesParticle& pcls, int is, longid* id_list, int num_ids);
-
-// typedef Particles3Dcomm Particles;
 
 #endif
