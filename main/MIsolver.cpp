@@ -939,7 +939,7 @@ void MIsolver::initDipole(EMfields3D& EMf, Particles3Dcomm* part)
 
     // set rhocs
     array4_double rhocs(ns,nxc,nyc,nzc);
-    for (int is=0; is < ns; is++){
+    for (int is=0; is < ns; is++)
     for (int i=0; i < nxc; i++)
     for (int j=0; j < nyc; j++)
     for (int k=0; k < nzc; k++)
