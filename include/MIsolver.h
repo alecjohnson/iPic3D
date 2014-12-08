@@ -62,11 +62,13 @@ namespace iPic3D
     int FirstCycle() { return setting.col().get_first_cycle(); }
     int FinalCycle() { return setting.col().get_final_cycle(); }
     bool is_rank0() { return setting.vct().is_rank0(); }
+    virtual bool I_am_kinetic_solver(){return true;}
+    virtual bool I_am_field_solver(){return true;}
 
   protected: // accessors
     EMfields3D& fetch_EMfields(){return *EMf;}
     MImoments& fetch_miMoments(){return *miMoments;}
-    SpeciesMoms& fetch_speciesMoms(){return speciesMoms;}
+    SpeciesMoms& fetch_speciesMoms(){return *speciesMoms;}
     const Kinetics& get_kinetics()const{return *kinetics;}
     const Collective& get_col()const{return setting.col()}
     const Grid& get_grid()const{return setting.grid();};

@@ -40,5 +40,8 @@ namespace Parameters
   bool get_doWriteOutput();
   bool use_original_smoothing(){return !use_correct_smoothing();}
   bool use_correct_smoothing();
+
+  bool I_am_kinetic_solver(){return true;}
+  bool I_am_field_solver(){return true;}
 }
 #endif

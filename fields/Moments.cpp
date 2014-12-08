@@ -225,14 +225,15 @@ void SpeciesMoms::calculateJhat(
 // so boundary nodes contain only the portion that
 // this process contributes to.
 //
-void SpeciesMoms::accumulateMoments(const Particles3Dcomm& pcls)
+void SpeciesMoms::accumulateMoments(const int is, const Particles3Dcomm& pcls)
 {
+  assert_eq(is, pcls.get_species_num());
+
   pcls.pad_capacities();
 
-  const int is = pcls.get_species_num();
   if(Parameters::get_VECTORIZE_MOMENTS())
   {
-    setZeroPrimaryMoments(is);
+    setZeroSpeciesMoms(is);
     sumMoments_vec(pcls);
     // these assume that particles are sorted by mesh cell
     //switch(Parameters::get_MOMENTS_TYPE())
@@ -255,7 +256,7 @@ void SpeciesMoms::accumulateMoments(const Particles3Dcomm& pcls)
   }
   else
   {
-    setZeroPrimaryMoments(is);
+    setZeroSpeciesMoms(is);
     if(Parameters::get_SORTING_PARTICLES())
       pcls.sortParticles();
     switch(Parameters::get_MOMENTS_TYPE())
@@ -276,16 +277,6 @@ void SpeciesMoms::accumulateMoments(const Particles3Dcomm& pcls)
       default:
         unsupported_value_error(Parameters::get_MOMENTS_TYPE());
     }
-  }
-}
-void SpeciesMoms::accumulateMoments(const Particles3Dcomm* pcls)
-{
-  #pragma omp parallel
-  for (int is = 0; is < ns; is++)
-  {
-    speciesMoms.accumulateMoments(part[is]);
-    //#pragma omp master
-    //[...send accumulated moments to cluster...]
   }
 }
 
@@ -2316,23 +2307,23 @@ void EMfields3D::adjustNonPeriodicDensities(int is)
 }
 
 /*! communicate ghost for grid -> Particles interpolation */
-void SpeciesMoms::communicateGhostP2G(int ns)
+void SpeciesMoms::communicateGhostP2G(int is)
 {
   // interpolate adding common nodes among processors
   timeTasks_set_communicating();
 
   const VirtualTopology3D *vct = &get_vct();
 
-  double ***moment0 = rhons.fetch_arr4()[ns];
-  double ***moment1 = Jxs  .fetch_arr4()[ns];
-  double ***moment2 = Jys  .fetch_arr4()[ns];
-  double ***moment3 = Jzs  .fetch_arr4()[ns];
-  double ***moment4 = pXXsn.fetch_arr4()[ns];
-  double ***moment5 = pXYsn.fetch_arr4()[ns];
-  double ***moment6 = pXZsn.fetch_arr4()[ns];
-  double ***moment7 = pYYsn.fetch_arr4()[ns];
-  double ***moment8 = pYZsn.fetch_arr4()[ns];
-  double ***moment9 = pZZsn.fetch_arr4()[ns];
+  double ***moment0 = rhons.fetch_arr4()[is];
+  double ***moment1 = Jxs  .fetch_arr4()[is];
+  double ***moment2 = Jys  .fetch_arr4()[is];
+  double ***moment3 = Jzs  .fetch_arr4()[is];
+  double ***moment4 = pXXsn.fetch_arr4()[is];
+  double ***moment5 = pXYsn.fetch_arr4()[is];
+  double ***moment6 = pXZsn.fetch_arr4()[is];
+  double ***moment7 = pYYsn.fetch_arr4()[is];
+  double ***moment8 = pYZsn.fetch_arr4()[is];
+  double ***moment9 = pZZsn.fetch_arr4()[is];
   // add the values for the shared nodes
   //
   communicateInterp(nxn, nyn, nzn, moment0, vct);
@@ -2346,7 +2337,7 @@ void SpeciesMoms::communicateGhostP2G(int ns)
   communicateInterp(nxn, nyn, nzn, moment8, vct);
   communicateInterp(nxn, nyn, nzn, moment9, vct);
   // calculate the correct densities on the boundaries
-  adjustNonPeriodicDensities(ns);
+  adjustNonPeriodicDensities(is);
 
   // populate the ghost nodes
   //
@@ -2361,17 +2352,11 @@ void SpeciesMoms::communicateGhostP2G(int ns)
   communicateNode_P(nxn, nyn, nzn, moment8, vct);
   communicateNode_P(nxn, nyn, nzn, moment9, vct);
 }
-void SpeciesMoms::communicateGhostP2G(ns)
-{
-  for (int is = 0; is < ns; is++)
-  {
-    //[...wait for communicated moments to be received from booster...]
-    speciesMoms.communicateGhostP2G(is);
-  }
-}
 
 void MImoments::setZero()
 {
+  eprintf("check usage");
+
   for (register int i = 0; i < nxn; i++)
   for (register int j = 0; j < nyn; j++)
   for (register int k = 0; k < nzn; k++)
@@ -2393,7 +2378,7 @@ void MImoments::setZero()
   //}
 }
 
-void SpeciesMoms::setZeroPrimaryMoments(int is)
+void SpeciesMoms::setZeroSpeciesMoms(int is)
 {
   // set primary moments to zero
   //
@@ -2414,12 +2399,6 @@ void SpeciesMoms::setZeroPrimaryMoments(int is)
     pZZsn[is][i][j][k] = 0.0;
   }
 }
-/*! set to 0 all the densities fields */
-void SpeciesMoms::setZeroDensities() {
-  setZeroDerivedMoments();
-  setZeroPrimaryMoments();
-}
-
 
 /* sum the charge density of different species on nodes */
 void EMfields3D::sumOverSpecies()

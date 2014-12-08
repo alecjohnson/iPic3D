@@ -92,9 +92,36 @@ MIsolver::MIsolver(int argc, char **argv)
   return 0;
 }
 
+void MIsolver::accumulate_moments()
+{
+  timeTasks_set_main_task(TimeTasks::MOMENTS);
+
+  if(I_am_kinetic_solver())
+  {
+    speciesMoms.accumulateMoments(part);
+    #pragma omp parallel
+    for (int is = 0; is < ns; is++)
+    {
+      speciesMoms.accumulateMoments(is, part[is]);
+      //#pragma omp master
+      //[...send accumulated moments to cluster...]
+    }
+  }
+  if(I_am_field_solver())
+  {
+    assert(I_am_field_solver());
+    speciesMoms.communicateGhostP2G(is);
+    for (int is = 0; is < ns; is++)
+    {
+      //[...wait for communicated moments to be received from booster...]
+      speciesMoms.communicateGhostP2G(is);
+    }
+  }
+}
+
 void MIsolver::compute_moments()
 {
-  get_kinetics().compute_speciesMoms(speciesMoms);
+  accumulate_moments();
 
   // miMoments are the moments needed to drive the implicit field
   // solver, which are separated out from EMfields3D in case
