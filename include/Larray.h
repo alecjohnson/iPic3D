@@ -2,7 +2,7 @@
 #define Larray_h
 
 #include "Alloc.h" // for ALIGNED
-#include "ipicmath.h" // for pow2roundup
+#include "ipic_math.h" // for pow2roundup
 #include "asserts.h"
 #include "string.h" // for memcpy
 

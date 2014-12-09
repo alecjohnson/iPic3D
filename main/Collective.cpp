@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "input_array.h"
-#include "ipichdf5.h"
+#include "ipic_hdf5.h"
 #include "Collective.h"
 #include "ConfigFile.h"
 #include "limits.h" // for INT_MAX

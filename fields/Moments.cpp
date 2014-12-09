@@ -1,17 +1,284 @@
 #include "Moments.h"
+#include "Particles3Dcomm.h"
 #include "Alloc.h"
+#include "Setting.h"
+#include "Grid3DCU.h"
+#include "Collective.h"
+#include "VCtopology3D.h"
+#include "ComNodes3D.h"
+#include "Parameters.h"
+#include "mic_basics.h"
+#include "ComInterpNodes3D.h"
+#include "Basic.h"
+#include "ipic_math.h"
+#include "ompdefs.h"
+#include "asserts.h"
+#include <new> // needed for placement new
+
+// === Section MImoments_routines ===
+
+MImoments::MImoments(const Setting& setting_)
+: setting(setting_),
+  nxn(setting.grid().get_nxn()),
+  nyn(setting.grid().get_nyn()),
+  nzn(setting.grid().get_nzn()),
+  ns(setting.col().getNs()),
+  rhons(ns, nxn, nyn, nzn),
+  Jxh(nxn, nyn, nzn),
+  Jyh(nxn, nyn, nzn),
+  Jzh(nxn, nyn, nzn)
+{
+}
+
+void MImoments::compute_from_speciesMoms(const SpeciesMoms& speciesMoms,
+  const_arr3_double Bx, const_arr3_double By, const_arr3_double Bz)
+{
+  //setZero();
+  // sum all over the species
+  //miMoments.sumOverSpecies();
+
+  // copy the charge densities from the primitive moments
+  const_arr4_double coarse_rhons = speciesMoms.get_rhons();
+  for(int is=0;is<ns;is++)
+  for(int i=0;i<nxn;i++)
+  for(int j=0;j<nyn;j++)
+  for(int k=0;k<nzn;k++)
+  {
+    rhons[is][i][j][k] = coarse_rhons[is][i][j][k];
+  }
+  if(Parameters::use_correct_smoothing())
+  {
+    for(int is=0;is<setting.col().getNs();is++)
+    for(int i=0;i<Parameters::get_num_smoothings();i++)
+      setting.grid().smooth(rhons[is], 1);
+  }
+
+  // modify the charge density used to drive the electromagnetic
+  // field based on non-kinetic influences.
+  {
+    // Fill with constant charge the planet
+    if (setting.col().getCase()=="Dipole") {
+      ConstantChargePlanet();
+    }
+    // Set a constant charge in the OpenBC boundaries
+    ConstantChargeOpenBC();
+  }
+
+  speciesMoms.calculateJhat(Jxh, Jyh, Jzh, Bx, By, Bz);
+}
+
+// === Section: background_conditions_routines ===
+
+void MImoments::ConstantChargeOpenBCv2()
+{
+  const Collective& col = setting.col();
+  const VirtualTopology3D *vct = &setting.vct();
+  const Grid &grid = setting.grid();
+
+  int nx = grid.get_nxn();
+  int ny = grid.get_nyn();
+  int nz = grid.get_nzn();
+
+  for (int is = 0; is < ns; is++)
+  {
+    double ff = 1.0;
+    if (is == 0) ff = -1.0;
+
+    if(vct->noXleftNeighbor() && col.getBcEMfaceXleft() ==2)
+    {
+      for (int j=0; j < ny;j++)
+        for (int k=0; k < nz;k++){
+          rhons[is][0][j][k] = rhons[is][4][j][k];
+          rhons[is][1][j][k] = rhons[is][4][j][k];
+          rhons[is][2][j][k] = rhons[is][4][j][k];
+          rhons[is][3][j][k] = rhons[is][4][j][k];
+        }
+    }
+
+    if(vct->noXrghtNeighbor() && col.getBcEMfaceXright() ==2)
+    {
+      for (int j=0; j < ny;j++)
+        for (int k=0; k < nz;k++){
+          rhons[is][nx-4][j][k] = rhons[is][nx-5][j][k];
+          rhons[is][nx-3][j][k] = rhons[is][nx-5][j][k];
+          rhons[is][nx-2][j][k] = rhons[is][nx-5][j][k];
+          rhons[is][nx-1][j][k] = rhons[is][nx-5][j][k];
+        }
+    }
+
+    if(vct->noYleftNeighbor() && col.getBcEMfaceYleft() ==2)
+    {
+      for (int i=0; i < nx;i++)
+        for (int k=0; k < nz;k++){
+          rhons[is][i][0][k] = rhons[is][i][4][k];
+          rhons[is][i][1][k] = rhons[is][i][4][k];
+          rhons[is][i][2][k] = rhons[is][i][4][k];
+          rhons[is][i][3][k] = rhons[is][i][4][k];
+        }
+    }
+
+    if(vct->noYrghtNeighbor() && col.getBcEMfaceYright() ==2)
+    {
+      for (int i=0; i < nx;i++)
+        for (int k=0; k < nz;k++){
+          rhons[is][i][ny-4][k] = rhons[is][i][ny-5][k];
+          rhons[is][i][ny-3][k] = rhons[is][i][ny-5][k];
+          rhons[is][i][ny-2][k] = rhons[is][i][ny-5][k];
+          rhons[is][i][ny-1][k] = rhons[is][i][ny-5][k];
+        }
+    }
+
+    if(vct->noZleftNeighbor() && col.getBcEMfaceZleft() ==2)
+    {
+      for (int i=0; i < nx;i++)
+        for (int j=0; j < ny;j++){
+          rhons[is][i][j][0] = rhons[is][i][j][4];
+          rhons[is][i][j][1] = rhons[is][i][j][4];
+          rhons[is][i][j][2] = rhons[is][i][j][4];
+          rhons[is][i][j][3] = rhons[is][i][j][4];
+        }
+    }
+
+
+    if(vct->noZrghtNeighbor() && col.getBcEMfaceZright() ==2)
+    {
+      for (int i=0; i < nx;i++)
+        for (int j=0; j < ny;j++){
+          rhons[is][i][j][nz-4] = rhons[is][i][j][nz-5];
+          rhons[is][i][j][nz-3] = rhons[is][i][j][nz-5];
+          rhons[is][i][j][nz-2] = rhons[is][i][j][nz-5];
+          rhons[is][i][j][nz-1] = rhons[is][i][j][nz-5];
+        }
+    }
+  }
+}
+
+void MImoments::ConstantChargeOpenBC()
+{
+  const Collective& col = setting.col();
+  const VirtualTopology3D *vct = &setting.vct();
+  const Grid grid = setting.grid();
+
+  int nx = grid.get_nxn();
+  int ny = grid.get_nyn();
+  int nz = grid.get_nzn();
+
+  for (int is = 0; is < ns; is++)
+  {
+    double ff = 1.0;
+    if (is == 0) ff = -1.0;
+
+    const double value = ff*col.getRHOinit(is) / FourPI;
+
+    if(vct->noXleftNeighbor() && (col.getBcEMfaceXleft() ==2))
+    {
+      for (int j=0; j < ny;j++)
+        for (int k=0; k < nz;k++){
+          rhons[is][0][j][k] = value;
+          rhons[is][1][j][k] = value;
+          rhons[is][2][j][k] = value;
+          rhons[is][3][j][k] = value;
+        }
+    }
+
+    if(vct->noXrghtNeighbor() && (col.getBcEMfaceXright() ==2))
+    {
+      for (int j=0; j < ny;j++)
+        for (int k=0; k < nz;k++){
+          rhons[is][nx-4][j][k] = value;
+          rhons[is][nx-3][j][k] = value;
+          rhons[is][nx-2][j][k] = value;
+          rhons[is][nx-1][j][k] = value;
+        }
+    }
+
+    if(vct->noYleftNeighbor() && (col.getBcEMfaceYleft() ==2))
+    {
+      for (int i=0; i < nx;i++)
+        for (int k=0; k < nz;k++){
+          rhons[is][i][0][k] = value;
+          rhons[is][i][1][k] = value;
+          rhons[is][i][2][k] = value;
+          rhons[is][i][3][k] = value;
+        }
+    }
+
+    if(vct->noYrghtNeighbor() && (col.getBcEMfaceYright() ==2))
+    {
+      for (int i=0; i < nx;i++)
+        for (int k=0; k < nz;k++){
+          rhons[is][i][ny-4][k] = value;
+          rhons[is][i][ny-3][k] = value;
+          rhons[is][i][ny-2][k] = value;
+          rhons[is][i][ny-1][k] = value;
+        }
+    }
+
+    if(vct->noZleftNeighbor() && (col.getBcEMfaceZleft() ==2))
+    {
+      for (int i=0; i < nx;i++)
+        for (int j=0; j < ny;j++){
+          rhons[is][i][j][0] = value;
+          rhons[is][i][j][1] = value;
+          rhons[is][i][j][2] = value;
+          rhons[is][i][j][3] = value;
+        }
+    }
+
+
+    if(vct->noZrghtNeighbor() && (col.getBcEMfaceZright() ==2))
+    {
+      for (int i=0; i < nx;i++)
+        for (int j=0; j < ny;j++){
+          rhons[is][i][j][nz-4] = value;
+          rhons[is][i][j][nz-3] = value;
+          rhons[is][i][j][nz-2] = value;
+          rhons[is][i][j][nz-1] = value;
+        }
+    }
+  }
+}
+
+void MImoments::ConstantChargePlanet()
+{
+  const Collective& col = setting.col();
+  const double R = col.getL_square();
+  const double x_center = col.getx_center();
+  const double y_center = col.gety_center();
+  const double z_center = col.getz_center();
+
+  const Grid &grid = setting.grid();
+
+  for (int is = 0; is < ns; is++)
+  {
+    double ff = 1.0;
+    if (is == 0) ff = -1.0;
+    const double value = ff*col.getRHOinit(is) / FourPI;
+    for (int i = 1; i < nxn; i++)
+    for (int j = 1; j < nyn; j++)
+    for (int k = 1; k < nzn; k++)
+    {
+       const double xd = grid.getXN(i) - x_center;
+       const double yd = grid.getYN(j) - y_center;
+       const double zd = grid.getZN(k) - z_center;
+
+       if ((xd*xd+yd*yd+zd*zd) <= R*R) {
+         rhons[is][i][j][k] = value;
+       }
+    }
+  }
+}
+
+// === end background_conditions_routines ===
+
+
+// === end MImoments_routines ===
+
+// === Section: SpeciesMoms_routines ===
 
 void Moments10::set_to_zero()
 {
   arr.setall(0);
-  //#pragma omp parallel for collapse(4)
-  //for (register int i = 0; i < nx; i++)
-  //for (register int j = 0; j < ny; j++)
-  //for (register int k = 0; k < nz; k++)
-  //for (register int m = 0; m < 10; m++)
-  //{
-  //  arr[i][j][k][m] = 0.0;
-  //}
 }
 
 SpeciesMoms::~SpeciesMoms()
@@ -20,46 +287,19 @@ SpeciesMoms::~SpeciesMoms()
   delete [] moments10Array;
 }
 
-ReportedMoments::ReportedMoments(const Setting& setting_)
-: setting(setting_),
+SpeciesMoms::SpeciesMoms(const Setting& setting_) :
+  setting(setting_),
   nxc(setting.grid().get_nxc()),
   nyc(setting.grid().get_nyc()),
   nzc(setting.grid().get_nzc()),
   nxn(setting.grid().get_nxn()),
   nyn(setting.grid().get_nyn()),
   nzn(setting.grid().get_nzn()),
-  // array allocation: nodes
-  //
-  Jx   (nxn, nyn, nzn),
-  Jy   (nxn, nyn, nzn),
-  Jz   (nxn, nyn, nzn),
-  //Jxh  (nxn, nyn, nzn),
-  //Jyh  (nxn, nyn, nzn),
-  //Jzh  (nxn, nyn, nzn),
-  //
-{
-}
-
-SpeciesMoms::SpeciesMoms(const Setting& setting_, arr4_double rhons_)
-: setting(setting_),
-  grid(&setting.get_grid()),
-  col(&setting.get_col()),
-  nxc(grid->get_nxc()),
-  nyc(grid->get_nyc()),
-  nzc(grid->get_nzc()),
-  nxn(grid->get_nxn()),
-  nyn(grid->get_nyn()),
-  nzn(grid->get_nzn()),
-  invVOL(grid->getInvVOL()),
-  ns(col->getNs()),
+  ns(setting.col().getNs()),
   //
   // species-specific quantities
   //
-  //rhons (ns, nxn, nyn, nzn),
-  //rhocs (ns, nxc, nyc, nzc),
-  // external owned memory
-  rhons(rhons_),
-  // internally owned memory
+  rhons (ns, nxn, nyn, nzn),
   Jxs   (ns, nxn, nyn, nzn),
   Jys   (ns, nxn, nyn, nzn),
   Jzs   (ns, nxn, nyn, nzn),
@@ -68,25 +308,7 @@ SpeciesMoms::SpeciesMoms(const Setting& setting_, arr4_double rhons_)
   pXZsn (ns, nxn, nyn, nzn),
   pYYsn (ns, nxn, nyn, nzn),
   pYZsn (ns, nxn, nyn, nzn),
-  pZZsn (ns, nxn, nyn, nzn),
-
-  // array allocation: central points 
-  //
-  //PHI  (nxc, nyc, nzc),
-  //Bxc  (nxc, nyc, nzc),
-  //Byc  (nxc, nyc, nzc),
-  //Bzc  (nxc, nyc, nzc),
-  //rhoc (nxc, nyc, nzc),
-
-  // temporary arrays to calculate hatted moments
-  //
-  tempXC (nxc, nyc, nzc),
-  tempYC (nxc, nyc, nzc),
-  tempZC (nxc, nyc, nzc),
-  //
-  tempXN (nxn, nyn, nzn),
-  tempYN (nxn, nyn, nzn),
-  tempZN (nxn, nyn, nzn)
+  pZZsn (ns, nxn, nyn, nzn)
 {
   if(Parameters::get_VECTORIZE_MOMENTS())
   {
@@ -106,10 +328,10 @@ SpeciesMoms::SpeciesMoms(const Setting& setting_, arr4_double rhons_)
   }
 }
 
-// === section: methods_to_compute_implicit_moments ===
+// --- section: methods_to_compute_implicit_moments ---
 
 /*! Calculate PI dot (vectX, vectY, vectZ) */
-void SpeciesMoms::PIdot(
+static void PIdot(
   arr3_double PIdotX,
   arr3_double PIdotY,
   arr3_double PIdotZ,
@@ -119,20 +341,20 @@ void SpeciesMoms::PIdot(
   const_arr3_double Bx,
   const_arr3_double By,
   const_arr3_double Bz,
-  double qom_)
+  int nxn_r,
+  int nyn_r,
+  int nzn_r,
+  double beta)
 {
-  const Grid *grid = &get_grid();
-  double beta, edotb, omcx, omcy, omcz, denom;
-  beta = .5 * qom_ * dt / c;
-  for (int i = 1; i < nxn - 1; i++)
-  for (int j = 1; j < nyn - 1; j++)
-  for (int k = 1; k < nzn - 1; k++)
+  for (int i = 1; i <= nxn_r; i++)
+  for (int j = 1; j <= nyn_r; j++)
+  for (int k = 1; k <= nzn_r; k++)
   {
-    omcx = beta * Bx[i][j][k];
-    omcy = beta * By[i][j][k];
-    omcz = beta * Bz[i][j][k];
-    edotb = vectX.get(i,j,k) * omcx + vectY.get(i,j,k) * omcy + vectZ.get(i,j,k) * omcz;
-    denom = 1 / (1.0 + omcx * omcx + omcy * omcy + omcz * omcz);
+    const double omcx = beta * Bx[i][j][k];
+    const double omcy = beta * By[i][j][k];
+    const double omcz = beta * Bz[i][j][k];
+    const double edotb = vectX.get(i,j,k) * omcx + vectY.get(i,j,k) * omcy + vectZ.get(i,j,k) * omcz;
+    const double denom = 1 / (1.0 + omcx * omcx + omcy * omcy + omcz * omcz);
     PIdotX.fetch(i,j,k) += (vectX.get(i,j,k) + (vectY.get(i,j,k) * omcz - vectZ.get(i,j,k) * omcy + edotb * omcx)) * denom;
     PIdotY.fetch(i,j,k) += (vectY.get(i,j,k) + (vectZ.get(i,j,k) * omcx - vectX.get(i,j,k) * omcz + edotb * omcy)) * denom;
     PIdotZ.fetch(i,j,k) += (vectZ.get(i,j,k) + (vectX.get(i,j,k) * omcy - vectY.get(i,j,k) * omcx + edotb * omcz)) * denom;
@@ -146,10 +368,11 @@ void SpeciesMoms::calculateJhat(
   arr3_double Jzh,
   const_arr3_double Bx,
   const_arr3_double By,
-  const_arr3_double Bz)
+  const_arr3_double Bz)const
 {
-  const VirtualTopology3D *vct = &get_vct();
-  const Grid *grid = &get_grid();
+  const Collective& col = setting.col();
+  const VirtualTopology3D *vct = &setting.vct();
+  const Grid& grid = setting.grid();
 
   // temporary arrays to compute hatted moments
   //
@@ -164,8 +387,9 @@ void SpeciesMoms::calculateJhat(
   Jyh.setall(0.);
   Jzh.setall(0.);
 
+  const double dt = col.getDt();
   for (int is = 0; is < ns; is++) {
-    grid->divSymmTensorN2C(tempXC, tempYC, tempZC,
+    grid.divSymmTensorN2C(tempXC, tempYC, tempZC,
       pXXsn, pXYsn, pXZsn, pYYsn, pYZsn, pZZsn, is);
 
     scale(tempXC, -dt / 2.0, nxc, nyc, nzc);
@@ -176,9 +400,9 @@ void SpeciesMoms::calculateJhat(
     communicateCenterBC_P(nxc, nyc, nzc, tempYC, 2, 2, 2, 2, 2, 2, vct);
     communicateCenterBC_P(nxc, nyc, nzc, tempZC, 2, 2, 2, 2, 2, 2, vct);
 
-    grid->interpC2N(tempXN, tempXC);
-    grid->interpC2N(tempYN, tempYC);
-    grid->interpC2N(tempZN, tempZC);
+    grid.interpC2N(tempXN, tempXC);
+    grid.interpC2N(tempYN, tempYC);
+    grid.interpC2N(tempZN, tempZC);
     sum(tempXN, Jxs, nxn, nyn, nzn, is);
     sum(tempYN, Jys, nxn, nyn, nzn, is);
     sum(tempZN, Jzs, nxn, nyn, nzn, is);
@@ -190,45 +414,51 @@ void SpeciesMoms::calculateJhat(
       // as if we wait to smooth until after computing Jhat).
       for(int i=0; i<Parameters::get_num_smoothings(); i++);
       {
-        get_grid().smooth(tempXN, 1);
-        get_grid().smooth(tempYN, 1);
-        get_grid().smooth(tempZN, 1);
+        setting.grid().smooth(tempXN, 1);
+        setting.grid().smooth(tempYN, 1);
+        setting.grid().smooth(tempZN, 1);
       }
     }
-    PIdot(Jxh, Jyh, Jzh, tempXN, tempYN, tempZN,
-      Bx, By, Bz, qom[is])
+    const double beta = .5 * col.getQOM(is) * col.getDt() / col.getC();
+    PIdot(Jxh, Jyh, Jzh,
+      tempXN, tempYN, tempZN,
+      Bx, By, Bz,
+      grid.get_nxn_r(),
+      grid.get_nyn_r(),
+      grid.get_nzn_r(), beta);
   }
   // This original way smooths the current only once; this
   // could explain why it becomes necessary to retain
   // smoothing in the electric field.
   if(Parameters::use_original_smoothing())
   {
-    get_grid().smooth(Jxh, 1);
-    get_grid().smooth(Jyh, 1);
-    get_grid().smooth(Jzh, 1);
+    setting.grid().smooth(Jxh, 1);
+    setting.grid().smooth(Jyh, 1);
+    setting.grid().smooth(Jzh, 1);
   }
   else if(Parameters::use_correct_smoothing()
       && !Parameters::use_perfect_smoothing())
   {
     for(int i=0; i<Parameters::get_num_smoothings(); i++);
     {
-      get_grid().smooth(Jxh, 1);
-      get_grid().smooth(Jyh, 1);
-      get_grid().smooth(Jzh, 1);
+      setting.grid().smooth(Jxh, 1);
+      setting.grid().smooth(Jyh, 1);
+      setting.grid().smooth(Jzh, 1);
     }
   }
 }
 
-// === section: methods_to_accumulate_moments ===
+// --- section: methods_to_accumulate_moments ---
 //
 // These methods do not perform any communication,
 // so boundary nodes contain only the portion that
 // this process contributes to.
 //
-void SpeciesMoms::accumulateMoments(const int is, const Particles3Dcomm& pcls)
+void SpeciesMoms::accumulateMoments(const int is, Particles3Dcomm& pcls)
 {
   assert_eq(is, pcls.get_species_num());
 
+  // guard against buffer overrun
   pcls.pad_capacities();
 
   if(Parameters::get_VECTORIZE_MOMENTS())
@@ -242,12 +472,12 @@ void SpeciesMoms::accumulateMoments(const int is, const Particles3Dcomm& pcls)
     //    // since particles are sorted,
     //    // we can vectorize interpolation of particles to grid
     //    convertParticlesToSoA();
-    //    pcls.sortParticles();
+    //    pcls.sort_particles();
     //    sumMoments_vectorized(pcls);
     //    break;
     //  case Parameters::AoS:
     //    convertParticlesToAoS();
-    //    sortParticles();
+    //    sort_particles();
     //    sumMoments_vectorized_AoS(pcls);
     //    break;
     //  default:
@@ -258,7 +488,7 @@ void SpeciesMoms::accumulateMoments(const int is, const Particles3Dcomm& pcls)
   {
     setZeroSpeciesMoms(is);
     if(Parameters::get_SORTING_PARTICLES())
-      pcls.sortParticles();
+      pcls.sort_particles();
     switch(Parameters::get_MOMENTS_TYPE())
     {
       case Parameters::SoA:
@@ -268,11 +498,11 @@ void SpeciesMoms::accumulateMoments(const int is, const Particles3Dcomm& pcls)
         break;
       case Parameters::AoS:
         pcls.convertParticlesToAoS();
-        sumMoments_AoS(part);
+        sumMoments_AoS(pcls);
         break;
       case Parameters::AoSintr:
         pcls.convertParticlesToAoS();
-        sumMoments_AoS_intr(part);
+        sumMoments_AoS_intr(pcls);
         break;
       default:
         unsupported_value_error(Parameters::get_MOMENTS_TYPE());
@@ -280,20 +510,43 @@ void SpeciesMoms::accumulateMoments(const int is, const Particles3Dcomm& pcls)
   }
 }
 
+void SpeciesMoms::setZeroSpeciesMoms(int is)
+{
+  // set primary moments to zero
+  //
+  #pragma omp for collapse(2)
+  for (register int i = 0; i < nxn; i++)
+  for (register int j = 0; j < nyn; j++)
+  for (register int k = 0; k < nzn; k++)
+  {
+    rhons[is][i][j][k] = 0.0;
+    Jxs  [is][i][j][k] = 0.0;
+    Jys  [is][i][j][k] = 0.0;
+    Jzs  [is][i][j][k] = 0.0;
+    pXXsn[is][i][j][k] = 0.0;
+    pXYsn[is][i][j][k] = 0.0;
+    pXZsn[is][i][j][k] = 0.0;
+    pYYsn[is][i][j][k] = 0.0;
+    pYZsn[is][i][j][k] = 0.0;
+    pZZsn[is][i][j][k] = 0.0;
+  }
+}
+
 // This was Particles3Dcomm::interpP2G()
 void SpeciesMoms::sumMomentsOld(const Particles3Dcomm& pcls)
 {
-  const Grid *grid = &get_grid();
+  const Grid& grid = setting.grid();
 
-  const double inv_dx = 1.0 / grid->getDX();
-  const double inv_dy = 1.0 / grid->getDY();
-  const double inv_dz = 1.0 / grid->getDZ();
-  const int nxn = grid->getNXN();
-  const int nyn = grid->getNYN();
-  const int nzn = grid->getNZN();
-  const double xstart = grid->getXstart();
-  const double ystart = grid->getYstart();
-  const double zstart = grid->getZstart();
+  const double inv_dx = 1.0 / grid.getDX();
+  const double inv_dy = 1.0 / grid.getDY();
+  const double inv_dz = 1.0 / grid.getDZ();
+  const double invVOL = grid.getInvVOL();
+  const int nxn = grid.get_nxn();
+  const int nyn = grid.get_nyn();
+  const int nzn = grid.get_nzn();
+  const double xstart = grid.getXstart();
+  const double ystart = grid.getYstart();
+  const double zstart = grid.getZstart();
   double const*const x = pcls.getXall();
   double const*const y = pcls.getYall();
   double const*const z = pcls.getZall();
@@ -353,12 +606,12 @@ void SpeciesMoms::sumMomentsOld(const Particles3Dcomm& pcls)
       const int ix = 2 + int (floor((x[i] - xstart) * inv_dx));
       const int iy = 2 + int (floor((y[i] - ystart) * inv_dy));
       const int iz = 2 + int (floor((z[i] - zstart) * inv_dz));
-      const double xi0   = x[i] - grid->getXN(ix-1);
-      const double eta0  = y[i] - grid->getYN(iy-1);
-      const double zeta0 = z[i] - grid->getZN(iz-1);
-      const double xi1   = grid->getXN(ix) - x[i];
-      const double eta1  = grid->getYN(iy) - y[i];
-      const double zeta1 = grid->getZN(iz) - z[i];
+      const double xi0   = x[i] - grid.getXN(ix-1);
+      const double eta0  = y[i] - grid.getYN(iy-1);
+      const double zeta0 = z[i] - grid.getZN(iz-1);
+      const double xi1   = grid.getXN(ix) - x[i];
+      const double eta1  = grid.getYN(iy) - y[i];
+      const double zeta1 = grid.getZN(iz) - z[i];
       const double qi = q[i];
       const double weight000 = qi * xi0 * eta0 * zeta0 * invVOL;
       const double weight001 = qi * xi0 * eta0 * zeta1 * invVOL;
@@ -493,20 +746,21 @@ void SpeciesMoms::sumMoments_vec(const Particles3Dcomm& pcls)
   const int Np=8;
   const int num_threads = omp_get_max_threads();
 
-  const Grid *grid = &get_grid();
+  const Grid& grid = setting.grid();
+  const double invVOL = grid.getInvVOL();
 
-  const double inv_dx = 1.0 / grid->getDX();
-  const double inv_dy = 1.0 / grid->getDY();
-  const double inv_dz = 1.0 / grid->getDZ();
-  const int nxn = grid->getNXN();
-  const int nyn = grid->getNYN();
-  const int nzn = grid->getNZN();
-  const int nxc = grid->getNXC();
-  const int nyc = grid->getNYC();
-  const int nzc = grid->getNZC();
-  const double xstart = grid->getXstart();
-  const double ystart = grid->getYstart();
-  const double zstart = grid->getZstart();
+  const double inv_dx = 1.0 / grid.getDX();
+  const double inv_dy = 1.0 / grid.getDY();
+  const double inv_dz = 1.0 / grid.getDZ();
+  const int nxn = grid.get_nxn();
+  const int nyn = grid.get_nyn();
+  const int nzn = grid.get_nzn();
+  const int nxc = grid.getNXC();
+  const int nyc = grid.getNYC();
+  const int nzc = grid.getNZC();
+  const double xstart = grid.getXstart();
+  const double ystart = grid.getYstart();
+  const double zstart = grid.getZstart();
   //
   // allocate memory to accumulate moments in each cell that
   // are destined for the nodes. we need to include ghost
@@ -604,7 +858,7 @@ void SpeciesMoms::sumMoments_vec(const Particles3Dcomm& pcls)
         for(int ip=0;ip<Np;ip++)
         {
           int cx,cy,cz;
-          grid->get_cell_and_weights(
+          grid.get_cell_and_weights(
             x[ip], y[ip], z[ip],
             cx,cy,cz,
             weights[0][ip],
@@ -615,7 +869,7 @@ void SpeciesMoms::sumMoments_vec(const Particles3Dcomm& pcls)
             weights[5][ip],
             weights[6][ip],
             weights[7][ip]);
-          cell_index[ip] = grid->get_cell_index(cx,cy,cz);
+          cell_index[ip] = grid.get_cell_index(cx,cy,cz);
         }
 
         // 2. For each of 10 moments:
@@ -720,14 +974,14 @@ void SpeciesMoms::sumMoments_vec(const Particles3Dcomm& pcls)
           const int cz=iz-1;
           // gather data from neighboring cells intended for this node
           out_moments[im][ix][iy][iz] += invVOL*(
-            node_destined_moms[it][im][grid->get_cell_index(cx,cy,cz)][0]+
-            node_destined_moms[it][im][grid->get_cell_index(cx,cy,iz)][1]+
-            node_destined_moms[it][im][grid->get_cell_index(cx,iy,cz)][2]+
-            node_destined_moms[it][im][grid->get_cell_index(cx,iy,iz)][3]+
-            node_destined_moms[it][im][grid->get_cell_index(ix,cy,cz)][4]+
-            node_destined_moms[it][im][grid->get_cell_index(ix,cy,iz)][5]+
-            node_destined_moms[it][im][grid->get_cell_index(ix,iy,cz)][6]+
-            node_destined_moms[it][im][grid->get_cell_index(ix,iy,iz)][7]);
+            node_destined_moms[it][im][grid.get_cell_index(cx,cy,cz)][0]+
+            node_destined_moms[it][im][grid.get_cell_index(cx,cy,iz)][1]+
+            node_destined_moms[it][im][grid.get_cell_index(cx,iy,cz)][2]+
+            node_destined_moms[it][im][grid.get_cell_index(cx,iy,iz)][3]+
+            node_destined_moms[it][im][grid.get_cell_index(ix,cy,cz)][4]+
+            node_destined_moms[it][im][grid.get_cell_index(ix,cy,iz)][5]+
+            node_destined_moms[it][im][grid.get_cell_index(ix,iy,cz)][6]+
+            node_destined_moms[it][im][grid.get_cell_index(ix,iy,iz)][7]);
         }
       }
       else
@@ -748,7 +1002,7 @@ void SpeciesMoms::sumMoments_vec(const Particles3Dcomm& pcls)
             const int iy=cy+1;
             const int iz=cz+1;
             // scatter data to neighboring nodes
-            const int ic = grid->get_cell_index(cx,cy,cz);
+            const int ic = grid.get_cell_index(cx,cy,cz);
             out_moments[im][ix][iy][iz] += invVOL*node_destined_moms[it][im][ic][0];
             out_moments[im][ix][iy][cz] += invVOL*node_destined_moms[it][im][ic][1];
             out_moments[im][ix][cy][iz] += invVOL*node_destined_moms[it][im][ic][2];
@@ -773,24 +1027,24 @@ void SpeciesMoms::sumMoments_vec(const Particles3Dcomm& pcls)
 // This was Particles3Dcomm::interpP2G()
 void SpeciesMoms::sumMoments(const Particles3Dcomm& pcls)
 {
-  const Grid *grid = &get_grid();
+  const Grid& grid = setting.grid();
 
-  const double inv_dx = 1.0 / grid->getDX();
-  const double inv_dy = 1.0 / grid->getDY();
-  const double inv_dz = 1.0 / grid->getDZ();
-  const int nxn = grid->getNXN();
-  const int nyn = grid->getNYN();
-  const int nzn = grid->getNZN();
-  const double xstart = grid->getXstart();
-  const double ystart = grid->getYstart();
-  const double zstart = grid->getZstart();
+  const double inv_dx = 1.0 / grid.getDX();
+  const double inv_dy = 1.0 / grid.getDY();
+  const double inv_dz = 1.0 / grid.getDZ();
+  const double invVOL = grid.getInvVOL();
+  const int nxn = grid.get_nxn();
+  const int nyn = grid.get_nyn();
+  const int nzn = grid.get_nzn();
+  const double xstart = grid.getXstart();
+  const double ystart = grid.getYstart();
+  const double zstart = grid.getZstart();
   // To make memory use scale to a large number of threads, we
   // could first apply an efficient parallel sorting algorithm
   // to the particles and then accumulate moments in smaller
   // subarrays.
   //#ifdef _OPENMP
   {
-    const Particles3Dcomm& pcls = part[i];
     assert_eq(pcls.get_particleType(), ParticleType::SoA);
     const int is = pcls.get_species_num();
 
@@ -854,12 +1108,12 @@ void SpeciesMoms::sumMoments(const Particles3Dcomm& pcls)
       const int ix = 2 + int (floor((x[i] - xstart) * inv_dx));
       const int iy = 2 + int (floor((y[i] - ystart) * inv_dy));
       const int iz = 2 + int (floor((z[i] - zstart) * inv_dz));
-      const double xi0   = x[i] - grid->getXN(ix-1);
-      const double eta0  = y[i] - grid->getYN(iy-1);
-      const double zeta0 = z[i] - grid->getZN(iz-1);
-      const double xi1   = grid->getXN(ix) - x[i];
-      const double eta1  = grid->getYN(iy) - y[i];
-      const double zeta1 = grid->getZN(iz) - z[i];
+      const double xi0   = x[i] - grid.getXN(ix-1);
+      const double eta0  = y[i] - grid.getYN(iy-1);
+      const double zeta0 = z[i] - grid.getZN(iz-1);
+      const double xi1   = grid.getXN(ix) - x[i];
+      const double eta1  = grid.getYN(iy) - y[i];
+      const double zeta1 = grid.getZN(iz) - z[i];
       const double qi = q[i];
       const double invVOLqi = invVOL*qi;
       const double weight0 = invVOLqi * xi0;
@@ -980,17 +1234,18 @@ void SpeciesMoms::sumMoments(const Particles3Dcomm& pcls)
 
 void SpeciesMoms::sumMoments_AoS(const Particles3Dcomm& pcls)
 {
-  const Grid *grid = &get_grid();
+  const Grid& grid = setting.grid();
 
-  const double inv_dx = 1.0 / grid->getDX();
-  const double inv_dy = 1.0 / grid->getDY();
-  const double inv_dz = 1.0 / grid->getDZ();
-  const int nxn = grid->getNXN();
-  const int nyn = grid->getNYN();
-  const int nzn = grid->getNZN();
-  const double xstart = grid->getXstart();
-  const double ystart = grid->getYstart();
-  const double zstart = grid->getZstart();
+  const double inv_dx = 1.0 / grid.getDX();
+  const double inv_dy = 1.0 / grid.getDY();
+  const double inv_dz = 1.0 / grid.getDZ();
+  const double invVOL = grid.getInvVOL();
+  const int nxn = grid.get_nxn();
+  const int nyn = grid.get_nyn();
+  const int nzn = grid.get_nzn();
+  const double xstart = grid.getXstart();
+  const double ystart = grid.getYstart();
+  const double zstart = grid.getZstart();
   // To make memory use scale to a large number of threads, we
   // could first apply an efficient parallel sorting algorithm
   // to the particles and then accumulate moments in smaller
@@ -1047,12 +1302,12 @@ void SpeciesMoms::sumMoments_AoS(const Particles3Dcomm& pcls)
       const int ix = 2 + int (floor((pcl.get_x() - xstart) * inv_dx));
       const int iy = 2 + int (floor((pcl.get_y() - ystart) * inv_dy));
       const int iz = 2 + int (floor((pcl.get_z() - zstart) * inv_dz));
-      const double xi0   = pcl.get_x() - grid->getXN(ix-1);
-      const double eta0  = pcl.get_y() - grid->getYN(iy-1);
-      const double zeta0 = pcl.get_z() - grid->getZN(iz-1);
-      const double xi1   = grid->getXN(ix) - pcl.get_x();
-      const double eta1  = grid->getYN(iy) - pcl.get_y();
-      const double zeta1 = grid->getZN(iz) - pcl.get_z();
+      const double xi0   = pcl.get_x() - grid.getXN(ix-1);
+      const double eta0  = pcl.get_y() - grid.getYN(iy-1);
+      const double zeta0 = pcl.get_z() - grid.getZN(iz-1);
+      const double xi1   = grid.getXN(ix) - pcl.get_x();
+      const double eta1  = grid.getYN(iy) - pcl.get_y();
+      const double zeta1 = grid.getZN(iz) - pcl.get_z();
       const double qi = pcl.get_q();
       const double invVOLqi = invVOL*qi;
       const double weight0 = invVOLqi * xi0;
@@ -1208,19 +1463,19 @@ void SpeciesMoms::sumMoments_AoS_intr(const Particles3Dcomm& pcls)
 #ifndef __MIC__
   eprintf("not implemented");
 #else
-  const Grid *grid = &get_grid();
+  const Grid& grid = setting.grid();
 
   // define global parameters
   //
-  const double inv_dx = 1.0 / grid->getDX();
-  const double inv_dy = 1.0 / grid->getDY();
-  const double inv_dz = 1.0 / grid->getDZ();
-  const int nxn = grid->getNXN();
-  const int nyn = grid->getNYN();
-  const int nzn = grid->getNZN();
-  const double xstart = grid->getXstart();
-  const double ystart = grid->getYstart();
-  const double zstart = grid->getZstart();
+  const double inv_dx = grid.get_invdx();
+  const double inv_dy = grid.get_invdy();
+  const double inv_dz = grid.get_invdz();
+  const int nxn = grid.get_nxn();
+  const int nyn = grid.get_nyn();
+  const int nzn = grid.get_nzn();
+  const double xstart = grid.getXstart();
+  const double ystart = grid.getYstart();
+  const double zstart = grid.getZstart();
   // Here and below x stands for all 3 physical position coordinates
   const F64vec8 dx_inv = make_F64vec8(inv_dx, inv_dy, inv_dz);
   // starting physical position of proper subdomain ("pdom", without ghosts)
@@ -1826,22 +2081,19 @@ inline void add_moments_for_pcl_vec(double momentsAccVec[8][10][8],
 
 //void SpeciesMoms::sumMoments_vectorized(const Particles3Dcomm* part)
 //{
-//  const Grid *grid = &get_grid();
+//  const Grid& grid = setting.grid();
 //
-//  const double inv_dx = grid->get_invdx();
-//  const double inv_dy = grid->get_invdy();
-//  const double inv_dz = grid->get_invdz();
-//  const int nxn = grid->getNXN();
-//  const int nyn = grid->getNYN();
-//  const int nzn = grid->getNZN();
-//  const double xstart = grid->getXstart();
-//  const double ystart = grid->getYstart();
-//  const double zstart = grid->getZstart();
-//  #pragma omp parallel
+//  const double inv_dx = grid.get_invdx();
+//  const double inv_dy = grid.get_invdy();
+//  const double inv_dz = grid.get_invdz();
+//  const double invVOL = grid.getInvVOL();
+//  const int nxn = grid.get_nxn();
+//  const int nyn = grid.get_nyn();
+//  const int nzn = grid.get_nzn();
+//  const double xstart = grid.getXstart();
+//  const double ystart = grid.getYstart();
+//  const double zstart = grid.getZstart();
 //  {
-//  for (int species_idx = 0; species_idx < ns; species_idx++)
-//  {
-//    const Particles3Dcomm& pcls = part[species_idx];
 //    assert_eq(pcls.get_particleType(), ParticleType::SoA);
 //    const int is = pcls.get_species_num();
 //    assert_eq(species_idx,is);
@@ -1978,31 +2230,23 @@ inline void add_moments_for_pcl_vec(double momentsAccVec[8][10][8],
 //    // when we change to use asynchronous communication.
 //    // communicateGhostP2G(is);
 //  }
-//  }
-//  for (int i = 0; i < ns; i++)
-//  {
-//    communicateGhostP2G(i);
-//  }
 //}
 //
 //void SpeciesMoms::sumMoments_vectorized_AoS(const Particles3Dcomm* part)
 //{
-//  const Grid *grid = &get_grid();
+//  const Grid& grid = setting.grid();
 //
-//  const double inv_dx = grid->get_invdx();
-//  const double inv_dy = grid->get_invdy();
-//  const double inv_dz = grid->get_invdz();
-//  const int nxn = grid->getNXN();
-//  const int nyn = grid->getNYN();
-//  const int nzn = grid->getNZN();
-//  const double xstart = grid->getXstart();
-//  const double ystart = grid->getYstart();
-//  const double zstart = grid->getZstart();
-//  #pragma omp parallel
+//  const double inv_dx = grid.get_invdx();
+//  const double inv_dy = grid.get_invdy();
+//  const double inv_dz = grid.get_invdz();
+//  const double invVOL = grid.getInvVOL();
+//  const int nxn = grid.get_nxn();
+//  const int nyn = grid.get_nyn();
+//  const int nzn = grid.get_nzn();
+//  const double xstart = grid.getXstart();
+//  const double ystart = grid.getYstart();
+//  const double zstart = grid.getZstart();
 //  {
-//  for (int species_idx = 0; species_idx < ns; species_idx++)
-//  {
-//    const Particles3Dcomm& pcls = part[species_idx];
 //    assert_eq(pcls.get_particleType(), ParticleType::AoS);
 //    const int is = pcls.get_species_num();
 //    assert_eq(species_idx,is);
@@ -2190,14 +2434,35 @@ inline void add_moments_for_pcl_vec(double momentsAccVec[8][10][8],
 //    // when we change to use asynchronous communication.
 //    // communicateGhostP2G(is);
 //  }
-//  }
-//  for (int i = 0; i < ns; i++)
-//  {
-//    communicateGhostP2G(i);
-//  }
 //}
 
-// === end of methods_to_accumulate_moments ===
+// --- end of methods_to_accumulate_moments ---
+
+// --- Section: methods_to_report_moments ---
+
+/* sum the charge density of different species on nodes */
+//void EMfields3D::sumOverSpecies()
+//{
+//  for (int is = 0; is < ns; is++)
+//  for (register int i = 0; i < nxn; i++)
+//  for (register int j = 0; j < nyn; j++)
+//  for (register int k = 0; k < nzn; k++)
+//    rhon[i][j][k] += rhons[is][i][j][k];
+//}
+
+/*! sum current density for different species */
+//void SpeciesMoms::sumOverSpeciesJ()
+//{
+//  for (int is = 0; is < ns; is++)
+//  for (register int i = 0; i < nxn; i++)
+//  for (register int j = 0; j < nyn; j++)
+//  for (register int k = 0; k < nzn; k++)
+//  {
+//    Jx[i][j][k] += Jxs[is][i][j][k];
+//    Jy[i][j][k] += Jys[is][i][j][k];
+//    Jz[i][j][k] += Jzs[is][i][j][k];
+//  }
+//}
 
 // This method assumes mirror boundary conditions;
 // we therefore need to double the density on the boundary
@@ -2205,9 +2470,9 @@ inline void add_moments_for_pcl_vec(double momentsAccVec[8][10][8],
 // cell just outside the domain.
 //
 /*! adjust densities on boundaries that are not periodic */
-void EMfields3D::adjustNonPeriodicDensities(int is)
+void SpeciesMoms::adjustNonPeriodicDensities(int is)
 {
-  const VirtualTopology3D *vct = &get_vct();
+  const VirtualTopology3D *vct = &setting.vct();
   if (vct->getXleft_neighbor_P() == MPI_PROC_NULL) {
     for (int i = 1; i < nyn - 1; i++)
     for (int k = 1; k < nzn - 1; k++)
@@ -2306,13 +2571,14 @@ void EMfields3D::adjustNonPeriodicDensities(int is)
   }
 }
 
+
 /*! communicate ghost for grid -> Particles interpolation */
 void SpeciesMoms::communicateGhostP2G(int is)
 {
   // interpolate adding common nodes among processors
   timeTasks_set_communicating();
 
-  const VirtualTopology3D *vct = &get_vct();
+  const VirtualTopology3D *vct = &setting.vct();
 
   double ***moment0 = rhons.fetch_arr4()[is];
   double ***moment1 = Jxs  .fetch_arr4()[is];
@@ -2353,118 +2619,4 @@ void SpeciesMoms::communicateGhostP2G(int is)
   communicateNode_P(nxn, nyn, nzn, moment9, vct);
 }
 
-void MImoments::setZero()
-{
-  eprintf("check usage");
-
-  for (register int i = 0; i < nxn; i++)
-  for (register int j = 0; j < nyn; j++)
-  for (register int k = 0; k < nzn; k++)
-  {
-    //Jx  [i][j][k] = 0.0;
-    //Jy  [i][j][k] = 0.0;
-    //Jz  [i][j][k] = 0.0;
-    Jxh [i][j][k] = 0.0;
-    Jyh [i][j][k] = 0.0;
-    Jzh [i][j][k] = 0.0;
-    rhon[i][j][k] = 0.0;
-  }
-  //for (register int i = 0; i < nxc; i++)
-  //for (register int j = 0; j < nyc; j++)
-  //for (register int k = 0; k < nzc; k++)
-  //{
-  //  rhoc[i][j][k] = 0.0;
-  //  rhoh[i][j][k] = 0.0;
-  //}
-}
-
-void SpeciesMoms::setZeroSpeciesMoms(int is)
-{
-  // set primary moments to zero
-  //
-  #pragma omp for collapse(2)
-  for (register int i = 0; i < nxn; i++)
-  for (register int j = 0; j < nyn; j++)
-  for (register int k = 0; k < nzn; k++)
-  {
-    rhons[is][i][j][k] = 0.0;
-    Jxs  [is][i][j][k] = 0.0;
-    Jys  [is][i][j][k] = 0.0;
-    Jzs  [is][i][j][k] = 0.0;
-    pXXsn[is][i][j][k] = 0.0;
-    pXYsn[is][i][j][k] = 0.0;
-    pXZsn[is][i][j][k] = 0.0;
-    pYYsn[is][i][j][k] = 0.0;
-    pYZsn[is][i][j][k] = 0.0;
-    pZZsn[is][i][j][k] = 0.0;
-  }
-}
-
-/* sum the charge density of different species on nodes */
-void EMfields3D::sumOverSpecies()
-{
-  for (int is = 0; is < ns; is++)
-  for (register int i = 0; i < nxn; i++)
-  for (register int j = 0; j < nyn; j++)
-  for (register int k = 0; k < nzn; k++)
-    rhon[i][j][k] += rhons[is][i][j][k];
-}
-
-/*! sum current density for different species */
-void SpeciesMoms::sumOverSpeciesJ()
-{
-  for (int is = 0; is < ns; is++)
-  for (register int i = 0; i < nxn; i++)
-  for (register int j = 0; j < nyn; j++)
-  for (register int k = 0; k < nzn; k++)
-  {
-    Jx[i][j][k] += Jxs[is][i][j][k];
-    Jy[i][j][k] += Jys[is][i][j][k];
-    Jz[i][j][k] += Jzs[is][i][j][k];
-  }
-}
-
-arr3_double SpeciesMoms::ret_rhocs(int is) { return ca.get_N2C_no_ghosts(is, rhons); }
-arr3_double SpeciesMoms::ret_Jxsc(int is) { return ca.get_N2C_no_ghosts(is, Jxs); }
-arr3_double SpeciesMoms::ret_Jysc(int is) { return ca.get_N2C_no_ghosts(is, Jys); }
-arr3_double SpeciesMoms::ret_Jzsc(int is) { return ca.get_N2C_no_ghosts(is, Jzs); }
-
-// === section: MImoments methods ===
-
-MImoments::compute_from_speciesMoms(const SpeciesMoms& speciesMoms,
-  const_arr3_double Bx, const_arr3_double By, const_arr3_double Bz)
-{
-  //setZero();
-  // sum all over the species
-  //miMoments.sumOverSpecies();
-
-  // copy the charge densities from the primitive moments
-  const_arr3_double prim_rhons = speciesMoms.get_rhons();
-  for(int is=0;is<ns;is++)
-  for(int i=0;i<nxn;i++)
-  for(int j=0;j<nyn;j++)
-  for(int k=0;k<nzn;k++)
-  {
-    rhons[is][i][j][k] = prim_rhons[is][i][j][k];
-  }
-  if(Parameters::use_correct_smoothing())
-  {
-    for(int is=0;is<setting.col().getNs();is++)
-    for(int i=0;i<Parameters::get_num_smoothings();i++)
-      get_grid().smooth(rhons[is], 1);
-  }
-
-  // modify the charge density used to drive the electromagnetic
-  // field based on non-kinetic influences.
-  {
-    // Fill with constant charge the planet
-    if (setting.get_col().getCase()=="Dipole") {
-      ConstantChargePlanet();
-    }
-    // Set a constant charge in the OpenBC boundaries
-    ConstantChargeOpenBC();
-  }
-
-  speciesMoms.calculateJhat(Jxh, Jyh, Jzh, Bx, By, Bz);
-}
-
+// === end SpeciesMoms_routines ===

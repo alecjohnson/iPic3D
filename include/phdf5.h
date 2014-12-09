@@ -3,7 +3,7 @@
 #define __PHDF5_H__
 
 #include "mpi.h"
-#include "ipichdf5.h"
+#include "ipic_hdf5.h"
 #include "arraysfwd.h"
 #include <string>
 using namespace std;

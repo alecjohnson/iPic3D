@@ -38,10 +38,10 @@ namespace Parameters
   int get_blockSize();
   int get_numBlocks();
   bool get_doWriteOutput();
-  bool use_original_smoothing(){return !use_correct_smoothing();}
+  //
+  int get_num_smoothings();
   bool use_correct_smoothing();
-
-  bool I_am_kinetic_solver(){return true;}
-  bool I_am_field_solver(){return true;}
+  bool use_perfect_smoothing();
+  bool use_original_smoothing(){return !use_correct_smoothing();}
 }
 #endif

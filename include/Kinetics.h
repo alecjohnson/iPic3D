@@ -13,14 +13,17 @@
 
 class Timing;
 
-#include "ipicfwd.h"
+#include "ipic_fwd.h"
 #include "assert.h"
 
+// I called this "Kinetics" rather than "Particles"
+// because I hope to support evolving a fluid with
+// kinetic closure.
 class Kinetics
 {
   private:
     // References to outside data
-    Setting      *setting;
+    const Setting&setting;
     // variables that this class is responsible for
     Particles3D  *part;
     //

@@ -3,11 +3,11 @@
 #include "Grid3DCU.h"
 #include "MPIdata.h"
 #include "Alloc.h"
-#include "CollectiveIO.h"
+#include "Collective.h"
 #include "ComNodes3D.h" // for communicateCenterBC
-#include "VirtualTopology3D.h"
+#include "VCtopology3D.h"
 #include "debug.h"
-#include "ipicmath.h"
+#include "ipic_math.h"
 
 // *** Grid3DCU_methods ***
 

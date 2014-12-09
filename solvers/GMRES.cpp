@@ -1,12 +1,18 @@
 
 #include <mpi.h>
-#include "GMRES.h"
 #include "Basic.h"
 #include "parallel.h"
 #include "errors.h"
 #include "Alloc.h"
 #include "TimeTasks.h"
-#include "ipicdefs.h"
+#include "ipic_defs.h"
+
+static void ApplyPlaneRotation(double &dx, double &dy, double &cs, double &sn)
+{
+  double temp = cs * dx + sn * dy;
+  dy = -sn * dx + cs * dy;
+  dx = temp;
+}
 
 void GMRES(GMRES_CALLBACK callback, double *xkrylov, int xkrylovlen,
   const double *b, int m, int max_iter, double tol, void * registered_data)
@@ -212,9 +218,3 @@ void GMRES(GMRES_CALLBACK callback, double *xkrylov, int xkrylovlen,
   return;
 }
 
-
-void ApplyPlaneRotation(double &dx, double &dy, double &cs, double &sn) {
-  double temp = cs * dx + sn * dy;
-  dy = -sn * dx + cs * dy;
-  dx = temp;
-}

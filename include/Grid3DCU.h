@@ -8,7 +8,7 @@
 #define GRID3DCU_H
 
 #include "arraysfwd.h"
-#include "ipicfwd.h"
+#include "ipic_fwd.h"
 #include "math.h" // for floor
 #include "assert.h"
 
@@ -114,7 +114,7 @@ public:
   // smoothing operators
 
   /*! Smoothing after the interpolation* */
-  void smooth(double value, arr3_double vector, int type, int*BCs=0);
+  void smooth(arr3_double vector, int type, const int* BCs_=0)const;
   // for smoothing species densities
   //void smooth(double value, arr4_double vector, int is, int type);
 
@@ -203,17 +203,13 @@ private:
   const static bool suppress_runaway_particle_instability = true;
   const VirtualTopology3D& _vct;
   const double Smooth;
-  /** number of cells - X direction, including + 2 (guard cells) */
-  int nxc;
-  /** number of nodes - X direction, including + 2 extra nodes for guard cells */
+  /** number of cells per direction including 2 guard cells */
+  int nxc; // nxn-1
+  int nyc; // nyn-1
+  int nzc; // nzn-1
+  /** number of nodes per direction including 2 extra nodes for guard cells */
   int nxn;
-  /** number of cell - Y direction, including + 2 (guard cells) */
-  int nyc;
-  /** number of nodes - Y direction, including + 2 extra nodes for guard cells */
   int nyn;
-  /** number of cell - Z direction, including + 2 (guard cells) */
-  int nzc;
-  /** number of nodes - Z direction, including + 2 extra nodes for guard cells */
   int nzn;
   /** dx = space step - X direction */
   double dx;
@@ -221,12 +217,9 @@ private:
   double dy;
   /** dz = space step - Z direction */
   double dz;
-  /** invdx = 1/dx */
-  double invdx;
-  /** invdy = 1/dy */
-  double invdy;
-  /** invdz = 1/dz */
-  double invdz;
+  double invdx; // 1/dx
+  double invdy; // 1/dy
+  double invdz; // 1/dz
   /** volume of mesh cell*/
   double VOL;
   /** invol = inverse of volume*/
@@ -270,6 +263,9 @@ public: // accessors (inline)
   int get_nxc_r()const{return nxc_r;} // nxc-2
   int get_nyc_r()const{return nyc_r;} // nyc-2
   int get_nzc_r()const{return nzc_r;} // nzc-2
+  int get_nxn_r()const{return cxlast;} // nxn-2
+  int get_nyn_r()const{return cylast;} // nyn-2
+  int get_nzn_r()const{return czlast;} // nzn-2
   int get_num_cells_rr()const{return num_cells_rr;}
   // deprecated
   double getDX()const{ return (dx); }
@@ -547,9 +543,9 @@ class CAgetter
           grid->get_nzc_r())
     {}
   public:
-    arr3_double CAgetter::get_no_ghosts(const_arr3_double inarr);
-    arr3_double CAgetter::get_N2C_no_ghosts(const_arr3_double inarr);
-    arr3_double CAgetter::get_N2C_no_ghosts(int is, const_arr4_double inarr);
+    arr3_double get_no_ghosts(const_arr3_double inarr);
+    arr3_double get_N2C_no_ghosts(const_arr3_double inarr);
+    arr3_double get_N2C_no_ghosts(int is, const_arr4_double inarr);
 };
 
 typedef Grid3DCU Grid;

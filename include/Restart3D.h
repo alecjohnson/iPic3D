@@ -2,7 +2,7 @@
 #ifndef _RESTART3D_H_
 #define _RESTART3D_H_
 
-#include "ipicfwd.h"
+#include "ipic_fwd.h"
 #include "arraysfwd.h"
 #include "aligned_vector.h"
 //#include "Particles3Dcomm.h"

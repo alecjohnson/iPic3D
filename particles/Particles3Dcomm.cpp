@@ -10,21 +10,16 @@ developers: Stefano Markidis, Giovanni Lapenta.
 #include <limits.h>
 #include "asserts.h"
 #include <algorithm> // for swap, std::max
-#include "VirtualTopology3D.h"
 #include "VCtopology3D.h"
-#include "CollectiveIO.h"
 #include "Collective.h"
-//#include "ComParticles3D.h"
 #include "Alloc.h"
 #include "Basic.h"
 #include "BcParticles.h"
-#include "Grid.h"
 #include "Grid3DCU.h"
-//#include "EMfields3D.h"
 #include "MPIdata.h"
 #include "ompdefs.h"
-#include "ipicmath.h"
-#include "ipicdefs.h"
+#include "ipic_math.h"
+#include "ipic_defs.h"
 #include "mic_basics.h"
 #include "parallel.h"
 
@@ -32,7 +27,7 @@ developers: Stefano Markidis, Giovanni Lapenta.
 #include "Particles3Dcomm.h"
 #include "Parameters.h"
 
-#include "ipichdf5.h"
+#include "ipic_hdf5.h"
 #include "Restart3D.h"
 //#include <vector>
 //#include <complex>

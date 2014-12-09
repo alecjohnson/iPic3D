@@ -6,7 +6,7 @@
 #include "MPIdata.h"
 #include "iPic3D.h"
 #include "TimeTasks.h"
-#include "ipicdefs.h"
+#include "ipic_defs.h"
 #include "debug.h"
 #include "Parameters.h"
 #include "ompdefs.h"
@@ -61,13 +61,19 @@ MIsolver::~MIsolver()
 //   my_clock(0)
 MIsolver::MIsolver(int argc, char **argv)
 : setting(*new Setting(argc, argv)),
+  ns(setting.grid().get_ns()),
+  nxn(setting.grid().get_nxn()),
+  nyn(setting.grid().get_nyn()),
+  nzn(setting.grid().get_nzn()),
+  nxc(setting.grid().get_nxc()),
+  nyc(setting.grid().get_nyc()),
+  nzc(setting.grid().get_nzc()),
+  speciesMoms(0),
   miMoments(0),
-  speciesMoms(0),
   EMf(0),
-  speciesMoms(0),
-  kinetics(0),
   fieldForPcls(0),
-  my_clock(0),
+  kinetics(0),
+  my_clock(0)
 {
   #ifdef BATSRUS
   // set index offset for each processor
@@ -78,14 +84,11 @@ MIsolver::MIsolver(int argc, char **argv)
   assert_eq(DVECWIDTH,8);
   #endif
 
-  const int nxn = setting.grid().get_nxn();
-  const int nyn = setting.grid().get_nyn();
-  const int nzn = setting.grid().get_nzn();
   kinetics = new Kinetics(setting);
   speciesMoms = new SpeciesMoms(setting);
   miMoments = new MImoments(setting);
   EMf = new EMfields3D(setting, miMoments);
-  fieldsForPcls = new array4_double(nxn,nyn,nzn,2*DFIELD_3or4);
+  fieldForPcls = new array4_double(nxn,nyn,nzn,2*DFIELD_3or4);
 
   my_clock = new Timing(vct->get_rank());
 
@@ -205,16 +208,6 @@ void MIsolver::advance_Efield()
   send_field_to_kinetic_solver();
 }
 
-void MIsolver::send_Bsmooth_to_kinetic_solver(
-  arr3_double Bx_smooth,
-  arr3_double By_smooth,
-  arr3_double Bz_smooth)
-{
-  // send(EMf->fetch_Bx_smooth(),
-  //      EMf->fetch_By_smooth(),
-  //      EMf->fetch_Bz_smooth());
-}
-
 //! update Bfield (assuming Eth has already been calculated)
 //  B^{n+1} = B^n - curl(Eth)
 void MIsolver::advance_Bfield()
@@ -227,7 +220,10 @@ void MIsolver::advance_Bfield()
   if(I_am_field_solver())
   {
     // begin sending of B_smooth to kinetic solver
-    send_Bsmooth_to_kinetic_solver();
+    //send_Bsmooth_to_kinetic_solver(
+    //  EMf->fetch_Bx_smooth(),
+    //  EMf->fetch_By_smooth(),
+    //  EMf->fetch_Bz_smooth());
   }
 }
 
@@ -294,6 +290,7 @@ void MIsolver::initialize_output()
 //  * particles
 void MIsolver::initialize()
 {
+  // initialize fields and particles
   set_initial_conditions();
   // initialize total magnetic field
   EMf->update_total_B();
@@ -1695,7 +1692,7 @@ void MIsolver::Finalize() {
   my_clock->stopTiming();
 }
 
-// Flow structure of application.
+// Flow structure of application (pseudocode).
 // C = "lives on Cluster"
 // B = "lives on Booster"
 //
@@ -1707,10 +1704,15 @@ void MIsolver::Finalize() {
 // C B  E_smooth    = smooth(En)
 //   B  BEaos       = soa2aos(B_smooth,E_smooth)
 //   B  particles   = advance(dt, particles, BEaos)
-// C B  speciesMoms    = sumMoments(particles)
+// C B  speciesMoms = sumMoments(particles)
 // C    Jhat_coarse = compute_Jhat(speciesMoms, B_smooth)
 // C    Jhat        = smooth(compute_Jhat(speciesMoms, B_smooth)
 // C    rhons       = smooth(speciesMoms.rhons)
+//
+// notes:
+//   BEaos is fieldForPcls
+//   EMfields3D class contains electromagnetic fields
+//   Kinetics class contains particles
 //
 // remarks:
 //  
@@ -1723,34 +1725,8 @@ void MIsolver::Finalize() {
 // * smoothing requires exchange of boundary data.
 // * computing Jhat requires exchange of boundary data.
 //
-// Class organization:
-// MIsolver:
-//   EMfields3D:
-//     En, Bc, Bn, Btot
-//   B_smooth
-//   E_smooth
-//   BEaos
-//   speciesMoms
-//   particles
-// FieldSolver:
-//   EMfields3D:
-//     En, Bc, Bn, Btot
-//   B_smooth
-//   E_smooth
-//   speciesMoms
-//   Jhat_coarse
-//   Jhat
-//   rhon
-// KineticSolver:
-//   B_smooth
-//   E_smooth
-//   BEaos
-//   particles
-//   speciesMoms
-//
 void MIsolver::run()
 {
-  timeTasks.resetCycle();
   initialize();
   // shouldn't we call this?
   //WriteOutput(FirstCycle()-1);

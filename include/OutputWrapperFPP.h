@@ -6,7 +6,7 @@
 //   This class should provide a mechanism to avoid 
 //   repeated opening and closing of the same file.
 // ===
-#include "ipicfwd.h"
+#include "ipic_fwd.h"
 #include "PSKOutput.h"
 #include "PSKhdf5adaptor.h"
 

@@ -1,7 +1,7 @@
 #include <mpi.h>
 #include "ComBasic3D.h"
 #include "ComParser3D.h"
-#include "ipicdefs.h"
+#include "ipic_defs.h"
 #include "TimeTasks.h"
 #include <math.h>
 

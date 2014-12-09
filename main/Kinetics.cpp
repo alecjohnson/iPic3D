@@ -1,3 +1,8 @@
+#include "Kinetics.h"
+#include "Setting.h"
+#include "Particles3D.h"
+#include "TimeTasks.h"
+#include <new> // needed for placement new
 
 // === Section: Kinetics_routines ===
 

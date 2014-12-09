@@ -1,5 +1,5 @@
-#ifndef ipicfwd_h
-#define ipicfwd_h
+#ifndef ipic_fwd_h
+#define ipic_fwd_h
 // forward declarations for iPic3D
 class Collective;
 typedef Collective CollectiveIO;

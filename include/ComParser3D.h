@@ -9,11 +9,7 @@ developers           : Stefano Markidis, Giovanni Lapenta
 #ifndef ComParser_H
 #define ComParser_H
 
-//#include <math.h>
-
-//#include "Alloc.h"
-//#include "VirtualTopology3D.h"
-#include "ipicfwd.h"
+#include "ipic_fwd.h"
 
 /** swap the buffer */
 void swapBuffer(int buffer_size, double *b_left, double *b_right);

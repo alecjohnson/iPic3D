@@ -11,7 +11,7 @@ developers           : Stefano Markidis, Giovanni Lapenta
 #define ComInterpNodes_H
 
 //#include "ComBasic3D.h"
-#include "ipicfwd.h"
+#include "ipic_fwd.h"
 
 /** communicate ghost cells and sum the contribution with a index indicating the number of species*/
 void communicateInterp(int nx, int ny, int nz, double ***vector, const VirtualTopology3D * vct);

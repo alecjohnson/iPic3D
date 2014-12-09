@@ -14,11 +14,11 @@ namespace iPic3D
   {
   private:
     const Setting &setting;
-    MImoments      *miMoments;
-    SpeciesMoms      *speciesMoms;
+    SpeciesMoms   *speciesMoms;
+    MImoments     *miMoments;
     EMfields3D    *EMf; // implicit field solver
-    Kinetics      *kinetics;
     array4_double *fieldForPcls;
+    Kinetics      *kinetics;
     Timing        *my_clock; // deprecated
     //
     // output
@@ -27,7 +27,13 @@ namespace iPic3D
     OutputWrapperFPP *outputWrapperFPP;
     //
     // convenience variables
-    //const int ns;
+    const int ns;
+    const int nxn;
+    const int nyn;
+    const int nzn;
+    const int nxc;
+    const int nyc;
+    const int nzc;
 
   public: // accessors
     OutputWrapperFPP& fetch_outputWrapperFPP(){
@@ -70,8 +76,8 @@ namespace iPic3D
     MImoments& fetch_miMoments(){return *miMoments;}
     SpeciesMoms& fetch_speciesMoms(){return *speciesMoms;}
     const Kinetics& get_kinetics()const{return *kinetics;}
-    const Collective& get_col()const{return setting.col()}
-    const Grid& get_grid()const{return setting.grid();};
+    const Collective& get_col()const{return setting.col();}
+    const Grid& get_grid()const{return setting.grid();}
     const VirtualTopology3D& get_vct()const{return setting.vct();}
   private:
     int Init();
@@ -88,4 +94,4 @@ namespace iPic3D
   };
 }
 
-#endif MIsolver_h
+#endif // MIsolver_h

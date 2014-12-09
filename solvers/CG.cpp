@@ -1,6 +1,5 @@
 
 #include <mpi.h>
-#include "CG.h"
 #include "Basic.h"
 #include "parallel.h"
 

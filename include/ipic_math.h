@@ -1,5 +1,5 @@
-#ifndef _ipicmath_h_
-#define _ipicmath_h_
+#ifndef _ipic_math_h_
+#define _ipic_math_h_
 #include "assert.h"
 #include "math.h"
 #include "stdlib.h" // for rand
@@ -150,5 +150,9 @@ inline double modulo(double x, double L, double Linv)
 {
   return x - floor(x * Linv) * L;
 }
+
+/* 4*PI for normalization */
+const double FourPI = M_PI*4; // define in math.h
+const double FourPIinv = 1./FourPI;
 
 #endif

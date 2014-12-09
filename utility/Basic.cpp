@@ -1,5 +1,5 @@
 #include "mpi.h"
-#include "ipicdefs.h"
+#include "ipic_defs.h"
 #include "Basic.h"
 #include "EllipticF.h"
 #include "Alloc.h"

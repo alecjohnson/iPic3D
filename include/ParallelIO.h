@@ -10,7 +10,7 @@
 #  include "phdf5.h"
 #endif
 
-#include "ipicfwd.h"
+#include "ipic_fwd.h"
 
 void WriteFieldsH5hut(int nspec, Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCtopology3D *vct, int cycle);
 void WritePartclH5hut(int nspec, Grid3DCU *grid, Particles3Dcomm *part, CollectiveIO *col, VCtopology3D *vct, int cycle);

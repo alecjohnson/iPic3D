@@ -140,7 +140,7 @@ class Collective
     int get_first_cycle()const{ return (last_cycle+1); }
     // the number before the first cycle executed
     int getLast_cycle()const{ return (last_cycle); }
-    int get_final_cycle()const{ return ncycles + get_last_cycle();}
+    int get_final_cycle()const{ return ncycles + getLast_cycle();}
     double getVinj()const{ return (Vinj); }
     double getCGtol()const{ return (CGtol); }
     double getGMREStol()const{ return (GMREStol); }

@@ -3,7 +3,7 @@
 #include "hdf5.h"
 #include "hdf5_hl.h"
 #include "phdf5.h"
-#include "ipicdefs.h"
+#include "ipic_defs.h"
 #include "errors.h"
 #include "debug.h"
 #include "Alloc.h"
@@ -107,7 +107,7 @@ void PHDF5fileClass::CreatePHDF5file(double *L, int *dglob, int *dlocl, bool bp)
 
   #else
   eprintf("WriteMethod==Parallel in input file "
-          "requires setting USING_PARALLEL_HDF5 in ipicdefs.h");
+          "requires setting USING_PARALLEL_HDF5 in ipic_defs.h");
   #endif
 
   /* ------------------------------------------------------- */
@@ -251,7 +251,7 @@ int PHDF5fileClass::WritePHDF5dataset(string grpname, string datasetname, const_
   H5Pset_dxpl_mpio(dataset_xfer, H5FD_MPIO_COLLECTIVE);
   #else
   eprintf("WriteMethod==Parallel in input file "
-          "requires setting USING_PARALLEL_HDF5 in ipicdefs.h");
+          "requires setting USING_PARALLEL_HDF5 in ipic_defs.h");
   #endif
 
   /* ---------------------------- */

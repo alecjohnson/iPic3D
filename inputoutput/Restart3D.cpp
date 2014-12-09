@@ -1,6 +1,6 @@
 #include <mpi.h>
 #include "Restart3D.h"
-#include "CollectiveIO.h"
+#include "Collective.h"
 #include "VCtopology3D.h"
 #include "Grid3DCU.h"
 #include "Particles3Dcomm.h"

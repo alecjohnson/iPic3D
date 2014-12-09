@@ -2,7 +2,7 @@
 #include "ComInterpNodes3D.h"
 #include "ComParser3D.h"
 #include "ComBasic3D.h"
-#include "ipicdefs.h"
+#include "ipic_defs.h"
 #include "Alloc.h"
 #include "VCtopology3D.h"
 

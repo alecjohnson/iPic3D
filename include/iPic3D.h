@@ -5,7 +5,7 @@
 //   MIsolver
 //   c_Solver
 
-#include "ipicfwd.h"
+#include "ipic_fwd.h"
 #include "assert.h"
 
 namespace iPic3D

@@ -5,8 +5,10 @@
 
 #include "asserts.h"
 //#include "BCStructure.h"
-#include "ipicfwd.h"
+#include "ipic_fwd.h"
 #include "Alloc.h"
+#include "Setting.h"
+#include "ipicmath.h" // for FourPI
 struct injInfoFields;
 
 /*! Electromagnetic fields and sources defined for each local grid, and for an implicit maxwell's solver @date May 2008 @par Copyright: (C) 2008 KUL @author Stefano Markidis, Giovanni Lapenta. @version 3.0 */
@@ -14,10 +16,8 @@ struct injInfoFields;
 class EMfields3D
 {
   public:
-    /*! constructor */
-    EMfields3D(Collective * col, Grid * grid, VirtualTopology3D *vct);
-    /*! destructor */
     ~EMfields3D();
+    EMfields3D(const Setting& setting_);
 
     /*! initialize the electromagnetic fields with constant values */
     virtual void init();
@@ -42,10 +42,6 @@ class EMfields3D
     void initForceFree();
     /*! initialized with rotated magnetic field */
     void initEM_rotate(double B, double theta);
-    /*! add a perturbattion to charge density */
-    void AddPerturbationRho(double deltaBoB, double kx, double ky, double Bx_mod, double By_mod, double Bz_mod, double ne_mod, double ne_phase, double ni_mod, double ni_phase, double B0, Grid * grid);
-    /*! add a perturbattion to the EM field */
-    void AddPerturbation(double deltaBoB, double kx, double ky, double Ex_mod, double Ex_phase, double Ey_mod, double Ey_phase, double Ez_mod, double Ez_phase, double Bx_mod, double Bx_phase, double By_mod, double By_phase, double Bz_mod, double Bz_phase, double B0, Grid * grid);
     /*! Initialise a combination of magnetic dipoles */
     void initDipole();
 
@@ -171,7 +167,6 @@ class EMfields3D
     void updateInfoFields();
 
   public: // accessors
-    const Setting& get_setting()const{return _setting;}
     const Collective& get_col()const{return _col;}
     const Grid& get_grid()const{return _grid;};
     const VirtualTopology3D& get_vct()const{return _vct;}
@@ -179,7 +174,7 @@ class EMfields3D
 
   private:
     // access to global data
-    const Setting& _setting;
+    const Setting& setting;
     const Collective& _col;
     const VirtualTopology3D&_vct;
     const Grid& _grid;
@@ -190,8 +185,6 @@ class EMfields3D
     //
     /*! light speed */
     double c;
-    /* 4*PI for normalization */
-    double FourPI;
     /*! time step */
     double dt;
     /*! decentering parameter */
@@ -250,17 +243,9 @@ class EMfields3D
     array3_double* Bxtot;
 
     // *************************************
-    // TEMPORARY ARRAY
+    // TEMPORARY ARRAYS
     // ************************************
-    /*! other temporary arrays (in MaxwellSource) */
-    //array3_double tempC;
-    //array3_double tempX;
-    //array3_double tempY;
-    //array3_double tempZ;
-    //array3_double temp2X;
-    //array3_double temp2Y;
-    //array3_double temp2Z;
-    /*! and some for MaxwellImage */
+    /*! temporary arrays for MaxwellImage */
     array3_double imageX;
     array3_double imageY;
     array3_double imageZ;
@@ -293,6 +278,12 @@ class EMfields3D
     array3_double Bx_smooth;
     array3_double By_smooth;
     array3_double Bz_smooth;
+    array3_double Ex_smooth;
+    array3_double Ey_smooth;
+    array3_double Ez_smooth;
+
+    array3_double rhoc;
+    array3_double rhoh;
 
     // external current, defined on nodes
     // (only used for reporting net current)

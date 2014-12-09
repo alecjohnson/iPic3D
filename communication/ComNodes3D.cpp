@@ -6,7 +6,7 @@
 #include "BcFields3D.h"
 #include "VCtopology3D.h"
 #include "TimeTasks.h"
-#include "ipicdefs.h"
+#include "ipic_defs.h"
 #include "Alloc.h"
 #include "debug.h"
 #include "parallel.h"
@@ -621,7 +621,7 @@ void communicateCenter(int nx, int ny, int nz, arr3_double _vector,
 }
 /** communicate ghost cells (FOR CENTERS) with BOX stencil*/
 void communicateCenterBoxStencilBC(int nx, int ny, int nz, arr3_double _vector,
-  int BCs[6], const VirtualTopology3D * vct)
+  const int BCs[6], const VirtualTopology3D * vct)
 {
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
@@ -658,7 +658,7 @@ void communicateCenterBoxStencilBC(int nx, int ny, int nz, arr3_double _vector,
 }
 // particles
 /** communicate ghost cells (FOR CENTERS) with BOX stencil*/
-static void communicateCenterBoxStencilBC_P(int nx, int ny, int nz,
+void communicateCenterBoxStencilBC_P(int nx, int ny, int nz,
   arr3_double _vector,
   const int BCs[6],
   const VirtualTopology3D * vct)
@@ -696,15 +696,6 @@ static void communicateCenterBoxStencilBC_P(int nx, int ny, int nz,
   delete[]ghostZrghtFace;
   delete[]ghostZleftFace;
 }
-void communicateCenterBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector,
-  int BCs[6], const VirtualTopology3D * vct)
-{
-  communicateCenterBoxStencilBC_P(nx, ny, nz, _vector,
-    BCs[0], BCs[1], BCs[2], BCs[3], BCs[4], BCs[5], vct);
-}
-
-// 
-
 
 void communicateNodeBoxStencilBC(int nx, int ny, int nz, arr3_double _vector,
   int bcFaceXrght, int bcFaceXleft,
@@ -794,12 +785,12 @@ void communicateNodeBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector,
 
 
 // /////////// communication + BC ////////////////////////////
-void communicateCenterBC(int nx, int ny, int nz, arr3_double vector,
-  int BCs[6], const VirtualTopology3D * vct)
+void communicateCenterBC(int nx, int ny, int nz, arr3_double vector_,
+  const int BCs[6], const VirtualTopology3D * vct)
 {
   timeTasks_set_communicating();
 //  static int counter=0; if(is_output_thread()) { counter++; dprint(counter); }
-  double ***vector=_vector.fetch_arr3();
+  double ***vector=vector_.fetch_arr3();
   const int nxr = nx-2;
   const int nyr = ny-2;
   const int nzr = nz-2;
@@ -961,7 +952,7 @@ void communicateCenterBC(int nx, int ny, int nz, arr3_double vector,
   delete[]ghostXleftYleftZsameEdge;
   delete[]ghostXleftYrghtZsameEdge;
 }
-void communicateCenterBC(int nx, int ny, int nz, arr3_double _vector,
+void communicateCenterBC(int nx, int ny, int nz, arr3_double vector,
   int bcFaceXrght, int bcFaceXleft,
   int bcFaceYrght, int bcFaceYleft,
   int bcFaceZrght, int bcFaceZleft,
@@ -1081,7 +1072,7 @@ void communicateCenterBC_P(int nx, int ny, int nz, arr3_double _vector,
   delete[]ghostXleftYleftZsameEdge;
   delete[]ghostXleftYrghtZsameEdge;
 }
-void communicateCenterBC_P(int nx, int ny, int nz, arr3_double _vector,
+void communicateCenterBC_P(int nx, int ny, int nz, arr3_double vector,
   int bcFaceXrght, int bcFaceXleft,
   int bcFaceYrght, int bcFaceYleft,
   int bcFaceZrght, int bcFaceZleft,

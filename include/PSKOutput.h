@@ -14,14 +14,14 @@ developers: D. Burgess, June/July 2006
 #include <list>
 
 #include "errors.h"
-#include "Grid.h"
+#include "Grid3DCU.h"
 #include "PSKException.h"
 #include "Particles3Dcomm.h"
 #include "EMfields3D.h"
 #include "Collective.h"
 #include "VCtopology3D.h"
 #include "MPIdata.h"
-#include "ipicdefs.h"
+#include "ipic_defs.h"
 
 using std::string;
 using std::stringstream;

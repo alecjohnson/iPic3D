@@ -7,8 +7,7 @@ developers: Stefano Markidis, Giovanni Lapenta
 #ifndef Part3DCOMM_H
 #define Part3DCOMM_H
 
-//#include "CollectiveIO.h"
-#include "ipicfwd.h"
+#include "ipic_fwd.h"
 #include "Alloc.h"
 #include "Particle.h" // for ParticleType
 // unfortunately this includes mpi.h, which includes 35000 lines:
@@ -90,6 +89,7 @@ public:
 
   /*! sort particles for vectorized push (needs to be parallelized) */
   //void sort_particles_serial_SoA_by_xavg();
+  void sort_particles();
   void sort_particles_serial();
   void sort_particles_serial_AoS();
   //void sort_particles_serial_SoA();

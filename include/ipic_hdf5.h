@@ -1,5 +1,5 @@
-#ifndef ipichdf5_h
-#define ipichdf5_h
+#ifndef ipic_hdf5_h
+#define ipic_hdf5_h
 #ifndef NO_HDF5
 #include "hdf5.h"
 #endif
