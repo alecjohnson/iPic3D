@@ -15,7 +15,7 @@ developers: D. Burgess, June/July 2006
 
 #include "errors.h"
 #include "Grid3DCU.h"
-#include "PSKException.h"
+//#include "PSKException.h"
 #include "Particles3Dcomm.h"
 #include "EMfields3D.h"
 #include "Collective.h"
@@ -41,6 +41,7 @@ using std::endl;
 namespace PSK {
 
   /** class for handling IO exception*/
+  #if 0 // throwing exception is not supported in ipic3d
   class OutputException:public Exception {
   public:
   OutputException(const std::string & err_str, const std::string fn_str = "", int sys_errno = 0):Exception(err_str, fn_str, sys_errno) {
@@ -48,6 +49,7 @@ namespace PSK {
   } OutputException(const char *err_str, const char *fn_str = "", int sys_errno = 0):Exception(err_str, fn_str, sys_errno) {
       _type_str += "::OutputException";
   }};
+  #endif
 
   /** 
    *

@@ -15,6 +15,7 @@ developers: Stefano Markidis, Giovanni Lapenta
 #include "aligned_vector.h"
 #include "Larray.h"
 #include "IDgenerator.h"
+#include "Setting.h"
 /**
  * 
  * class for particles of the same species with communications methods
@@ -204,13 +205,13 @@ public:
   // computed get access
   //
   /** return the Kinetic energy */
-  double getKe();
+  double getKe()const;
   /** return the maximum kinetic energy */
-  double getMaxVelocity();
+  double getMaxVelocity()const;
   /** return energy distribution */
   long long *getVelocityDistribution(int nBins, double maxVel);
   /** return the momentum */
-  double getP();
+  double getP()const;
   /** Print particles info: positions, velocities */
   void Print() const;
   /** Print the number of particles of this subdomain */

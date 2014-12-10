@@ -12,7 +12,7 @@
 // *** Grid3DCU_methods ***
 
 /*! constructor */
-Grid3DCU::Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct):
+Grid3DCU::Grid3DCU(const CollectiveIO * col, const VirtualTopology3D * vct):
   _vct(*vct),
   Smooth(col->getSmooth())
 {
@@ -363,7 +363,8 @@ void Grid3DCU::lapC2Cpoisson(arr3_double lapC, arr3_double scFieldC)const
 {
   const VirtualTopology3D *vct = &get_vct();
   // communicate first the scFieldC
-  communicateCenterBoxStencilBC(nxc, nyc, nzc, scFieldC, 1, 1, 1, 1, 1, 1, vct);
+  const int BCs[6] = {1,1,1,1,1,1};
+  communicateCenterBoxStencilBC(nxc, nyc, nzc, scFieldC, BCs, vct);
   for (register int i = 1; i < nxc - 1; i++)
     for (register int j = 1; j < nyc - 1; j++)
       for (register int k = 1; k < nzc - 1; k++)
@@ -503,35 +504,35 @@ void Grid3DCU::interpN2C(arr4_double vecFieldC, int ns, const_arr4_double vecFie
    value: if 1 nothing is done; else smoothing is done and value is ignored.
    type = 0 --> center based vector ;
    type = 1 --> node based vector ; */
-void Grid3DCU::smooth(arr3_double vector, int type, const int* BCs_)
+void Grid3DCU::smooth(arr3_double vector, int type, const int* BCs_)const
 {
   int BCs[6];
   double value = Smooth;
   // default BCs use 2 for every component
-  for(int i=0;i<6;i++) BCs[i]=BC_ ? BCs_[i] : 2;
+  for(int i=0;i<6;i++) BCs[i]=BCs_ ? BCs_[i] : 2;
   int nvolte = 6;
   for (int icount = 1; icount < nvolte + 1; icount++)
   {
     if (value != 1.0) {
       double alpha;
-      int nx, ny, nz;
+      const int nx = vector.dim1();
+      const int ny = vector.dim2();
+      const int nz = vector.dim3();
       switch (type) {
         default:
           unsupported_value_error(type);
         case (0): // cell-centered
-          nx = getNXC();
-          ny = getNYC();
-          nz = getNZC();
-          communicateCenterBoxStencilBC_P(nx,ny,nz, vector,BCs, &get_vct());
-
+          assert_eq(getNXC(),nx);
+          assert_eq(getNYC(),ny);
+          assert_eq(getNZC(),nz);
           break;
         case (1): // node array
-          nx = getNXN();
-          ny = getNYN();
-          nz = getNZN();
-          communicateNodeBoxStencilBC_P(nx,ny,nz, vector,BCs, &get_vct());
+          assert_eq(getNXN(),nx);
+          assert_eq(getNYN(),ny);
+          assert_eq(getNZN(),nz);
           break;
       }
+      communicateNodeBoxStencilBC_P(nx,ny,nz, vector,BCs, &get_vct());
       double ***temp = newArr3(double, nx, ny, nz);
       if (icount % 2 == 1) {
         value = 0.;
@@ -563,39 +564,3 @@ void Grid3DCU::smooth(arr3_double vector, int type, const int* BCs_)
   }
 }
 
-// *** end Grid3DCU_methods ***
-
-// *** CAgetter_methods ***
-
-arr3_double CAgetter::get_no_ghosts(const_arr3_double inarr)
-{
-  for (int i = 1; i < nxc-1; i++)
-  for (int j = 1; j < nyc-1; j++)
-  for (int k = 1; k < nzc-1; k++)
-    arr[i-1][j-1][k-1]=inarr[i][j][k];
-  return arr;
-}
-arr3_double CAgetter::get_N2C_no_ghosts(const_arr3_double inarr)
-{
-  array3_double tmp(nxc,nyc,nzc);
-  grid->interpN2C(tmp, inarr);
-
-  for (int i = 1; i < nxc-1; i++)
-  for (int j = 1; j < nyc-1; j++)
-  for (int k = 1; k < nzc-1; k++)
-    arr[i-1][j-1][k-1]=inarr[i][j][k];
-  return arr;
-}
-arr3_double CAgetter::get_N2C_no_ghosts(int is, const_arr4_double inarr)
-{
-  array4_double tmp(ns,nxc,nyc,nzc);
-  grid->interpN2C(tmp, is, inarr);
-
-  for (int i = 1; i < nxc-1; i++)
-  for (int j = 1; j < nyc-1; j++)
-  for (int k = 1; k < nzc-1; k++)
-    arr[i-1][j-1][k-1]=tmp[is][i][j][k];
-  return arr;
-}
-
-// *** end CAgetter_methods ***

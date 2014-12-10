@@ -8,7 +8,8 @@
 #include "ipic_fwd.h"
 #include "Alloc.h"
 #include "Setting.h"
-#include "ipicmath.h" // for FourPI
+class const_vector_arr3_double;
+class MImoments;
 struct injInfoFields;
 
 /*! Electromagnetic fields and sources defined for each local grid, and for an implicit maxwell's solver @date May 2008 @par Copyright: (C) 2008 KUL @author Stefano Markidis, Giovanni Lapenta. @version 3.0 */
@@ -46,13 +47,16 @@ class EMfields3D
     void initDipole();
 
     /*! Calculate Electric field using the implicit Maxwell solver */
-    void calculateE();
+    void calculateE(const MImoments& miMoments);
     /*! Image of Poisson Solver (for SOLVER) */
     void PoissonImage(double *image, double *vector);
     /*! Image of Maxwell Solver (for Solver) */
-    void MaxwellImage(double *im, double *vector);
+    void MaxwellImage(double *im, double* vector,
+      const MImoments& miMoments);
+    // rhohat := rho - theta*dt*div(Jhat)
+    void calculateRhoHat(const MImoments& miMoments);
     /*! Maxwell source term (for SOLVER) */
-    void MaxwellSource(double *bkrylov);
+    void MaxwellSource(double *bkrylov, const MImoments& miMoments);
     /*! Impose a constant charge inside a spherical zone of the domain */
     void ConstantChargePlanet(double R, double x_center, double y_center, double z_center);
     /*! Impose a constant charge in the OpenBC boundaries */
@@ -61,6 +65,7 @@ class EMfields3D
     void ConstantChargeOpenBCv2();
     /*! Calculate Magnetic field with the implicit solver: calculate B defined on nodes With E(n+ theta) computed, the magnetic field is evaluated from Faraday's law */
     void advanceB();
+    void update_total_B();
     /*! fix B on the boundary for gem challange */
     void fixBgem();
     /*! fix B on the boundary for gem challange */
@@ -69,15 +74,27 @@ class EMfields3D
     /*! Calculate the three components of mu (implicit permeattivity)
         cross image vector */
     // access to this is needed in the fields solver
-    void MUdot(arr3_double MUdotX, arr3_double MUdotY, arr3_double MUdotZ,
-      const_arr3_double vectX, const_arr3_double vectY, const_arr3_double vectZ);
+    void MUdot(
+      arr3_double MUdotX,
+      arr3_double MUdotY,
+      arr3_double MUdotZ,
+      const_arr3_double vectX,
+      const_arr3_double vectY,
+      const_arr3_double vectZ,
+      const_vector_arr3_double rhons);
 
     /*! copy the field data to the array used to move the particles */
-    void set_fieldForPcls();
+    void set_fieldForPcls(array4_double& fieldForPcls);
 
     /*! Perfect conductor boundary conditions LEFT wall */
-    void perfectConductorLeft(arr3_double imageX, arr3_double imageY, arr3_double imageZ,
-      const_arr3_double vectorX, const_arr3_double vectorY, const_arr3_double vectorZ,
+    void perfectConductorLeft(
+      arr3_double imageX,
+      arr3_double imageY,
+      arr3_double imageZ,
+      const_arr3_double vectorX,
+      const_arr3_double vectorY,
+      const_arr3_double vectorZ,
+      const MImoments& miMoments,
       int dir);
     /*! Perfect conductor boundary conditions RIGHT wall */
     void perfectConductorRight(
@@ -85,6 +102,7 @@ class EMfields3D
       const_arr3_double vectorX,
       const_arr3_double vectorY,
       const_arr3_double vectorZ,
+      const MImoments& miMoments,
       int dir);
     /*! Perfect conductor boundary conditions for source LEFT wall */
     void perfectConductorLeftS(arr3_double vectorX, arr3_double vectorY, arr3_double vectorZ, int dir);
@@ -92,12 +110,12 @@ class EMfields3D
     void perfectConductorRightS(arr3_double vectorX, arr3_double vectorY, arr3_double vectorZ, int dir);
 
     /*! Calculate the sysceptibility tensor on the boundary */
-    void sustensorRightX(double **susxx, double **susyx, double **suszx);
-    void sustensorLeftX (double **susxx, double **susyx, double **suszx);
-    void sustensorRightY(double **susxy, double **susyy, double **suszy);
-    void sustensorLeftY (double **susxy, double **susyy, double **suszy);
-    void sustensorRightZ(double **susxz, double **susyz, double **suszz);
-    void sustensorLeftZ (double **susxz, double **susyz, double **suszz);
+    void sustensorRightX(double **susxx, double **susyx, double **suszx, const_vector_arr3_double rhons);
+    void sustensorLeftX (double **susxx, double **susyx, double **suszx, const_vector_arr3_double rhons);
+    void sustensorRightY(double **susxy, double **susyy, double **suszy, const_vector_arr3_double rhons);
+    void sustensorLeftY (double **susxy, double **susyy, double **suszy, const_vector_arr3_double rhons);
+    void sustensorRightZ(double **susxz, double **susyz, double **suszz, const_vector_arr3_double rhons);
+    void sustensorLeftZ (double **susxz, double **susyz, double **suszz, const_vector_arr3_double rhons);
 
     /*** accessor methods ***/
 
@@ -136,15 +154,23 @@ class EMfields3D
     const_arr3_double get_Ex()const{ return Ex; }
     const_arr3_double get_Ey()const{ return Ey; }
     const_arr3_double get_Ez()const{ return Ez; }
+    //const_arr3_double get_Ex_smooth()const{ return Ex_smooth; }
+    //const_arr3_double get_Ey_smooth()const{ return Ey_smooth; }
+    //const_arr3_double get_Ez_smooth()const{ return Ez_smooth; }
     const_arr3_double get_Bxn()const{ return Bxn; }
     const_arr3_double get_Byn()const{ return Byn; }
     const_arr3_double get_Bzn()const{ return Bzn; }
     const_arr3_double get_Bxc()const{ return Bxc; }
     const_arr3_double get_Byc()const{ return Byc; }
     const_arr3_double get_Bzc()const{ return Bzc; }
+    const_arr3_double get_Bx_tot()const{ return Bx_tot; }
+    const_arr3_double get_By_tot()const{ return By_tot; }
+    const_arr3_double get_Bz_tot()const{ return Bz_tot; }
     const_arr3_double get_Bx_smooth()const{ return Bx_smooth; }
     const_arr3_double get_By_smooth()const{ return By_smooth; }
     const_arr3_double get_Bz_smooth()const{ return Bz_smooth; }
+
+    bool get_DriftSpecies(int i){return DriftSpecies[i];}
 
     // field components without ghost cells
     //
@@ -154,6 +180,9 @@ class EMfields3D
     //arr3_double getBxc();
     //arr3_double getByc();
     //arr3_double getBzc();
+
+    // set Jext for reporting current in output
+    void set_Jext();
 
     /*! get the electric field energy */
     double getEenergy();
@@ -178,7 +207,9 @@ class EMfields3D
     const Collective& _col;
     const VirtualTopology3D&_vct;
     const Grid& _grid;
-    //
+
+  private: // data
+
     // copies of Collective parameters
     // (We should try to get ride of these and instead
     // access this stuff via get_col().)
@@ -240,12 +271,14 @@ class EMfields3D
     array3_double Bxn;
     array3_double Byn;
     array3_double Bzn;
-    array3_double* Bxtot;
 
     // *************************************
     // TEMPORARY ARRAYS
     // ************************************
     /*! temporary arrays for MaxwellImage */
+    array3_double tempX;
+    array3_double tempY;
+    array3_double tempZ;
     array3_double imageX;
     array3_double imageY;
     array3_double imageZ;
@@ -256,7 +289,13 @@ class EMfields3D
     array3_double vectY;
     array3_double vectZ;
     array3_double divC;
-    array3_double arr;
+    //array3_double arr;
+    //
+    // other temporary arrays
+    //
+    array3_double tempXC;
+    array3_double tempYC;
+    array3_double tempZC;
 
     // *********** SOURCES *************
 

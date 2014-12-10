@@ -12,7 +12,7 @@ developers           : Stefano Markidis, Giovanni Lapenta
 
 /** set the boundary condition on boundaries */
 void BCface(int nx, int ny, int nz, double ***vector, int bcFaceXright, int bcFaceXleft, int bcFaceYright, int bcFaceYleft, int bcFaceZright, int bcFaceZleft, const VirtualTopology3D * vct);
-void BCface(int nx, int ny, int nz, double ***vector,
+inline void BCface(int nx, int ny, int nz, double ***vector,
   const int BCs[6], const VirtualTopology3D * vct)
 {
   BCface(nx, ny, nz, vector,

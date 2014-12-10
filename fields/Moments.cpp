@@ -31,7 +31,9 @@ MImoments::MImoments(const Setting& setting_)
 }
 
 void MImoments::compute_from_speciesMoms(const SpeciesMoms& speciesMoms,
-  const_arr3_double Bx, const_arr3_double By, const_arr3_double Bz)
+  const_arr3_double Bx,
+  const_arr3_double By,
+  const_arr3_double Bz)
 {
   //setZero();
   // sum all over the species
@@ -87,68 +89,68 @@ void MImoments::ConstantChargeOpenBCv2()
     if(vct->noXleftNeighbor() && col.getBcEMfaceXleft() ==2)
     {
       for (int j=0; j < ny;j++)
-        for (int k=0; k < nz;k++){
+      for (int k=0; k < nz;k++){
           rhons[is][0][j][k] = rhons[is][4][j][k];
           rhons[is][1][j][k] = rhons[is][4][j][k];
           rhons[is][2][j][k] = rhons[is][4][j][k];
           rhons[is][3][j][k] = rhons[is][4][j][k];
-        }
+      }
     }
 
     if(vct->noXrghtNeighbor() && col.getBcEMfaceXright() ==2)
     {
       for (int j=0; j < ny;j++)
-        for (int k=0; k < nz;k++){
+      for (int k=0; k < nz;k++){
           rhons[is][nx-4][j][k] = rhons[is][nx-5][j][k];
           rhons[is][nx-3][j][k] = rhons[is][nx-5][j][k];
           rhons[is][nx-2][j][k] = rhons[is][nx-5][j][k];
           rhons[is][nx-1][j][k] = rhons[is][nx-5][j][k];
-        }
+      }
     }
 
     if(vct->noYleftNeighbor() && col.getBcEMfaceYleft() ==2)
     {
       for (int i=0; i < nx;i++)
-        for (int k=0; k < nz;k++){
+      for (int k=0; k < nz;k++){
           rhons[is][i][0][k] = rhons[is][i][4][k];
           rhons[is][i][1][k] = rhons[is][i][4][k];
           rhons[is][i][2][k] = rhons[is][i][4][k];
           rhons[is][i][3][k] = rhons[is][i][4][k];
-        }
+      }
     }
 
     if(vct->noYrghtNeighbor() && col.getBcEMfaceYright() ==2)
     {
       for (int i=0; i < nx;i++)
-        for (int k=0; k < nz;k++){
+      for (int k=0; k < nz;k++){
           rhons[is][i][ny-4][k] = rhons[is][i][ny-5][k];
           rhons[is][i][ny-3][k] = rhons[is][i][ny-5][k];
           rhons[is][i][ny-2][k] = rhons[is][i][ny-5][k];
           rhons[is][i][ny-1][k] = rhons[is][i][ny-5][k];
-        }
+      }
     }
 
     if(vct->noZleftNeighbor() && col.getBcEMfaceZleft() ==2)
     {
       for (int i=0; i < nx;i++)
-        for (int j=0; j < ny;j++){
+      for (int j=0; j < ny;j++){
           rhons[is][i][j][0] = rhons[is][i][j][4];
           rhons[is][i][j][1] = rhons[is][i][j][4];
           rhons[is][i][j][2] = rhons[is][i][j][4];
           rhons[is][i][j][3] = rhons[is][i][j][4];
-        }
+      }
     }
 
 
     if(vct->noZrghtNeighbor() && col.getBcEMfaceZright() ==2)
     {
       for (int i=0; i < nx;i++)
-        for (int j=0; j < ny;j++){
+      for (int j=0; j < ny;j++){
           rhons[is][i][j][nz-4] = rhons[is][i][j][nz-5];
           rhons[is][i][j][nz-3] = rhons[is][i][j][nz-5];
           rhons[is][i][j][nz-2] = rhons[is][i][j][nz-5];
           rhons[is][i][j][nz-1] = rhons[is][i][j][nz-5];
-        }
+      }
     }
   }
 }
@@ -173,68 +175,68 @@ void MImoments::ConstantChargeOpenBC()
     if(vct->noXleftNeighbor() && (col.getBcEMfaceXleft() ==2))
     {
       for (int j=0; j < ny;j++)
-        for (int k=0; k < nz;k++){
+      for (int k=0; k < nz;k++){
           rhons[is][0][j][k] = value;
           rhons[is][1][j][k] = value;
           rhons[is][2][j][k] = value;
           rhons[is][3][j][k] = value;
-        }
+      }
     }
 
     if(vct->noXrghtNeighbor() && (col.getBcEMfaceXright() ==2))
     {
       for (int j=0; j < ny;j++)
-        for (int k=0; k < nz;k++){
+      for (int k=0; k < nz;k++){
           rhons[is][nx-4][j][k] = value;
           rhons[is][nx-3][j][k] = value;
           rhons[is][nx-2][j][k] = value;
           rhons[is][nx-1][j][k] = value;
-        }
+      }
     }
 
     if(vct->noYleftNeighbor() && (col.getBcEMfaceYleft() ==2))
     {
       for (int i=0; i < nx;i++)
-        for (int k=0; k < nz;k++){
+      for (int k=0; k < nz;k++){
           rhons[is][i][0][k] = value;
           rhons[is][i][1][k] = value;
           rhons[is][i][2][k] = value;
           rhons[is][i][3][k] = value;
-        }
+      }
     }
 
     if(vct->noYrghtNeighbor() && (col.getBcEMfaceYright() ==2))
     {
       for (int i=0; i < nx;i++)
-        for (int k=0; k < nz;k++){
+      for (int k=0; k < nz;k++){
           rhons[is][i][ny-4][k] = value;
           rhons[is][i][ny-3][k] = value;
           rhons[is][i][ny-2][k] = value;
           rhons[is][i][ny-1][k] = value;
-        }
+      }
     }
 
     if(vct->noZleftNeighbor() && (col.getBcEMfaceZleft() ==2))
     {
       for (int i=0; i < nx;i++)
-        for (int j=0; j < ny;j++){
+      for (int j=0; j < ny;j++){
           rhons[is][i][j][0] = value;
           rhons[is][i][j][1] = value;
           rhons[is][i][j][2] = value;
           rhons[is][i][j][3] = value;
-        }
+      }
     }
 
 
     if(vct->noZrghtNeighbor() && (col.getBcEMfaceZright() ==2))
     {
       for (int i=0; i < nx;i++)
-        for (int j=0; j < ny;j++){
+      for (int j=0; j < ny;j++){
           rhons[is][i][j][nz-4] = value;
           rhons[is][i][j][nz-3] = value;
           rhons[is][i][j][nz-2] = value;
           rhons[is][i][j][nz-1] = value;
-        }
+      }
     }
   }
 }

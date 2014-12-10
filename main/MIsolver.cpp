@@ -3,26 +3,36 @@
 #ifndef NO_HDF5
 #include "Restart3D.h"
 #endif
+#include "Alloc.h"
 #include "MPIdata.h"
-#include "iPic3D.h"
+#include "MIsolver.h"
+#include "SpeciesMoms.h"
 #include "TimeTasks.h"
 #include "ipic_defs.h"
 #include "debug.h"
 #include "Parameters.h"
 #include "ompdefs.h"
-#include "VCtopology3D.h"
 #include "Collective.h"
+#include "VCtopology3D.h"
 #include "Grid3DCU.h"
 #include "EMfields3D.h"
 #include "Particles3D.h"
 #include "Moments.h"
+#include "Kinetics.h"
 #include "Timing.h"
+//
+// needed for initialization routines
+//
+#include "EllipticF.h"
+#include "Basic.h"
+#include "ComNodes3D.h"
 //
 #ifndef NO_HDF5
 #include "ParallelIO.h"
 #include "WriteOutputParallel.h"
 #include "OutputWrapperFPP.h"
 #endif
+#include "OutputWrapperTXT.h"
 //
 #include <iostream>
 #include <sstream>
@@ -54,20 +64,23 @@ MIsolver::~MIsolver()
 //   speciesMoms(*new SpeciesMoms(setting)),
 //   kinetics(*new Kinetics(setting)),
 //   fieldForPcls(*new array4_double(
-//     setting.grid().get_nxn(),
-//     setting.grid().get_nyn(),
-//     setting.grid().get_nzn(),
+//     grid->get_nxn(),
+//     grid->get_nyn(),
+//     grid->get_nzn(),
 //     2*DFIELD_3or4)),
 //   my_clock(0)
-MIsolver::MIsolver(int argc, char **argv)
+MIsolver::MIsolver(int argc, const char **argv)
 : setting(*new Setting(argc, argv)),
-  ns(setting.grid().get_ns()),
-  nxn(setting.grid().get_nxn()),
-  nyn(setting.grid().get_nyn()),
-  nzn(setting.grid().get_nzn()),
-  nxc(setting.grid().get_nxc()),
-  nyc(setting.grid().get_nyc()),
-  nzc(setting.grid().get_nzc()),
+  col(&setting.col()),
+  vct(&setting.vct()),
+  grid(&setting.grid()),
+  ns(col->getNs()),
+  nxn(grid->get_nxn()),
+  nyn(grid->get_nyn()),
+  nzn(grid->get_nzn()),
+  nxc(grid->get_nxc()),
+  nyc(grid->get_nyc()),
+  nzc(grid->get_nzc()),
   speciesMoms(0),
   miMoments(0),
   EMf(0),
@@ -87,13 +100,15 @@ MIsolver::MIsolver(int argc, char **argv)
   kinetics = new Kinetics(setting);
   speciesMoms = new SpeciesMoms(setting);
   miMoments = new MImoments(setting);
-  EMf = new EMfields3D(setting, miMoments);
+  EMf = new EMfields3D(setting);
   fieldForPcls = new array4_double(nxn,nyn,nzn,2*DFIELD_3or4);
 
   my_clock = new Timing(vct->get_rank());
-
-  return 0;
 }
+
+int MIsolver::FirstCycle() { return col->get_first_cycle(); }
+int MIsolver::FinalCycle() { return col->get_final_cycle(); }
+bool MIsolver::is_rank0() { return vct->is_rank0(); }
 
 void MIsolver::accumulate_moments()
 {
@@ -101,11 +116,11 @@ void MIsolver::accumulate_moments()
 
   if(I_am_kinetic_solver())
   {
-    speciesMoms.accumulateMoments(part);
     #pragma omp parallel
     for (int is = 0; is < ns; is++)
     {
-      speciesMoms.accumulateMoments(is, part[is]);
+      Particles3Dcomm& pcls = kinetics->fetch_pcls(is);
+      speciesMoms->accumulateMoments(is, pcls);
       //#pragma omp master
       //[...send accumulated moments to cluster...]
     }
@@ -113,11 +128,10 @@ void MIsolver::accumulate_moments()
   if(I_am_field_solver())
   {
     assert(I_am_field_solver());
-    speciesMoms.communicateGhostP2G(is);
     for (int is = 0; is < ns; is++)
     {
       //[...wait for communicated moments to be received from booster...]
-      speciesMoms.communicateGhostP2G(is);
+      speciesMoms->communicateGhostP2G(is);
     }
   }
 }
@@ -137,18 +151,22 @@ void MIsolver::compute_moments()
   // synchronizations, for the present we prefer to avoid
   // all exchange of boundary data on the booster.
   //
-  // by default we smooth after applying magnetic field
-  const_arr3_double Bx = EMf->get_Bx_smooth();
-  const_arr3_double By = EMf->get_By_smooth();
-  const_arr3_double Bz = EMf->get_Bz_smooth();
   // smooth before applying magnetic field
   if(Parameters::use_perfect_smoothing())
   {
-    Bx = EMf->get_Bx_tot();
-    By = EMf->get_By_tot();
-    Bz = EMf->get_Bz_tot();
+    miMoments->compute_from_speciesMoms(*speciesMoms,
+      EMf->get_Bx_tot(),
+      EMf->get_By_tot(),
+      EMf->get_Bz_tot());
   }
-  miMoments->compute_from_speciesMoms(speciesMoms, Bx, By, Bz);
+  else
+  {
+    // by default we smooth after applying magnetic field
+    miMoments->compute_from_speciesMoms(*speciesMoms,
+      EMf->get_Bx_smooth(),
+      EMf->get_By_smooth(),
+      EMf->get_Bz_smooth());
+  }
 }
 
 // This method should send or receive field
@@ -176,34 +194,17 @@ void MIsolver::compute_moments()
 //
 void MIsolver::send_field_to_kinetic_solver()
 {
-  set_fieldForPcls();
+  EMf->set_fieldForPcls(*fieldForPcls);
 }
-void MIsolver::set_fieldForPcls()
-{
-  //EMf->set_fieldForPcls(fetch_fieldForPcls());
-  #pragma omp parallel for collapse(2)
-  for(int i=0;i<nxn;i++)
-  for(int j=0;j<nyn;j++)
-  for(int k=0;k<nzn;k++)
-  {
-    fieldForPcls[i][j][k][0] = Bx_smooth[i][j][k];
-    fieldForPcls[i][j][k][1] = By_smooth[i][j][k];
-    fieldForPcls[i][j][k][2] = Bz_smooth[i][j][k];
-    fieldForPcls[i][j][k][0+DFIELD_3or4] = Ex_smooth[i][j][k];
-    fieldForPcls[i][j][k][1+DFIELD_3or4] = Ey_smooth[i][j][k];
-    fieldForPcls[i][j][k][2+DFIELD_3or4] = Ez_smooth[i][j][k];
-  }
-}
-
 //! MAXWELL SOLVER for Efield
 void MIsolver::advance_Efield() 
 {
   timeTasks_set_main_task(TimeTasks::FIELDS);
   if(I_am_field_solver())
   {
-    EMf->calculateRhoHat(get_iMoments());
+    EMf->calculateRhoHat(get_miMoments());
     // advance the E field
-    EMf->calculateE(get_iMoments());
+    EMf->calculateE(get_miMoments());
   }
   send_field_to_kinetic_solver();
 }
@@ -233,7 +234,7 @@ void MIsolver::move_particles()
   if(I_am_kinetic_solver())
   {
     //[...receive field from fieldsolver...]
-    kinetics->moveParticles();
+    kinetics->moveParticles(get_fieldForPcls());
   }
 }
 
@@ -244,32 +245,29 @@ void MIsolver::move_particles()
 //
 void MIsolver::set_initial_conditions()
 {
-  string Case = col->getCase;
+  string Case = col->getCase();
   int restart_status = col->getRestart_status();
 
-  if (Case()=="Dipole")       initDipole(EMf, part);
+  if (Case=="Dipole")       initDipole();
   // cases prior to this point are responsible for their own restarts
-  else if(restart_status)     init_from_restart(EMf, part);
+  else if(restart_status)     init_from_restart();
   // cases that use rhon to set rhoc
   //else if (col->getCase()=="restart")   init_from_restart();
-  else if (Case=="GEM")       initGEM(EMf, part);
+  else if (Case=="GEM")       initGEM();
   //else if (Case=="GEMnoPert") initGEMnoPert();
-  else if (Case=="ForceFree") initForceFree(EMf, part);
+  else if (Case=="ForceFree") initForceFree();
   // cases that use rhoc to set rhon
 #ifdef BATSRUS
-  else if (Case=="BATSRUS")   initBATSRUS(EMf, part);
+  else if (Case=="BATSRUS")   initBATSRUS();
 #endif
   //else if (Case=="RandomCase")initRandomField();
   else {
-    eprintf("Case=%s in inputfile is not supported.", Case);
+    eprintf("Case=%s in inputfile is not supported.", Case.c_str());
   }
 
   if(col->getRestart_status() == 0)
   {
-    for (int i = 0; i < ns; i++)
-    {
-      part[i].reserve_remaining_particle_IDs();
-    }
+    kinetics->reserve_remaining_particle_IDs();
   }
 }
 
@@ -304,26 +302,13 @@ void MIsolver::initialize()
 // === Section: specific initialization_routines ===
 
 /*! initialize Moments with initial configuration */
-void MIsolver::init_from_restart(EMfields3D& EMf, Particles3Dcomm* part)
+void MIsolver::init_kinetics_from_restart()
 {
   array4_double rhons(ns,nxn,nyn,nzn);
   array4_double rhocs(ns,nxc,nyc,nzc);
 
-  arr3_double Ex = EMf->fetch_Ex();
-  arr3_double Ey = EMf->fetch_Ey();
-  arr3_double Ez = EMf->fetch_Ez();
-  arr3_double Bxc = EMf->fetch_Bxc();
-  arr3_double Byc = EMf->fetch_Byc();
-  arr3_double Bzc = EMf->fetch_Bzc();
-  arr3_double Bxn = EMf->fetch_Bxn();
-  arr3_double Byn = EMf->fetch_Byn();
-  arr3_double Bzn = EMf->fetch_Bzn();
-
-  const Collective *col = &get_col();
-  const VirtualTopology3D *vct = &get_vct();
-  const Grid *grid = &get_grid();
-
-  assert(col->getRestart_status()!=0)
+  Particles3Dcomm* part = kinetics->fetch_pcls();
+  assert(col->getRestart_status()!=0);
   // READING FROM RESTART
   {
   #ifdef NO_HDF5
@@ -354,14 +339,9 @@ void MIsolver::init_from_restart(EMfields3D& EMf, Particles3Dcomm* part)
     //part[i].maxwellian(rhocs);
   }
 }
-
 /*! initialize Magnetic and Electric Field with initial configuration */
-void MIsolver::init_from_restart(EMfields3D& EMf, Particles3Dcomm* part)
+void MIsolver::init_fields_from_restart()
 {
-  const Collective *col = &get_col();
-  const VirtualTopology3D *vct = &get_vct();
-  const Grid *grid = &get_grid();
-
   arr3_double Ex = EMf->fetch_Ex();
   arr3_double Ey = EMf->fetch_Ey();
   arr3_double Ez = EMf->fetch_Ez();
@@ -400,13 +380,16 @@ void MIsolver::init_from_restart(EMfields3D& EMf, Particles3Dcomm* part)
   //communicateCenterBC(nxc, nyc, nzc, Byc, col->bcBy, vct);
   //communicateCenterBC(nxc, nyc, nzc, Bzc, col->bcBz, vct);
 }
+void MIsolver::init_from_restart()
+{
+  init_fields_from_restart();
+  init_kinetics_from_restart();
+}
 
 #ifdef BATSRUS
 /*! initiliaze EM for GEM challange */
-void MIsolver::initBATSRUS(EMfields3D& EMf, Particles3Dcomm* part)
+void MIsolver::initBATSRUS()
 {
-  const Collective *col = &get_col();
-  const Grid *grid = &get_grid();
   cout << "------------------------------------------" << endl;
   cout << "         Initialize from BATSRUS          " << endl;
   cout << "------------------------------------------" << endl;
@@ -416,6 +399,7 @@ void MIsolver::initBATSRUS(EMfields3D& EMf, Particles3Dcomm* part)
   //array4_double rhons(ns,nxn,nyn,nzn);
   //array4_double rhocs(ns,nxc,nyc,nzc);
 
+  Particles3D* part = kinetics->fetch_pcls();
   arr3_double Ex = EMf->fetch_Ex();
   arr3_double Ey = EMf->fetch_Ey();
   arr3_double Ez = EMf->fetch_Ez();
@@ -476,11 +460,12 @@ void MIsolver::initBATSRUS(EMfields3D& EMf, Particles3Dcomm* part)
 #endif
 
 /*! initiliaze EM for GEM challange */
-void MIsolver::initGEM(EMfields3D& EMf, Particles3Dcomm* part)
+void MIsolver::initGEM()
 {
   array4_double rhons(ns,nxn,nyn,nzn);
   array4_double rhocs(ns,nxc,nyc,nzc);
 
+  Particles3D* part = kinetics->fetch_pcls();
   arr3_double Ex = EMf->fetch_Ex();
   arr3_double Ey = EMf->fetch_Ey();
   arr3_double Ez = EMf->fetch_Ez();
@@ -491,8 +476,14 @@ void MIsolver::initGEM(EMfields3D& EMf, Particles3Dcomm* part)
   arr3_double Byn = EMf->fetch_Byn();
   arr3_double Bzn = EMf->fetch_Bzn();
 
-  const VirtualTopology3D *vct = &get_vct();
-  const Grid *grid = &get_grid();
+  const double Lx = col->getLx();
+  const double Ly = col->getLy();
+  const double *rhoINIT = col->get_rhoINIT();
+  const double B0x = col->getB0x();
+  const double B0y = col->getB0y();
+  const double B0z = col->getB0z();
+  const double delta = col->getDelta();
+
   // perturbation localized in X
   double pertX = 0.4;
   double xpert, ypert, exp_pert;
@@ -500,7 +491,7 @@ void MIsolver::initGEM(EMfields3D& EMf, Particles3Dcomm* part)
   // initialize
   {
     // initialize
-    if (get_vct().getCartesian_rank() == 0) {
+    if (vct->getCartesian_rank() == 0) {
       cout << "------------------------------------------" << endl;
       cout << "Initialize GEM Challenge with Pertubation" << endl;
       cout << "------------------------------------------" << endl;
@@ -510,7 +501,7 @@ void MIsolver::initGEM(EMfields3D& EMf, Particles3Dcomm* part)
       cout << "Delta (current sheet thickness) = " << delta << endl;
       for (int i = 0; i < ns; i++) {
         cout << "rho species " << i << " = " << rhoINIT[i];
-        if (DriftSpecies[i])
+        if (EMf->get_DriftSpecies(i))
           cout << " DRIFTING " << endl;
         else
           cout << " BACKGROUND " << endl;
@@ -519,10 +510,11 @@ void MIsolver::initGEM(EMfields3D& EMf, Particles3Dcomm* part)
     }
     for (int i = 0; i < nxn; i++)
       for (int j = 0; j < nyn; j++)
-        for (int k = 0; k < nzn; k++) {
+      for (int k = 0; k < nzn; k++)
+      {
           // initialize the density for species
           for (int is = 0; is < ns; is++) {
-            if (DriftSpecies[is])
+            if (EMf->get_DriftSpecies(is))
               rhons[is][i][j][k] = ((rhoINIT[is] / (cosh((grid->getYN(i, j, k) - Ly / 2) / delta) * cosh((grid->getYN(i, j, k) - Ly / 2) / delta)))) / FourPI;
             else
               rhons[is][i][j][k] = rhoINIT[is] / FourPI;
@@ -544,7 +536,7 @@ void MIsolver::initGEM(EMfields3D& EMf, Particles3Dcomm* part)
           Byn[i][j][k] += (B0x * pertX) * exp_pert * (cos(M_PI * xpert / 10.0 / delta) * cos(M_PI * ypert / 10.0 / delta) * 2.0 * xpert / delta + sin(M_PI * xpert / 10.0 / delta) * cos(M_PI * ypert / 10.0 / delta) * M_PI / 10.0);
           // guide field
           Bzn[i][j][k] = B0z;
-        }
+      }
     // initialize B on centers
     for (int i = 0; i < nxc; i++)
       for (int j = 0; j < nyc; j++)
@@ -565,34 +557,40 @@ void MIsolver::initGEM(EMfields3D& EMf, Particles3Dcomm* part)
 
         }
   }
-  for (int i = 0; i < ns; i++)
+  for (int is = 0; is < ns; is++)
   {
     grid->interpN2C(rhocs, is, rhons);
-    part[i].maxwellian(rhocs);
+    part[is].maxwellian(rhocs);
   }
 }
 
-void c_Solver::initOriginalGEM()
+void MIsolver::initOriginalGEM()
 {
   array4_double rhons(ns,nxn,nyn,nzn);
   array4_double rhocs(ns,nxc,nyc,nzc);
 
-  arr3_double Bxn = fetch_Bxn();
-  arr3_double Byn = fetch_Byn();
-  arr3_double Bzn = fetch_Bzn();
-  arr3_double Ex = fetch_Ex();
-  arr3_double Ey = fetch_Ey();
-  arr3_double Ez = fetch_Ez();
-  const Grid *grid = &get_grid();
-  const double Lx = get_col().getLx();
-  const double Ly = get_col().getLy();
-  const double Lz = get_col().getLz();
-  const double B0x = get_col().getB0x();
-  const double B0y = get_col().getB0y();
-  const double B0z = get_col().getB0z();
+  Particles3D* part = kinetics->fetch_pcls();
+  arr3_double Ex = EMf->fetch_Ex();
+  arr3_double Ey = EMf->fetch_Ey();
+  arr3_double Ez = EMf->fetch_Ez();
+  arr3_double Bxc = EMf->fetch_Bxc();
+  arr3_double Byc = EMf->fetch_Byc();
+  arr3_double Bzc = EMf->fetch_Bzc();
+  arr3_double Bxn = EMf->fetch_Bxn();
+  arr3_double Byn = EMf->fetch_Byn();
+  arr3_double Bzn = EMf->fetch_Bzn();
+
+  const double Lx = col->getLx();
+  const double Ly = col->getLy();
+  const double *rhoINIT = col->get_rhoINIT();
+  const double B0x = col->getB0x();
+  const double B0y = col->getB0y();
+  const double B0z = col->getB0z();
+  const double delta = col->getDelta();
+
   // initialize using perturbation localized in X
   {
-    if (get_vct().getCartesian_rank() == 0) {
+    if (vct->getCartesian_rank() == 0) {
       cout << "------------------------------------------" << endl;
       cout << "Initialize GEM Challenge with Pertubation" << endl;
       cout << "------------------------------------------" << endl;
@@ -602,7 +600,7 @@ void c_Solver::initOriginalGEM()
       cout << "Delta (current sheet thickness) = " << delta << endl;
       for (int i = 0; i < ns; i++) {
         cout << "rho species " << i << " = " << rhoINIT[i];
-        if (DriftSpecies[i])
+        if (EMf->get_DriftSpecies(i))
           cout << " DRIFTING " << endl;
         else
           cout << " BACKGROUND " << endl;
@@ -614,7 +612,7 @@ void c_Solver::initOriginalGEM()
         for (int k = 0; k < nzn; k++) {
           // initialize the density for species
           for (int is = 0; is < ns; is++) {
-            if (DriftSpecies[is])
+            if (EMf->get_DriftSpecies(is))
               rhons[is][i][j][k] = ((rhoINIT[is] / (cosh((grid->getYN(i, j, k) - Ly / 2) / delta) * cosh((grid->getYN(i, j, k) - Ly / 2) / delta)))) / FourPI;
             else
               rhons[is][i][j][k] = rhoINIT[is] / FourPI;
@@ -646,56 +644,11 @@ void c_Solver::initOriginalGEM()
           Bzc[i][j][k] = B0z;
         }
   }
-  for (int i = 0; i < ns; i++)
+  for (int is = 0; is < ns; is++)
   {
     grid->interpN2C(rhocs, is, rhons);
-    part[i].maxwellian(rhocs);
+    part[is].maxwellian(rhocs);
   }
-}
-
-void EMfields3D::set_Jext()
-{
-  // calculate the external current for reporting purposes
-  //
-  // set Bxn including Bx_ext
-  for (int i=0; i < nxn; i++)
-  for (int j=0; j < nyn; j++)
-  for (int k=0; k < nzn; k++)
-  {
-    // We want a well-balanced sheme, where the equilibrium is an
-    // exact solution of the discretized equations, so
-    // Bx_ext should not be included in Bxn.
-    // But we initially include it here as a means to
-    // compute Jx_ext (to be used only for reporting purposes)
-    // and then reset it.
-    //
-    Bxn[i][j][k] = B0x + fetch_Bx_ext()[i][j][k];
-    Byn[i][j][k] = B0y + fetch_By_ext()[i][j][k];
-    Bzn[i][j][k] = B0z + fetch_Bz_ext()[i][j][k];
-  }
-  //
-  grid->interpN2C(Bxc,Bxn);
-  grid->interpN2C(Byc,Byn);
-  grid->interpN2C(Bzc,Bzn);
-  //
-  communicateCenterBC_P(nxc, nyc, nzc, Bxc, col->bcBx, vct);
-  communicateCenterBC_P(nxc, nyc, nzc, Byc, col->bcBy, vct);
-  communicateCenterBC_P(nxc, nyc, nzc, Bzc, col->bcBz, vct);
-  //
-  // initialize J_ext =c/4*pi curl(B) on nodes (current due to the dipole)
-  //
-  // the external current plays no part in the algorithm;
-  // it is only for reporting the net current.
-  assert(!Jx_ext);
-  assert(!Jy_ext);
-  assert(!Jz_ext);
-  Jx_ext = new array3_double(nxn,nyn,nzn);
-  Jy_ext = new array3_double(nxn,nyn,nzn);
-  Jz_ext = new array3_double(nxn,nyn,nzn);
-  grid->curlC2N(tempXN,tempYN,tempZN,Bxc,Byc,Bzc);
-  scale(Jx_ext,tempXN,c/FourPI,nxn,nyn,nzn);
-  scale(Jy_ext,tempYN,c/FourPI,nxn,nyn,nzn);
-  scale(Jz_ext,tempZN,c/FourPI,nxn,nyn,nzn);
 }
 
 static void loopX(double *b, double z, double x, double y, double a,
@@ -833,8 +786,12 @@ static void loopZ(double *b, double x, double y, double z,
 // if we will overwrite the state data with restart data
 // in order to make sure that Bext and Jext get initialized.
 //
-void MIsolver::initDipole(EMfields3D& EMf, Particles3Dcomm* part)
+void MIsolver::initDipole()
 {
+  //array4_double rhons(ns,nxn,nyn,nzn);
+  array4_double rhocs(ns,nxc,nyc,nzc);
+
+  Particles3D* part = kinetics->fetch_pcls();
   arr3_double Ex = EMf->fetch_Ex();
   arr3_double Ey = EMf->fetch_Ey();
   arr3_double Ez = EMf->fetch_Ez();
@@ -848,16 +805,17 @@ void MIsolver::initDipole(EMfields3D& EMf, Particles3Dcomm* part)
   arr3_double By_ext = EMf->fetch_By_ext();
   arr3_double Bz_ext = EMf->fetch_Bz_ext();
 
-  const Collective *col = &get_col();
-  const VirtualTopology3D *vct = &get_vct();
-  const Grid *grid = &get_grid();
+  const double *rhoINIT = col->get_rhoINIT();
+  const double B0x = col->getB0x();
+  const double B0y = col->getB0y();
+  const double B0z = col->getB0z();
+  const double B1x = col->getB1x();
+  const double B1y = col->getB1y();
+  const double B1z = col->getB1z();
 
-  const int B0x = col->getB0x();
-  const int B0y = col->getB0y();
-  const int B0z = col->getB0z();
-  const int B1x = col->getB1x();
-  const int B1y = col->getB1y();
-  const int B1z = col->getB1z();
+  const double ue0(col->getU0(0));
+  const double ve0(col->getV0(0));
+  const double we0(col->getW0(0));
 
   double ebc[3];
   cross_product(ue0,ve0,we0,B0x,B0y,B0z,ebc);
@@ -885,25 +843,25 @@ void MIsolver::initDipole(EMfields3D& EMf, Particles3Dcomm* part)
   {
     double blp[3];
     // Set coil diameter
-    double a=delta;
+    double a=col->getDelta();
 
-    double xc=x_center;
-    double yc=y_center;
-    double zc=z_center;
+    double xc=col->getx_center();
+    double yc=col->gety_center();
+    double zc=col->getz_center();
 
     double x = grid->getXN(i,j,k);
     double y = grid->getYN(i,j,k);
     double z = grid->getZN(i,j,k);
 
-    loopZ(blp, x, y, z, a, xc, yc, zc, B1z);
+    loopZ(blp, x, y, z, a, xc, yc, zc, col->getB1z());
     Bx_ext[i][j][k]  += blp[0];
     By_ext[i][j][k]  += blp[1];
     Bz_ext[i][j][k]  += blp[2];
-    loopX(blp, x, y, z, a, xc, yc, zc, B1x);
+    loopX(blp, x, y, z, a, xc, yc, zc, col->getB1x());
     Bx_ext[i][j][k] += blp[0];
     By_ext[i][j][k] += blp[1];
     Bz_ext[i][j][k] += blp[2];
-    loopY(blp, x, y, z, a, xc, yc, zc, B1y);
+    loopY(blp, x, y, z, a, xc, yc, zc, col->getB1y());
     Bx_ext[i][j][k] += blp[0];
     By_ext[i][j][k] += blp[1];
     Bz_ext[i][j][k] += blp[2];
@@ -945,12 +903,12 @@ void MIsolver::initDipole(EMfields3D& EMf, Particles3Dcomm* part)
     }
     for (int is=0 ; is<ns; is++)
     {
-      part[i].maxwellian(rhocs);
+      part[is].maxwellian(rhocs);
     }
   }
   else // assert(col->getRestart_status()!=0)
   {
-    init_from_restart(EMf, part);  // use the fields from restart file
+    init_from_restart();  // use the fields from restart file
   }
 }
 
@@ -959,35 +917,37 @@ void MIsolver::initDipole(EMfields3D& EMf, Particles3Dcomm* part)
 // to a BloatedSolver that inherits from MIsolver
 //#if 0 // other_initialization_routines
 
-void MIsolver::initDoublePeriodicHarrisWithGaussianHumpPerturbation(
-  EMfields3D& EMf, Particles3Dcomm* part)
+void MIsolver::initDoublePeriodicHarrisWithGaussianHumpPerturbation()
 {
   array4_double rhons(ns,nxn,nyn,nzn);
   array4_double rhocs(ns,nxc,nyc,nzc);
 
-  arr3_double Bxn = fetch_Bxn();
-  arr3_double Byn = fetch_Byn();
-  arr3_double Bzn = fetch_Bzn();
-  arr3_double Ex = fetch_Ex();
-  arr3_double Ey = fetch_Ey();
-  arr3_double Ez = fetch_Ez();
+  Particles3D* part = kinetics->fetch_pcls();
+  arr3_double Ex = EMf->fetch_Ex();
+  arr3_double Ey = EMf->fetch_Ey();
+  arr3_double Ez = EMf->fetch_Ez();
+  arr3_double Bxc = EMf->fetch_Bxc();
+  arr3_double Byc = EMf->fetch_Byc();
+  arr3_double Bzc = EMf->fetch_Bzc();
+  arr3_double Bxn = EMf->fetch_Bxn();
+  arr3_double Byn = EMf->fetch_Byn();
+  arr3_double Bzn = EMf->fetch_Bzn();
 
-  const Collective *col = &get_col();
-  const VirtualTopology3D *vct = &get_vct();
-  const Grid *grid = &get_grid();
-  const double Lx = get_col().getLx();
-  const double Ly = get_col().getLy();
-  const double Lz = get_col().getLz();
-  const double B0x = get_col().getB0x();
-  const double B0y = get_col().getB0y();
-  const double B0z = get_col().getB0z();
+  const double Lx = col->getLx();
+  const double Ly = col->getLy();
+  const double *rhoINIT = col->get_rhoINIT();
+  const double B0x = col->getB0x();
+  const double B0y = col->getB0y();
+  const double B0z = col->getB0z();
+  const double delta = col->getDelta();
+
   // perturbation localized in X
   const double pertX = 0.4;
   const double deltax = 8. * delta;
   const double deltay = 4. * delta;
   // initialize
   {
-    if (get_vct().getCartesian_rank() == 0) {
+    if (vct->getCartesian_rank() == 0) {
       cout << "------------------------------------------" << endl;
       cout << "Initialize GEM Challenge with Pertubation" << endl;
       cout << "------------------------------------------" << endl;
@@ -997,7 +957,7 @@ void MIsolver::initDoublePeriodicHarrisWithGaussianHumpPerturbation(
       cout << "Delta (current sheet thickness) = " << delta << endl;
       for (int i = 0; i < ns; i++) {
         cout << "rho species " << i << " = " << rhoINIT[i];
-        if (DriftSpecies[i])
+        if (EMf->get_DriftSpecies(i))
           cout << " DRIFTING " << endl;
         else
           cout << " BACKGROUND " << endl;
@@ -1014,7 +974,7 @@ void MIsolver::initDoublePeriodicHarrisWithGaussianHumpPerturbation(
           const double yTd = yT / delta;
           // initialize the density for species
           for (int is = 0; is < ns; is++) {
-            if (DriftSpecies[is]) {
+            if (EMf->get_DriftSpecies(is)) {
               const double sech_yBd = 1. / cosh(yBd);
               const double sech_yTd = 1. / cosh(yTd);
               rhons[is][i][j][k] = rhoINIT[is] * sech_yBd * sech_yBd / FourPI;
@@ -1085,34 +1045,37 @@ void MIsolver::initDoublePeriodicHarrisWithGaussianHumpPerturbation(
     for (int is = 0; is < ns; is++)
     {
       grid->interpN2C(rhocs, is, rhons);
-      part[i].maxwellian(rhocs);
+      part[is].maxwellian(rhocs);
     }
   }
 }
 
 
 /*! initialize GEM challenge with no Perturbation with dipole-like tail topology */
-void MIsolver::initGEMDipoleLikeTailNoPert(
-  EMfields3D& EMf, Particles3Dcomm* part)
+void MIsolver::initGEMDipoleLikeTailNoPert()
 {
   array4_double rhons(ns,nxn,nyn,nzn);
   array4_double rhocs(ns,nxc,nyc,nzc);
 
-  arr3_double Bxn = fetch_Bxn();
-  arr3_double Byn = fetch_Byn();
-  arr3_double Bzn = fetch_Bzn();
-  arr3_double Ex = fetch_Ex();
-  arr3_double Ey = fetch_Ey();
-  arr3_double Ez = fetch_Ez();
+  Particles3D* part = kinetics->fetch_pcls();
+  arr3_double Ex = EMf->fetch_Ex();
+  arr3_double Ey = EMf->fetch_Ey();
+  arr3_double Ez = EMf->fetch_Ez();
+  arr3_double Bxc = EMf->fetch_Bxc();
+  arr3_double Byc = EMf->fetch_Byc();
+  arr3_double Bzc = EMf->fetch_Bzc();
+  arr3_double Bxn = EMf->fetch_Bxn();
+  arr3_double Byn = EMf->fetch_Byn();
+  arr3_double Bzn = EMf->fetch_Bzn();
 
-  const Grid *grid = &get_grid();
-  const double Lx = get_col().getLx();
-  const double Ly = get_col().getLy();
-  const double Lz = get_col().getLz();
-  const double B0x = get_col().getB0x();
-  const double B0y = get_col().getB0y();
-  const double B0z = get_col().getB0z();
-  const Grid *grid = &get_grid();
+  const double Lx = col->getLx();
+  const double Ly = col->getLy();
+  const double *rhoINIT = col->get_rhoINIT();
+  const double B0x = col->getB0x();
+  const double B0y = col->getB0y();
+  const double B0z = col->getB0z();
+  const double delta = col->getDelta();
+
   // parameters controling the field topology
   // e.g., x1=Lx/5,x2=Lx/4 give 'separated' fields, x1=Lx/4,x2=Lx/3 give 'reconnected' topology
 
@@ -1127,7 +1090,7 @@ void MIsolver::initGEMDipoleLikeTailNoPert(
   assert(col->getRestart_status()==0);
   // initialize
   {
-    if (get_vct().getCartesian_rank() == 0) {
+    if (vct->getCartesian_rank() == 0) {
       cout << "----------------------------------------------" << endl;
       cout << "Initialize GEM Challenge without Perturbation" << endl;
       cout << "----------------------------------------------" << endl;
@@ -1137,7 +1100,7 @@ void MIsolver::initGEMDipoleLikeTailNoPert(
       cout << "Delta (current sheet thickness) = " << delta << endl;
       for (int i = 0; i < ns; i++) {
         cout << "rho species " << i << " = " << rhoINIT[i];
-        if (DriftSpecies[i])
+        if (EMf->get_DriftSpecies(i))
           cout << " DRIFTING " << endl;
         else
           cout << " BACKGROUND " << endl;
@@ -1150,7 +1113,7 @@ void MIsolver::initGEMDipoleLikeTailNoPert(
         for (int k = 0; k < nzn; k++) {
           // initialize the density for species
           for (int is = 0; is < ns; is++) {
-            if (DriftSpecies[is])
+            if (EMf->get_DriftSpecies(is))
               rhons[is][i][j][k] = ((rhoINIT[is] / (cosh((grid->getYN(i, j, k) - Ly / 2) / delta) * cosh((grid->getYN(i, j, k) - Ly / 2) / delta)))) / FourPI;
             else
               rhons[is][i][j][k] = rhoINIT[is] / FourPI;
@@ -1195,31 +1158,40 @@ void MIsolver::initGEMDipoleLikeTailNoPert(
     for (int is = 0; is < ns; is++)
     {
       grid->interpN2C(rhocs, is, rhons);
-      part[i].maxwellian(rhocs);
+      part[is].maxwellian(rhocs);
     }
   }
 }
 
 /*! initialize GEM challenge with no Perturbation */
-void MIsolver::initGEMnoPert(EMfields3D& EMf, Particles3Dcomm* part)
+void MIsolver::initGEMnoPert()
 {
   array4_double rhons(ns,nxn,nyn,nzn);
   array4_double rhocs(ns,nxc,nyc,nzc);
 
-  arr3_double Bxn = fetch_Bxn();
-  arr3_double Byn = fetch_Byn();
-  arr3_double Bzn = fetch_Bzn();
-  arr3_double Ex = fetch_Ex();
-  arr3_double Ey = fetch_Ey();
-  arr3_double Ez = fetch_Ez();
+  Particles3D* part = kinetics->fetch_pcls();
+  arr3_double Ex = EMf->fetch_Ex();
+  arr3_double Ey = EMf->fetch_Ey();
+  arr3_double Ez = EMf->fetch_Ez();
+  arr3_double Bxc = EMf->fetch_Bxc();
+  arr3_double Byc = EMf->fetch_Byc();
+  arr3_double Bzc = EMf->fetch_Bzc();
+  arr3_double Bxn = EMf->fetch_Bxn();
+  arr3_double Byn = EMf->fetch_Byn();
+  arr3_double Bzn = EMf->fetch_Bzn();
 
-  const Collective *col = &get_col();
-  const VirtualTopology3D *vct = &get_vct();
-  const Grid *grid = &get_grid();
+  const double Lx = col->getLx();
+  const double Ly = col->getLy();
+  const double *rhoINIT = col->get_rhoINIT();
+  const double B0x = col->getB0x();
+  const double B0y = col->getB0y();
+  const double B0z = col->getB0z();
+  const double delta = col->getDelta();
+
   assert(col->getRestart_status()==0);
   // initialize
   {
-    if (get_vct().getCartesian_rank() == 0) {
+    if (vct->getCartesian_rank() == 0) {
       cout << "----------------------------------------------" << endl;
       cout << "Initialize GEM Challenge without Perturbation" << endl;
       cout << "----------------------------------------------" << endl;
@@ -1229,7 +1201,7 @@ void MIsolver::initGEMnoPert(EMfields3D& EMf, Particles3Dcomm* part)
       cout << "Delta (current sheet thickness) = " << delta << endl;
       for (int i = 0; i < ns; i++) {
         cout << "rho species " << i << " = " << rhoINIT[i];
-        if (DriftSpecies[i])
+        if (EMf->get_DriftSpecies(i))
           cout << " DRIFTING " << endl;
         else
           cout << " BACKGROUND " << endl;
@@ -1241,7 +1213,7 @@ void MIsolver::initGEMnoPert(EMfields3D& EMf, Particles3Dcomm* part)
         for (int k = 0; k < nzn; k++) {
           // initialize the density for species
           for (int is = 0; is < ns; is++) {
-            if (DriftSpecies[is])
+            if (EMf->get_DriftSpecies(is))
               rhons[is][i][j][k] = ((rhoINIT[is] / (cosh((grid->getYN(i, j, k) - Ly / 2) / delta) * cosh((grid->getYN(i, j, k) - Ly / 2) / delta)))) / FourPI;
             else
               rhons[is][i][j][k] = rhoINIT[is] / FourPI;
@@ -1270,17 +1242,18 @@ void MIsolver::initGEMnoPert(EMfields3D& EMf, Particles3Dcomm* part)
     for (int is = 0; is < ns; is++)
     {
       grid->interpN2C(rhocs, is, rhons);
-      part[i].maxwellian(rhocs);
+      part[is].maxwellian(rhocs);
     }
   }
 }
 
 // new init, random problem
-void MIsolver::initRandomField(EMfields3D& EMf, Particles3Dcomm* part)
+void MIsolver::initRandomField()
 {
   array4_double rhons(ns,nxn,nyn,nzn);
   array4_double rhocs(ns,nxc,nyc,nzc);
 
+  Particles3D* part = kinetics->fetch_pcls();
   arr3_double Ex = EMf->fetch_Ex();
   arr3_double Ey = EMf->fetch_Ey();
   arr3_double Ez = EMf->fetch_Ez();
@@ -1291,13 +1264,19 @@ void MIsolver::initRandomField(EMfields3D& EMf, Particles3Dcomm* part)
   arr3_double Byn = EMf->fetch_Byn();
   arr3_double Bzn = EMf->fetch_Bzn();
 
-  const VirtualTopology3D *vct = &get_vct();
-  const Grid *grid = &get_grid();
+  const double Lx = col->getLx();
+  const double Ly = col->getLy();
+  const double *rhoINIT = col->get_rhoINIT();
+  const double B0x = col->getB0x();
+  const double B0y = col->getB0y();
+  const double B0z = col->getB0z();
+  const double delta = col->getDelta();
+
   double **modes_seed = newArr2(double, 7, 7);
-  assert(col->getRestart_status()!=0)
+  assert(col->getRestart_status()!=0);
   // initialize
   {
-    if (get_vct().getCartesian_rank() ==0){
+    if (vct->getCartesian_rank() ==0){
       cout << "------------------------------------------" << endl;
       cout << "Initialize GEM Challenge with Pertubation" << endl;
       cout << "------------------------------------------" << endl;
@@ -1307,7 +1286,7 @@ void MIsolver::initRandomField(EMfields3D& EMf, Particles3Dcomm* part)
       cout << "Delta (current sheet thickness) = " << delta << endl;
       for (int i=0; i < ns; i++){
 	cout << "rho species " << i <<" = " << rhoINIT[i];
-	if (DriftSpecies[i])
+	if (EMf->get_DriftSpecies(i))
 	  cout << " DRIFTING " << endl;
 	else
 	  cout << " BACKGROUND " << endl;
@@ -1423,11 +1402,12 @@ void MIsolver::initRandomField(EMfields3D& EMf, Particles3Dcomm* part)
 
 
 /*! Init Force Free (JxB=0) */
-void MIsolver::initForceFree(EMfields3D& EMf, Particles3Dcomm* part)
+void MIsolver::initForceFree()
 {
   array4_double rhons(ns,nxn,nyn,nzn);
   array4_double rhocs(ns,nxc,nyc,nzc);
 
+  Particles3D* part = kinetics->fetch_pcls();
   arr3_double Ex = EMf->fetch_Ex();
   arr3_double Ey = EMf->fetch_Ey();
   arr3_double Ez = EMf->fetch_Ez();
@@ -1438,12 +1418,18 @@ void MIsolver::initForceFree(EMfields3D& EMf, Particles3Dcomm* part)
   arr3_double Byn = EMf->fetch_Byn();
   arr3_double Bzn = EMf->fetch_Bzn();
 
-  const VirtualTopology3D *vct = &get_vct();
-  const Grid *grid = &get_grid();
+  const double Lx = col->getLx();
+  const double Ly = col->getLy();
+  const double *rhoINIT = col->get_rhoINIT();
+  const double B0x = col->getB0x();
+  const double B0y = col->getB0y();
+  const double B0z = col->getB0z();
+  const double delta = col->getDelta();
+
   assert (col->getRestart_status() == 0);
   // initialize
   {
-    if (get_vct().getCartesian_rank() == 0) {
+    if (vct->getCartesian_rank() == 0) {
       cout << "----------------------------------------" << endl;
       cout << "Initialize Force Free with Perturbation" << endl;
       cout << "----------------------------------------" << endl;
@@ -1454,7 +1440,6 @@ void MIsolver::initForceFree(EMfields3D& EMf, Particles3Dcomm* part)
       for (int i = 0; i < ns; i++) {
         cout << "rho species " << i << " = " << rhoINIT[i];
       }
-      cout << "Smoothing Factor = " << Smooth << endl;
       cout << "-------------------------" << endl;
     }
     for (int i = 0; i < nxn; i++)
@@ -1490,7 +1475,7 @@ void MIsolver::initForceFree(EMfields3D& EMf, Particles3Dcomm* part)
     for (int is = 0; is < ns; is++)
     {
       grid->interpN2C(rhocs, is, rhons);
-      part[i].force_free(is, rhocs);
+      part[is].force_free(rhocs);
     }
   }
 }
@@ -1519,13 +1504,14 @@ void MIsolver::WriteRestart(int cycle)
 void MIsolver::WriteConserved(int cycle) {
   if(cycle % col->getDiagnosticsOutputCycle() == 0)
   {
+    const Particles3D* pcls = kinetics->get_pcls();
     double Eenergy = EMf->getEenergy();
     double Benergy = EMf->getBenergy();
     double gas_energy = 0.0;
     double bogus_momentum = 0.0;
     for (int is = 0; is < ns; is++) {
-      gas_energy += part[is].getKe();
-      bogus_momentum += part[is].getP();
+      gas_energy += pcls[is].getKe();
+      bogus_momentum += pcls[is].getP();
     }
     double total_energy = gas_energy + Eenergy + Benergy;
     outputWrapperTXT->append_conserved_quantities(
@@ -1535,21 +1521,22 @@ void MIsolver::WriteConserved(int cycle) {
 
 void MIsolver::WriteVelocityDistribution(int cycle)
 {
-  outputWrapperTXT->write_velocity_distribution(cycle, part);
+  const Particles3Dcomm* pcls = kinetics->get_pcls();
+  outputWrapperTXT->write_velocity_distribution(cycle, pcls);
 }
 
 // This seems to record values at a grid of sample points
 //
 void MIsolver::WriteVirtualSatelliteTraces()
 {
-  if(!do_write_virtual_satellite_traces()) return;
+  if(!OutputWrapperTXT::do_write_virtual_satellite_traces()) return;
 
   assert_eq(ns,4);
   outputWrapperTXT->append_to_satellite_traces(grid,
-    EMf->getBx(), EMf->getBy(), EMf->getBz(),
-    EMf->getEx(), EMf->getEy(), EMf->getEz(),
-    EMf->getJxs(), EMf->getJys(), EMf->getJzs(),
-    EMf->get_rhons());
+    EMf->get_Bxn(), EMf->get_Byn(), EMf->get_Bzn(),
+    EMf->get_Ex(), EMf->get_Ey(), EMf->get_Ez(),
+    speciesMoms->getJxs(), speciesMoms->getJys(), speciesMoms->getJzs(),
+    speciesMoms->get_rhons());
 }
 
 void MIsolver::WriteFields(int cycle) {

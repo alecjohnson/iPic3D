@@ -115,13 +115,10 @@ class SpeciesMoms
     ~SpeciesMoms();
     SpeciesMoms(const Setting& setting_);
 
-  // --- operations to species moments
+  // --- operations to compute species moments
   private:
 
     void setZeroSpeciesMoms(int is);
-
-    /*! communicate ghost for grid -> Particles interpolation */
-    void communicateGhostP2G(int ns);
 
     /*! sum moments (interp_P2G) versions */
     void sumMoments(const Particles3Dcomm& pcls);
@@ -132,10 +129,13 @@ class SpeciesMoms
     void sumMoments_vectorized_AoS(const Particles3Dcomm& pcls);
     void sumMomentsOld(const Particles3Dcomm& pcls);
 
-    void accumulateMoments(const int is, Particles3Dcomm& pcls);
-
     /*! adjust densities on boundaries that are not periodic */
     void adjustNonPeriodicDensities(int is);
+
+  public:
+    void accumulateMoments(const int is, Particles3Dcomm& pcls);
+    /*! communicate ghost for grid -> Particles interpolation */
+    void communicateGhostP2G(int ns);
 
   // operations to calculate implicit moments
   public:

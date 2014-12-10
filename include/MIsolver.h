@@ -1,11 +1,21 @@
-#include "Setting.h"
 #ifndef MIsolver_h
 #define MIsolver_h
-
-class OutputWrapperFPP;
+// forward declarations
 class MImoments;
+class Collective;
+class Grid3DCU;
+class VCtopology3D;
 class EMfields3D;
 class Kinetics;
+class SpeciesMoms;
+class Timing;
+class OutputWrapperTXT;
+class OutputWrapperFPP;
+#include "arraysfwd.h"
+//
+#include "Setting.h"
+#include "asserts.h"
+#include "assert.h"
 
 namespace iPic3D
 {
@@ -14,6 +24,9 @@ namespace iPic3D
   {
   private:
     const Setting &setting;
+    const Collective* col;
+    const VCtopology3D* vct;
+    const Grid3DCU* grid;
     SpeciesMoms   *speciesMoms;
     MImoments     *miMoments;
     EMfields3D    *EMf; // implicit field solver
@@ -47,7 +60,23 @@ namespace iPic3D
   protected:
     // virtual so inheriting application can override
     virtual void set_initial_conditions();
+    void initialize_output();
+    void initialize();
+    void init_kinetics_from_restart();
+    void init_fields_from_restart();
+    void init_from_restart();
+    void initDipole();
+    void initGEM();
+    void initBATSRUS();
+    // these should be moved into inheriting class
+    void initOriginalGEM();
+    void initDoublePeriodicHarrisWithGaussianHumpPerturbation();
+    void initGEMDipoleLikeTailNoPert();
+    void initGEMnoPert();
+    void initRandomField();
+    void initForceFree();
   protected:
+    void accumulate_moments();
     void compute_moments();
     void advance_Efield();
     void move_particles();
@@ -65,32 +94,24 @@ namespace iPic3D
     void Finalize();
 
   private:
-    int FirstCycle() { return setting.col().get_first_cycle(); }
-    int FinalCycle() { return setting.col().get_final_cycle(); }
-    bool is_rank0() { return setting.vct().is_rank0(); }
+    void send_field_to_kinetic_solver();
+    void set_fieldForPcls();
+    int FirstCycle();
+    int FinalCycle();
+    bool is_rank0();
     virtual bool I_am_kinetic_solver(){return true;}
     virtual bool I_am_field_solver(){return true;}
 
   protected: // accessors
     EMfields3D& fetch_EMfields(){return *EMf;}
     MImoments& fetch_miMoments(){return *miMoments;}
+    const MImoments& get_miMoments()const{return *miMoments;}
     SpeciesMoms& fetch_speciesMoms(){return *speciesMoms;}
     const Kinetics& get_kinetics()const{return *kinetics;}
     const Collective& get_col()const{return setting.col();}
-    const Grid& get_grid()const{return setting.grid();}
-    const VirtualTopology3D& get_vct()const{return setting.vct();}
-  private:
-    int Init();
-  };
-
-  // solver that chooses initial and boundary
-  // conditions based on configuration
-  // (move this into apps directory).
-  //
-  class c_Solver: public MIsolver
-  {
-    // this class overrides this method
-    virtual void set_initial_conditions();
+    //const Grid3DCU& get_grid()const{return setting.grid();}
+    //const VCtopology3D& get_vct()const{return setting.vct();}
+    const array4_double& get_fieldForPcls()const{return *fieldForPcls;}
   };
 }
 

@@ -14,8 +14,10 @@ static void ApplyPlaneRotation(double &dx, double &dy, double &cs, double &sn)
   dx = temp;
 }
 
-void GMRES(GMRES_CALLBACK callback, double *xkrylov, int xkrylovlen,
-  const double *b, int m, int max_iter, double tol, void * registered_data)
+typedef void (*GMRES_CALLBACK) (double *im, double *xkrylov, void**registered_data);
+
+void GMRES(GMRES_CALLBACK function_image, double *xkrylov, int xkrylovlen,
+  const double *b, int m, int max_iter, double tol, void **registered_data)
 {
   if (m > xkrylovlen) {
     // m need not be the same for all processes,
@@ -67,7 +69,7 @@ void GMRES(GMRES_CALLBACK callback, double *xkrylov, int xkrylovlen,
   for (itr = 0; itr < max_iter; itr++)
   {
     // r = b - A*x
-    (*callback) (im, xkrylov, registered_data);
+    (*function_image) (im, xkrylov, registered_data);
     sub(r, b, im, xkrylovlen);
     initial_error = normP(r, xkrylovlen);
 
@@ -94,7 +96,7 @@ void GMRES(GMRES_CALLBACK callback, double *xkrylov, int xkrylovlen,
 
       // w= A*V(:,k)
       double *w = V[k+1];
-      (*callback) (w, V[k], registered_data);
+      (*function_image) (w, V[k], registered_data);
       // old code (many MPI_Allreduce calls)
       //
       //const double av = normP(w, xkrylovlen);

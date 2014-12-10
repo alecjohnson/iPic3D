@@ -91,16 +91,16 @@ void outputWrapperTXT::append_to_velocity_distribution(
   my_file.close();
 }
 
-OutputWrapperTXT::write_velocity_distribution(int cycle,
-  const Particles3Dcomm& pcls)
+void OutputWrapperTXT::write_velocity_distribution(int cycle,
+  const Particles3Dcomm* pcls)
 {
   if(!do_write_velocity_distribution()) return;
 
   const ns = col->getNs();
   for (int is = 0; is < ns; is++) {
-    double maxVel = part[is].getMaxVelocity();
+    double maxVel = pcls[is].getMaxVelocity();
     const int nbins = get_number_of_distribution_bins();
-    long long *VelocityDist = part[is].getVelocityDistribution(nbins, maxVel);
+    long long *VelocityDist = pcls[is].getVelocityDistribution(nbins, maxVel);
     if (vct->is_rank0())
     {
       append_to_velocity_distribution(cycle, is, maxVel, VelocityDist);
@@ -111,11 +111,11 @@ OutputWrapperTXT::write_velocity_distribution(int cycle,
 
 // this assumes 4 species used in a certain way
 //
-void outputWrapperTXT::append_to_satellite_traces(Grid3DCU *grid,
+void outputWrapperTXT::append_to_satellite_traces(const Grid3DCU *grid,
     const_arr3_double Bx, const_arr3_double By, const_arr3_double Bz,
     const_arr3_double Ex, const_arr3_double Ey, const_arr3_double Ez,
-    const_arr3_double Jxs,const_arr3_double Jys,const_arr3_double Jzs,
-    const_arr3_double rhons)
+    const_arr4_double Jxs,const_arr4_double Jys,const_arr4_double Jzs,
+    const_arr4_double rhons)
 {
   assert(do_write_virtual_satellite_traces());
   ofstream my_file(filename_cqsat.c_str(), fstream::app);

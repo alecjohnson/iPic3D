@@ -25,7 +25,7 @@ class Grid3DCU                  // :public Grid
 {
 public:
   /** constructor */
-  Grid3DCU(CollectiveIO * col, VirtualTopology3D * vct);
+  Grid3DCU(const CollectiveIO * col, const VirtualTopology3D * vct);
   Grid3DCU(
     int nxc_, int nyc_, int nzc_,
     double dx_, double dy_, double dz_,
@@ -527,25 +527,6 @@ public: // accessors (inline)
       w000, w001, w010, w011,
       w100, w101, w110, w111);
   }
-};
-
-// get centered array by interpolating and stripping ghosts as needed
-class CAgetter
-{
-  private:
-    array3_double arr;
-    Grid3DCU*grid;
-
-    CAgetter(Grid3DCU*grid_):
-      grid(grid_),
-      arr(grid->get_nxc_r(),
-          grid->get_nyc_r(),
-          grid->get_nzc_r())
-    {}
-  public:
-    arr3_double get_no_ghosts(const_arr3_double inarr);
-    arr3_double get_N2C_no_ghosts(const_arr3_double inarr);
-    arr3_double get_N2C_no_ghosts(int is, const_arr4_double inarr);
 };
 
 typedef Grid3DCU Grid;

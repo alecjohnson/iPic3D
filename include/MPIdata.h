@@ -37,7 +37,7 @@ private:
   MPIdata(){}
 public:
   /** initialize MPI environment */
-  static void init(int *, char ***);
+  static void init(int *, const char **);
   /** close MPI environment */
   static void finalize_mpi();
   /** finalize and exit with error code */

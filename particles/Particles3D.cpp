@@ -51,7 +51,7 @@ static bool cap_velocity(){return false;}
  */
 
 /** particles are uniformly distributed with zero velocity   */
-void Particles3D::uniform_background(int is, const_arr4_double rhocs);
+void Particles3D::uniform_background(int is, const_arr4_double rhocs)
 {
   for (int i = 1; i < grid->getNXC() - 1; i++)
   for (int j = 1; j < grid->getNYC() - 1; j++)
@@ -114,8 +114,8 @@ void Particles3D::constantVelocity(double vel, int dim) {
 
 #ifdef BATSRUS
 /** Maxellian random velocity and uniform spatial distribution */
-void Particles3D::MaxwellianFromFluid(Collective *col, int is){
-
+void Particles3D::MaxwellianFromFluid(Collective *col)
+{
   /*
    * Constuctiong the distrebution function from a Fluid model
    */
@@ -126,15 +126,14 @@ void Particles3D::MaxwellianFromFluid(Collective *col, int is){
   for (i=1; i< grid->getNXC()-1;i++)
     for (j=1; j< grid->getNYC()-1;j++)
       for (k=1; k< grid->getNZC()-1;k++)
-        MaxwellianFromFluidCell(col,is, i,j,k,counter,x,y,z,q,u,v,w,ParticleID);
+        MaxwellianFromFluidCell(col, i,j,k,counter,x,y,z,q,u,v,w,ParticleID);
 }
 
-void Particles3D::MaxwellianFromFluidCell(Collective *col, int is, int i, int j, int k, int &ip, double *x, double *y, double *z, double *q, double *vx, double *vy, double *vz, longid* ParticleID)
+void Particles3D::MaxwellianFromFluidCell(Collective *col, int i, int j, int k, int &ip, double *x, double *y, double *z, double *q, double *vx, double *vy, double *vz, longid* ParticleID)
 {
   /*
    * grid           : local grid object (in)
    * col            : collective (global) object (in)
-   * is             : species index (in)
    * i,j,k          : grid cell index on proc (in)
    * ip             : particle number counter (inout)
    * x,y,z          : particle position (out)
@@ -168,7 +167,7 @@ void Particles3D::MaxwellianFromFluidCell(Collective *col, int is, int i, int j,
 #endif
 
 /** Maxellian random velocity and uniform spatial distribution */
-void Particles3D::maxwellian(int is, const_arr4_double rhocs)
+void Particles3D::maxwellian(const_arr4_double rhocs)
 {
   /* initialize random generator with different seed on different processor */
   srand(vct->getCartesian_rank() + 2);
@@ -208,17 +207,17 @@ void Particles3D::maxwellian(int is, const_arr4_double rhocs)
     dprintf("number of particles of species %d: %d", is, getNOP());
     const int num_ids = 1;
     longid id_list[num_ids] = {0};
-    print_pcls(_pcls,ns,id_list, num_ids);
+    print_pcls(_pcls,is,id_list, num_ids);
   }
 }
 
 /** Force Free initialization (JxB=0) for particles */
-void Particles3D::force_free(int is, const_arr4_double rhocs)
+void Particles3D::force_free(const_arr4_double rhocs)
 {
   eprintf("this function was not properly implemented and needs to be revised.");
 #if 0
   /* initialize random generator */
-  srand(vct->getCartesian_rank() + 1 + ns);
+  srand(vct->getCartesian_rank() + 1 + is);
   for (int i = 1; i < grid->getNXC() - 1; i++)
   for (int j = 1; j < grid->getNYC() - 1; j++)
   for (int k = 1; k < grid->getNZC() - 1; k++)
@@ -354,7 +353,7 @@ void Particles3D::mover_PC(const_arr4_double fieldForPcls) {
   convertParticlesToSoA();
   #pragma omp master
   if (vct->getCartesian_rank() == 0) {
-    cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
+    cout << "*** MOVER species " << is << " ***" << NiterMover << " ITERATIONS   ****" << endl;
   }
 
   #pragma omp master
@@ -509,7 +508,7 @@ void Particles3D::mover_PC_AoS(const_arr4_double fieldForPcls)
   convertParticlesToAoS();
   #pragma omp master
   if (vct->getCartesian_rank() == 0) {
-    cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
+    cout << "*** MOVER species " << is << " ***" << NiterMover << " ITERATIONS   ****" << endl;
   }
 
   #pragma omp master
@@ -634,7 +633,7 @@ void Particles3D::mover_PC_AoS_vec_intr(const_arr4_double fieldForPcls)
 {
  #ifndef __MIC__
   //eprintf("not implemented");
-  mover_PC_AoS(EMf);
+  mover_PC_AoS(fieldForPcls);
  #else
   convertParticlesToAoS();
   // Here and below x stands for all 3 physical position coordinates
@@ -661,7 +660,7 @@ void Particles3D::mover_PC_AoS_vec_intr(const_arr4_double fieldForPcls)
   const F64vec8 nXc = make_F64vec8(nxc,nyc,nzc);
   #pragma omp master
   if (vct->getCartesian_rank() == 0) {
-    cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
+    cout << "*** MOVER species " << is << " ***" << NiterMover << " ITERATIONS   ****" << endl;
   }
 
   SpeciesParticle * pcls = &_pcls[0];
@@ -760,7 +759,7 @@ void Particles3D::mover_PC_AoS_vec(const_arr4_double fieldForPcls)
   convertParticlesToAoS();
   #pragma omp master
   if (vct->getCartesian_rank() == 0) {
-    cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
+    cout << "*** MOVER species " << is << " ***" << NiterMover << " ITERATIONS   ****" << endl;
   }
 
   const int NUM_PCLS_MOVED_AT_A_TIME = 8;
@@ -902,7 +901,7 @@ void Particles3D::mover_PC_AoS_vec(const_arr4_double fieldForPcls)
 //  convertParticlesToAoS();
 //  #pragma omp master
 //  if (vct->getCartesian_rank() == 0) {
-//    cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
+//    cout << "*** MOVER species " << is << " ***" << NiterMover << " ITERATIONS   ****" << endl;
 //  }
 //
 //  SpeciesParticle * pcls = fetch_pcls();
@@ -1039,7 +1038,7 @@ void Particles3D::mover_PC_AoS_vec(const_arr4_double fieldForPcls)
 //  assert_eq(nzc,nzn-1);
 //  #pragma omp master
 //  if (vct->getCartesian_rank() == 0) {
-//    cout << "*** MOVER species " << ns << " ***" << NiterMover << " ITERATIONS   ****" << endl;
+//    cout << "*** MOVER species " << is << " ***" << NiterMover << " ITERATIONS   ****" << endl;
 //  }
 //
 //  // initialize average positions
@@ -1299,7 +1298,7 @@ void Particles3D::repopulate_particles()
     return;
 
   if (vct->getCartesian_rank()==0){
-    cout << "*** Repopulator species " << ns << " ***" << endl;
+    cout << "*** Repopulator species " << is << " ***" << endl;
   }
 
   // if this is not a boundary process then there is nothing to do

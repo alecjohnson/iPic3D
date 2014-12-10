@@ -626,7 +626,7 @@ int Collective::ReadRestart(string inputfile) {
   return (0);
 }
 /*! constructor */
-Collective::Collective(int argc, char **argv) {
+Collective::Collective(int argc, const char **argv) {
   if (argc < 2) {
     inputfile = "inputfile";
     RESTART1 = false;
@@ -655,8 +655,6 @@ Collective::Collective(int argc, char **argv) {
 
 void Collective::init_derived_parameters()
 {
-  /*! fourpi = 4 greek pi */
-  fourpi = 16.0 * atan(1.0);
   /*! dx = space step - X direction */
   dx = Lx / (double) nxc;
   /*! dy = space step - Y direction */

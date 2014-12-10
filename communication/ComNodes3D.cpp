@@ -231,6 +231,18 @@ void communicateNodeBC(int nx, int ny, int nz, arr3_double _vector,
   delete[]ghostXleftYleftZsameEdge;
   delete[]ghostXleftYrghtZsameEdge;
 }
+void communicateNodeBC(int nx, int ny, int nz, arr3_double _vector,
+  int bcFaceXrght, int bcFaceXleft,
+  int bcFaceYrght, int bcFaceYleft,
+  int bcFaceZrght, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
+  const int BCs[6] = {
+    bcFaceXrght, bcFaceXleft,
+    bcFaceYrght, bcFaceYleft,
+    bcFaceZrght, bcFaceZleft};
+  communicateNodeBC(nx, ny, nz, _vector, BCs, vct);
+}
 /** communicate ghost cells (FOR NODES) with particles BC*/
 void communicateNodeBC_P(int nx, int ny, int nz, arr3_double _vector,
   int bcFaceXrght, int bcFaceXleft,
@@ -727,7 +739,11 @@ void communicateNodeBoxStencilBC(int nx, int ny, int nz, arr3_double _vector,
   // ////////////////////////////////////////////////////////////////////////
   // ///////////////// APPLY the boundary conditions ////////////////////////
   // ////////////////////////////////////////////////////////////////////////
-  BCface(nx, ny, nz, vector, bcFaceXrght, bcFaceXleft, bcFaceYrght, bcFaceYleft, bcFaceZrght, bcFaceZleft, vct);
+  const int BCs[6] = {
+    bcFaceXrght, bcFaceXleft,
+    bcFaceYrght, bcFaceYleft,
+    bcFaceZrght, bcFaceZleft};
+  BCface(nx, ny, nz, vector, BCs, vct);
   // deallocate
   delete[]ghostXrghtFace;
   delete[]ghostXleftFace;
@@ -740,13 +756,24 @@ void communicateNodeBoxStencilBC(int nx, int ny, int nz, arr3_double _vector,
   const int BCs[6],
   const VirtualTopology3D * vct)
 {
-  communicateNodeBoxStencilBC(nx, ny, nz, _vector, BCs, vct);
+  communicateNodeBoxStencilBC(nx, ny, nz, _vector,
+    BCs[0], BCs[1], BCs[2], BCs[3], BCs[4], BCs[5], vct);
 }
 
 void communicateNodeBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector,
   int bcFaceXrght, int bcFaceXleft,
   int bcFaceYrght, int bcFaceYleft,
   int bcFaceZrght, int bcFaceZleft,
+  const VirtualTopology3D * vct)
+{
+  const int BCs[6] = {
+    bcFaceXrght, bcFaceXleft,
+    bcFaceYrght, bcFaceYleft,
+    bcFaceZrght, bcFaceZleft};
+  communicateNodeBoxStencilBC_P(nx, ny, nz, _vector, BCs, vct);
+}
+void communicateNodeBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector,
+  const int BCs[6],
   const VirtualTopology3D * vct)
 {
   timeTasks_set_communicating();
@@ -773,7 +800,7 @@ void communicateNodeBoxStencilBC_P(int nx, int ny, int nz, arr3_double _vector,
   // ////////////////////////////////////////////////////////////////////////
   // ///////////////// APPLY the boundary conditions ////////////////////////
   // ////////////////////////////////////////////////////////////////////////
-  BCface_P(nx, ny, nz, vector, bcFaceXrght, bcFaceXleft, bcFaceYrght, bcFaceYleft, bcFaceZrght, bcFaceZleft, vct);
+  BCface_P(nx, ny, nz, vector, BCs, vct);
   // deallocate
   delete[]ghostXrghtFace;
   delete[]ghostXleftFace;

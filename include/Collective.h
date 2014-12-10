@@ -39,7 +39,7 @@ class Collective
     static const char* get_name_of_enum(int in);
   public:
     /*! constructor: initialize physical parameters with values */
-    Collective(int argc, char **argv);
+    Collective(int argc, const char **argv);
     /*! destructor */
     ~Collective();
     /*! read input file */
@@ -159,20 +159,19 @@ class Collective
     int bcBx[6], bcBy[6], bcBz[6];
 
   public: // accessors
-    const int* get_bcEx(){return bcEx;}
-    const int* get_bcEy(){return bcEy;}
-    const int* get_bcEz(){return bcEz;}
-    const int* get_bcBx(){return bcBx;}
-    const int* get_bcBy(){return bcBy;}
-    const int* get_bcBz(){return bcBz;}
+    const double* get_rhoINIT()const{return rhoINIT;}
+    const int* get_bcEx()const{return bcEx;}
+    const int* get_bcEy()const{return bcEy;}
+    const int* get_bcEz()const{return bcEz;}
+    const int* get_bcBx()const{return bcBx;}
+    const int* get_bcBy()const{return bcBy;}
+    const int* get_bcBz()const{return bcBz;}
 
   private:
     /*! inputfile */
     string inputfile;
     /*! light speed */
     double c;
-    /*! 4 pi */
-    double fourpi;
     /*! time step */
     double dt;
     //

@@ -1363,12 +1363,13 @@ void Particles3Dcomm::communicate_particles()
 }
 
 /** return the Kinetic energy */
-double Particles3Dcomm::getKe() {
+double Particles3Dcomm::getKe()const
+{
   double localKe = 0.0;
   double totalKe = 0.0;
   for (register int i = 0; i < _pcls.size(); i++)
   {
-    SpeciesParticle& pcl = _pcls[i];
+    const SpeciesParticle& pcl = _pcls[i];
     const double u = pcl.get_u();
     const double v = pcl.get_v();
     const double w = pcl.get_w();
@@ -1385,12 +1386,13 @@ double Particles3Dcomm::getKe() {
 // momentum, which has no physical meaning that I can see.
 // we should be summing each component of the momentum. -eaj
 //
-double Particles3Dcomm::getP() {
+double Particles3Dcomm::getP()const
+{
   double localP = 0.0;
   double totalP = 0.0;
   for (register int i = 0; i < _pcls.size(); i++)
   {
-    SpeciesParticle& pcl = _pcls[i];
+    const SpeciesParticle& pcl = _pcls[i];
     const double u = pcl.get_u();
     const double v = pcl.get_v();
     const double w = pcl.get_w();
@@ -1402,12 +1404,13 @@ double Particles3Dcomm::getP() {
 }
 
 /** return the highest kinetic energy */
-double Particles3Dcomm::getMaxVelocity() {
+double Particles3Dcomm::getMaxVelocity()const
+{
   double localVel = 0.0;
   double maxVel = 0.0;
   for (int i = 0; i < _pcls.size(); i++)
   {
-    SpeciesParticle& pcl = _pcls[i];
+    const SpeciesParticle& pcl = _pcls[i];
     const double u = pcl.get_u();
     const double v = pcl.get_v();
     const double w = pcl.get_w();

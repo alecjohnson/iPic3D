@@ -1,3 +1,6 @@
+#ifndef _Kinetics_H_
+#define _Kinetics_H_
+
 /***************************
   Kinetics: complements the FieldSolver.
   Now contains list of ParticleSolver instances,
@@ -8,12 +11,12 @@
   that use kinetic closure.
  *************************** */
 
-#ifndef _IPIC3D_H_
-#define _IPIC3D_H_
-
 class Timing;
+class SpeciesMoms;
 
 #include "ipic_fwd.h"
+#include "arraysfwd.h"
+#include "Setting.h"
 #include "assert.h"
 
 // I called this "Kinetics" rather than "Particles"
@@ -23,9 +26,11 @@ class Kinetics
 {
   private:
     // References to outside data
-    const Setting&setting;
+    const Setting &setting;
     // variables that this class is responsible for
-    Particles3D  *part;
+    Particles3D *speciesPcls;
+    // convenience variable
+    const int ns;
     //
     // put these in MIsolver
     //
@@ -35,14 +40,18 @@ class Kinetics
     // organized in AoS format for rapid random access in particle mover.
     //array4_double fieldForPcls;
 
-  private: // accessors
+  public: // accessors
+    // return speciesPcls[is]
+    const Particles3D* get_pcls()const{return speciesPcls;}
+    Particles3D* fetch_pcls(){return speciesPcls;}
+    Particles3D& fetch_pcls(int is);
 
   public:
     ~Kinetics();
     Kinetics(const Setting& setting_);
+    void reserve_remaining_particle_IDs();
     // get hatted moments for field solver
     void compute_speciesMoms(SpeciesMoms& speciesMoms)const;
-    //void calculateMoments();
     // advance particles in response to electromagnetic field
     bool moveParticles(const_arr4_double fieldForPcls);
     // update magnetic field using Eth as in CalculateB

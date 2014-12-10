@@ -40,8 +40,8 @@ namespace Parameters
   bool get_doWriteOutput();
   //
   int get_num_smoothings();
-  bool use_correct_smoothing();
   bool use_perfect_smoothing();
-  bool use_original_smoothing(){return !use_correct_smoothing();}
+  bool use_correct_smoothing();
+  inline bool use_original_smoothing(){return !use_correct_smoothing();}
 }
 #endif

@@ -18,13 +18,18 @@ developers: Stefano Markidis, Enrico Camporeale, Giovanni Lapenta, David Burgess
  * @author Stefano Markidis, Giovanni Lapenta
  * @version 2.0
  *
+ * I would combine Particles3D and Particles3Dcomm into a
+ * single SpeciesPcls class. I believe that the current
+ * code actually assumes that Particles3D does not add
+ * any data to Particles3Dcomm, as I discovered when
+ * I tried to add data to this class. -eaj
  */
 class Particles3D:public Particles3Dcomm {
 
   public:
     /** constructor */
     //Particles3D();
-    Particles3D(int species, const Setting& setting_)
+    Particles3D(int species, const Setting& setting_) :
       Particles3Dcomm(species, setting_)
     {}
     /** destructor */
@@ -39,9 +44,9 @@ class Particles3D:public Particles3Dcomm {
       */
     void constantVelocity(double vel, int dim);
     /** Initial condition: uniform in space and maxwellian in velocity */
-    void maxwellian(int is, const_arr4_double rhocs);
+    void maxwellian(const_arr4_double rhocs);
     /** Force Free initialization (JxB=0) for particles */
-    void force_free(int is, const_arr4_double rhocs);
+    void force_free(const_arr4_double rhocs);
     /** Rotate velocities in plane XY of angle theta */
     void RotatePlaneXY(double theta);
     /** mover with a Predictor-Corrector Scheme */
@@ -70,9 +75,9 @@ class Particles3D:public Particles3Dcomm {
 
 #ifdef BATSRUS
     /*! Initial condition: given a fluid model (BATSRUS) */
-    void MaxwellianFromFluid(Collective *col, int is);
+    void MaxwellianFromFluid(Collective *col);
     /*! Initiate dist. func. for a single cell form a fluid model (BATSRUS) */
-    void MaxwellianFromFluidCell(Collective *col, int is, int i, int j, int k, int &ip, double *x, double *y, double *z, double *q, double *vx, double *vy, double *vz, longid* ParticleID);
+    void MaxwellianFromFluidCell(Collective *col, int i, int j, int k, int &ip, double *x, double *y, double *z, double *q, double *vx, double *vy, double *vz, longid* ParticleID);
 #endif
 
 };

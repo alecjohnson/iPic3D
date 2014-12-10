@@ -9,8 +9,8 @@
 #include "Particles3D.h"
 
 void OutputWrapperFPP::init_output_files(
-    EMfields3D    *EMf,
-    Particles3D   *part,
+    const EMfields3D    *EMf,
+    const Particles3D   *part,
     int ns)
 {
     cartesian_rank = vct->getCartesian_rank();

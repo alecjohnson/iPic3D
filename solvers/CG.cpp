@@ -3,8 +3,10 @@
 #include "Basic.h"
 #include "parallel.h"
 
+typedef void (*CG_CALLBACK) (double *im, double *xkrylov, void **registered_data);
+
 bool CG(double *xkrylov, int xkrylovlen, double *b, int maxit, double tol,
-  CG_CALLBACK callback_function, void * registered_data)
+  CG_CALLBACK callback_function, void ** registered_data)
 {
   // allocate residual, image, p, b, calculated on central points
   double *r = new double[xkrylovlen];

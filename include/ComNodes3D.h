@@ -23,10 +23,11 @@ void communicateNode(int nx, int ny, int nz, arr3_double vector,
   const VirtualTopology3D * vct);
 
 /** communicate ghost cells (FOR NODES) */
-//void communicateNodeBC(int nx, int ny, int nz, arr3_double vector,
-//  int bcFaceXright, int bcFaceXleft,
-//  int bcFaceYright, int bcFaceYleft,
-//  int bcFaceZright, int bcFaceZleft, const VirtualTopology3D * vct);
+void communicateNodeBC(int nx, int ny, int nz, arr3_double vector,
+  int bcFaceXright, int bcFaceXleft,
+  int bcFaceYright, int bcFaceYleft,
+  int bcFaceZright, int bcFaceZleft, const VirtualTopology3D * vct);
+// version with fewer arguments
 void communicateNodeBC(int nx, int ny, int nz, arr3_double _vector,
   const int BCs[6],
   const VirtualTopology3D * vct);
@@ -71,6 +72,10 @@ void communicateNodeBoxStencilBC_P(int nx, int ny, int nz, arr3_double vector,
   int bcFaceXright, int bcFaceXleft,
   int bcFaceYright, int bcFaceYleft,
   int bcFaceZright, int bcFaceZleft, const VirtualTopology3D * vct);
+// version with fewer arguments
+void communicateNodeBoxStencilBC_P(int nx, int ny, int nz, arr3_double vector,
+  const int BCs[6],
+  const VirtualTopology3D * vct);
 
 // /////////// communication + BC ////////////////////////////
 void communicateCenterBC(int nx, int ny, int nz, arr3_double vector,

@@ -19,10 +19,10 @@ void writeRESTART(const string& SaveDirName, int myrank, int cycle, int ns, VCto
 void writeRESTART(const string& SaveDirName, int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, EMfields3D * field, Particles3Dcomm * part, bool fool);
 
 /** write the restart file at any RESTART_CYCLE, useful for reading intermediate results */
-void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, EMfields3D * field, Particles * part);
+void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, EMfields3D * field, Particles3Dcomm * part);
 
 /** this restart function writes the last restart with the last cycle */
-void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, EMfields3D * field, Particles * part, bool fool);
+void writeRESTART_ES(const string& SaveDirName, int myrank, int cycle, int ns, VCtopology3D * vct, Collective * col, Grid * grid, EMfields3D * field, Particles3Dcomm * part, bool fool);
 
 void read_field_restart(
   const Collective* col,

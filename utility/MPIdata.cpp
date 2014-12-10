@@ -32,7 +32,7 @@ MPIdata& MPIdata::instance()
   return *instance;
 }
 
-void MPIdata::init(int *argc, char ***argv) {
+void MPIdata::init(int *argc, const char **argv) {
   assert(!MPIdata_is_initialized);
 
  #ifdef NO_MPI
@@ -40,7 +40,7 @@ void MPIdata::init(int *argc, char ***argv) {
   nprocs = 1;
  #else // NO_MPI
   /* Initialize the MPI API */
-  MPI_Init(argc, argv);
+  MPI_Init(argc, (char***)&argv);
 
   /* Set rank */
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
