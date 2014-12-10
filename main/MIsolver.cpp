@@ -288,6 +288,7 @@ void MIsolver::initialize_output()
 //  * particles
 void MIsolver::initialize()
 {
+  timeTasks.resetCycle();
   // initialize fields and particles
   set_initial_conditions();
   // initialize total magnetic field

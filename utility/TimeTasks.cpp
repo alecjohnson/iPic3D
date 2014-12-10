@@ -108,6 +108,9 @@ void TimeTasks::start_task(TimeTasks::Tasks taskid)
       {
         default:
           invalid_value_error(active_task);
+        case NONE:
+          // do nothing
+          break;
         case FIELDS:
           timeTasks.start_task(FLDS_COMM);
           break;
@@ -160,6 +163,8 @@ void TimeTasks::end_task(TimeTasks::Tasks taskid, double start_time)
       {
         default:
           invalid_value_error(active_task);
+        case NONE: // do nothing
+          break;
         case FIELDS:
           timeTasks.end_task(FLDS_COMM, start_time);
           break;
@@ -197,6 +202,8 @@ void TimeTasks::end_sendrecv(double start_time)
   {
     default:
       unsupported_value_error(get_taskname(active_task));
+    case NONE: // do nothing
+      break;
     case FIELDS:
       sendrecv_task = FLDS_MPI_SENDRECV;
       break;
