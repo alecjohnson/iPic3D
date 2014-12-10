@@ -209,7 +209,7 @@ public:
   /** return the maximum kinetic energy */
   double getMaxVelocity()const;
   /** return energy distribution */
-  long long *getVelocityDistribution(int nBins, double maxVel);
+  long long *getVelocityDistribution(int nBins, double maxVel)const;
   /** return the momentum */
   double getP()const;
   /** Print particles info: positions, velocities */

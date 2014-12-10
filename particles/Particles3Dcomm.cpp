@@ -1430,7 +1430,7 @@ double Particles3Dcomm::getMaxVelocity()const
 // integer.  Even in the case that we are counting, double
 // precision will work fine.
 //
-long long *Particles3Dcomm::getVelocityDistribution(int nBins, double maxVel)
+long long *Particles3Dcomm::getVelocityDistribution(int nBins, double maxVel)const
 {
   long long *f = new long long[nBins];
   for (int i = 0; i < nBins; i++)
@@ -1439,7 +1439,7 @@ long long *Particles3Dcomm::getVelocityDistribution(int nBins, double maxVel)
   double dv = maxVel / nBins;
   int bin = 0;
   for (int i = 0; i < _pcls.size(); i++) {
-    SpeciesParticle& pcl = _pcls[i];
+    const SpeciesParticle& pcl = _pcls[i];
     const double u = pcl.get_u();
     const double v = pcl.get_v();
     const double w = pcl.get_w();

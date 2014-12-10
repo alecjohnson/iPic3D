@@ -280,7 +280,7 @@ void MIsolver::initialize_output()
     fetch_outputWrapperFPP().init_output_files(EMf,part);
     #endif
   }
-  outputWrapperTXT = new OutputWrapperTXT(col,vct);
+  outputWrapperTXT = new OutputWrapperTXT(setting);
 }
 
 // sets:
@@ -1514,7 +1514,7 @@ void MIsolver::WriteConserved(int cycle) {
       bogus_momentum += pcls[is].getP();
     }
     double total_energy = gas_energy + Eenergy + Benergy;
-    outputWrapperTXT->append_conserved_quantities(
+    outputWrapperTXT->append_conserved_quantities(cycle,
       total_energy, bogus_momentum, Eenergy, Benergy, gas_energy);
   }
 }

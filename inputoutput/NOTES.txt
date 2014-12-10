@@ -1,0 +1,2 @@
+
+  This directory should have been named something like hdf5io.

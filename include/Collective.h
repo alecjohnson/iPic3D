@@ -2,8 +2,13 @@
   Collective.h  -  Stefano Markidis, Giovanni Lapenta
   -------------------------------------------------------------------------- */
 
-
-/*! Collective properties. Input physical parameters for the simulation.  Use ConfigFile to parse the input file @date Wed Jun 8 2011 @par Copyright: (C) 2011 K.U. LEUVEN @author Pierre Henri, Stefano Markidis @version 1.0 */
+/*! Collective properties.
+    Input physical parameters for the simulation.
+    Use ConfigFile to parse the input file
+    @date Wed Jun 8 2011
+    @par Copyright: (C) 2011 K.U. LEUVEN
+    @author Pierre Henri, Stefano Markidis @version 1.0
+*/
 
 #ifndef Collective_H
 #define Collective_H
@@ -17,6 +22,15 @@
 class ConfigFile;
 using namespace std;
 
+// This class should be named something like ConfigParams.
+// Ostensibly the idea of the name "Collective" is that
+// collective I/O should be used to access the parameters
+// so that all processes do not hit the parameters file
+// indepenently and simultaneously upon startup.  I think
+// that it is not a good idea, however, to lump reading
+// configuration parameters with all other collective I/O.
+// -eaj
+//
 class Collective
 #ifdef BATSRUS
 : public InterfaceFluid

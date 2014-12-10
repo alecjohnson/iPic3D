@@ -1,6 +1,8 @@
 #ifndef OutputWrapperTXT_h
 #define OutputWrapperTXT_h
+class Particles3Dcomm;
 #include "Alloc.h"
+#include "Setting.h"
 #include<string>
 
 using std::string;
@@ -23,7 +25,7 @@ class OutputWrapperTXT
         const_arr3_double Ex, const_arr3_double Ey, const_arr3_double Ez,
         const_arr4_double Jxs,const_arr4_double Jys,const_arr4_double Jzs,
         const_arr4_double rhons);
-    void append_conserved_quantities(
+    void append_conserved_quantities(int cycle,
           double total_energy, double bogus_momentum,
           double Eenergy, double Benergy, double gas_energy);
   private:
@@ -34,15 +36,17 @@ class OutputWrapperTXT
     string filename_cqsat;
     string filename_cq;
     string filename_ds;
+    const Collective   *col;
+    const VCtopology3D *vct;
+    const Grid3DCU     *grid;
   private:
-    void init_output_files(
-      const Collective    *col,
-      const VCtopology3D  *vct);
+    void init_output_files();
   public:
-    OutputWrapperTXT(
-      const Collective    *col,
-      const VCtopology3D  *vct)
-    { init_output_files(col,vct); }
+    OutputWrapperTXT(const Setting& setting) :
+      col(&setting.col()),
+      vct(&setting.vct()),
+      grid(&setting.grid())
+    { init_output_files(); }
 };
 
 #endif // OutputWrapperTXT_h

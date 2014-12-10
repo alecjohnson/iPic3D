@@ -21,7 +21,7 @@ class EMfields3D
     EMfields3D(const Setting& setting_);
 
     /*! initialize the electromagnetic fields with constant values */
-    virtual void init();
+    //virtual void init();
 
     /*! init beam */
     void initBEAM(double x_center, double y_center, double z_center, double radius);

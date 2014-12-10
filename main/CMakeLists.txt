@@ -52,6 +52,7 @@ file(
         ${IPIC_HOME}/processtopology/*.cpp
         ${IPIC_HOME}/solvers/*.cpp
         ${IPIC_HOME}/utility/*.cpp
+        ${IPIC_HOME}/io/*.cpp
         ${IPIC_HOME}/main/*.cpp
 )
 # currently HDF5 is the only output format
