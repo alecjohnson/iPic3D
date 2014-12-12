@@ -37,7 +37,7 @@ class MImoments
     MImoments(const Setting& setting_);
     void compute_from_speciesMoms(const SpeciesMoms& speciesMoms,
       const_arr3_double Bx, const_arr3_double By, const_arr3_double Bz);
-  private:
+  public:
     void ConstantChargeOpenBCv2();
     void ConstantChargeOpenBC();
     void ConstantChargePlanet();

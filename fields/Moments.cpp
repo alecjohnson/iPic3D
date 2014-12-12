@@ -1,3 +1,4 @@
+#include "mpi.h"
 #include "Moments.h"
 #include "Particles3Dcomm.h"
 #include "Alloc.h"
@@ -769,8 +770,11 @@ void SpeciesMoms::sumMoments_vec(const Particles3Dcomm& pcls)
   // cells even though nothing should go in them so that the
   // code that gathers moments will work.
   const int ncells=nxc*nyc*nzc;
+  double ****node_destined_moms;
   #pragma omp single
-  double ****node_destined_moms = newArray4<double>(num_threads,10,ncells,8);
+  {
+    node_destined_moms = newArray4<double>(num_threads,10,ncells,8);
+  }
   // if we want to vectorize the reduction, we would need
   // to dimension this as:
   //double ****node_destined_moms
@@ -1021,7 +1025,7 @@ void SpeciesMoms::sumMoments_vec(const Particles3Dcomm& pcls)
       // communicateGhostP2G(is, vct);
   }
   #pragma omp master
-  delArray4<double>(node_destined_moms);
+  { delArray4<double>(node_destined_moms); }
 }
 //
 // Compare the vectorization notes at the top of mover_PC().
@@ -1166,11 +1170,11 @@ void SpeciesMoms::sumMoments(const Particles3Dcomm& pcls)
       }
     }
     #pragma omp master
-    timeTasks_end_task(TimeTasks::MOMENT_ACCUMULATION);
+    { timeTasks_end_task(TimeTasks::MOMENT_ACCUMULATION); }
 
     // reduction
     #pragma omp master
-    timeTasks_begin_task(TimeTasks::MOMENT_REDUCTION);
+    { timeTasks_begin_task(TimeTasks::MOMENT_REDUCTION); }
 
     // reduce moments in parallel
     //
@@ -1230,7 +1234,7 @@ void SpeciesMoms::sumMoments(const Particles3Dcomm& pcls)
     //    { pZZsn[is][i][j][k] += invVOL*moments[i][j][k][9]; }}
     //}
     #pragma omp master
-    timeTasks_end_task(TimeTasks::MOMENT_REDUCTION);
+    { timeTasks_end_task(TimeTasks::MOMENT_REDUCTION); }
   }
 }
 

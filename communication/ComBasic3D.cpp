@@ -3,6 +3,7 @@
 #include "ComParser3D.h"
 #include "ipic_defs.h"
 #include "TimeTasks.h"
+#include "debug.h"
 #include <math.h>
 
 /** communicate ghost along a direction **/

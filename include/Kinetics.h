@@ -65,8 +65,9 @@ class Kinetics
     void pad_particle_capacities();
     void convertParticlesToSoA();
     void convertParticlesToAoS();
-    void convertParticlesToSynched();
     void sortParticles();
+  public:
+    void convertParticlesToSynched();
 };
 
 #endif

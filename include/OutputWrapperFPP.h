@@ -15,9 +15,10 @@ using namespace PSK;
 class OutputWrapperFPP
 {
  private:
-  Collective    *col,
-  VCtopology3D  *vct,
-  Grid3DCU      *grid,
+  const Setting       &setting;
+  const Collective    *col;
+  const VCtopology3D  *vct;
+  const Grid3DCU      *grid;
  private:
   #ifndef NO_HDF5
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr; // Create an Output Manager
@@ -28,17 +29,15 @@ class OutputWrapperFPP
   string RestartDirName;
   string output_file;
  public:
-  OutputWrapperFPP(
-    Collective    *col_,
-    VCtopology3D  *vct_,
-    Grid3DCU      *grid_)
-  : col(col_),
-    vct(vct_),
-    grid(grid_)
+  OutputWrapperFPP(const Setting& setting_) :
+    setting(setting_),
+    col(&setting.col()),
+    vct(&setting.vct()),
+    grid(&setting.grid())
   {}
   void init_output_files(
-    EMfields3D    *EMf,
-    Particles3D   *part);
+    const EMfields3D    *EMf,
+    const Particles3D   *part);
   void append_output(const char* tag, int cycle);
   void append_output(const char* tag, int cycle, int sample);
 };

@@ -276,8 +276,8 @@ void MIsolver::initialize_output()
   if (col->getWriteMethod() == "shdf5")
   {
     #ifndef NO_HDF5
-    outputWrapperFPP = new OutputWrapperFPP(col,vct,grid);
-    fetch_outputWrapperFPP().init_output_files(EMf,part);
+    outputWrapperFPP = new OutputWrapperFPP(setting);
+    fetch_outputWrapperFPP().init_output_files(EMf,kinetics->get_pcls());
     #endif
   }
   outputWrapperTXT = new OutputWrapperTXT(setting);
@@ -315,7 +315,7 @@ void MIsolver::init_kinetics_from_restart()
   #ifdef NO_HDF5
     eprintf("restart requires compiling with HDF5");
   #else
-    read_moments_restart(&get_col(),vct,grid,&rhons,ns);
+    read_moments_restart(&get_col(),vct,grid,&rhons);
 
     // communicate species densities to ghost nodes
     for (int is = 0; is < ns; is++)
@@ -325,11 +325,10 @@ void MIsolver::init_kinetics_from_restart()
     }
 
     if (col->getCase()=="Dipole") {
-      ConstantChargePlanet(col->getL_square(),
-        col->getx_center(),col->gety_center(),col->getz_center());
+      miMoments->ConstantChargePlanet();
     }
 
-    ConstantChargeOpenBC();
+    miMoments->ConstantChargeOpenBC();
   #endif // NO_HDF5
   }
 
@@ -357,7 +356,7 @@ void MIsolver::init_fields_from_restart()
   #ifdef NO_HDF5
   eprintf("restart requires compiling with HDF5");
   #else
-  read_field_restart(&get_col(),vct,grid,Bxn,Byn,Bzn,Ex,Ey,Ez);
+  read_field_restart(col,vct,grid,Bxn,Byn,Bzn,Ex,Ey,Ez);
   {
     // communicate ghost
     communicateNodeBC(nxn, nyn, nzn, Bxn, col->bcBx, vct);
@@ -1497,7 +1496,7 @@ void MIsolver::WriteRestart(int cycle)
   kinetics->convertParticlesToSynched(); // hack
   // write the RESTART file
   // without 0 add to restart file
-  writeRESTART(vct->get_rank(), cycle, vct, col, grid, EMf, part, 0);
+  writeRESTART(cycle, setting, EMf, kinetics->get_pcls(), 0);
   #endif
 }
 
@@ -1550,7 +1549,9 @@ void MIsolver::WriteFields(int cycle) {
   {
     timeTasks_set_task(TimeTasks::WRITE_FIELDS);
     if (col->getWriteMethod() == "Parallel") {
-        WriteOutputParallel(grid, EMf, col, vct, cycle);
+        WriteOutputParallel(col, vct, grid,
+          kinetics->get_pcls(),
+          speciesMoms, EMf, cycle);
     }
     else // OUTPUT to large file, called proc**
     {
@@ -1613,10 +1614,10 @@ void MIsolver::WriteOutput(int cycle) {
 
     if (!col->field_output_is_off() &&
         cycle%(col->getFieldOutputCycle())==0)
-      WriteFieldsH5hut(ns, grid, EMf, col, vct, cycle);
+      WriteFieldsH5hut(ns, col,vct,grid, EMf, cycle);
     if (!col->particle_output_is_off() &&
         cycle%(col->getParticlesOutputCycle())==0)
-      WritePartclH5hut(ns, grid, part, col, vct, cycle);
+      WritePartclH5hut(ns, col,vct,grid, kinetics->get_pcls(), cycle);
   }
   else if (col->getWriteMethod() == "phdf5")
   {
@@ -1626,7 +1627,9 @@ void MIsolver::WriteOutput(int cycle) {
 
     if (!col->field_output_is_off() &&
       cycle%(col->getFieldOutputCycle())==0)
-      WriteOutputParallel(grid, EMf, part, col, vct, cycle);
+      WriteOutputParallel(col,vct,grid,
+        kinetics->get_pcls(),
+        speciesMoms, EMf, cycle);
     if (!col->particle_output_is_off() &&
         cycle%(col->getParticlesOutputCycle())==0)
     {
@@ -1671,8 +1674,9 @@ void MIsolver::Finalize() {
   if (col->getCallFinalize())
   {
     #ifndef NO_HDF5
-    get_kinetics().convertParticlesToSynched();
-    writeRESTART(vct->get_rank(), col->getNcycles() + col->getLast_cycle(), vct, col, grid, EMf, part, 0);
+    kinetics->convertParticlesToSynched();
+    writeRESTART(col->getNcycles() + col->getLast_cycle(), setting,
+      EMf, kinetics->get_pcls(), 0);
     #endif
   }
 

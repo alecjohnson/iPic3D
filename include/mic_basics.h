@@ -598,7 +598,7 @@
     //F64vec8* out = reinterpret_cast<F64vec8*>(out_);
     //const F64vec8* in = reinterpret_cast<F64vec8*>(in_);
     F64vec8* out = reinterpret_cast<F64vec8*>(out_[0]);
-    const F64vec8* in = reinterpret_cast<F64vec8*>(in_[0]);
+    const F64vec8* in = reinterpret_cast<const F64vec8*>(in_[0]);
 
     transpose_8x8_double(out, in);
   }

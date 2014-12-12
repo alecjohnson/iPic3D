@@ -1,3 +1,4 @@
+#include "mpi.h"
 #include "Collective.h"
 #include "VCtopology3D.h"
 #include "Grid3DCU.h"

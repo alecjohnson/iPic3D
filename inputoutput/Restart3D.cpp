@@ -11,8 +11,16 @@ using std::stringstream;
 // === methods to write restart files ===
 
 /** write the restart file at any RESTART_CYCLE, useful for reading intermediate results */
-void writeRESTART(int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, EMfields3D * field, Particles3Dcomm * part) {
+void writeRESTART(int cycle,
+  const Setting& setting,
+  const EMfields3D * field,
+  const Particles3Dcomm * part)
+{
+  const Collective * col = &setting.col();
+  const VCtopology3D * vct = &setting.vct();
+  const Grid * grid = &setting.grid();
   const int ns = col->getNs();
+  const int myrank = vct->get_rank();
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;
   // Create an Output Agent for HDF5 output
@@ -39,7 +47,16 @@ void writeRESTART(int myrank, int cycle, VCtopology3D * vct, Collective * col, G
 }
 
 /** this restart function writes the last restart with the last cycle */
-void writeRESTART(int myrank, int cycle, VCtopology3D * vct, Collective * col, Grid * grid, EMfields3D * field, Particles3Dcomm * part, bool fool) {
+void writeRESTART(int cycle,
+  const Setting& setting,
+  const EMfields3D * field,
+  const Particles3Dcomm * part,
+  bool fool)
+{
+  const int myrank = vct->get_rank();
+  const Collective * col = &setting.col();
+  const VCtopology3D * vct = &setting.vct();
+  const Grid * grid = &setting.grid();
   const int ns = col->getNs();
   // Create an Output Manager
   PSK::OutputManager < PSK::OutputAdaptor > output_mgr;

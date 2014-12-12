@@ -131,12 +131,12 @@ class EMfields3D
     double getBy(int X, int Y, int Z) const { return Byn.get(X,Y,Z);}
     double getBz(int X, int Y, int Z) const { return Bzn.get(X,Y,Z);}
     //
-    //arr3_double getEx() { return Ex; }
-    //arr3_double getEy() { return Ey; }
-    //arr3_double getEz() { return Ez; }
-    //arr3_double getBx() { return Bxn; }
-    //arr3_double getBy() { return Byn; }
-    //arr3_double getBz() { return Bzn; }
+    arr3_double getEx() { return Ex; }
+    arr3_double getEy() { return Ey; }
+    arr3_double getEz() { return Ez; }
+    arr3_double getBx() { return Bxn; }
+    arr3_double getBy() { return Byn; }
+    arr3_double getBz() { return Bzn; }
 
     arr3_double fetch_Ex() { return Ex; }
     arr3_double fetch_Ey() { return Ey; }

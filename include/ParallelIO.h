@@ -12,12 +12,29 @@
 
 #include "ipic_fwd.h"
 
-void WriteFieldsH5hut(int nspec, Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCtopology3D *vct, int cycle);
-void WritePartclH5hut(int nspec, Grid3DCU *grid, Particles3Dcomm *part, CollectiveIO *col, VCtopology3D *vct, int cycle);
+void WriteFieldsH5hut(int nspec,
+  const CollectiveIO *col,
+  const VCtopology3D *vct,
+  const Grid3DCU *grid,
+  const EMfields3D *EMf,
+  int cycle);
+void WritePartclH5hut(int nspec,
+  const CollectiveIO *col,
+  const VCtopology3D *vct,
+  const Grid3DCU *grid,
+  const Particles3Dcomm *part,
+  int cycle);
 
 void ReadPartclH5hut(int nspec, Particles3Dcomm *part, Collective *col, VCtopology3D *vct, Grid3DCU *grid);
 void ReadFieldsH5hut(int nspec, EMfields3D *EMf,       Collective *col, VCtopology3D *vct, Grid3DCU *grid);
 
-void WriteOutputParallel(Grid3DCU *grid, EMfields3D *EMf, Particles3Dcomm *part, CollectiveIO *col, VCtopology3D *vct, int cycle);
+void WriteOutputParallel(
+  const CollectiveIO *col,
+  const VCtopology3D *vct,
+  const Grid3DCU *grid,
+  const Particles3Dcomm *part,
+  const SpeciesMoms *speciesMoms,
+  const EMfields3D *EMf,
+  int cycle);
 
 #endif

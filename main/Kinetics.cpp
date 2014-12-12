@@ -1,3 +1,4 @@
+#include "mpi.h"
 #include "Kinetics.h"
 #include "SpeciesMoms.h"
 #include "Particles3D.h"

@@ -12,12 +12,12 @@
 
 /*! Function used to write the fields using the parallel HDF5 library */
 void WriteOutputParallel(
-  CollectiveIO *col,
-  VCtopology3D *vct,
-  Grid3DCU *grid,
-  Particles3Dcomm *part,
-  SpeciesMoms *speciesMoms,
-  EMfields3D *EMf,
+  const CollectiveIO *col,
+  const VCtopology3D *vct,
+  const Grid3DCU *grid,
+  const Particles3Dcomm *part,
+  const SpeciesMoms *speciesMoms,
+  const EMfields3D *EMf,
   int cycle)
 {
 
@@ -99,7 +99,13 @@ void WriteOutputParallel(
 }
 
 /*! Function to write the EM fields using the H5hut library. */
-void WriteFieldsH5hut(int nspec, Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *col, VCtopology3D *vct, int cycle){
+void WriteFieldsH5hut(int nspec,
+  const CollectiveIO *col,
+  const VCtopology3D *vct,
+  const Grid3DCU *grid,
+  const EMfields3D *EMf,
+  int cycle)
+{
   if(col->field_output_is_off())
     return;
 #ifdef USEH5HUT
@@ -167,7 +173,13 @@ void WriteFieldsH5hut(int nspec, Grid3DCU *grid, EMfields3D *EMf, CollectiveIO *
 }
 
 /*! Function to write the particles using the H5hut library. */
-void WritePartclH5hut(int nspec, Grid3DCU *grid, Particles3Dcomm *part, CollectiveIO *col, VCtopology3D *vct, int cycle){
+void WritePartclH5hut(int nspec,
+  const CollectiveIO *col,
+  const VCtopology3D *vct,
+  const Grid3DCU *grid,
+  const Particles3Dcomm *part,
+  int cycle)
+{
 #ifdef USEH5HUT
   timeTasks_set_task(TimeTasks::WRITE_PARTICLES);
 
