@@ -11,10 +11,13 @@
 #include "mic_basics.h"
 #include "ComInterpNodes3D.h"
 #include "Basic.h"
+#include "mic_particles.h"
 #include "ipic_math.h"
 #include "ompdefs.h"
 #include "asserts.h"
 #include <new> // needed for placement new
+
+using namespace iPic3D;
 
 // === Section MImoments_routines ===
 
@@ -1470,6 +1473,7 @@ void SpeciesMoms::sumMoments_AoS_intr(const Particles3Dcomm& pcls)
   eprintf("not implemented");
 #else
   const Grid& grid = setting.grid();
+  const double invVOL = grid.getInvVOL();
 
   // define global parameters
   //
