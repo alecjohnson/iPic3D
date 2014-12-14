@@ -1703,14 +1703,14 @@ void SpeciesMoms::sumMoments_AoS_intr(const Particles3Dcomm& pcls)
             arr2_double_fetch node_moments01 = node_moments0[cy];
             arr2_double_fetch node_moments10 = node_moments1[iy];
             arr2_double_fetch node_moments11 = node_moments1[cy];
-            double* node_moments000 = node_moments00[iz];
-            double* node_moments001 = node_moments00[cz];
-            double* node_moments010 = node_moments01[iz];
-            double* node_moments011 = node_moments01[cz];
-            double* node_moments100 = node_moments10[iz];
-            double* node_moments101 = node_moments10[cz];
-            double* node_moments110 = node_moments11[iz];
-            double* node_moments111 = node_moments11[cz];
+            double* node_moments000 = &node_moments00[iz][0];
+            double* node_moments001 = &node_moments00[cz][0];
+            double* node_moments010 = &node_moments01[iz][0];
+            double* node_moments011 = &node_moments01[cz][0];
+            double* node_moments100 = &node_moments10[iz][0];
+            double* node_moments101 = &node_moments10[cz][0];
+            double* node_moments110 = &node_moments11[iz][0];
+            double* node_moments111 = &node_moments11[cz][0];
 
             const F64vec8 mom8 = cell_mom[8];
             const F64vec8 mom9 = cell_mom[9];
