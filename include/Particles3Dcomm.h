@@ -38,6 +38,9 @@ public:
   // 
   // these are virtual so user can override these
   // to provide arbitrary custom boundary conditions
+  virtual void apply_BCs(vector_SpeciesParticle& pcls,
+    const int dir[3],int start=0);
+
   virtual void apply_Xleft_BC(vector_SpeciesParticle& pcls, int start=0);
   virtual void apply_Yleft_BC(vector_SpeciesParticle& pcls, int start=0);
   virtual void apply_Zleft_BC(vector_SpeciesParticle& pcls, int start=0);

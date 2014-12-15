@@ -950,223 +950,142 @@ static long long mpi_global_sum(int in)
   return total;
 }
 
+// this methods should be virtual
+// so that the user can override boundary conditions.
+//
+// apply BCs to all particles in pcls starting with
+// index start.
+//
+// It is expected that dirs=[xoffset, yoffset, zoffset],
+// where xoffset is -1 if particles are to the left of the
+// process subdomain, 1 if to the right of the process
+// subdomain, and 0 if in the process subdomain.
+// (The same situation is assumed to hold for all particles
+// in the list).
+//
+void Particles3Dcomm::apply_BCs(vector_SpeciesParticle& pcls,
+  const int dirs[3], int start)
+{
+  // if the particles are in the domain then there is nothing to do
+  if(!(dirs[0] || dirs[1] || dirs[2]))
+  {
+    // should not get here
+    assert(false);
+    return;
+  }
+
+  // if the particles exited an open boundary then delete them
+  const bool exiting_domain = 
+    (bcPfaceXleft == BCparticles::EXIT && dirs[0] < 0) ||
+    (bcPfaceXright== BCparticles::EXIT && dirs[0] > 0) ||
+    (bcPfaceYleft == BCparticles::EXIT && dirs[1] < 0) ||
+    (bcPfaceYright== BCparticles::EXIT && dirs[1] > 0) ||
+    (bcPfaceZleft == BCparticles::EXIT && dirs[2] < 0) ||
+    (bcPfaceZright== BCparticles::EXIT && dirs[2] > 0);
+
+  if(exiting_domain)
+  {
+    assert(false); // this code has not yet been tested.
+    pcls.resize(start);
+    return;
+  }
+
+  // parameter digestion
+  //
+  int size = pcls.size();
+  assert_le(0,start);
+  // reemission reverses direction of velocity
+  const int newdirs[3] = {-dirs[0],-dirs[1],-dirs[2]};
+
+  // if the particles crossed a reemission boundary then reemit them
+  const bool do_reemit = 
+    (bcPfaceXleft == BCparticles::REEMISSION && dirs[0] < 0) ||
+    (bcPfaceXright== BCparticles::REEMISSION && dirs[0] > 0) ||
+    (bcPfaceYleft == BCparticles::REEMISSION && dirs[1] < 0) ||
+    (bcPfaceYright== BCparticles::REEMISSION && dirs[1] > 0) ||
+    (bcPfaceZleft == BCparticles::REEMISSION && dirs[2] < 0) ||
+    (bcPfaceZright== BCparticles::REEMISSION && dirs[2] > 0);
+
+  // Algorithm:
+  //
+  // 1. apply reemission if a reemission boundary is involved
+  //
+  if(do_reemit)
+  {
+    assert(false); // this code has not yet been tested.
+    for(int p=start;p<size;p++)
+    {
+      SpeciesParticle& pcl = pcls[p];
+      double *uptr = &pcl.fetch_u();
+      sample_maxwellian(uptr[0],uptr[1],uptr[2], uth,vth,wth);
+    }
+  }
+  //
+  // 2. reflect positions and velocities appropriately
+  //
+  const Collective& col = setting.col();
+  const double Ls[3]={col.getLx(),col.getLy(),col.getLz()};
+  double signs[3] ALLOC_ALIGNED;
+  double walls[3] ALLOC_ALIGNED;
+  for(int i=0;i<3;i++)
+  {
+    // reflect unless in middle
+    signs[i] = dirs[i] ? -1 : 1;
+    walls[i] = dirs[i]>0 ? 2*Ls[i] : 0;
+  }
+  // the order of these two loops should be swapped
+  // unless the compiler decides to vectorize.
+  for(int p=start;p<size;p++)
+  for(int i=0;i<3;i++)
+  {
+    SpeciesParticle& pcl = pcls[p];
+    double *xptr = &pcl.fetch_x();
+    double *uptr = &pcl.fetch_u();
+    // this formula reflects off wall if dir is nonzero
+    // and does nothing is dir is zero
+    if(dirs[i])
+    {
+      xptr[i] = walls[i] + signs[i]*xptr[i];
+      uptr[i] = newdirs[i]*fabs(uptr[i]);
+      // old way (but then reemission must
+      // handle reflection separately).
+      // uptr[i] *= -1;
+    }
+  }
+}
+
 // these methods should be made virtual
 // so that the user can override boundary conditions.
 //
 void Particles3Dcomm::apply_Xleft_BC(vector_SpeciesParticle& pcls, int start)
 {
-  int size = pcls.size();
-  assert_le(0,start);
-  switch(bcPfaceXleft)
-  {
-    default:
-      unsupported_value_error(bcPfaceXleft);
-    case BCparticles::PERFECT_MIRROR:
-      for(int p=start;p<size;p++)
-      {
-        pcls[p].fetch_x() *= -1;
-        pcls[p].fetch_u() *= -1;
-      }
-      break;
-    case BCparticles::REEMISSION:
-      // in this case it might be faster to convert to and
-      // from SoA format, if calls to rand() can vectorize.
-      for(int p=start;p<size;p++)
-      {
-        SpeciesParticle& pcl = pcls[p];
-        pcl.fetch_x() *= -1;
-        double u[3];
-        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
-        u[0] = fabs(u[0]);
-        pcl.set_u(u);
-      }
-      break;
-    case BCparticles::EXIT:
-      // clear the remainder of the list
-      pcls.resize(start);
-      break;
-  }
+  const int dirs[3]={-1,0,0};
+  apply_BCs(pcls, dirs, start);
 }
 void Particles3Dcomm::apply_Yleft_BC(vector_SpeciesParticle& pcls, int start)
 {
-  int size = pcls.size();
-  assert_le(0,start);
-  switch(bcPfaceYleft)
-  {
-    default:
-      unsupported_value_error(bcPfaceYleft);
-    case BCparticles::PERFECT_MIRROR:
-      for(int p=start;p<size;p++)
-      {
-        SpeciesParticle& pcl = pcls[p];
-        const double y_old = pcl.fetch_y();
-        const double v_old = pcl.fetch_v();
-        pcl.fetch_y() *= -1;
-        pcl.fetch_v() *= -1;
-        const double y_new = pcl.fetch_y();
-        const double v_new = pcl.fetch_v();
-        //dprintf("mirrored pcl#%g: y: %g->%g, v: %g->%g",
-        //  pcl.get_t(), y_old, y_new, v_old, v_new);
-      }
-      break;
-    case BCparticles::REEMISSION:
-      // in this case it might be faster to convert to and
-      // from SoA format, if calls to rand() can vectorize.
-      for(int p=start;p<size;p++)
-      {
-        SpeciesParticle& pcl = pcls[p];
-        pcl.fetch_y() *= -1;
-        double u[3];
-        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
-        u[1] = fabs(u[1]);
-        pcl.set_u(u);
-      }
-      break;
-    case BCparticles::EXIT:
-      pcls.resize(start);
-      break;
-  }
+  const int dirs[3]={0,-1,0};
+  apply_BCs(pcls, dirs, start);
 }
 void Particles3Dcomm::apply_Zleft_BC(vector_SpeciesParticle& pcls, int start)
 {
-  int size = pcls.size();
-  assert_le(0,start);
-  switch(bcPfaceZleft)
-  {
-    default:
-      unsupported_value_error(bcPfaceZleft);
-    case BCparticles::PERFECT_MIRROR:
-      for(int p=start;p<size;p++)
-      {
-        pcls[p].fetch_z() *= -1;
-        pcls[p].fetch_w() *= -1;
-      }
-      break;
-    case BCparticles::REEMISSION:
-      // in this case it might be faster to convert to and
-      // from SoA format, if calls to rand() can vectorize.
-      for(int p=start;p<size;p++)
-      {
-        SpeciesParticle& pcl = pcls[p];
-        pcl.fetch_z() *= -1;
-        double u[3];
-        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
-        u[2] = fabs(u[2]);
-        pcl.set_u(u);
-      }
-      break;
-    case BCparticles::EXIT:
-      pcls.resize(start);
-      break;
-  }
+  const int dirs[3]={0,0,-1};
+  apply_BCs(pcls, dirs, start);
 }
 void Particles3Dcomm::apply_Xrght_BC(vector_SpeciesParticle& pcls, int start)
 {
-  int size = pcls.size();
-  assert_le(0,start);
-  switch(bcPfaceXright)
-  {
-    default:
-      unsupported_value_error(bcPfaceXright);
-    case BCparticles::PERFECT_MIRROR:
-      for(int p=start;p<size;p++)
-      {
-        double& x = pcls[p].fetch_x();
-        x = 2*Lx - x;
-        pcls[p].fetch_u() *= -1;
-      }
-      break;
-    case BCparticles::REEMISSION:
-      // in this case it might be faster to convert to and
-      // from SoA format, if calls to rand() can vectorize.
-      for(int p=start;p<size;p++)
-      {
-        SpeciesParticle& pcl = pcls[p];
-        double& x = pcl.fetch_x();
-        x = 2*Lx - x;
-        double u[3];
-        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
-        u[0] = -fabs(u[0]);
-        pcl.set_u(u);
-      }
-      break;
-    case BCparticles::EXIT:
-      pcls.resize(start);
-      break;
-  }
+  const int dirs[3]={1,0,0};
+  apply_BCs(pcls, dirs, start);
 }
 void Particles3Dcomm::apply_Yrght_BC(vector_SpeciesParticle& pcls, int start)
 {
-  int size = pcls.size();
-  assert_le(0,start);
-  switch(bcPfaceYright)
-  {
-    default:
-      unsupported_value_error(bcPfaceYright);
-    case BCparticles::PERFECT_MIRROR:
-      for(int p=start;p<size;p++)
-      {
-        SpeciesParticle& pcl = pcls[p];
-        double& y = pcl.fetch_y();
-        const double y_old = y;
-        const double v_old = pcl.fetch_v();
-        y = 2*Ly - y;
-        pcl.fetch_v() *= -1;
-        const double y_new = pcl.fetch_y();
-        const double v_new = pcl.fetch_v();
-        //dprintf("mirrored pcl#%g: y: %g->%g, v: %g->%g",
-        //  pcl.get_t(), y_old, y_new, v_old, v_new);
-      }
-      break;
-    case BCparticles::REEMISSION:
-      for(int p=start;p<size;p++)
-      {
-        SpeciesParticle& pcl = pcls[p];
-        double& y = pcl.fetch_y();
-        y = 2*Ly - y;
-        double u[3];
-        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
-        v[0] = -fabs(v[0]);
-        pcl.set_u(u);
-      }
-      break;
-    case BCparticles::EXIT:
-      pcls.resize(start);
-      break;
-  }
+  const int dirs[3]={0,1,0};
+  apply_BCs(pcls, dirs, start);
 }
 void Particles3Dcomm::apply_Zrght_BC(vector_SpeciesParticle& pcls, int start)
 {
-  int size = pcls.size();
-  assert_le(0,start);
-  switch(bcPfaceZright)
-  {
-    default:
-      unsupported_value_error(bcPfaceZright);
-    case BCparticles::PERFECT_MIRROR:
-      for(int p=start;p<size;p++)
-      {
-        double& z = pcls[p].fetch_z();
-        z = 2*Lz - z;
-        pcls[p].fetch_w() *= -1;
-      }
-      break;
-    case BCparticles::REEMISSION:
-      for(int p=start;p<size;p++)
-      {
-        SpeciesParticle& pcl = pcls[p];
-        double& z = pcl.fetch_z();
-        z = 2*Lz - z;
-        double u[3];
-        sample_maxwellian(u[0],u[1],u[2], uth,vth,wth);
-        w[0] = -fabs(w[0]);
-        pcl.set_u(u);
-      }
-      break;
-    case BCparticles::EXIT:
-      pcls.resize(start);
-      break;
-  }
+  const int dirs[3]={0,0,1};
+  apply_BCs(pcls, dirs, start);
 }
 
 // return number of particles sent
