@@ -180,10 +180,10 @@ def construct_run_command(args,mpirun):
     if hostname!="":
         options.extend(['-host', hostname])
 
-    # if num_max_threads > 1 or num_threads_is_given_by_user:
-    omp_string = 'OMP_NUM_THREADS=' + str(num_max_threads)
-    omp = ['-env', omp_string]
-    options.extend(omp)
+    if num_max_threads > 1 or num_threads_is_given_by_user:
+      omp_string = 'OMP_NUM_THREADS=' + str(num_max_threads)
+      omp = ['-env', omp_string]
+      options.extend(omp)
 
     command = [mpirun]
     command.extend(options)
