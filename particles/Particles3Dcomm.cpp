@@ -695,13 +695,9 @@ void Particles3Dcomm::apply_BCs_globally(vector_SpeciesParticle& pcl_list)
   //}
 }
 
-// direction: direction that list of particles is coming from
-void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
-  int direction, bool apply_shift, bool do_apply_BCs)
+static void get_dirs(int dirs[3], int direction)
 {
   using namespace Direction;
-  // determine direction of particle transfer
-  int dirs[3]={0,0,0};
   switch(direction)
   {
     default: invalid_value_error(direction);
@@ -712,50 +708,39 @@ void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
     case ZDN: dirs[2]=-1; break;
     case ZUP: dirs[2]= 1; break;
   }
+}
+
+// direction: direction that list of particles is coming from
+void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
+  int direction, bool apply_shift, bool do_apply_BCs)
+{
+  // determine direction of particle transfer
+  int dirs[3]={0,0,0};
+  get_dirs(dirs, direction);
   // if appropriate apply periodicity shift for this block
   //
   // could change from modulo to simple shift.
   //
-  const double Lxinv = 1/Lx;
-  const double Lyinv = 1/Ly;
-  const double Lzinv = 1/Lz;
+  double Ls[3] ALLOC_ALIGNED;
+  Ls[0] = setting.col().getLx();
+  Ls[1] = setting.col().getLy();
+  Ls[2] = setting.col().getLz();
+  double Linvs[3] ALLOC_ALIGNED;
+  for(int i=0;i<3;i++) Linvs[i] = 1/Ls[i];
+
   if(apply_shift)
   {
-    switch(direction)
-    {
-      default:
-        invalid_value_error(direction);
-      case XDN:
-      case XUP:
-        for(int pidx=0;pidx<pcl_list.size();pidx++)
-        {
-          SpeciesParticle& pcl = pcl_list[pidx];
-          double& x = pcl.fetch_x();
-          //const double x_old = x;
-          x = modulo(x, Lx, Lxinv);
-          //dprintf("recved pcl#%g: remapped x=%g outside [0,%g] to x=%g", pcl.get_t(), x_old, Lx, x);
-          // if(direction==XDN) x -= Lx; else x += Lx;
-        }
-        break;
-      case YDN:
-      case YUP:
-        for(int pidx=0;pidx<pcl_list.size();pidx++)
-        {
-          double& y = pcl_list[pidx].fetch_y();
-          y = modulo(y, Ly, Lyinv);
-          // if(direction==YDN) y -= Ly; else y += Ly;
-        }
-        break;
-      case ZDN:
-      case ZUP:
-        for(int pidx=0;pidx<pcl_list.size();pidx++)
-        {
-          double& z = pcl_list[pidx].fetch_z();
-          z = modulo(z, Lz, Lzinv);
-          // if(direction==ZDN) z -= Lz; else z += Lz;
-        }
-        break;
-    }
+     for(int pidx=0;pidx<pcl_list.size();pidx++)
+     {
+       SpeciesParticle& pcl = pcl_list[pidx];
+       double *xptr = &pcl.fetch_x();
+       for(int i=0;i<3;i++)
+       {
+         if(dirs[i]) xptr[i] = modulo(xptr[i], Ls[i], Linvs[i]);
+         // this is more efficient and good enough if we cap particle motion
+         //xptr[i] += dirs[i]*Ls[i];
+       }
+     }
   }
   // if appropriate then apply boundary conditions to this block
   else if(do_apply_BCs)
