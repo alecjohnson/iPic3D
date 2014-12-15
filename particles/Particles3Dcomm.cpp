@@ -700,6 +700,18 @@ void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
   int direction, bool apply_shift, bool do_apply_BCs)
 {
   using namespace Direction;
+  // determine direction of particle transfer
+  int dirs[3]={0,0,0};
+  switch(direction)
+  {
+    default: invalid_value_error(direction);
+    case XDN: dirs[0]=-1; break;
+    case XUP: dirs[0]= 1; break;
+    case YDN: dirs[1]=-1; break;
+    case YUP: dirs[1]= 1; break;
+    case ZDN: dirs[2]=-1; break;
+    case ZUP: dirs[2]= 1; break;
+  }
   // if appropriate apply periodicity shift for this block
   //
   // could change from modulo to simple shift.
@@ -749,29 +761,7 @@ void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
   else if(do_apply_BCs)
   {
     int size = pcl_list.size();
-    switch(direction)
-    {
-      default:
-        invalid_value_error(direction);
-      case XDN: assert(vct->noXleftNeighbor());
-        apply_Xleft_BC(pcl_list);
-        break;
-      case XUP: assert(vct->noXrghtNeighbor());
-        apply_Xrght_BC(pcl_list);
-        break;
-      case YDN: assert(vct->noYleftNeighbor());
-        apply_Yleft_BC(pcl_list);
-        break;
-      case YUP: assert(vct->noYrghtNeighbor());
-        apply_Yrght_BC(pcl_list);
-        break;
-      case ZDN: assert(vct->noZleftNeighbor());
-        apply_Zleft_BC(pcl_list);
-        break;
-      case ZUP: assert(vct->noZrghtNeighbor());
-        apply_Zrght_BC(pcl_list);
-        break;
-    }
+    apply_BCs(pcl_list, dirs);
     // this was an open boundary conditions bug:
     //pcl_list.resize(size);
   }
