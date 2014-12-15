@@ -772,7 +772,8 @@ void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
         apply_Zrght_BC(pcl_list);
         break;
     }
-    pcl_list.resize(size);
+    // this was an open boundary conditions bug:
+    //pcl_list.resize(size);
   }
 }
 
