@@ -145,7 +145,6 @@ void MImoments::ConstantChargeOpenBCv2()
       }
     }
 
-
     if(vct->noZrghtNeighbor() && col.getBcEMfaceZright() ==2)
     {
       for (int i=0; i < nx;i++)
@@ -2483,7 +2482,8 @@ inline void add_moments_for_pcl_vec(double momentsAccVec[8][10][8],
 void SpeciesMoms::adjustNonPeriodicDensities(int is)
 {
   const VirtualTopology3D *vct = &setting.vct();
-  if (vct->getXleft_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noXleftNeighbor())
+  {
     for (int i = 1; i < nyn - 1; i++)
     for (int k = 1; k < nzn - 1; k++)
     {
@@ -2499,7 +2499,8 @@ void SpeciesMoms::adjustNonPeriodicDensities(int is)
         pZZsn[is][1][i][k] *= 2;
     }
   }
-  if (vct->getYleft_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noYleftNeighbor())
+  {
     for (int i = 1; i < nxn - 1; i++)
     for (int k = 1; k < nzn - 1; k++)
     {
@@ -2515,7 +2516,8 @@ void SpeciesMoms::adjustNonPeriodicDensities(int is)
         pZZsn[is][i][1][k] *= 2;
     }
   }
-  if (vct->getZleft_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noZleftNeighbor())
+  {
     for (int i = 1; i < nxn - 1; i++)
     for (int j = 1; j < nyn - 1; j++)
     {
@@ -2531,7 +2533,8 @@ void SpeciesMoms::adjustNonPeriodicDensities(int is)
         pZZsn[is][i][j][1] *= 2;
     }
   }
-  if (vct->getXright_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noXrghtNeighbor())
+  {
     for (int i = 1; i < nyn - 1; i++)
     for (int k = 1; k < nzn - 1; k++)
     {
@@ -2547,7 +2550,8 @@ void SpeciesMoms::adjustNonPeriodicDensities(int is)
         pZZsn[is][nxn - 2][i][k] *= 2;
     }
   }
-  if (vct->getYright_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noYrghtNeighbor())
+  {
     for (int i = 1; i < nxn - 1; i++)
     for (int k = 1; k < nzn - 1; k++)
     {
@@ -2563,7 +2567,8 @@ void SpeciesMoms::adjustNonPeriodicDensities(int is)
         pZZsn[is][i][nyn - 2][k] *= 2;
     }
   }
-  if (vct->getZright_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noZrghtNeighbor())
+  {
     for (int i = 1; i < nxn - 1; i++)
     for (int j = 1; j < nyn - 1; j++)
     {

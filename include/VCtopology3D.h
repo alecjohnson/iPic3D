@@ -60,12 +60,6 @@ public:
   int getYright_neighbor()const{ return (yright_neighbor); }
   int getZleft_neighbor()const{ return (zleft_neighbor); }
   int getZright_neighbor()const{ return (zright_neighbor); }
-  int getXleft_neighbor_P()const{ return (xleft_neighbor); }
-  int getXright_neighbor_P()const{ return (xright_neighbor); }
-  int getYleft_neighbor_P()const{ return (yleft_neighbor); }
-  int getYright_neighbor_P()const{ return (yright_neighbor); }
-  int getZleft_neighbor_P()const{ return (zleft_neighbor); }
-  int getZright_neighbor_P()const{ return (zright_neighbor); }
 
   // new interface
   //
@@ -77,6 +71,11 @@ public:
   int getYrght()const{ return (yright_neighbor); }
   int getZleft()const{ return (zleft_neighbor); }
   int getZrght()const{ return (zright_neighbor); }
+
+  int get_neighbor_rank(int i, int j, int k)const
+  {
+    return neighbors3D[i+1][j+1][k+1];
+  }
 
   bool isPeriodicXlower()const{ return _isPeriodicXlower; }
   bool isPeriodicXupper()const{ return _isPeriodicXupper; }
@@ -116,6 +115,12 @@ public:
   int getPeriods(int dir)const{ return (periods[dir]); }
   MPI_Comm getComm()const{ return (CART_COMM); }
 
+private:
+
+  void set_neighbor_rank(int i, int j, int k, int rank)
+  {
+    neighbors3D[i+1][j+1][k+1]=rank;
+  }
 
 private:
   /** New communicator with virtual cartesian topology */
@@ -150,12 +155,6 @@ private:
   bool PERIODICY;
   /** periodicity on boundaries - DIRECTION Z*/
   bool PERIODICZ;
-  /** periodicity on boundaries - DIRECTION X*/
-  //bool PERIODICX_P;
-  /** periodicity on boundaries - DIRECTION Y*/
-  //bool PERIODICY_P;
-  /** periodicity on boundaries - DIRECTION Z*/
-  //bool PERIODICZ_P;
   /** rank may be reordered     */
   int reorder;
   /** arrays for Create_Cart_create  */
@@ -167,18 +166,17 @@ private:
   int coordinates[3];
   /** cartesian rank */
   int cartesian_rank;
-  /** cartesian rank of XLEFT neighbor */
+  //
+  // ranks of neighboring processes
+  //
   int xleft_neighbor;
-  /** cartesian rank of XRIGHT neighbor */
   int xright_neighbor;
-  /** cartesian rank of YLEFT neighbor */
   int yleft_neighbor;
-  /** cartesian rank of YRIGHT neighbor */
   int yright_neighbor;
-  /** cartesian rank of ZRIGHT neighbor */
   int zleft_neighbor;
-  /** cartesian rank of ZLEFT neighbor */
   int zright_neighbor;
+  int neighbors3D[3][3][3];
+ 
   
   /** indicators of whether this is a periodic boundary */
   bool _isPeriodicXlower;

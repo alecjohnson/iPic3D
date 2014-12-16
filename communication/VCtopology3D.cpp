@@ -77,25 +77,55 @@ void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
   // But the code has not been consistently written this way...
   //MPI_Cart_create(CART_COMM, 3, dims, periods_P, 0, &CART_COMM_P);
   // field Communicator
-  if (CART_COMM != MPI_COMM_NULL) {
+  if (CART_COMM != MPI_COMM_NULL)
+  {
     MPI_Comm_rank(CART_COMM, &cartesian_rank);
     MPI_Cart_coords(CART_COMM, cartesian_rank, 3, coordinates);
 
     MPI_Cart_shift(CART_COMM, XDIR, RIGHT, &xleft_neighbor, &xright_neighbor);
     MPI_Cart_shift(CART_COMM, YDIR, RIGHT, &yleft_neighbor, &yright_neighbor);
     MPI_Cart_shift(CART_COMM, ZDIR, RIGHT, &zleft_neighbor, &zright_neighbor);
+
+    // initialize ranks of diagonal neighbors
+    //
+    for(int i0=-1;i0<=1;i0++)
+    for(int i1=-1;i1<=1;i1++)
+    for(int i2=-1;i2<=1;i2++)
+    {
+      int coords[3] = {
+        coordinates[0]+i0,
+        coordinates[1]+i1,
+        coordinates[2]+i2 };
+      int rank;
+      if((!periods[0] && (coords[0]<0 || coords[0]>=dims[0]))
+       ||(!periods[1] && (coords[1]<0 || coords[1]>=dims[1]))
+       ||(!periods[2] && (coords[2]<0 || coords[2]>=dims[2])))
+      {
+        // Unfortunately, the MPI standard for MPI_Cart_rank
+        // was changed so that specifying coordinates outside
+        // non-periodic dimensions results in an error;
+        // therefore we now must take special care to set
+        // these neighbors to null. Grrr.
+        rank = MPI_PROC_NULL;
+      }
+      else
+      {
+        MPI_Cart_rank(CART_COMM, coords, &rank);
+      }
+      set_neighbor_rank(i0,i1,i2, rank);
+    }
+    // check that face neighbors are correct
+    assert_eq(xleft_neighbor,get_neighbor_rank(-1,0,0));
+    assert_eq(yleft_neighbor,get_neighbor_rank(0,-1,0));
+    assert_eq(zleft_neighbor,get_neighbor_rank(0,0,-1));
+    assert_eq(xright_neighbor,get_neighbor_rank(1,0,0));
+    assert_eq(yright_neighbor,get_neighbor_rank(0,1,0));
+    assert_eq(zright_neighbor,get_neighbor_rank(0,0,1));
   }
   else {
     // previous check that nprocs = XLEN*YLEN*ZLEN should prevent reaching this line.
     eprintf("A process is thrown away from the new topology for fields.");
   }
-  // Particles Communicator
-  //if (CART_COMM_P != MPI_COMM_NULL) {
-  //  int pcl_coordinates[3];
-  //  int pcl_cartesian_rank;
-  //  MPI_Comm_rank(CART_COMM_P, &pcl_cartesian_rank);
-  //  MPI_Cart_coords(CART_COMM_P, pcl_cartesian_rank, 3, pcl_coordinates);
-  //  
   // This seems to be assumed elsewhere in the code.
   // We need to eliminate this assumption.
   // This becomes important if we want
@@ -105,21 +135,6 @@ void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
   // to identify the process from which debug is coming.
   // The cartesian rank is for application-level code.
   assert_eq(cartesian_rank, MPIdata::get_rank());
-  //  // should agree
-  //  assert_eq(cartesian_rank,pcl_cartesian_rank);
-  //  for(int dim=0;dim<3;dim++)
-  //  {
-  //    assert_eq(coordinates[dim],pcl_coordinates[dim]);
-  //  }
-  //
-  //  MPI_Cart_shift(CART_COMM_P, XDIR, RIGHT, &xleft_neighbor_P, &xright_neighbor_P);
-  //  MPI_Cart_shift(CART_COMM_P, YDIR, RIGHT, &yleft_neighbor_P, &yright_neighbor_P);
-  //  MPI_Cart_shift(CART_COMM_P, ZDIR, RIGHT, &zleft_neighbor_P, &zright_neighbor_P);
-  //}
-  //else {
-  //  // previous check that nprocs = XLEN*YLEN*ZLEN should prevent reaching this line.
-  //  eprintf("A process is thrown away from the new topology for Particles.");
-  //}
 
   _isPeriodicXlower = PERIODICX && isXlower();
   _isPeriodicXupper = PERIODICX && isXupper();

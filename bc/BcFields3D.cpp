@@ -197,7 +197,8 @@ void BCface_P(int nx, int ny, int nz, double ***vector,
   const VirtualTopology3D * vct)
 {
   // XLEFT
-  if (vct->getXleft_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noXleftNeighbor())
+  {
     switch (bcFaceXleft) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -226,7 +227,8 @@ void BCface_P(int nx, int ny, int nz, double ***vector,
 
   }
   // XRIGHT
-  if (vct->getXright_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noXrghtNeighbor())
+  {
     switch (bcFaceXright) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -254,7 +256,8 @@ void BCface_P(int nx, int ny, int nz, double ***vector,
 
   }
   // YLEFT
-  if (vct->getYleft_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noYleftNeighbor())
+  {
     switch (bcFaceYleft) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -282,7 +285,8 @@ void BCface_P(int nx, int ny, int nz, double ***vector,
     }
   }
   // YRIGHT
-  if (vct->getYright_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noYrghtNeighbor())
+  {
     switch (bcFaceYright) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -311,7 +315,8 @@ void BCface_P(int nx, int ny, int nz, double ***vector,
 
   }
   // Zleft
-  if (vct->getZleft_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noZleftNeighbor())
+  {
     switch (bcFaceZleft) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -340,7 +345,8 @@ void BCface_P(int nx, int ny, int nz, double ***vector,
     }
   }
   // Zright
-  if (vct->getZright_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noZrghtNeighbor())
+  {
     switch (bcFaceZright) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -379,7 +385,8 @@ void BCface(int nx, int ny, int nz, int ns, double ****vector,
   const VirtualTopology3D * vct)
 {
   // XLEFT
-  if (vct->getXleft_neighbor() == MPI_PROC_NULL) {
+  if (vct->noXleftNeighbor())
+  {
     switch (bcFaceXleft) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -408,7 +415,8 @@ void BCface(int nx, int ny, int nz, int ns, double ****vector,
 
   }
   // XRIGHT
-  if (vct->getXright_neighbor() == MPI_PROC_NULL) {
+  if (vct->noXrghtNeighbor())
+  {
     switch (bcFaceXright) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -431,12 +439,11 @@ void BCface(int nx, int ny, int nz, int ns, double ****vector,
             vector[ns][nx - 1][i][j] = vector[ns][nx - 2][i][j];
           }
         break;
-
     }
-
   }
   // YLEFT
-  if (vct->getYleft_neighbor() == MPI_PROC_NULL) {
+  if (vct->noYleftNeighbor())
+  {
     switch (bcFaceYleft) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -460,11 +467,11 @@ void BCface(int nx, int ny, int nz, int ns, double ****vector,
             vector[ns][i][0][j] = vector[ns][i][1][j];
           }
         break;
-
     }
   }
   // YRIGHT
-  if (vct->getYright_neighbor() == MPI_PROC_NULL) {
+  if (vct->noYrghtNeighbor())
+  {
     switch (bcFaceYright) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -489,19 +496,16 @@ void BCface(int nx, int ny, int nz, int ns, double ****vector,
         break;
 
     }
-
-
   }
   // Zleft
-  if (vct->getZleft_neighbor() == MPI_PROC_NULL) {
+  if (vct->noZleftNeighbor())
+  {
     switch (bcFaceZleft) {
 
       case 0:                  // Dirichilet = 0 Second Order
         for (int i = 0; i < nx; i++)
           for (int j = 0; j < ny; j++) {
             vector[ns][i][j][0] = -vector[ns][i][j][1];
-
-
           }
         break;
 
@@ -522,15 +526,14 @@ void BCface(int nx, int ny, int nz, int ns, double ****vector,
     }
   }
   // Zright
-  if (vct->getZright_neighbor() == MPI_PROC_NULL) {
+  if (vct->noZrghtNeighbor())
+  {
     switch (bcFaceZright) {
 
       case 0:                  // Dirichilet = 0 Second Order
         for (int i = 0; i < nx; i++)
           for (int j = 0; j < ny; j++) {
             vector[ns][i][j][nz - 1] = -vector[ns][i][j][nz - 2];
-
-
           }
         break;
 
@@ -549,7 +552,6 @@ void BCface(int nx, int ny, int nz, int ns, double ****vector,
         break;
     }
   }
-
 }
 
 // SPECIES
@@ -561,7 +563,8 @@ void BCface_P(int nx, int ny, int nz, int ns, double ****vector,
   const VirtualTopology3D * vct)
 {
   // XLEFT
-  if (vct->getXleft_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noXleftNeighbor())
+  {
     switch (bcFaceXleft) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -584,13 +587,11 @@ void BCface_P(int nx, int ny, int nz, int ns, double ****vector,
             vector[ns][0][i][j] = vector[ns][1][i][j];
           }
         break;
-
-
     }
-
   }
   // XRIGHT
-  if (vct->getXright_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noXrghtNeighbor())
+  {
     switch (bcFaceXright) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -613,12 +614,11 @@ void BCface_P(int nx, int ny, int nz, int ns, double ****vector,
             vector[ns][nx - 1][i][j] = vector[ns][nx - 2][i][j];
           }
         break;
-
     }
-
   }
   // YLEFT
-  if (vct->getYleft_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noYleftNeighbor())
+  {
     switch (bcFaceYleft) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -646,7 +646,8 @@ void BCface_P(int nx, int ny, int nz, int ns, double ****vector,
     }
   }
   // YRIGHT
-  if (vct->getYright_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noYrghtNeighbor())
+  {
     switch (bcFaceYright) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -671,11 +672,10 @@ void BCface_P(int nx, int ny, int nz, int ns, double ****vector,
         break;
 
     }
-
-
   }
   // Zleft
-  if (vct->getZleft_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noZleftNeighbor())
+  {
     switch (bcFaceZleft) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -704,7 +704,8 @@ void BCface_P(int nx, int ny, int nz, int ns, double ****vector,
     }
   }
   // Zright
-  if (vct->getZright_neighbor_P() == MPI_PROC_NULL) {
+  if (vct->noZrghtNeighbor())
+  {
     switch (bcFaceZright) {
 
       case 0:                  // Dirichilet = 0 Second Order
@@ -731,5 +732,4 @@ void BCface_P(int nx, int ny, int nz, int ns, double ****vector,
         break;
     }
   }
-
 }
