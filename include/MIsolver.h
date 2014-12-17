@@ -32,7 +32,6 @@ namespace iPic3D
     EMfields3D    *EMf; // implicit field solver
     array4_double *fieldForPcls;
     Kinetics      *kinetics;
-    Timing        *my_clock; // deprecated
     //
     // output
     //
@@ -47,6 +46,8 @@ namespace iPic3D
     const int nxc;
     const int nyc;
     const int nzc;
+
+    double tstart;
 
   public: // accessors
     OutputWrapperFPP& fetch_outputWrapperFPP(){
@@ -99,6 +100,8 @@ namespace iPic3D
     int FirstCycle();
     int FinalCycle();
     bool is_rank0();
+    void startTiming();
+    void stopTiming();
     virtual bool I_am_kinetic_solver(){return true;}
     virtual bool I_am_field_solver(){return true;}
 

@@ -19,7 +19,6 @@
 #include "Particles3D.h"
 #include "Moments.h"
 #include "Kinetics.h"
-#include "Timing.h"
 //
 // needed for initialization routines
 //
@@ -50,9 +49,8 @@ MIsolver::~MIsolver()
   delete fieldForPcls;
   #ifndef NO_HDF5
   delete outputWrapperFPP;
-  delete outputWrapperTXT;
   #endif
-  delete my_clock;
+  delete outputWrapperTXT;
   delete &setting;
 }
 
@@ -68,7 +66,6 @@ MIsolver::~MIsolver()
 //     grid->get_nyn(),
 //     grid->get_nzn(),
 //     2*DFIELD_3or4)),
-//   my_clock(0)
 MIsolver::MIsolver(int argc, const char **argv)
 : setting(*new Setting(argc, argv)),
   col(&setting.col()),
@@ -86,7 +83,8 @@ MIsolver::MIsolver(int argc, const char **argv)
   EMf(0),
   fieldForPcls(0),
   kinetics(0),
-  my_clock(0)
+  outputWrapperFPP(0),
+  outputWrapperTXT(0)
 {
   #ifdef BATSRUS
   // set index offset for each processor
@@ -102,8 +100,6 @@ MIsolver::MIsolver(int argc, const char **argv)
   miMoments = new MImoments(setting);
   EMf = new EMfields3D(setting);
   fieldForPcls = new array4_double(nxn,nyn,nzn,2*DFIELD_3or4);
-
-  my_clock = new Timing(vct->get_rank());
 }
 
 int MIsolver::FirstCycle() { return col->get_first_cycle(); }
@@ -1670,6 +1666,24 @@ void MIsolver::WriteOutput(int cycle) {
   #endif
 }
 
+/** start the timer */
+void MIsolver::startTiming()
+{
+  tstart = MPI_Wtime();
+}
+/** stop the timer */
+void MIsolver::stopTiming()
+{
+  const double tend = MPI_Wtime();
+  const double texecution = tend - tstart;
+  if (vct->get_rank() == 0)
+  {
+    printf( "\n\n*** SIMULATION ENDED SUCESSFULLY ***\n"
+            " iPic3D Simulation Time: %g sec (%g hours)\n***\n\n",
+            texecution, texecution / 3600);
+  }
+}
+
 void MIsolver::Finalize() {
   if (col->getCallFinalize())
   {
@@ -1681,7 +1695,7 @@ void MIsolver::Finalize() {
   }
 
   // stop profiling
-  my_clock->stopTiming();
+  stopTiming();
 }
 
 // Flow structure of application (pseudocode).

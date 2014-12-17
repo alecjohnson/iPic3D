@@ -48,7 +48,6 @@ file(
         ${IPIC_HOME}/mathlib/*.cpp
         ${IPIC_HOME}/mpidata/*.cpp
         ${IPIC_HOME}/particles/*.cpp
-        ${IPIC_HOME}/performances/*.cpp
         ${IPIC_HOME}/processtopology/*.cpp
         ${IPIC_HOME}/solvers/*.cpp
         ${IPIC_HOME}/utility/*.cpp
