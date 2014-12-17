@@ -158,31 +158,11 @@ Particles3Dcomm::Particles3Dcomm(
     // the direction tag encodes the direction that the data moves
     recvPclList[di].init(Connection(source_rank, di, mpi_comm));
   }
-  //sendXleft.init(Connection::null2self(vct->getXleft(),XDN,XDN,mpi_comm));
-  //sendXrght.init(Connection::null2self(vct->getXrght(),XUP,XUP,mpi_comm));
-  //recvXleft.init(Connection::null2self(vct->getXleft(),XUP,XDN,mpi_comm));
-  //recvXrght.init(Connection::null2self(vct->getXrght(),XDN,XUP,mpi_comm));
-
-  //sendYleft.init(Connection::null2self(vct->getYleft(),YDN,YDN,mpi_comm));
-  //sendYrght.init(Connection::null2self(vct->getYrght(),YUP,YUP,mpi_comm));
-  //recvYleft.init(Connection::null2self(vct->getYleft(),YUP,YDN,mpi_comm));
-  //recvYrght.init(Connection::null2self(vct->getYrght(),YDN,YUP,mpi_comm));
-
-  //sendZleft.init(Connection::null2self(vct->getZleft(),ZDN,ZDN,mpi_comm));
-  //sendZrght.init(Connection::null2self(vct->getZrght(),ZUP,ZUP,mpi_comm));
-  //recvZleft.init(Connection::null2self(vct->getZleft(),ZUP,ZDN,mpi_comm));
-  //recvZrght.init(Connection::null2self(vct->getZrght(),ZDN,ZUP,mpi_comm));
 
   for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
   {
     recvPclList[di].post_recvs();
   }
-  //recvXleft.post_recvs();
-  //recvXrght.post_recvs();
-  //recvYleft.post_recvs();
-  //recvYrght.post_recvs();
-  //recvZleft.post_recvs();
-  //recvZrght.post_recvs();
 
   // info from collectiveIO
   //
@@ -480,7 +460,7 @@ void Particles3Dcomm::resize_SoA(int nop)
 // should vectorize this by comparing position vectors
 //
 inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
-  SpeciesParticle& pcl, int send_count[NUM_COMM_NEIGHBORS])
+  SpeciesParticle& pcl, int*send_count)
 {
   const double *x = &pcl.fetch_x();
   const double *beg_pos = grid->get_beg_pos();
@@ -764,21 +744,6 @@ void Particles3Dcomm::apply_BCs_globally(vector_SpeciesParticle& pcl_list)
     assert(test_pcls_are_in_nonperiodic_domain(pcl_list));
   }
 }
-
-//static void get_dirs(int dirs[3], int direction)
-//{
-//  using namespace Direction;
-//  switch(direction)
-//  {
-//    default: invalid_value_error(direction);
-//    case XDN: dirs[0]=-1; break;
-//    case XUP: dirs[0]= 1; break;
-//    case YDN: dirs[1]=-1; break;
-//    case YUP: dirs[1]= 1; break;
-//    case ZDN: dirs[2]=-1; break;
-//    case ZUP: dirs[2]= 1; break;
-//  }
-//}
 
 // dir_idx is the direction that the data is moving,
 // so the direction that the data is coming from is -dir.

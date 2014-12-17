@@ -26,6 +26,8 @@ developers           : Stefano Markidis, Giovanni Lapenta
  * grid, we create a virtual topology to reflect this fact
  * @version 2.0
  */
+// 27 neighbors include self
+const int NUM_COMM_NEIGHBORS=27;
 
 class Collective;
 
@@ -75,7 +77,6 @@ public:
   int getYrght()const{ return getRghtNeighbor(1); }
   int getZrght()const{ return getRghtNeighbor(2); }
 
-  static const int NUM_COMM_NEIGHBORS=27;
   int get_neighbor_rank(int i, int j, int k)const
   {
     return neighbors3D[i+1][j+1][k+1];
@@ -85,6 +86,12 @@ public:
     return neighbors3D[dirs[0]+1][dirs[1]+1][dirs[2]+1];
   }
   // forward map from {-1,0,1}x{-1,0,1}x{-1,0,1} to Z_{27}
+  // based on row-major order:
+  //
+  //   00 01 02   09 10 11   18 19 20
+  //   03 04 05   12 13 14   21 22 23
+  //   06 07 08   15 16 17   24 25 26
+  //
   static int get_index_for_direction(const int dirs[3])
   { return 3*(3*dirs[0]+dirs[1])+dirs[2]+13;}
   // inverse map from Z_{27} to {-1,0,1}x{-1,0,1}x{-1,0,1}

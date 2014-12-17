@@ -74,8 +74,7 @@ public:
   void apply_BCs_locally(vector_SpeciesParticle& pcl_list, int dir_idx);
  private: // communicate particles between processes
   void flush_send();
-  bool send_pcl_to_appropriate_buffer(SpeciesParticle& pcl,
-    int count[NUM_COMM_NEIGHBORS]);
+  bool send_pcl_to_appropriate_buffer(SpeciesParticle& pcl, int*count);
   int handle_received_particles(int pclCommMode=0);
  public:
   int separate_and_send_particles();
@@ -365,28 +364,6 @@ protected:
   // recv buffers
   PclCommList recvPclList;
   //
-  // accessors for buffers or face neighbor communication
-  //
-  // centers of faces of 3x3x3 cube
-  //
-  // 00  01  02       09 *10* 11       18  19  20
-  // 03 *04* 05      *12* 13 *14*      21 *22* 23
-  // 06  07  08       15 *16* 17       24  25  26
-  //
-  BlockCommunicator<SpeciesParticle>& sendXleft(){return sendPclList[ 4];}
-  BlockCommunicator<SpeciesParticle>& sendXrght(){return sendPclList[22];}
-  BlockCommunicator<SpeciesParticle>& sendYleft(){return sendPclList[10];}
-  BlockCommunicator<SpeciesParticle>& sendYrght(){return sendPclList[16];}
-  BlockCommunicator<SpeciesParticle>& sendZleft(){return sendPclList[12];}
-  BlockCommunicator<SpeciesParticle>& sendZrght(){return sendPclList[14];}
-  //
-  BlockCommunicator<SpeciesParticle>& recvXleft(){return recvPclList[ 4];}
-  BlockCommunicator<SpeciesParticle>& recvXrght(){return recvPclList[22];}
-  BlockCommunicator<SpeciesParticle>& recvYleft(){return recvPclList[10];}
-  BlockCommunicator<SpeciesParticle>& recvYrght(){return recvPclList[16];}
-  BlockCommunicator<SpeciesParticle>& recvZleft(){return recvPclList[12];}
-  BlockCommunicator<SpeciesParticle>& recvZrght(){return recvPclList[14];}
-
   /** bool for communication verbose */
   bool cVERBOSE;
   /** Boundary condition on particles:
