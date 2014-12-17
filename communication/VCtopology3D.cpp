@@ -14,14 +14,14 @@ VCtopology3D::VCtopology3D(const Collective& col) {
   // *******************************************
   // *******************************************
   // change these values to change the topology
-  XLEN = col.getXLEN();
-  YLEN = col.getYLEN();
-  ZLEN = col.getZLEN();
-  nprocs = XLEN * YLEN * ZLEN;
+  dims[0] = col.getXLEN();
+  dims[1] = col.getYLEN();
+  dims[2] = col.getZLEN();
+  nprocs = dims[0] * dims[1] * dims[2];
   // here you have to set the topology
-  PERIODICX = col.getPERIODICX();
-  PERIODICY = col.getPERIODICY();
-  PERIODICZ = col.getPERIODICZ();
+  periods[0] = col.getPERIODICX();
+  periods[1] = col.getPERIODICY();
+  periods[2] = col.getPERIODICZ();
   // *******************************************
   // *******************************************
   XDIR = 0;
@@ -32,20 +32,25 @@ VCtopology3D::VCtopology3D(const Collective& col) {
 
   reorder = 1;
 
-  dims[0] = XLEN;
-  dims[1] = YLEN;
-  dims[2] = ZLEN;
-
-  periods[0] = PERIODICX;
-  periods[1] = PERIODICY;
-  periods[2] = PERIODICZ;
-
   cVERBOSE = false;             // communication verbose ?
 
 }
 
-
-
+// problem: MPI standard does not specify whether
+// row-major or column-major indexing is used, as
+// far as I know.
+//void VCtopology::compute_rank_for_cart_coords(int i, int j, int k)
+//{
+//  return (i*dims[1]+j)*dims[2]+k;
+//}
+//void VCtopology::compute_cart_coords_for_rank(int coords[3], int r)
+//{
+//  coords[2] = r%dims[2];
+//  r/=dims[2];
+//  coords[1] = r%dims[1];
+//  r/=dims[1];
+//  coords[0] = r;
+//}
 
 
 /** Within CART_COMM, processes find about their new rank numbers, their cartesian coordinates,
@@ -82,9 +87,9 @@ void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
     MPI_Comm_rank(CART_COMM, &cartesian_rank);
     MPI_Cart_coords(CART_COMM, cartesian_rank, 3, coordinates);
 
-    MPI_Cart_shift(CART_COMM, XDIR, RIGHT, &xleft_neighbor, &xright_neighbor);
-    MPI_Cart_shift(CART_COMM, YDIR, RIGHT, &yleft_neighbor, &yright_neighbor);
-    MPI_Cart_shift(CART_COMM, ZDIR, RIGHT, &zleft_neighbor, &zright_neighbor);
+    MPI_Cart_shift(CART_COMM, XDIR, RIGHT,&_leftNeighbor[0],&_rghtNeighbor[0]);
+    MPI_Cart_shift(CART_COMM, YDIR, RIGHT,&_leftNeighbor[1],&_rghtNeighbor[1]);
+    MPI_Cart_shift(CART_COMM, ZDIR, RIGHT,&_leftNeighbor[2],&_rghtNeighbor[2]);
 
     // initialize ranks of diagonal neighbors
     //
@@ -115,12 +120,12 @@ void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
       set_neighbor_rank(i0,i1,i2, rank);
     }
     // check that face neighbors are correct
-    assert_eq(xleft_neighbor,get_neighbor_rank(-1,0,0));
-    assert_eq(yleft_neighbor,get_neighbor_rank(0,-1,0));
-    assert_eq(zleft_neighbor,get_neighbor_rank(0,0,-1));
-    assert_eq(xright_neighbor,get_neighbor_rank(1,0,0));
-    assert_eq(yright_neighbor,get_neighbor_rank(0,1,0));
-    assert_eq(zright_neighbor,get_neighbor_rank(0,0,1));
+    assert_eq(getLeftNeighbor(0),get_neighbor_rank(-1,0,0));
+    assert_eq(getLeftNeighbor(1),get_neighbor_rank(0,-1,0));
+    assert_eq(getLeftNeighbor(2),get_neighbor_rank(0,0,-1));
+    assert_eq(getRghtNeighbor(0),get_neighbor_rank(1,0,0));
+    assert_eq(getRghtNeighbor(1),get_neighbor_rank(0,1,0));
+    assert_eq(getRghtNeighbor(2),get_neighbor_rank(0,0,1));
   }
   else {
     // previous check that nprocs = XLEN*YLEN*ZLEN should prevent reaching this line.
@@ -136,28 +141,25 @@ void VCtopology3D::setup_vctopology(MPI_Comm old_comm) {
   // The cartesian rank is for application-level code.
   assert_eq(cartesian_rank, MPIdata::get_rank());
 
-  _isPeriodicXlower = PERIODICX && isXlower();
-  _isPeriodicXupper = PERIODICX && isXupper();
-  _isPeriodicYlower = PERIODICY && isYlower();
-  _isPeriodicYupper = PERIODICY && isYupper();
-  _isPeriodicZlower = PERIODICZ && isZlower();
-  _isPeriodicZupper = PERIODICZ && isZupper();
+  for(int i=0;i<3;i++)
+  {
+    _isPeriodicLower[i] = periods[i] && isLower(i);
+    _isPeriodicUpper[i] = periods[i] && isUpper(i);
+  }
 
-  _noXleftNeighbor = (getXleft() == MPI_PROC_NULL);
-  _noXrghtNeighbor = (getXrght() == MPI_PROC_NULL);
-  _noYleftNeighbor = (getYleft() == MPI_PROC_NULL);
-  _noYrghtNeighbor = (getYrght() == MPI_PROC_NULL);
-  _noZleftNeighbor = (getZleft() == MPI_PROC_NULL);
-  _noZrghtNeighbor = (getZrght() == MPI_PROC_NULL);
+  for(int i=0;i<3;i++)
+  {
+    _noLeftNeighbor[i] = getLeftNeighbor(i) == MPI_PROC_NULL;
+    _noRghtNeighbor[i] = getRghtNeighbor(i) == MPI_PROC_NULL;
+  }
 
   _isBoundaryProcess = 
-    _noXleftNeighbor ||
-    _noXrghtNeighbor ||
-    _noYleftNeighbor ||
-    _noYrghtNeighbor ||
-    _noZleftNeighbor ||
-    _noZrghtNeighbor;
-  
+    noLeftNeighbor(0) ||
+    noLeftNeighbor(1) ||
+    noLeftNeighbor(2) ||
+    noRghtNeighbor(0) ||
+    noRghtNeighbor(1) ||
+    noRghtNeighbor(2);
 }
 /** destructor */
 VCtopology3D::~VCtopology3D() {
@@ -168,7 +170,8 @@ void VCtopology3D::Print() {
   cout << endl;
   cout << "Virtual Cartesian Processors Topology" << endl;
   cout << "-------------------------------------" << endl;
-  cout << "Processors grid: " << XLEN << "x" << YLEN << "x" << ZLEN << endl;
+  cout << "Processors grid: "
+    << dims[0] << "x" << dims[1] << "x" << dims[2] << endl;
   cout << "Periodicity X: " << periods[0] << endl;
   cout << "Periodicity Y: " << periods[1] << endl;
   cout << "Periodicity Z: " << periods[2] << endl;
@@ -180,6 +183,12 @@ void VCtopology3D::PrintMapping() {
   cout << "Mapping of process " << cartesian_rank << endl;
   cout << "----------------------" << endl;
   cout << "Coordinates: X = " << coordinates[0] << "; Y = " << coordinates[1] << "; Z = " << coordinates[2] << endl;
-  cout << "Neighbors: xLeft = " << xleft_neighbor << "; xRight = " << xright_neighbor << "; yLeft = " << yleft_neighbor << "; yRight = " << yright_neighbor << "; zLeft = " << zleft_neighbor << "; zRight = " << zright_neighbor << endl;
+  cout << "Neighbors: " << endl
+       << "  xLeft = " << getLeftNeighbor(0) << endl
+       << "  yLeft = " << getLeftNeighbor(1) << endl
+       << "  zLeft = " << getLeftNeighbor(2) << endl
+       << "  xRight = " << getRghtNeighbor(0) << endl
+       << "  yRight = " << getRghtNeighbor(1) << endl
+       << "  zRight = " << getRghtNeighbor(2) << endl;
   cout << endl;
 }

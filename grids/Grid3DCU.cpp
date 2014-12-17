@@ -34,9 +34,9 @@ Grid3DCU::Grid3DCU(const CollectiveIO * col, const VirtualTopology3D * vct):
   // Truncate the number of cells appropriately in the upper process.
   // (We truncate rather than extend to avoid causing any load imbalance.)
   //
-  if(vct->isXupper()) nxc_r = col->getNxc()-nxc_r*(col->getXLEN()-1);
-  if(vct->isYupper()) nyc_r = col->getNyc()-nyc_r*(col->getYLEN()-1);
-  if(vct->isZupper()) nzc_r = col->getNzc()-nzc_r*(col->getZLEN()-1);
+  if(vct->isUpper(0)) nxc_r = col->getNxc()-nxc_r*(col->getXLEN()-1);
+  if(vct->isUpper(1)) nyc_r = col->getNyc()-nyc_r*(col->getYLEN()-1);
+  if(vct->isUpper(2)) nzc_r = col->getNzc()-nzc_r*(col->getZLEN()-1);
   //
   assert_lt(0,nxc_r); assert_le(nxc_r,nxc_rr);
   assert_lt(0,nyc_r); assert_le(nyc_r,nyc_rr);
@@ -78,42 +78,17 @@ Grid3DCU::Grid3DCU(const CollectiveIO * col, const VirtualTopology3D * vct):
   const double xWidth = dx*nxc_rr;
   const double yWidth = dy*nyc_rr;
   const double zWidth = dz*nzc_rr;
-  //const double xWidth = (col->getLx() / (double) vct->getXLEN());
-  //const double yWidth = (col->getLy() / (double) vct->getYLEN());
-  //const double zWidth = (col->getLz() / (double) vct->getZLEN());
-  //assert_almost_eq(dx*(nxc_r),xWidth,dx*1e-8);
-  //assert_almost_eq(dy*(nyc_r),yWidth,dy*1e-8);
-  //assert_almost_eq(dz*(nzc_r),zWidth,dz*1e-8);
   //
-  xStart = vct->getCoordinates(0) * xWidth;
-  yStart = vct->getCoordinates(1) * yWidth;
-  zStart = vct->getCoordinates(2) * zWidth;
+  beg_pos[0] = vct->getCoordinates(0) * xWidth;
+  beg_pos[1] = vct->getCoordinates(1) * yWidth;
+  beg_pos[2] = vct->getCoordinates(2) * zWidth;
   //
-  xEnd = xStart + xWidth - (nxc_rr-nxc_r)*dx;
-  yEnd = yStart + yWidth - (nyc_rr-nyc_r)*dy;
-  zEnd = zStart + zWidth - (nzc_rr-nzc_r)*dz;
+  end_pos[0] = beg_pos[0] + xWidth - (nxc_rr-nxc_r)*dx;
+  end_pos[1] = beg_pos[1] + yWidth - (nyc_rr-nyc_r)*dy;
+  end_pos[2] = beg_pos[2] + zWidth - (nzc_rr-nzc_r)*dz;
 
   init_derived_parameters();
 }
-
-//Grid3DCU::Grid3DCU(
-//  int nxc_, int nyc_, int nzc_,
-//  double dx_, double dy_, double dz_,
-//  double xStart_, double yStart_, double zStart_)
-//: nxc(nxc_), nyc(nyc_), nzc(nzc_),
-//  dx(dx_), dy(dy_), dz(dz_),
-//  xStart(xStart_), yStart(yStart_), zStart(zStart_)
-//{
-//  const double xWidth = dx*(nxc-2);
-//  const double yWidth = dy*(nyc-2);
-//  const double zWidth = dz*(nzc-2);
-//
-//  xEnd = xStart + xWidth;
-//  yEnd = yStart + yWidth;
-//  zEnd = zStart + zWidth;
-//
-//  init_derived_parameters();
-//}
 
 // set derived convenience parameters
 void Grid3DCU::init_derived_parameters()
@@ -125,9 +100,9 @@ void Grid3DCU::init_derived_parameters()
   assert_lt(int(floor(nxc_minus_epsilon)),nxc);
   assert_lt(int(floor(nyc_minus_epsilon)),nyc);
   assert_lt(int(floor(nzc_minus_epsilon)),nzc);
-  xStart_g = xStart - dx;
-  yStart_g = yStart - dy;
-  zStart_g = zStart - dz;
+  xStart_g = beg_pos[0] - dx;
+  yStart_g = beg_pos[1] - dy;
+  zStart_g = beg_pos[2] - dz;
   // calculation conveniences
   //
   VOL = dx * dy * dz;

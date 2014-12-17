@@ -39,7 +39,7 @@ using std::endl;
 // if true then mover cannot move particle 
 // more than one processor subdomain
 //
-static bool cap_velocity(){return false;}
+static bool box_cap_velocity(){return false;}
 
 /**
  * 
@@ -359,6 +359,12 @@ void Particles3D::mover_PC(const_arr4_double fieldForPcls) {
   #pragma omp master
   { timeTasks_begin_task(TimeTasks::MOVER_PCL_MOVING); }
   const double dto2 = .5 * dt, qdto2mc = qom * dto2 / c;
+  const double xstart = grid->getXstart();
+  const double ystart = grid->getYstart();
+  const double zstart = grid->getZstart();
+  // nothing else is now supported
+  assert_eq(Parameters::vel_cap_method(),0);
+  //const bool box_cap_velocity = (Parameters::vel_cap_method()==box_capped);
   #pragma omp for schedule(static)
   // why does single precision make no difference in execution speed?
   //#pragma simd vectorlength(VECTOR_WIDTH)
@@ -514,6 +520,8 @@ void Particles3D::mover_PC_AoS(const_arr4_double fieldForPcls)
   #pragma omp master
   { timeTasks_begin_task(TimeTasks::MOVER_PCL_MOVING); }
   const double dto2 = .5 * dt, qdto2mc = qom * dto2 / c;
+  const bool box_cap_velocity
+    = (Parameters::vel_cap_method()==Parameters::box_capped);
   #pragma omp for schedule(static)
   for (int pidx = 0; pidx < getNOP(); pidx++) {
     // copy the particle
@@ -599,8 +607,11 @@ void Particles3D::mover_PC_AoS(const_arr4_double fieldForPcls)
     }                           // end of iteration
     // update the final position and velocity
     //
-    if(cap_velocity())
+    if(box_cap_velocity)
     {
+      const double& umax = maxvel[0];
+      const double& vmax = maxvel[1];
+      const double& wmax = maxvel[2];
       bool cap = (abs(uavg)>umax || abs(vavg)>vmax || abs(wavg)>wmax)
         ? true : false;
       // we could do something more smooth or sophisticated
@@ -611,6 +622,9 @@ void Particles3D::mover_PC_AoS(const_arr4_double fieldForPcls)
           dprintf("capping velocity: abs(%g,%g,%g)>(%g,%g,%g)",
             uavg,vavg,wavg,umax,vmax,wmax);
         }
+        const double& umin = minvel[0];
+        const double& vmin = minvel[1];
+        const double& wmin = minvel[2];
         if(uavg>umax) uavg=umax; else if(uavg<umin) uavg=umin;
         if(vavg>vmax) vavg=vmax; else if(vavg<vmin) vavg=vmin;
         if(wavg>wmax) wavg=wmax; else if(wavg<wmin) wavg=wmin;
@@ -671,6 +685,7 @@ void Particles3D::mover_PC_AoS_vec_intr(const_arr4_double fieldForPcls)
   const double qdto2mc_d = qom * dto2_d / c;
   const F64vec8 dto2 = F64vec8(dto2_d);
   const F64vec8 qdto2mc = F64vec8(qdto2mc_d);
+  const bool box_cap_velocity = (Parameters::vel_cap_method()==box_capped);
   #pragma omp for schedule(static)
   for (int pidx = 0; pidx < getNOP(); pidx+=2)
   {
@@ -732,7 +747,7 @@ void Particles3D::mover_PC_AoS_vec_intr(const_arr4_double fieldForPcls)
       xavg = xorig + uavg*dto2;
     } // end of iterative particle advance
     // update the final position and velocity
-    if(cap_velocity())
+    if(box_cap_velocity)
     {
       uavg = minimum(uavg,umaximum);
       uavg = maximum(uavg,uminimum);
@@ -770,6 +785,9 @@ void Particles3D::mover_PC_AoS_vec(const_arr4_double fieldForPcls)
   #pragma omp master
   { timeTasks_begin_task(TimeTasks::MOVER_PCL_MOVING); }
   const double dto2 = .5 * dt, qdto2mc = qom * dto2 / c;
+  // nothing else is now supported
+  assert_eq(Parameters::vel_cap_method(),0);
+  //const bool box_cap_velocity = (Parameters::vel_cap_method()==box_capped);
   #pragma omp for schedule(static)
   for (int pidx = 0; pidx < getNOP(); pidx+=NUM_PCLS_MOVED_AT_A_TIME)
   {

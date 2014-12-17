@@ -3,6 +3,28 @@
 
 #include <mpi.h> // is there a way to forward declare mpi types?
 
+// 3*3*3=27 possible directions,
+// for all neighbors including diagonal neighbors
+// dir=[-1,0,1] means xleft, zright corner
+//
+//class TopoDir
+//{
+// private:
+//  int dir[3];
+// public:
+// public:
+//  const int* get_dirs()const{return dir;}
+//  // convert to index that runs from 0 to 26
+//  int get_index()const{return 3*(3*dir[0]+dir[1])+dir[2]+13;}
+//  void set_dir_for_index(int i)
+//  {
+//    dir[2] = i%3-1; i/=3;
+//    dir[1] = i%3-1; i/=3;
+//    dir[0] = i%3-1;
+//  }
+//  int& operator[](int i){return dir[i];}
+//};
+
 // The combination of group (comm), tag, and neighbor
 // should be unique for each connection.
 //
@@ -24,21 +46,21 @@
 // tag=2 for upward communication, and use MPI_COMM_WORLD for the
 // group.
 //
-namespace Direction
-{
-  enum Enum
-  {
-    DEFAULT = 0,
-    PARTICLE_DN, // downward communication of particles
-    PARTICLE_UP, // upward communication of particles
-    XDN,
-    XUP,
-    YDN,
-    YUP,
-    ZDN,
-    ZUP
-  };
-}
+//namespace Direction
+//{
+//  enum Enum
+//  {
+//    DEFAULT = 0,
+//    PARTICLE_DN, // downward communication of particles
+//    PARTICLE_UP, // upward communication of particles
+//    XDN,
+//    XUP,
+//    YDN,
+//    YUP,
+//    ZDN,
+//    ZUP
+//  };
+//}
 class Connection
 {
  private: // data
@@ -50,16 +72,16 @@ class Connection
  public: // init
   // construct a connection that creates self-communication
   // in place of null connection
-  static Connection null2self(int rank_, int tag_, int self_tag, MPI_Comm comm_)
-  {
-    Connection c(rank_,tag_,comm_);
-    if(c._rank==MPI_PROC_NULL)
-    {
-      c._rank = MPIdata::get_rank();
-      c._tag = self_tag;
-    }
-    return c;
-  }
+  //static Connection null2self(int rank_, int tag_, int self_tag, MPI_Comm comm_)
+  //{
+  //  Connection c(rank_,tag_,comm_);
+  //  if(c._rank==MPI_PROC_NULL)
+  //  {
+  //    c._rank = MPIdata::get_rank();
+  //    c._tag = self_tag;
+  //  }
+  //  return c;
+  //}
   Connection():
     _rank(0),
     _tag(0),
@@ -80,23 +102,23 @@ class Connection
   int rank()const{return _rank;}
   int tag()const{return _tag;}
   MPI_Comm comm()const{return _comm;}
-  static const char* tag_name(int tag)
-  {
-    switch(tag)
-    {
-      default: unsupported_value_error(tag);
-      case Direction::XDN: return "XDN";
-      case Direction::XUP: return "XUP";
-      case Direction::YDN: return "YDN";
-      case Direction::YUP: return "YUP";
-      case Direction::ZDN: return "ZDN";
-      case Direction::ZUP: return "ZUP";
-    }
-  }
-  const char* tag_name()const
-  {
-    return tag_name(_tag);
-  }
+  //static const char* tag_name(int tag)
+  //{
+  //  switch(tag)
+  //  {
+  //    default: unsupported_value_error(tag);
+  //    case Direction::XDN: return "XDN";
+  //    case Direction::XUP: return "XUP";
+  //    case Direction::YDN: return "YDN";
+  //    case Direction::YUP: return "YUP";
+  //    case Direction::ZDN: return "ZDN";
+  //    case Direction::ZUP: return "ZUP";
+  //  }
+  //}
+  //const char* tag_name()const
+  //{
+  //  return tag_name(_tag);
+  //}
 };
 
 #endif

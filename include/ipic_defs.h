@@ -108,4 +108,6 @@ const int SVECWIDTH = VECBYTES/sizeof(float);
 // dimension of vectors used in aosEMfield
 const int DFIELD_3or4=4; // 4 pads with garbage but is needed for alignment
 
+const int NUM_COMM_NEIGHBORS=27;
+
 #endif

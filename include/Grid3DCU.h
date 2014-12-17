@@ -11,6 +11,7 @@
 #include "ipic_fwd.h"
 #include "math.h" // for floor
 #include "assert.h"
+#include "Alloc.h" // for ALLOC_ALIGNED
 
 /**
  * Uniform cartesian local grid 3D
@@ -237,7 +238,8 @@ private:
   // number of subdomain cells in a regular (untruncated) subdomain grid
   int num_cells_rr;
   /** local grid boundaries coordinate of proper subdomain */
-  double xStart, xEnd, yStart, yEnd, zStart, zEnd;
+  double beg_pos[3] ALLOC_ALIGNED;
+  double end_pos[3] ALLOC_ALIGNED;
   double xStart_g, yStart_g, zStart_g;
   double epsilon;
   double nxc_minus_epsilon;
@@ -309,12 +311,14 @@ public: // accessors (inline)
   double getYC(int X, int Y, int Z)const{ return getYC(Y); }
   double getZC(int X, int Y, int Z)const{ return getZC(Z); }
   //
-  double getXstart()const{ return (xStart); }
-  double getXend()const{ return (xEnd); }
-  double getYstart()const{ return (yStart); }
-  double getYend()const{ return (yEnd); } 
-  double getZstart()const{ return (zStart); }
-  double getZend()const{ return (zEnd); }
+  const double*get_beg_pos()const{return beg_pos;}
+  const double*get_end_pos()const{return end_pos;}
+  double getXstart()const{ return (beg_pos[0]); }
+  double getYstart()const{ return (beg_pos[1]); }
+  double getZstart()const{ return (beg_pos[2]); }
+  double getXend()const{ return (end_pos[0]); }
+  double getYend()const{ return (end_pos[1]); } 
+  double getZend()const{ return (end_pos[2]); }
   double getVOL()const{ return (VOL); }
   double getInvVOL()const{ return (invVOL); }
 
@@ -384,10 +388,10 @@ public: // accessors (inline)
     int& cx, int& cy, int& cz,
     double xpos, double ypos, double zpos)const
   {
-      // xStart marks start of domain excluding ghosts
-      const double rel_xpos = xpos - xStart;
-      const double rel_ypos = ypos - yStart;
-      const double rel_zpos = zpos - zStart;
+      // beg_pos[0] marks start of domain excluding ghosts
+      const double rel_xpos = xpos - beg_pos[0];
+      const double rel_ypos = ypos - beg_pos[1];
+      const double rel_zpos = zpos - beg_pos[2];;
       // cell position minus 1 (due to ghost cells)
       const double cxm1_pos = rel_xpos * invdx;
       const double cym1_pos = rel_ypos * invdy;

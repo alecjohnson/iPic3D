@@ -1,5 +1,6 @@
 #ifndef ipic_errors_H
 #define ipic_errors_H
+#include "stdio.h"
 
 //void errmsg_printf_fileLine(const char *func, const char *file, int line_number, const char *format, ...);
 //void eprintf_fileLine(const char *func, const char *file, int line_number, const char *format, ...);

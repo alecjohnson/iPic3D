@@ -46,7 +46,7 @@ using std::endl;
  *
  */
 
-static bool print_pcl_comm_counts = false;
+static bool print_pcl_comm_counts = true;
 
 static void print_pcl(SpeciesParticle& pcl, int is)
 {
@@ -121,29 +121,68 @@ Particles3Dcomm::Particles3Dcomm(
   MPI_Comm_dup(MPI_COMM_WORLD, &mpi_comm);
   //
   // define connections
-  using namespace Direction;
+  //using namespace Direction;
   //
-  sendXleft.init(Connection::null2self(vct->getXleft(),XDN,XDN,mpi_comm));
-  sendXrght.init(Connection::null2self(vct->getXrght(),XUP,XUP,mpi_comm));
-  recvXleft.init(Connection::null2self(vct->getXleft(),XUP,XDN,mpi_comm));
-  recvXrght.init(Connection::null2self(vct->getXrght(),XDN,XUP,mpi_comm));
+  // reserve one communicator for neighbor in every direction
+  sendPclList.reserve(NUM_COMM_NEIGHBORS);
+  recvPclList.reserve(NUM_COMM_NEIGHBORS);
+  //const int *mycoords = vct->getCoordinates();
+  // for each direction index:
+  // * recvPclList Connection is populated from sources and directions:
+  //   - direction tag is uncorrected displacement
+  //     from potential source to destination
+  //   - source is results of pinning potential source.
+  // * sendPclList Connection is populated from sources and directions:
+  //   - direction tag is pin-reflection of uncorrected displacement
+  //     from source to potential destination (thus yielding displacement
+  //     from potential source to destination
+  //   - destination is result of pinning potential destination.
+  // * adding direction to mycoords gives potential source
+  // 
+  for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
+  {
+    // for each direction determine the destination process...
+    int dest_rank = vct->get_valid_neighbor_rank(di);
+    // ...and an appropriate direction tag.
+    int send_tag = vct->get_pinned_direction_tag(di);
+    // the direction tag encodes the direction that the data moves
+    sendPclList[di].init(Connection(dest_rank, send_tag, mpi_comm));
+  }
+  // di is the direction that the data is coming from
+  for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
+  {
+    // from_di is the direction that the data is moving
+    int from_di = vct->get_negated_direction_tag(di);
+    // for each direction determine the destination process...
+    int source_rank = vct->get_valid_neighbor_rank(from_di);
+    // the direction tag encodes the direction that the data moves
+    recvPclList[di].init(Connection(source_rank, di, mpi_comm));
+  }
+  //sendXleft.init(Connection::null2self(vct->getXleft(),XDN,XDN,mpi_comm));
+  //sendXrght.init(Connection::null2self(vct->getXrght(),XUP,XUP,mpi_comm));
+  //recvXleft.init(Connection::null2self(vct->getXleft(),XUP,XDN,mpi_comm));
+  //recvXrght.init(Connection::null2self(vct->getXrght(),XDN,XUP,mpi_comm));
 
-  sendYleft.init(Connection::null2self(vct->getYleft(),YDN,YDN,mpi_comm));
-  sendYrght.init(Connection::null2self(vct->getYrght(),YUP,YUP,mpi_comm));
-  recvYleft.init(Connection::null2self(vct->getYleft(),YUP,YDN,mpi_comm));
-  recvYrght.init(Connection::null2self(vct->getYrght(),YDN,YUP,mpi_comm));
+  //sendYleft.init(Connection::null2self(vct->getYleft(),YDN,YDN,mpi_comm));
+  //sendYrght.init(Connection::null2self(vct->getYrght(),YUP,YUP,mpi_comm));
+  //recvYleft.init(Connection::null2self(vct->getYleft(),YUP,YDN,mpi_comm));
+  //recvYrght.init(Connection::null2self(vct->getYrght(),YDN,YUP,mpi_comm));
 
-  sendZleft.init(Connection::null2self(vct->getZleft(),ZDN,ZDN,mpi_comm));
-  sendZrght.init(Connection::null2self(vct->getZrght(),ZUP,ZUP,mpi_comm));
-  recvZleft.init(Connection::null2self(vct->getZleft(),ZUP,ZDN,mpi_comm));
-  recvZrght.init(Connection::null2self(vct->getZrght(),ZDN,ZUP,mpi_comm));
+  //sendZleft.init(Connection::null2self(vct->getZleft(),ZDN,ZDN,mpi_comm));
+  //sendZrght.init(Connection::null2self(vct->getZrght(),ZUP,ZUP,mpi_comm));
+  //recvZleft.init(Connection::null2self(vct->getZleft(),ZUP,ZDN,mpi_comm));
+  //recvZrght.init(Connection::null2self(vct->getZrght(),ZDN,ZUP,mpi_comm));
 
-  recvXleft.post_recvs();
-  recvXrght.post_recvs();
-  recvYleft.post_recvs();
-  recvYrght.post_recvs();
-  recvZleft.post_recvs();
-  recvZrght.post_recvs();
+  for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
+  {
+    recvPclList[di].post_recvs();
+  }
+  //recvXleft.post_recvs();
+  //recvXrght.post_recvs();
+  //recvYleft.post_recvs();
+  //recvYrght.post_recvs();
+  //recvZleft.post_recvs();
+  //recvZrght.post_recvs();
 
   // info from collectiveIO
   //
@@ -187,12 +226,12 @@ Particles3Dcomm::Particles3Dcomm(
 
   // info from Grid
   //
-  xstart = grid->getXstart();
-  xend = grid->getXend();
-  ystart = grid->getYstart();
-  yend = grid->getYend();
-  zstart = grid->getZstart();
-  zend = grid->getZend();
+  beg_pos[0] = grid->getXstart();
+  beg_pos[1] = grid->getYstart();
+  beg_pos[2] = grid->getZstart();
+  end_pos[0] = grid->getXend();
+  end_pos[1] = grid->getYend();
+  end_pos[2] = grid->getZend();
   //
   dx = grid->getDX();
   dy = grid->getDY();
@@ -282,19 +321,88 @@ Particles3Dcomm::Particles3Dcomm(
   #endif
   }
 
-  // set_velocity_caps()
+  // velocity capping
   //
-  umax = 0.95*col->getLx()/col->getDt();
-  vmax = 0.95*col->getLy()/col->getDt();
-  wmax = 0.95*col->getLz()/col->getDt();
-  umin = -umax;
-  vmin = -vmax;
-  wmin = -wmax;
-  // show velocity cap that will be applied
-  if(false && is_output_thread())
+  const double domain_crossing_vel[3] = {
+    col->getLx()/col->getDt(),
+    col->getLy()/col->getDt(),
+    col->getLz()/col->getDt(),
+  };
+  double subdomain_crossing_vel[3] = {
+    domain_crossing_vel[0]/col->getXLEN(),
+    domain_crossing_vel[1]/col->getYLEN(),
+    domain_crossing_vel[2]/col->getZLEN(),
+  };
+  double cell_crossing_vel[3] = {
+    col->getDx()/col->getDt(),
+    col->getDy()/col->getDt(),
+    col->getDz()/col->getDt(),
+  };
+  switch(Parameters::vel_cap_scale_ref())
   {
-    printf("species %d velocity cap: umax=%g,vmax=%g,wmax=%g\n",
-      get_species_num(), umax,vmax,wmax);
+    using namespace Parameters;
+    default:
+      unsupported_value_error(vel_cap_scale_ref());
+    case null: // default initialization of maxvel
+    case fraction_of_subdomain:
+    {
+      maxvel[0] = subdomain_crossing_vel[0];
+      maxvel[1] = subdomain_crossing_vel[1];
+      maxvel[2] = subdomain_crossing_vel[2];
+      break;
+    }
+    case fraction_of_domain:
+    {
+      maxvel[0] = domain_crossing_vel[0];
+      maxvel[1] = domain_crossing_vel[1];
+      maxvel[2] = domain_crossing_vel[2];
+      break;
+    }
+    case absolute_velocity:
+      maxvel[0] = maxvel[1] = maxvel[2] = 1.;
+      break;
+    case fraction_of_light_speed:
+      maxvel[0] = maxvel[1] = maxvel[2] = col->getC();
+      break;
+  }
+  maxvel[0] *= Parameters::vel_cap_scaled_value();
+  maxvel[1] *= Parameters::vel_cap_scaled_value();
+  maxvel[2] *= Parameters::vel_cap_scaled_value();
+  minvel[0] = -maxvel[0];
+  minvel[1] = -maxvel[1];
+  minvel[2] = -maxvel[2];
+  // fraction of domain that particle can move
+  double subdomain_fractional_vel[3];
+  // maximum number of communications needed to communicate all particles.
+  double max_num_pcl_comms_double = 0.9; // 1
+  for(int i=0;i<3;i++)
+  {
+    subdomain_fractional_vel[i] = maxvel[i]/subdomain_crossing_vel[i];
+    max_num_pcl_comms_double
+      = std::max(max_num_pcl_comms_double,subdomain_fractional_vel[i]);
+  }
+  max_num_pcl_comms = ceil(max_num_pcl_comms_double);
+  if(!Parameters::vel_cap_scale_ref())
+    assert_eq(max_num_pcl_comms,1);
+  // show velocity cap that will be applied
+  if(is_output_thread())
+  {
+    printf("--- particle mover parameters ---\n");
+    printf("  c=%g\n", col->getC());
+    printf("  species %d velocity cap: umax=%g,vmax=%g,wmax=%g\n",
+      is, maxvel[0],maxvel[1],maxvel[2]);
+    printf("  species %d thermal vel: uth=%g,vth=%g,wth=%g\n",
+      is, col->getUth(is), col->getVth(is), col->getWth(is));
+    printf("  cell crossing velocities: [%g,%g,%g]\n",
+      cell_crossing_vel[0],
+      cell_crossing_vel[1],
+      cell_crossing_vel[2]);
+    printf("  subdomain crossing velocities: [%g,%g,%g]\n",
+      subdomain_crossing_vel[0],
+      subdomain_crossing_vel[1],
+      subdomain_crossing_vel[2]);
+    printf("  particles should be communicated in at most %d=ceil(%g)"
+      " communications\n", max_num_pcl_comms, max_num_pcl_comms_double);
   }
 }
 
@@ -366,81 +474,64 @@ void Particles3Dcomm::resize_SoA(int nop)
 // should vectorize this by comparing position vectors
 //
 inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
-  SpeciesParticle& pcl, int count[6])
+  SpeciesParticle& pcl, int send_count[NUM_COMM_NEIGHBORS])
 {
-  int was_sent = true;
-  // put particle in appropriate communication buffer if exiting
-  if(pcl.get_x() < xstart)
+  const double *x = &pcl.fetch_x();
+  const double *beg_pos = grid->get_beg_pos();
+  const double *end_pos = grid->get_end_pos();
+  ASSUME_ALIGNED(x);
+  ASSUME_ALIGNED(beg_pos);
+  ASSUME_ALIGNED(end_pos);
+  // which direction is the particle going?
+  int dirs[3] ALLOC_ALIGNED;
+  for(int i=0;i<3;i++)
   {
-    sendXleft.send(pcl);
-    count[0]++;
+    // this way would avoid branching but does not cap direction
+    //int dirs[i] = floor((x[i]-beg_pos[i])*widthinv[i])
+    if(x[i]<beg_pos[i]) dirs[i]=-1;
+    else if(x[i]>end_pos[i]) dirs[i]=1;
+    else dirs[i]=0;
   }
-  else if(pcl.get_x() > xend)
-  {
-    sendXrght.send(pcl);
-    count[1]++;
-  }
-  else if(pcl.get_y() < ystart)
-  {
-    sendYleft.send(pcl);
-    count[2]++;
-  }
-  else if(pcl.get_y() > yend)
-  {
-    sendYrght.send(pcl);
-    count[3]++;
-  }
-  else if(pcl.get_z() < zstart)
-  {
-    sendZleft.send(pcl);
-    count[4]++;
-  }
-  else if(pcl.get_z() > zend)
-  {
-    sendZrght.send(pcl);
-    count[5]++;
-  }
-  else was_sent = false;
+  // if going nowhere then return
+  bool send_pcl = dirs[0]||dirs[1]||dirs[2];
+  if(!send_pcl)
+    return false;
 
-  return was_sent;
+  // put particle in appropriate communication buffer if exiting
+  int dir_idx = vct->get_index_for_direction(dirs);
+  // send particle
+  sendPclList[dir_idx].send(pcl);
+  send_count[dir_idx]++;
+  return true;;
 }
 
 // flush sending particles.
 //
 void Particles3Dcomm::flush_send()
 {
-  sendXleft.send_complete();
-  sendXrght.send_complete();
-  sendYleft.send_complete();
-  sendYrght.send_complete();
-  sendZleft.send_complete();
-  sendZrght.send_complete();
+  for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
+    sendPclList[di].send_complete();
 }
 
 void Particles3Dcomm::apply_periodic_BC_global(
   vector_SpeciesParticle& pcl_list, int pstart)
 {
-  const double Lxinv = 1/Lx;
-  const double Lyinv = 1/Ly;
-  const double Lzinv = 1/Lz;
+  double Ls[3] ALLOC_ALIGNED;
+  Ls[0] = setting.col().getLx();
+  Ls[1] = setting.col().getLy();
+  Ls[2] = setting.col().getLz();
+  double Linvs[3] ALLOC_ALIGNED;
+  for(int i=0;i<3;i++) Linvs[i] = 1/Ls[i];
+
   // apply shift to all periodic directions
   for(int pidx=pstart;pidx<pcl_list.size();pidx++)
+  for(int i=0;i<3;i++)
   {
     SpeciesParticle& pcl = pcl_list[pidx];
-    if(vct->getPERIODICX())
+    double *x = &pcl.fetch_x();
+    if(vct->getPeriods(i))
     {
-      double& x = pcl.fetch_x();
-      x = modulo(x, Lx, Lxinv);
-    }
-    if(vct->getPERIODICY())
-    {
-      double& y = pcl.fetch_y();
-      y = modulo(y, Ly, Lyinv);
-    }
-    if(vct->getPERIODICZ())
-    {
-      double& z = pcl.fetch_z();
-      z = modulo(z, Lz, Lzinv);
+      x[i] = modulo(x[i], Ls[i], Linvs[i]);
     }
   }
 }
@@ -511,25 +602,24 @@ inline bool Particles3Dcomm::test_outside_nonperiodic_domain(const SpeciesPartic
 {
   // This could be vectorized
   bool is_outside_nonperiodic_domain =
-     (!vct->getPERIODICX() && (pcl.get_x() < 0. || pcl.get_x() > Lx)) ||
-     (!vct->getPERIODICY() && (pcl.get_y() < 0. || pcl.get_y() > Ly)) ||
-     (!vct->getPERIODICZ() && (pcl.get_z() < 0. || pcl.get_z() > Lz));
+     (!vct->getPeriods(0) && (pcl.get_x() < 0. || pcl.get_x() > Lx)) ||
+     (!vct->getPeriods(1) && (pcl.get_y() < 0. || pcl.get_y() > Ly)) ||
+     (!vct->getPeriods(2) && (pcl.get_z() < 0. || pcl.get_z() > Lz));
   return is_outside_nonperiodic_domain;
-  // bool is_in_nonperiodic_domain =
-  //    (vct->getPERIODICX() || (pcl.get_x() >= 0. && pcl.get_x() <= Lx)) &&
-  //    (vct->getPERIODICY() || (pcl.get_y() >= 0. && pcl.get_y() <= Ly)) &&
-  //    (vct->getPERIODICZ() || (pcl.get_z() >= 0. && pcl.get_z() <= Lz));
-  // return !is_in_nonperiodic_domain;
 }
 
 // apply user-supplied boundary conditions
 //
+// A better implementation would sort particles
+// into 27 categories based on their direction index
+// and then call a version of apply_BCs
+// to each segment.
 void Particles3Dcomm::apply_nonperiodic_BCs_global(
   vector_SpeciesParticle& pcl_list, int pstart)
 {
   int lstart;
   int lsize;
-  if(!vct->getPERIODICX())
+  if(!vct->getPeriods(0))
   {
     // separate out particles that need Xleft boundary conditions applied
     sort_pcls(pcl_list, pstart, lstart, test_Xleft_of_domain);
@@ -540,7 +630,7 @@ void Particles3Dcomm::apply_nonperiodic_BCs_global(
     // apply boundary conditions
     apply_Xrght_BC(pcl_list, lstart);
   }
-  if(!vct->getPERIODICY())
+  if(!vct->getPeriods(1))
   {
     // separate out particles that need Yleft boundary conditions applied
     sort_pcls(pcl_list, pstart, lstart, test_Yleft_of_domain);
@@ -551,7 +641,7 @@ void Particles3Dcomm::apply_nonperiodic_BCs_global(
     // apply boundary conditions
     apply_Yrght_BC(pcl_list, lstart);
   }
-  if(!vct->getPERIODICZ())
+  if(!vct->getPeriods(2))
   {
     // separate out particles that need Zleft boundary conditions applied
     sort_pcls(pcl_list, pstart, lstart, test_Zleft_of_domain);
@@ -596,8 +686,8 @@ bool Particles3Dcomm::test_all_pcls_are_in_subdomain()
     SpeciesParticle& pcl = _pcls[pidx];
     // should vectorize these comparisons
     bool not_in_subdomain = 
-         pcl.get_x() < xstart || pcl.get_y() < ystart || pcl.get_z() < zstart
-      || pcl.get_x() > xend   || pcl.get_y() > yend   || pcl.get_z() > yend;
+         pcl.get_x() < beg_pos[0] || pcl.get_y() < beg_pos[1] || pcl.get_z() < beg_pos[2]
+      || pcl.get_x() > end_pos[0]   || pcl.get_y() > end_pos[1]   || pcl.get_z() > end_pos[1];
     if(__builtin_expect(not_in_subdomain, false)) return false;
   }
   return true; // all pcls are in processor subdomain
@@ -625,11 +715,6 @@ void Particles3Dcomm::apply_BCs_globally(vector_SpeciesParticle& pcl_list)
 {
   // apply boundary conditions to every
   // particle until every particle lies in the domain.
-  //
-  //const int pend = pcl_list.size();
-  const double Lxinv = 1/Lx;
-  const double Lyinv = 1/Ly;
-  const double Lzinv = 1/Lz;
 
   // put the particles outside the domain at the end of the list
   //
@@ -672,51 +757,62 @@ void Particles3Dcomm::apply_BCs_globally(vector_SpeciesParticle& pcl_list)
   {
     assert(test_pcls_are_in_nonperiodic_domain(pcl_list));
   }
-  // compute how many communications will be needed to communicate
-  // the particles in the list to their appropriate locations
-  //if(do_apply_periodic_BC_global)
-  //{
-  //  for(int pidx=0; pidx < pcl_list.size(); pidx++)
-  //  {
-  //    SpeciesParticle& pcl = pcl_list[pidx];
-  //    // compute the processor subdomain coordinates of this particle
-  //    ...
-  //    // compute the distance from the current processor subdomain coordinates
-  //    ...
-  //  }
-  //}
-  //else
-  //{
-  //  for(int pidx=0; pidx < pcl_list.size(); pidx++)
-  //  {
-  //    SpeciesParticle& pcl = pcl_list[pidx];
-  //    ...
-  //  }
-  //}
 }
 
-static void get_dirs(int dirs[3], int direction)
-{
-  using namespace Direction;
-  switch(direction)
-  {
-    default: invalid_value_error(direction);
-    case XDN: dirs[0]=-1; break;
-    case XUP: dirs[0]= 1; break;
-    case YDN: dirs[1]=-1; break;
-    case YUP: dirs[1]= 1; break;
-    case ZDN: dirs[2]=-1; break;
-    case ZUP: dirs[2]= 1; break;
-  }
-}
+//static void get_dirs(int dirs[3], int direction)
+//{
+//  using namespace Direction;
+//  switch(direction)
+//  {
+//    default: invalid_value_error(direction);
+//    case XDN: dirs[0]=-1; break;
+//    case XUP: dirs[0]= 1; break;
+//    case YDN: dirs[1]=-1; break;
+//    case YUP: dirs[1]= 1; break;
+//    case ZDN: dirs[2]=-1; break;
+//    case ZUP: dirs[2]= 1; break;
+//  }
+//}
 
-// direction: direction that list of particles is coming from
+// dir_idx is the direction that the data is coming from,
+// so the direction that the data is moving is -dir.
+//
+// Note that the documentation in the input file says that
+// boundary conditions are simply ignored in the periodic
+// case, so no check is made.
+//
 void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
-  int direction, bool apply_shift, bool do_apply_BCs)
+  int dir_idx)
 {
   // determine direction of particle transfer
   int dirs[3]={0,0,0};
-  get_dirs(dirs, direction);
+  vct->set_direction_for_index(dirs, dir_idx);
+  // determine if boundary conditions need to be applied
+  // and if so for which directions
+  int applyBCdirs[3]={0,0,0};
+  for(int i=0;i<3;i++)
+  {
+    if((vct->noLeftNeighbor(i) && dirs[i]<0) ||
+       (vct->noRghtNeighbor(i) && dirs[i]>0))
+    {
+      applyBCdirs[i] = dirs[i];
+    }
+  }
+  const bool do_apply_BCs = applyBCdirs[0] || applyBCdirs[1] || applyBCdirs[2];
+
+  // determine if periodicity shift is needed
+  // and if so for which directions
+  bool wrap_dir[3]={false,false,false};
+  for(int i=0;i<3;i++)
+  {
+    if((vct->isPeriodicLower(i) && dirs[i]<0) ||
+       (vct->isPeriodicUpper(i) && dirs[i]>0))
+    {
+      wrap_dir[i]=true;
+    }
+  }
+  const bool apply_shift = wrap_dir[0] || wrap_dir[1] || wrap_dir[2];
+
   // if appropriate apply periodicity shift for this block
   //
   // could change from modulo to simple shift.
@@ -730,24 +826,33 @@ void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
 
   if(apply_shift)
   {
-     for(int pidx=0;pidx<pcl_list.size();pidx++)
-     {
-       SpeciesParticle& pcl = pcl_list[pidx];
-       double *xptr = &pcl.fetch_x();
-       for(int i=0;i<3;i++)
-       {
-         if(dirs[i]) xptr[i] = modulo(xptr[i], Ls[i], Linvs[i]);
-         // this is more efficient and good enough if we cap particle motion
-         //xptr[i] += dirs[i]*Ls[i];
-       }
-     }
+    for(int pidx=0;pidx<pcl_list.size();pidx++)
+    {
+      SpeciesParticle& pcl = pcl_list[pidx];
+      double *xptr = &pcl.fetch_x();
+      for(int i=0;i<3;i++)
+      {
+        if(wrap_dir[i])
+        {
+          xptr[i] = modulo(xptr[i], Ls[i], Linvs[i]);
+          // The following would be more efficient and would
+          // be good enough if we cap particle motion, but
+          // when solving 2D problems with only one layer of
+          // mesh cells in an ignorable Z direction the user
+          // must be sure to choose Lz sufficiently large to
+          // ensure that the fastest particles do not cross
+          // the Z dimension of the domain.
+          //xptr[i] -= dirs[i]*Ls[i];
+        }
+      }
+    }
   }
   // if appropriate then apply boundary conditions to this block
-  else if(do_apply_BCs)
+  if(do_apply_BCs)
   {
-    int size = pcl_list.size();
-    apply_BCs(pcl_list, dirs);
+    apply_BCs(pcl_list, applyBCdirs);
     // this was an open boundary conditions bug:
+    //int size = pcl_list.size();
     //pcl_list.resize(size);
   }
 }
@@ -769,97 +874,52 @@ namespace PclCommMode
 int Particles3Dcomm::handle_received_particles(int pclCommMode)
 {
   using namespace PclCommMode;
-  // we expect to receive at least one block from every
-  // communicator, so make sure that all receive buffers are
-  // clear and waiting
+
+  // reinitialize communication
   //
-  recvXleft.recv_start(); recvXrght.recv_start();
-  recvYleft.recv_start(); recvYrght.recv_start();
-  recvZleft.recv_start(); recvZrght.recv_start();
+  int recv_count[NUM_COMM_NEIGHBORS];
+  int send_count[NUM_COMM_NEIGHBORS];
+  MPI_Request recv_requests[NUM_COMM_NEIGHBORS];
+  for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
+  {
+    // we expect to receive at least one block from every
+    // communicator, so make sure that all receive buffers are
+    // clear and waiting
+    recvPclList[di].recv_start();
+    // make sure that current block in each sender is ready for sending
+    sendPclList[di].send_start();
+    recv_count[di]=0;
+    send_count[di]=0;
+    recv_requests[di]=recvPclList[di].get_curr_request();
+    // confirm that no communicators are finished
+    assert(!recvPclList[di].comm_finished());
+  }
 
-  // make sure that current block in each sender is ready for sending
-  //
-  sendXleft.send_start(); sendXrght.send_start();
-  sendYleft.send_start(); sendYrght.send_start();
-  sendZleft.send_start(); sendZrght.send_start();
-
-  const int num_recv_buffers = 6;
-
-  int recv_count[6]={0,0,0,0,0,0};
-  int send_count[6]={0,0,0,0,0,0};
   int num_pcls_recved = 0;
   int num_pcls_resent = 0;
-  //const int direction_map[6]={
-  //  Connection::XDN,Connection::XUP,
-  //  Connection::YDN,Connection::YUP,
-  //  Connection::ZDN,Connection::ZUP};
-  // receive incoming particles, 
-  // immediately resending any exiting particles
-  //
-  MPI_Request recv_requests[num_recv_buffers] = 
-  {
-    recvXleft.get_curr_request(), recvXrght.get_curr_request(),
-    recvYleft.get_curr_request(), recvYrght.get_curr_request(),
-    recvZleft.get_curr_request(), recvZrght.get_curr_request()
-  };
-  BlockCommunicator<SpeciesParticle>* recvBuffArr[num_recv_buffers] =
-  {
-    &recvXleft, &recvXrght,
-    &recvYleft, &recvYrght,
-    &recvZleft, &recvZrght
-  };
-
-  assert(!recvXleft.comm_finished());
-  assert(!recvXrght.comm_finished());
-  assert(!recvYleft.comm_finished());
-  assert(!recvYrght.comm_finished());
-  assert(!recvZleft.comm_finished());
-  assert(!recvZrght.comm_finished());
-
-  // determine the periodicity shift for each incoming buffer
-  const bool apply_shift[num_recv_buffers] =
-  {
-    vct->isPeriodicXlower(), vct->isPeriodicXupper(),
-    vct->isPeriodicYlower(), vct->isPeriodicYupper(),
-    vct->isPeriodicZlower(), vct->isPeriodicZupper()
-  };
-  const bool do_apply_BCs[num_recv_buffers] =
-  {
-    vct->noXleftNeighbor(), vct->noXrghtNeighbor(),
-    vct->noYleftNeighbor(), vct->noYrghtNeighbor(),
-    vct->noZleftNeighbor(), vct->noZrghtNeighbor()
-  };
-  const int direction[num_recv_buffers] =
-  {
-    Direction::XDN, Direction::XUP,
-    Direction::YDN, Direction::YUP,
-    Direction::ZDN, Direction::ZUP
-  };
-  // The documentation in the input file says that boundary conditions
-  // are simply ignored in the periodic case, so I omit this check.
-  //for(int i=0;i<6;i++)assert(!(apply_shift[i]&&do_apply_BCs[i]));
+  // we expect communication from all communicators.
+  int num_unfinished_communicators = NUM_COMM_NEIGHBORS;
   // while there are still incoming particles
-  // put them in the appropriate buffer
-  //
-  while(!(
-    recvXleft.comm_finished() && recvXrght.comm_finished() &&
-    recvYleft.comm_finished() && recvYrght.comm_finished() &&
-    recvZleft.comm_finished() && recvZrght.comm_finished()))
+  // put them in the appropriate buffer.
+  while(num_unfinished_communicators)
   {
     int recv_index;
     MPI_Status recv_status;
-    pcls_MPI_Waitany(num_recv_buffers,recv_requests,&recv_index,&recv_status);
+    pcls_MPI_Waitany(NUM_COMM_NEIGHBORS,recv_requests,&recv_index,&recv_status);
     if(recv_index==MPI_UNDEFINED)
       eprintf("recv_requests contains no active handles");
     assert_ge(recv_index,0);
-    assert_lt(recv_index,num_recv_buffers);
+    assert_lt(recv_index,NUM_COMM_NEIGHBORS);
     //
     // grab the received block of particles and process it
     //
-    BlockCommunicator<SpeciesParticle>* recvBuff = recvBuffArr[recv_index];
+    BlockCommunicator<SpeciesParticle>& recvComm = recvPclList[recv_index];
+    // this act of fetching determines whether communication is finished
     Block<SpeciesParticle>& recv_block
-      = recvBuff->fetch_received_block(recv_status);
+      = recvComm.fetch_received_block(recv_status);
     vector_SpeciesParticle& pcl_list = recv_block.fetch_block();
+    if(recvComm.comm_finished())
+      num_unfinished_communicators--;
 
     if(pclCommMode&do_apply_BCs_globally)
     {
@@ -867,8 +927,8 @@ int Particles3Dcomm::handle_received_particles(int pclCommMode)
     }
     else
     {
-      apply_BCs_locally(pcl_list, direction[recv_index],
-        apply_shift[recv_index], do_apply_BCs[recv_index]);
+      // recv_index is the index of the direction we are receiving from
+      apply_BCs_locally(pcl_list, recv_index);
     }
 
     recv_count[recv_index]+=recv_block.size();
@@ -898,18 +958,21 @@ int Particles3Dcomm::handle_received_particles(int pclCommMode)
       }
     }
     // release the block and update the receive request
-    recvBuff->release_received_block();
-    recv_requests[recv_index] = recvBuff->get_curr_request();
+    recvComm.release_received_block();
+    recv_requests[recv_index] = recvComm.get_curr_request();
   }
+  // confirm that all communicators are finished
+  for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
+    assert(recvPclList[di].comm_finished());
 
   if(print_pcl_comm_counts)
   {
-    dprintf("spec %d recved_count: %d+%d+%d+%d+%d+%d=%d", get_species_num(),
-      recv_count[0], recv_count[1], recv_count[2],
-      recv_count[3], recv_count[4], recv_count[5], num_pcls_recved);
-    dprintf("spec %d resent_count: %d+%d+%d+%d+%d+%d=%d", get_species_num(),
-      send_count[0], send_count[1], send_count[2],
-      send_count[3], send_count[4], send_count[5], num_pcls_resent);
+    dprintf("spec %d recved_count: %d", is, num_pcls_recved);
+    dprintf("spec %d resent_count: %d", is, num_pcls_resent);
+    for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
+    {
+      dprintf("spec %d send_count[%d]: %d", is, di, send_count[di]);
+    }
   }
   // return the number of particles that were resent
 
@@ -1002,12 +1065,12 @@ void Particles3Dcomm::apply_BCs(vector_SpeciesParticle& pcls,
   const Collective& col = setting.col();
   const double Ls[3]={col.getLx(),col.getLy(),col.getLz()};
   double signs[3] ALLOC_ALIGNED;
-  double walls[3] ALLOC_ALIGNED;
+  double wall2[3] ALLOC_ALIGNED;
   for(int i=0;i<3;i++)
   {
     // reflect unless in middle
     signs[i] = dirs[i] ? -1 : 1;
-    walls[i] = dirs[i]>0 ? 2*Ls[i] : 0;
+    wall2[i] = dirs[i]>0 ? 2*Ls[i] : 0;
   }
   // the order of these two loops should be swapped
   // unless the compiler decides to vectorize.
@@ -1017,11 +1080,11 @@ void Particles3Dcomm::apply_BCs(vector_SpeciesParticle& pcls,
     SpeciesParticle& pcl = pcls[p];
     double *xptr = &pcl.fetch_x();
     double *uptr = &pcl.fetch_u();
-    // this formula reflects off wall if dir is nonzero
-    // and does nothing is dir is zero
     if(dirs[i])
     {
-      xptr[i] = walls[i] + signs[i]*xptr[i];
+      // this formula reflects off wall if dir is nonzero
+      // and would do nothing is dir is zero
+      xptr[i] = wall2[i] + signs[i]*xptr[i];
       uptr[i] = newdirs[i]*fabs(uptr[i]);
       // old way (but then reemission must
       // handle reflection separately).
@@ -1068,26 +1131,27 @@ void Particles3Dcomm::apply_Zrght_BC(vector_SpeciesParticle& pcls, int start)
 int Particles3Dcomm::separate_and_send_particles()
 {
   // why does it happen that multiple particles have an ID of 0?
-  const int num_ids = 1;
-  longid id_list[num_ids] = {0};
-  //print_pcls(_pcls,get_species_num(),id_list, num_ids);
+  if(false) {
+    const int num_ids = 1;
+    longid id_list[num_ids] = {0};
+    print_pcls(_pcls,get_species_num(),id_list, num_ids);
+  }
   timeTasks_set_communicating(); // communicating until end of scope
 
   convertParticlesToAoS();
 
-  // activate receiving
   //
-  recvXleft.recv_start(); recvXrght.recv_start();
-  recvYleft.recv_start(); recvYrght.recv_start();
-  recvZleft.recv_start(); recvZrght.recv_start();
+  int send_count[NUM_COMM_NEIGHBORS];
+  for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
+  {
+    send_count[di]=0;
+    // activate receiving
+    recvPclList[di].recv_start();
+    // make sure that current block is ready for sending
+    sendPclList[di].send_start();
+  }
 
-  // make sure that current block in each sender is ready for sending
-  //
-  sendXleft.send_start(); sendXrght.send_start();
-  sendYleft.send_start(); sendYrght.send_start();
-  sendZleft.send_start(); sendZrght.send_start();
-
-  int send_count[6]={0,0,0,0,0,0};
+  //int send_count[6]={0,0,0,0,0,0};
   const int num_pcls_initially = _pcls.size();
   int np_current = 0;
   while(np_current < _pcls.size())
@@ -1117,14 +1181,27 @@ int Particles3Dcomm::separate_and_send_particles()
       np_current++;
     }
   }
+
+  // flush all send buffers
+  flush_send();
+
+  // check and report statistics about number of particles sent
+  //
   assert_eq(_pcls.size(),np_current);
   const int num_pcls_unsent = getNOP();
   const int num_pcls_sent = num_pcls_initially - num_pcls_unsent;
   if(print_pcl_comm_counts)
   {
-    dprintf("spec %d send_count: %d+%d+%d+%d+%d+%d=%d",get_species_num(),
-      send_count[0], send_count[1], send_count[2],
-      send_count[3], send_count[4], send_count[5],num_pcls_sent);
+    int total_sent = 0;
+    if(0) for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
+    {
+      total_sent += send_count[di];
+      int dirs[3];
+      vct->set_direction_for_index(dirs, di);
+      dprintf("spec %d send_count in dir [%d,%d,%d]: %d",get_species_num(),
+        dirs[0], dirs[1], dirs[2], send_count[di]);
+    }
+    dprintf("spec %d total_sent = %d",is,total_sent);
   }
   return num_pcls_sent;
 }
@@ -1162,63 +1239,62 @@ int Particles3Dcomm::separate_and_send_particles()
 //   incoming particle until the particle resides in the domain.
 //   forces
 //   
-void Particles3Dcomm::recommunicate_particles_until_done(int min_num_iterations)
+void Particles3Dcomm::receive_particles_until_done()
 {
   timeTasks_set_communicating(); // communicating until end of scope
-  assert_gt(min_num_iterations,0);
-  // most likely exactly three particle communications
-  // will be needed, one for each dimension of space,
-  // so we begin with three receives and thereafter
-  // before each receive we do an all-reduce to check
-  // if more particles actually need to be received.
+  assert_gt(max_num_pcl_comms,0);
   //
-  // alternatively, we could monitor how many iterations
-  // are needed and adjust the initial number of iterations
-  // accordingly.  The goals to balance would be
-  // * to minimize the number of all-reduce calls and
-  // * to minimize unnecessary sends,
-  // with the overall goal of minimizing time spent in communication
+  // enforcing cap on particle velocities determines
+  // a cap on the number of iterations needed.
+  // only one iteration is needed if particles
+  // can move at most one subdomain per time step.
   //
   int num_pcls_sent;
-  for(int i=0;i<min_num_iterations;i++)
+  //
+  // we prefer to do a fixed number of local
+  // communications rather than performing an
+  // all-reduce on the number of particles sent.
+  //
+  int num_recommunications = max_num_pcl_comms-1;
+  for(int i=0;i<num_recommunications;i++)
   {
-    flush_send(); // flush sending of particles
     num_pcls_sent = handle_received_particles();
-    //dprintf("spec %d #pcls sent = %d", get_species_num(), num_pcls_sent);
+    flush_send(); // flush sending of particles
+  }
+  // handle the received particles the final (and perhaps only) time
+  num_pcls_sent = handle_received_particles();
+
+  if(Parameters::vel_cap_method()==Parameters::box_capped)
+  {
+    assert_eq(num_pcls_sent,0);
+    return;
   }
 
-  // apply boundary conditions to incoming particles
-  // until they are in the domain
-  flush_send(); // flush sending of particles
-  num_pcls_sent = handle_received_particles(PclCommMode::do_apply_BCs_globally);
-
-  //if(do_apply_periodic_BC_global)
-  //  assert(test_pcls_are_in_domain(_pcls));
-  //else
-  //  assert(test_pcls_are_in_nonperiodic_domain(_pcls));
-
-  // compute how many times particles must be communicated
-  // globally before every particle is in the correct subdomain
-  // (would need to modify handle_received_particles so that it
-  // returns num_comm_needed)
-  //const int global_num_comm_needed = mpi_global_max(num_comm_needed);
-  // once I see that this is anticipating the number of communications
-  // correctly, I will eliminate the total_num_pcls_sent check below
-  //dprint(global_num_comm_needed);
-
-  // continue receiving and resending incoming particles until
-  // global all-reduce of num_pcls_resent is zero, indicating
-  // that there are no more particles to be received.
+  // velocities are not capped, so all-reduce is needed
+  // to check if all particles have been communicated
   //
   long long total_num_pcls_sent = mpi_global_sum(num_pcls_sent);
   if(print_pcl_comm_counts)
+  {
     dprintf("spec %d pcls sent: %d, %d",
-      get_species_num(), num_pcls_sent, total_num_pcls_sent);
+      is, num_pcls_sent, total_num_pcls_sent);
+  }
 
+  if(!total_num_pcls_sent)
+    return;
+
+  // apply boundary conditions to incoming particles
+  // until they are in the domain to ensure cap on number of
+  // communications
+  flush_send(); // flush sending of particles
+  num_pcls_sent = handle_received_particles(PclCommMode::do_apply_BCs_globally);
+  total_num_pcls_sent = mpi_global_sum(num_pcls_sent);
+    
   // the maximum number of neighbor communications that would
   // be needed to put a particle in the correct mesh cell
   int comm_max_times = vct->getXLEN()+vct->getYLEN()+vct->getZLEN();
   if(!do_apply_periodic_BC_global) comm_max_times*=2;
+  comm_max_times-=3;
   int comm_count=0;
   while(total_num_pcls_sent)
   {
@@ -1230,11 +1306,11 @@ void Particles3Dcomm::recommunicate_particles_until_done(int min_num_iterations)
       eprintf("failed to finish up particle communication"
         " within %d communications", comm_max_times);
     }
-
+  
     // flush sending of particles
     flush_send();
     num_pcls_sent = handle_received_particles();
-
+  
     total_num_pcls_sent = mpi_global_sum(num_pcls_sent);
     if(print_pcl_comm_counts)
       dprint(total_num_pcls_sent);
@@ -1248,14 +1324,14 @@ void Particles3Dcomm::recommunicate_particles_until_done(int min_num_iterations)
 // holes are filled with particles from end.
 // then received particles are appended to end.
 //
-void Particles3Dcomm::communicate_particles()
-{
-  timeTasks_set_communicating(); // communicating until end of scope
-
-  separate_and_send_particles();
-
-  recommunicate_particles_until_done(1);
-}
+//void Particles3Dcomm::communicate_particles()
+//{
+//  timeTasks_set_communicating(); // communicating until end of scope
+//
+//  separate_and_send_particles();
+//
+//  receive_particles_until_done();
+//}
 
 /** return the Kinetic energy */
 double Particles3Dcomm::getKe()const
@@ -1366,9 +1442,9 @@ void Particles3Dcomm::Print() const
   cout << endl;
   cout << "Number of Particles: " << _pcls.size() << endl;
   cout << "Subgrid (" << vct->getCoordinates(0) << "," << vct->getCoordinates(1) << "," << vct->getCoordinates(2) << ")" << endl;
-  cout << "Xin = " << xstart << "; Xfin = " << xend << endl;
-  cout << "Yin = " << ystart << "; Yfin = " << yend << endl;
-  cout << "Zin = " << zstart << "; Zfin = " << zend << endl;
+  cout << "Xin = " << beg_pos[0] << "; Xfin = " << end_pos[0] << endl;
+  cout << "Yin = " << beg_pos[1] << "; Yfin = " << end_pos[1] << endl;
+  cout << "Zin = " << beg_pos[2] << "; Zfin = " << end_pos[2] << endl;
   cout << "Number of species = " << get_species_num() << endl;
   for (int i = 0; i < _pcls.size(); i++)
   {

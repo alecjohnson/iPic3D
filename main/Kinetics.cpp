@@ -82,14 +82,14 @@ bool Kinetics::moveParticles(const_arr4_double fieldForPcls)
           unsupported_value_error(Parameters::get_MOVER_TYPE());
       }
       // overlap initial communication of electrons with moving of ions
-      #pragma omp master
+      #pragma omp single // should change separating to be multi-threaded
       speciesPcls[is].separate_and_send_particles();
     }
     }
     for (int is = 0; is < ns; is++)  // communicate each species
     {
       //speciesPcls[is].communicate_particles();
-      speciesPcls[is].recommunicate_particles_until_done(1);
+      speciesPcls[is].receive_particles_until_done();
     }
   }
 

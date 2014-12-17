@@ -43,69 +43,142 @@ public:
   /** Print the mapping of topology */
   void PrintMapping();
 
-  int getXLEN()const{ return (XLEN); }
-  int getYLEN()const{ return (YLEN); }
-  int getZLEN()const{ return (ZLEN); }
+  int get_dims(int i)const{return dims[i];}
+  int getXLEN()const{ return dims[0]; }
+  int getYLEN()const{ return dims[1]; }
+  int getZLEN()const{ return dims[2]; }
   int getNprocs()const{ return (nprocs); }
-  bool getPERIODICX()const{ return (PERIODICX); }
-  bool getPERIODICY()const{ return (PERIODICY); }
-  bool getPERIODICZ()const{ return (PERIODICZ); }
+  bool getPERIODICX()const{ return (periods[0]); }
+  bool getPERIODICY()const{ return (periods[1]); }
+  bool getPERIODICZ()const{ return (periods[2]); }
 
   // legacy names
   //
   int getCartesian_rank()const{ return (cartesian_rank); }
-  int getXleft_neighbor()const{ return (xleft_neighbor); }
-  int getXright_neighbor()const{ return (xright_neighbor); }
-  int getYleft_neighbor()const{ return (yleft_neighbor); }
-  int getYright_neighbor()const{ return (yright_neighbor); }
-  int getZleft_neighbor()const{ return (zleft_neighbor); }
-  int getZright_neighbor()const{ return (zright_neighbor); }
+  int getXleft_neighbor() const{ return getLeftNeighbor(0); }
+  int getYleft_neighbor() const{ return getLeftNeighbor(1); }
+  int getZleft_neighbor() const{ return getLeftNeighbor(2); }
+  int getXright_neighbor()const{ return getRghtNeighbor(0); }
+  int getYright_neighbor()const{ return getRghtNeighbor(1); }
+  int getZright_neighbor()const{ return getRghtNeighbor(2); }
 
   // new interface
   //
   bool is_rank0()const{ return (0==cartesian_rank); }
   int get_rank()const{ return (cartesian_rank); }
-  int getXleft()const{ return (xleft_neighbor); }
-  int getXrght()const{ return (xright_neighbor); }
-  int getYleft()const{ return (yleft_neighbor); }
-  int getYrght()const{ return (yright_neighbor); }
-  int getZleft()const{ return (zleft_neighbor); }
-  int getZrght()const{ return (zright_neighbor); }
+  int getLeftNeighbor(int i)const{return _leftNeighbor[i];}
+  int getRghtNeighbor(int i)const{return _rghtNeighbor[i];}
+  int getXleft()const{ return getLeftNeighbor(0); }
+  int getYleft()const{ return getLeftNeighbor(1); }
+  int getZleft()const{ return getLeftNeighbor(2); }
+  int getXrght()const{ return getRghtNeighbor(0); }
+  int getYrght()const{ return getRghtNeighbor(1); }
+  int getZrght()const{ return getRghtNeighbor(2); }
 
+  static const int NUM_COMM_NEIGHBORS=27;
   int get_neighbor_rank(int i, int j, int k)const
   {
     return neighbors3D[i+1][j+1][k+1];
   }
+  int get_neighbor_rank(const int dirs[3])const
+  {
+    return neighbors3D[dirs[0]+1][dirs[1]+1][dirs[2]+1];
+  }
+  // forward map from {-1,0,1}x{-1,0,1}x{-1,0,1} to Z_{27}
+  static int get_index_for_direction(const int dirs[3])
+  { return 3*(3*dirs[0]+dirs[1])+dirs[2]+13;}
+  // inverse map from Z_{27} to {-1,0,1}x{-1,0,1}x{-1,0,1}
+  static void set_direction_for_index(int dirs[3], int i)
+  {
+    dirs[2] = i%3-1; i/=3;
+    dirs[1] = i%3-1; i/=3;
+    dirs[0] = i%3-1;
+  }
+  static int get_negated_direction_tag(int di)
+  {
+    int dirs[3];
+    set_direction_for_index(dirs,di);
+    // flip the direction coordinates
+    for(int i=0;i<3;i++)
+    {
+      dirs[i] *= -1;
+    }
+    return get_index_for_direction(dirs);
+  }
+  // flip the direction coordinate
+  // in any direction that is pinned
+  int get_pinned_direction_tag(int di)const
+  {
+    int dirs[3];
+    set_direction_for_index(dirs,di);
 
-  bool isPeriodicXlower()const{ return _isPeriodicXlower; }
-  bool isPeriodicXupper()const{ return _isPeriodicXupper; }
-  bool isPeriodicYlower()const{ return _isPeriodicYlower; }
-  bool isPeriodicYupper()const{ return _isPeriodicYupper; }
-  bool isPeriodicZlower()const{ return _isPeriodicZlower; }
-  bool isPeriodicZupper()const{ return _isPeriodicZupper; }
+    for(int i=0;i<3;i++)
+    {
+      const int coords = coordinates[i]+dirs[i];
+      // pinning non-periodic coordinates
+      if(!periods[i])
+      {
+        if(coords < 0 || coords >= dims[i])
+        {
+          dirs[i] *= -1;
+        }
+      }
+    }
+    return get_index_for_direction(dirs);
+  }
+  // (could precompute this on startup)
+  // returns rank of neighbor in direction di
+  int get_valid_neighbor_rank(int di)const
+  {
+    int dirs[3];
+    set_direction_for_index(dirs,di);
+    // "pin" displacement so that it points to the correct
+    // distination after pinning
+    for(int i=0;i<3;i++)
+    {
+      const int coords = coordinates[i]+dirs[i];
+      // pin non-periodic coordinates
+      if(!periods[i])
+      {
+        if((coords < 0) || (coords >= dims[i]))
+        {
+          dirs[i] = 0;
+        }
+      }
+    }
+    // return neighbor rank for pinned displacement
+    return get_neighbor_rank(dirs);
+  }
 
-  bool noXleftNeighbor()const{ return _noXleftNeighbor; }
-  bool noXrghtNeighbor()const{ return _noXrghtNeighbor; }
-  bool noYleftNeighbor()const{ return _noYleftNeighbor; }
-  bool noYrghtNeighbor()const{ return _noYrghtNeighbor; }
-  bool noZleftNeighbor()const{ return _noZleftNeighbor; }
-  bool noZrghtNeighbor()const{ return _noZrghtNeighbor; }
+  bool isPeriodicLower(int i)const{ return _isPeriodicLower[i]; }
+  bool isPeriodicUpper(int i)const{ return _isPeriodicUpper[i]; }
+  //bool isPeriodicXlower()const{ return _isPeriodicLower[0]; }
+  //bool isPeriodicXupper()const{ return _isPeriodicUpper[0]; }
+  //bool isPeriodicYlower()const{ return _isPeriodicLower[1]; }
+  //bool isPeriodicYupper()const{ return _isPeriodicUpper[1]; }
+  //bool isPeriodicZlower()const{ return _isPeriodicLower[2]; }
+  //bool isPeriodicZupper()const{ return _isPeriodicUpper[2]; }
 
-  bool hasXleftNeighbor()const{ return !_noXleftNeighbor; }
-  bool hasXrghtNeighbor()const{ return !_noXrghtNeighbor; }
-  bool hasYleftNeighbor()const{ return !_noYleftNeighbor; }
-  bool hasYrghtNeighbor()const{ return !_noYrghtNeighbor; }
-  bool hasZleftNeighbor()const{ return !_noZleftNeighbor; }
-  bool hasZrghtNeighbor()const{ return !_noZrghtNeighbor; }
+  bool noLeftNeighbor(int i)const{return _noLeftNeighbor[i];}
+  bool noRghtNeighbor(int i)const{return _noRghtNeighbor[i];}
+  bool noXleftNeighbor()const{ return _noLeftNeighbor[0]; }
+  bool noYleftNeighbor()const{ return _noLeftNeighbor[1]; }
+  bool noZleftNeighbor()const{ return _noLeftNeighbor[2]; }
+  bool noXrghtNeighbor()const{ return _noRghtNeighbor[0]; }
+  bool noYrghtNeighbor()const{ return _noRghtNeighbor[1]; }
+  bool noZrghtNeighbor()const{ return _noRghtNeighbor[2]; }
+
+  bool hasXleftNeighbor()const{ return !_noLeftNeighbor[0]; }
+  bool hasYleftNeighbor()const{ return !_noLeftNeighbor[1]; }
+  bool hasZleftNeighbor()const{ return !_noLeftNeighbor[2]; }
+  bool hasXrghtNeighbor()const{ return !_noRghtNeighbor[0]; }
+  bool hasYrghtNeighbor()const{ return !_noRghtNeighbor[1]; }
+  bool hasZrghtNeighbor()const{ return !_noRghtNeighbor[2]; }
 
   bool isBoundaryProcess()const{ return _isBoundaryProcess; }
 
-  bool isXlower()const{ return coordinates[0]==0; }
-  bool isYlower()const{ return coordinates[1]==0; }
-  bool isZlower()const{ return coordinates[2]==0; }
-  bool isXupper()const{ return coordinates[0]==dims[0]-1; }
-  bool isYupper()const{ return coordinates[1]==dims[1]-1; }
-  bool isZupper()const{ return coordinates[2]==dims[2]-1; }
+  bool isLower(int i)const{ return coordinates[i]==0; }
+  bool isUpper(int i)const{ return coordinates[i]==dims[i]-1; }
 
   bool getcVERBOSE()const{ return (cVERBOSE); }
   int getCoordinates(int dir)const{ return (coordinates[dir]); }
@@ -141,27 +214,14 @@ private:
   int LEFT;
   /** dimension of virtual topology */
   int PROCDIM;
-  /** number of subdomains - Direction X */
-  int XLEN;
-  /** number of subdomains - Direction Y */
-  int YLEN;
-  /** number of subdomains - Direction Z */
-  int ZLEN;
   /** nprocs = number of processors */
   int nprocs;
-  /** periodicity on boundaries - DIRECTION X*/
-  bool PERIODICX;
-  /** periodicity on boundaries - DIRECTION Y*/
-  bool PERIODICY;
-  /** periodicity on boundaries - DIRECTION Z*/
-  bool PERIODICZ;
   /** rank may be reordered     */
   int reorder;
   /** arrays for Create_Cart_create  */
   int dims[3]; // i.e. divisions
   /** periodicity */
   int periods[3];
-  //int periods_P[3];
   /** coordinates on processors grid */
   int coordinates[3];
   /** cartesian rank */
@@ -169,30 +229,17 @@ private:
   //
   // ranks of neighboring processes
   //
-  int xleft_neighbor;
-  int xright_neighbor;
-  int yleft_neighbor;
-  int yright_neighbor;
-  int zleft_neighbor;
-  int zright_neighbor;
+  int _leftNeighbor[3];
+  int _rghtNeighbor[3];
   int neighbors3D[3][3][3];
- 
   
   /** indicators of whether this is a periodic boundary */
-  bool _isPeriodicXlower;
-  bool _isPeriodicXupper;
-  bool _isPeriodicYlower;
-  bool _isPeriodicYupper;
-  bool _isPeriodicZlower;
-  bool _isPeriodicZupper;
+  bool _isPeriodicLower[3];
+  bool _isPeriodicUpper[3];
 
   /** indicators of whether this lacks a neighbor */
-  bool _noXrghtNeighbor;
-  bool _noXleftNeighbor;
-  bool _noYrghtNeighbor;
-  bool _noYleftNeighbor;
-  bool _noZrghtNeighbor;
-  bool _noZleftNeighbor;
+  bool _noLeftNeighbor[3];
+  bool _noRghtNeighbor[3];
 
   int _isBoundaryProcess;
 

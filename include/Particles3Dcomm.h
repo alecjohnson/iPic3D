@@ -8,6 +8,7 @@ developers: Stefano Markidis, Giovanni Lapenta
 #define Part3DCOMM_H
 
 #include "ipic_fwd.h"
+#include "ipic_defs.h"
 #include "Alloc.h"
 #include "Particle.h" // for ParticleType
 // unfortunately this includes mpi.h, which includes 35000 lines:
@@ -16,6 +17,8 @@ developers: Stefano Markidis, Giovanni Lapenta
 #include "Larray.h"
 #include "IDgenerator.h"
 #include "Setting.h"
+
+typedef Larray<BlockCommunicator<SpeciesParticle> > PclCommList;
 /**
  * 
  * class for particles of the same species with communications methods
@@ -68,15 +71,15 @@ public:
   void apply_nonperiodic_BCs_global(vector_SpeciesParticle&, int pstart);
   bool test_all_pcls_are_in_subdomain();
   void apply_BCs_globally(vector_SpeciesParticle& pcl_list);
-  void apply_BCs_locally(vector_SpeciesParticle& pcl_list,
-    int direction, bool apply_shift, bool do_apply_BCs);
+  void apply_BCs_locally(vector_SpeciesParticle& pcl_list, int dir_idx);
  private: // communicate particles between processes
   void flush_send();
-  bool send_pcl_to_appropriate_buffer(SpeciesParticle& pcl, int count[6]);
+  bool send_pcl_to_appropriate_buffer(SpeciesParticle& pcl,
+    int count[NUM_COMM_NEIGHBORS]);
   int handle_received_particles(int pclCommMode=0);
  public:
   int separate_and_send_particles();
-  void recommunicate_particles_until_done(int min_num_iterations=3);
+  void receive_particles_until_done();
   void communicate_particles();
   void pad_capacities();
  private:
@@ -141,9 +144,9 @@ public:
   double get_invdx(){return inv_dx;}
   double get_invdy(){return inv_dy;}
   double get_invdz(){return inv_dz;}
-  double get_xstart(){return xstart;}
-  double get_ystart(){return ystart;}
-  double get_zstart(){return zstart;}
+  double get_xstart(){return beg_pos[0];}
+  double get_ystart(){return beg_pos[1];}
+  double get_zstart(){return beg_pos[2];}
   ParticleType::Type get_particleType()const { return particleType; }
   const SpeciesParticle& get_pcl(int pidx)const{ return _pcls[pidx]; }
   const vector_SpeciesParticle& get_pcl_list()const{ return _pcls; }
@@ -329,7 +332,10 @@ protected:
   // Copies of grid data (should just put pointer to Grid in this class)
   //
   /** Simulation domain lengths */
-  double xstart, xend, ystart, yend, zstart, zend, invVOL;
+  //double xstart, xend, ystart, yend, zstart, zend,
+  double beg_pos[3];
+  double end_pos[3];
+  double invVOL;
   /** Lx = simulation box length - x direction   */
   double Lx;
   /** Ly = simulation box length - y direction   */
@@ -354,22 +360,31 @@ protected:
   // communicator for this species (duplicated from MPI_COMM_WORLD)
   MPI_Comm mpi_comm;
   // send buffers
-  //
-  BlockCommunicator<SpeciesParticle> sendXleft;
-  BlockCommunicator<SpeciesParticle> sendXrght;
-  BlockCommunicator<SpeciesParticle> sendYleft;
-  BlockCommunicator<SpeciesParticle> sendYrght;
-  BlockCommunicator<SpeciesParticle> sendZleft;
-  BlockCommunicator<SpeciesParticle> sendZrght;
-  //
+  PclCommList sendPclList;
   // recv buffers
+  PclCommList recvPclList;
   //
-  BlockCommunicator<SpeciesParticle> recvXleft;
-  BlockCommunicator<SpeciesParticle> recvXrght;
-  BlockCommunicator<SpeciesParticle> recvYleft;
-  BlockCommunicator<SpeciesParticle> recvYrght;
-  BlockCommunicator<SpeciesParticle> recvZleft;
-  BlockCommunicator<SpeciesParticle> recvZrght;
+  // accessors for buffers or face neighbor communication
+  //
+  // centers of faces of 3x3x3 cube
+  //
+  // 00  01  02       09 *10* 11       18  19  20
+  // 03 *04* 05      *12* 13 *14*      21 *22* 23
+  // 06  07  08       15 *16* 17       24  25  26
+  //
+  BlockCommunicator<SpeciesParticle>& sendXleft(){return sendPclList[ 4];}
+  BlockCommunicator<SpeciesParticle>& sendXrght(){return sendPclList[22];}
+  BlockCommunicator<SpeciesParticle>& sendYleft(){return sendPclList[10];}
+  BlockCommunicator<SpeciesParticle>& sendYrght(){return sendPclList[16];}
+  BlockCommunicator<SpeciesParticle>& sendZleft(){return sendPclList[12];}
+  BlockCommunicator<SpeciesParticle>& sendZrght(){return sendPclList[14];}
+  //
+  BlockCommunicator<SpeciesParticle>& recvXleft(){return recvPclList[ 4];}
+  BlockCommunicator<SpeciesParticle>& recvXrght(){return recvPclList[22];}
+  BlockCommunicator<SpeciesParticle>& recvYleft(){return recvPclList[10];}
+  BlockCommunicator<SpeciesParticle>& recvYrght(){return recvPclList[16];}
+  BlockCommunicator<SpeciesParticle>& recvZleft(){return recvPclList[12];}
+  BlockCommunicator<SpeciesParticle>& recvZrght(){return recvPclList[14];}
 
   /** bool for communication verbose */
   bool cVERBOSE;
@@ -411,14 +426,13 @@ protected:
 
  protected:
 
+  // limiting particle motion
+  //
   // limits to apply to particle velocity
   //
-  double umax;
-  double vmax;
-  double wmax;
-  double umin;
-  double vmin;
-  double wmin;
+  double maxvel[3] ALLOC_ALIGNED;
+  double minvel[3] ALLOC_ALIGNED;
+  int max_num_pcl_comms;
 };
 
 // find the particles with particular IDs and print them

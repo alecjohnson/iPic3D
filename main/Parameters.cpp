@@ -1,4 +1,5 @@
 #include "Parameters.h"
+#include "errors.h"
 
 using namespace Parameters;
 
@@ -51,6 +52,16 @@ void Parameters::init_parameters()
     || get_MOVER_TYPE()==AoSintr
     || get_MOVER_TYPE()==AoS_vec_onesort
     || get_MOVER_TYPE()==AoS_vec_resort;
+
+  // check parameters for validity
+  switch(vel_cap_method())
+  {
+    default:
+      unsupported_value_error(vel_cap_method());
+    case null:
+    case box_capped:
+       break;
+  }
 }
 
 bool Parameters::get_RESORTING_PARTICLES() { return RESORTING_PARTICLES; }
@@ -66,7 +77,16 @@ bool Parameters::get_USING_AOS() { return USING_AOS; }
 bool Parameters::get_doWriteOutput() { return false; }
 //
 bool Parameters::use_perfect_smoothing() {return false; }
+// perfect smoothing implies correct smoothing
 bool Parameters::use_correct_smoothing() {return false
   || Parameters::use_perfect_smoothing(); }
 // ignored unless previous returns true
 int Parameters::get_num_smoothings() {return 3;}
+
+// pusher and velocity cap
+//
+int Parameters::vel_cap_method() {return box_capped;} // 0 turns off
+int Parameters::vel_cap_scale_ref() {return fraction_of_subdomain;}
+double Parameters::vel_cap_scaled_value() {return 0.95;}
+//
+int Parameters::pusher() {return classical;}
