@@ -46,7 +46,7 @@ using std::endl;
  *
  */
 
-static bool print_pcl_comm_counts = true;
+static bool print_pcl_comm_counts = false;
 
 static void print_pcl(SpeciesParticle& pcl, int is)
 {
@@ -406,6 +406,12 @@ Particles3Dcomm::Particles3Dcomm(
   }
 }
 
+bool Particles3Dcomm::print_pcl_comm_counts()const
+{
+  if(is==0 && ::print_pcl_comm_counts)
+    return true;
+  return false;
+}
 // pad capacities so that aligned vectorization
 // does not result in an array overrun.
 //
@@ -774,8 +780,8 @@ void Particles3Dcomm::apply_BCs_globally(vector_SpeciesParticle& pcl_list)
 //  }
 //}
 
-// dir_idx is the direction that the data is coming from,
-// so the direction that the data is moving is -dir.
+// dir_idx is the direction that the data is moving,
+// so the direction that the data is coming from is -dir.
 //
 // Note that the documentation in the input file says that
 // boundary conditions are simply ignored in the periodic
@@ -785,17 +791,18 @@ void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
   int dir_idx)
 {
   // determine direction of particle transfer
-  int dirs[3]={0,0,0};
+  int dirs[3];
   vct->set_direction_for_index(dirs, dir_idx);
+  int src_dirs[3]={ -dirs[0], -dirs[1], -dirs[2] };
   // determine if boundary conditions need to be applied
   // and if so for which directions
   int applyBCdirs[3]={0,0,0};
   for(int i=0;i<3;i++)
   {
-    if((vct->noLeftNeighbor(i) && dirs[i]<0) ||
-       (vct->noRghtNeighbor(i) && dirs[i]>0))
+    if((vct->noLeftNeighbor(i) && src_dirs[i]<0) ||
+       (vct->noRghtNeighbor(i) && src_dirs[i]>0))
     {
-      applyBCdirs[i] = dirs[i];
+      applyBCdirs[i] = src_dirs[i];
     }
   }
   const bool do_apply_BCs = applyBCdirs[0] || applyBCdirs[1] || applyBCdirs[2];
@@ -805,8 +812,8 @@ void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
   bool wrap_dir[3]={false,false,false};
   for(int i=0;i<3;i++)
   {
-    if((vct->isPeriodicLower(i) && dirs[i]<0) ||
-       (vct->isPeriodicUpper(i) && dirs[i]>0))
+    if((vct->isPeriodicLower(i) && src_dirs[i]<0) ||
+       (vct->isPeriodicUpper(i) && src_dirs[i]>0))
     {
       wrap_dir[i]=true;
     }
@@ -842,7 +849,7 @@ void Particles3Dcomm::apply_BCs_locally(vector_SpeciesParticle& pcl_list,
           // must be sure to choose Lz sufficiently large to
           // ensure that the fastest particles do not cross
           // the Z dimension of the domain.
-          //xptr[i] -= dirs[i]*Ls[i];
+          //xptr[i] += dirs[i]*Ls[i];
         }
       }
     }
@@ -903,9 +910,14 @@ int Particles3Dcomm::handle_received_particles(int pclCommMode)
   // put them in the appropriate buffer.
   while(num_unfinished_communicators)
   {
+    // wait until one of the receiving buffers finishes receiving a message
+    //
     int recv_index;
     MPI_Status recv_status;
     pcls_MPI_Waitany(NUM_COMM_NEIGHBORS,recv_requests,&recv_index,&recv_status);
+    //
+    // check that the received message data makes sense
+    //
     if(recv_index==MPI_UNDEFINED)
       eprintf("recv_requests contains no active handles");
     assert_ge(recv_index,0);
@@ -915,12 +927,19 @@ int Particles3Dcomm::handle_received_particles(int pclCommMode)
     //
     BlockCommunicator<SpeciesParticle>& recvComm = recvPclList[recv_index];
     // this act of fetching determines whether communication is finished
+    // and number of particles received.
     Block<SpeciesParticle>& recv_block
       = recvComm.fetch_received_block(recv_status);
-    vector_SpeciesParticle& pcl_list = recv_block.fetch_block();
+    // track finished communicators
     if(recvComm.comm_finished())
       num_unfinished_communicators--;
+    // track number of particles received
+    recv_count[recv_index]+=recv_block.size();
+    num_pcls_recved += recv_block.size();
+    // grab the list of particles to process
+    vector_SpeciesParticle& pcl_list = recv_block.fetch_block();
 
+    // apply boundary conditions to the incoming particles
     if(pclCommMode&do_apply_BCs_globally)
     {
       apply_BCs_globally(pcl_list);
@@ -931,8 +950,6 @@ int Particles3Dcomm::handle_received_particles(int pclCommMode)
       apply_BCs_locally(pcl_list, recv_index);
     }
 
-    recv_count[recv_index]+=recv_block.size();
-    num_pcls_recved += recv_block.size();
     // process each particle in the received block.
     {
       for(int pidx=0;pidx<recv_block.size();pidx++)
@@ -965,13 +982,17 @@ int Particles3Dcomm::handle_received_particles(int pclCommMode)
   for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
     assert(recvPclList[di].comm_finished());
 
-  if(print_pcl_comm_counts)
+  // report the number of particles received e.g. per direction
+  if(print_pcl_comm_counts())
   {
     dprintf("spec %d recved_count: %d", is, num_pcls_recved);
     dprintf("spec %d resent_count: %d", is, num_pcls_resent);
     for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
     {
-      dprintf("spec %d send_count[%d]: %d", is, di, send_count[di]);
+      int dirs[3];
+      vct->set_direction_for_index(dirs, di);
+      dprintf("spec %d recv in dir [%d,%d,%d]: %d", is,
+        dirs[0], dirs[1], dirs[2], recv_count[di]);
     }
   }
   // return the number of particles that were resent
@@ -1130,7 +1151,7 @@ void Particles3Dcomm::apply_Zrght_BC(vector_SpeciesParticle& pcls, int start)
 // return number of particles sent
 int Particles3Dcomm::separate_and_send_particles()
 {
-  // why does it happen that multiple particles have an ID of 0?
+  // find particle 0 and print it
   if(false) {
     const int num_ids = 1;
     longid id_list[num_ids] = {0};
@@ -1190,18 +1211,16 @@ int Particles3Dcomm::separate_and_send_particles()
   assert_eq(_pcls.size(),np_current);
   const int num_pcls_unsent = getNOP();
   const int num_pcls_sent = num_pcls_initially - num_pcls_unsent;
-  if(print_pcl_comm_counts)
+  if(print_pcl_comm_counts())
   {
-    int total_sent = 0;
-    if(0) for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
+    for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
     {
-      total_sent += send_count[di];
       int dirs[3];
       vct->set_direction_for_index(dirs, di);
       dprintf("spec %d send_count in dir [%d,%d,%d]: %d",get_species_num(),
         dirs[0], dirs[1], dirs[2], send_count[di]);
     }
-    dprintf("spec %d total_sent = %d",is,total_sent);
+    dprintf("spec %d total_sent = %d",is,num_pcls_sent);
   }
   return num_pcls_sent;
 }
@@ -1274,7 +1293,7 @@ void Particles3Dcomm::receive_particles_until_done()
   // to check if all particles have been communicated
   //
   long long total_num_pcls_sent = mpi_global_sum(num_pcls_sent);
-  if(print_pcl_comm_counts)
+  if(print_pcl_comm_counts())
   {
     dprintf("spec %d pcls sent: %d, %d",
       is, num_pcls_sent, total_num_pcls_sent);
@@ -1312,7 +1331,7 @@ void Particles3Dcomm::receive_particles_until_done()
     num_pcls_sent = handle_received_particles();
   
     total_num_pcls_sent = mpi_global_sum(num_pcls_sent);
-    if(print_pcl_comm_counts)
+    if(print_pcl_comm_counts())
       dprint(total_num_pcls_sent);
     comm_count++;
   }

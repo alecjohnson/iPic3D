@@ -222,6 +222,7 @@ public:
   void Print() const;
   /** Print the number of particles of this subdomain */
   void PrintNp() const;
+  bool print_pcl_comm_counts()const;
 
 public:
   // accessors

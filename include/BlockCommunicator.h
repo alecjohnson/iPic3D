@@ -548,6 +548,12 @@ class BlockCommunicator
         // wait for communication to finish sending
         // so that we can reuse this block
         //
+        // This does not work on some systems,
+        // because evidently in some implementations
+        // of MPI the send will not complete if
+        // the recipient process is itself waiting
+        // (e.g. to finish sending to this process).
+        //
         dprintf("waiting for send of block %d to complete.",
           fetch_curr_block().get_id());
         fetch_curr_block().waitfor_send();
