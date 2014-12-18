@@ -470,7 +470,7 @@ inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
   ASSUME_ALIGNED(beg_pos);
   ASSUME_ALIGNED(end_pos);
   // which direction is the particle going?
-  double x[3] ALLIGNED_ALLOC;
+  double x[3] ALLOC_ALIGNED;
   int dirs[3] ALLOC_ALIGNED;
   for(int i=0;i<3;i++)
   {
