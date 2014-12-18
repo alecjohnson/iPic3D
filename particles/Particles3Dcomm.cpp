@@ -462,16 +462,19 @@ void Particles3Dcomm::resize_SoA(int nop)
 inline bool Particles3Dcomm::send_pcl_to_appropriate_buffer(
   SpeciesParticle& pcl, int*send_count)
 {
-  const double *x = &pcl.fetch_x();
+  const double *u = &pcl.fetch_u();
   const double *beg_pos = grid->get_beg_pos();
   const double *end_pos = grid->get_end_pos();
-  ASSUME_ALIGNED(x);
+
+  ASSUME_ALIGNED(u);
   ASSUME_ALIGNED(beg_pos);
   ASSUME_ALIGNED(end_pos);
   // which direction is the particle going?
+  double x[3] ALLIGNED_ALLOC;
   int dirs[3] ALLOC_ALIGNED;
   for(int i=0;i<3;i++)
   {
+    x[i] = u[4+i];
     // this way would avoid branching but does not cap direction
     //int dirs[i] = floor((x[i]-beg_pos[i])*widthinv[i])
     if(x[i]<beg_pos[i]) dirs[i]=-1;
