@@ -97,6 +97,12 @@ void print_pcls(vector_SpeciesParticle& pcls, int is, longid* id_list, int num_i
 
 /** deallocate particles */
 Particles3Dcomm::~Particles3Dcomm() {
+  for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
+  {
+    // placement delete
+    sendPclList[di].~BlockCommunicator<SpeciesParticle>();
+    recvPclList[di].~BlockCommunicator<SpeciesParticle>();
+  }
   // extra xavg for sort
   MPI_Comm_free(&mpi_comm);
   delete numpcls_in_bucket;
@@ -146,7 +152,9 @@ Particles3Dcomm::Particles3Dcomm(
     // ...and an appropriate direction tag.
     int send_tag = vct->get_pinned_direction_tag(di);
     // the direction tag encodes the direction that the data moves
-    sendPclList[di].init(Connection(dest_rank, send_tag, mpi_comm));
+    // (using placement new to create communicator)
+    new(&sendPclList[di]) BlockCommunicator<SpeciesParticle>(
+      Connection(dest_rank, send_tag, mpi_comm));
   }
   // di is the direction that the data is coming from
   for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
@@ -156,7 +164,9 @@ Particles3Dcomm::Particles3Dcomm(
     // for each direction determine the destination process...
     int source_rank = vct->get_valid_neighbor_rank(from_di);
     // the direction tag encodes the direction that the data moves
-    recvPclList[di].init(Connection(source_rank, di, mpi_comm));
+    // (using placement new to create communicator)
+    new(&recvPclList[di]) BlockCommunicator<SpeciesParticle>( 
+      Connection(source_rank, di, mpi_comm));
   }
 
   for(int di=0;di<NUM_COMM_NEIGHBORS;di++)
