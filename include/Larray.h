@@ -8,7 +8,7 @@
 
 // linear array (e.g. of particles)
 // 
-// This basically extends aligned_vector(type),
+// This basically extends std::vector
 // and the interface should be maintained in line with std::vector.
 // Unfortunately, the mechanisms that C++ provides for extending
 // the interface of a class are deficient, particularly in
