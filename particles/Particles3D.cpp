@@ -655,8 +655,8 @@ void Particles3D::mover_PC_AoS_vec_intr(const_arr4_double fieldForPcls)
   const F64vec8 dx_inv = make_F64vec8(get_invdx(), get_invdy(), get_invdz());
   // starting physical position of proper subdomain ("pdom", without ghosts)
   const F64vec8 pdom_xlow = make_F64vec8(get_xstart(),get_ystart(), get_zstart());
-  F64vec8 umaximum = make_F64vec8(umax,vmax,wmax);
-  F64vec8 uminimum = make_F64vec8(umin,vmin,wmin);
+  F64vec8 umaximum = make_F64vec8(maxvel[0],maxvel[1],maxvel[2]);
+  F64vec8 uminimum = make_F64vec8(minvel[0],minvel[1],minvel[2]);
   //
   // compute canonical coordinates of subdomain (including ghosts)
   // relative to global coordinates.
@@ -685,7 +685,8 @@ void Particles3D::mover_PC_AoS_vec_intr(const_arr4_double fieldForPcls)
   const double qdto2mc_d = qom * dto2_d / c;
   const F64vec8 dto2 = F64vec8(dto2_d);
   const F64vec8 qdto2mc = F64vec8(qdto2mc_d);
-  const bool box_cap_velocity = (Parameters::vel_cap_method()==box_capped);
+  const bool box_cap_velocity
+    = (Parameters::vel_cap_method()==Parameters::box_capped);
   #pragma omp for schedule(static)
   for (int pidx = 0; pidx < getNOP(); pidx+=2)
   {
