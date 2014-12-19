@@ -409,33 +409,53 @@ bool Particles3Dcomm::print_pcl_comm_counts()const
 //
 void Particles3Dcomm::pad_capacities()
 {
- #pragma omp single
- {
-  _pcls.reserve(roundup_to_multiple(_pcls.size(),DVECWIDTH));
-  u.reserve(roundup_to_multiple(u.size(),DVECWIDTH));
-  v.reserve(roundup_to_multiple(v.size(),DVECWIDTH));
-  w.reserve(roundup_to_multiple(w.size(),DVECWIDTH));
-  q.reserve(roundup_to_multiple(q.size(),DVECWIDTH));
-  x.reserve(roundup_to_multiple(x.size(),DVECWIDTH));
-  y.reserve(roundup_to_multiple(y.size(),DVECWIDTH));
-  z.reserve(roundup_to_multiple(z.size(),DVECWIDTH));
-  t.reserve(roundup_to_multiple(t.size(),DVECWIDTH));
- }
+  // The synchronization is needed only if reallocation is needed.
+  const int nAoS_needed = roundup_to_multiple(_pcls.size(),DVECWIDTH);
+  if(_pcls.capacity() < nAoS_needed)
+  {
+    #pragma omp barrier
+    #pragma omp single
+    {
+      _pcls.reserve(nAoS_needed);
+    }
+  }
+  const int nSoA_needed = roundup_to_multiple(u.size(),DVECWIDTH);
+  if(u.capacity() < nSoA_needed)
+  {
+    #pragma omp barrier
+    #pragma omp single
+    {
+      u.reserve(nSoA_needed);
+      v.reserve(nSoA_needed);
+      w.reserve(nSoA_needed);
+      q.reserve(nSoA_needed);
+      x.reserve(nSoA_needed);
+      y.reserve(nSoA_needed);
+      z.reserve(nSoA_needed);
+      t.reserve(nSoA_needed);
+    }
+  }
 }
 
 void Particles3Dcomm::resize_AoS(int nop)
 {
- #pragma omp master
- {
   const int padded_nop = roundup_to_multiple(nop,DVECWIDTH);
-  _pcls.reserve(padded_nop);
-  _pcls.resize(nop);
- }
+  // both of the following are needed in case of reallocation
+  #pragma omp barrier // needed in case of decreased capacity
+  // implies barrier at end needed in case of increased capacity
+  #pragma omp single
+  {
+    _pcls.reserve(padded_nop); // this does reallocation
+    // this can increase or decrease visible memory
+    _pcls.resize(nop); // modifies visible memory
+  }
 }
 
 void Particles3Dcomm::resize_SoA(int nop)
 {
- #pragma omp master
+ // see previous function for comments on logic
+ #pragma omp barrier
+ #pragma omp single
  {
   //
   // allocate space for particles including padding

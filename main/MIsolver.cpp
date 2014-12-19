@@ -117,6 +117,7 @@ void MIsolver::accumulate_moments()
     {
       Particles3Dcomm& pcls = kinetics->fetch_pcls(is);
       speciesMoms->accumulateMoments(is, pcls);
+      //#pragma omp barrier
       //#pragma omp master
       //[...send accumulated moments to cluster...]
     }

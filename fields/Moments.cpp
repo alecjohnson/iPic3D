@@ -1026,7 +1026,8 @@ void SpeciesMoms::sumMoments_vec(const Particles3Dcomm& pcls)
       // when we change to use asynchronous communication.
       // communicateGhostP2G(is, vct);
   }
-  #pragma omp master
+  #pragma omp barrier
+  #pragma omp single nowait
   { delArray4<double>(node_destined_moms); }
 }
 //
@@ -1512,7 +1513,11 @@ void SpeciesMoms::sumMoments_AoS_intr(const Particles3Dcomm& pcls)
     cell_moments_per_thr
     = (array4<F64vec8>*) malloc(num_threads*sizeof(array4<F64vec8>));
   }
-  #pragma omp single //#pragma omp for // (is memory allocation thread-safe?)
+  // memory allocation is supposed to be thread safe,
+  // so could use "#pragma omp for", but thread-safety is
+  // achieved by means of mutex lock, so I wouldn't expect
+  // any gain in performance over this.
+  #pragma omp single
   for(int thread_num=0;thread_num<num_threads;thread_num++)
   {
     // use placement new to allocate array to accumulate moments for thread
@@ -1530,7 +1535,7 @@ void SpeciesMoms::sumMoments_AoS_intr(const Particles3Dcomm& pcls)
     node_moments_last2_per_thr
     = (array4<double>*) malloc(num_threads*sizeof(array4<double>));
   }
-  #pragma omp single //#pragma omp for // (is memory allocation thread-safe?)
+  #pragma omp single
   for(int thread_num=0;thread_num<num_threads;thread_num++)
   {
     // use placement new to allocate array to accumulate moments for thread
@@ -1818,7 +1823,16 @@ void SpeciesMoms::sumMoments_AoS_intr(const Particles3Dcomm& pcls)
     }
   }
 
-  #pragma omp single
+  // deallocation typically needs omp barrier at beginning:
+  // need to wait until all threads are done with memory
+  // before deallocating it (though deleting earlier would
+  // probably not cause problems unless memory allocation
+  // occurs between deletion and last use).
+  #pragma omp barrier
+  // nowait should be okay, assuming memory deallocation and
+  // allocation routines are properly implemented (with a
+  // mutex locking mechanism) to be thread-safe.
+  #pragma omp single nowait
   {
     // deallocate memory per mesh node for accumulating moments
     //

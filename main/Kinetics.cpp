@@ -81,9 +81,12 @@ bool Kinetics::moveParticles(const_arr4_double fieldForPcls)
         default:
           unsupported_value_error(Parameters::get_MOVER_TYPE());
       }
-      // overlap initial communication of electrons with moving of ions
+      #pragma omp barrier // must complete push before beginning sort
       #pragma omp master // should change separating to be multi-threaded
-      speciesPcls[is].separate_and_send_particles();
+      // overlap initial communication of electrons with moving of ions
+      {
+        speciesPcls[is].separate_and_send_particles();
+      }
     }
     }
     for (int is = 0; is < ns; is++)  // communicate each species
