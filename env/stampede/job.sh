@@ -54,6 +54,6 @@ then
 else
   set -x
   scontrol show hostname | sed 's/$/-mic0/' > "$DATA"/machinefile
-  #ibrun.symm -np $NUM_PROCS -machinefile machinefile -env LD_LIBRARY_PATH $MIC_LD_LIBRARY_PATH -m ./iPic3D "$DATA"/parameters.inp | tee out.${XLEN}x${YLEN}.mic.txt
+  #ibrun.symm -np $NUM_PROCS -machinefile machinefile -env $LD_LIBRARY_PATH $MIC_LD_LIBRARY_PATH -m ./iPic3D "$DATA"/parameters.inp | tee out.${XLEN}x${YLEN}.mic.txt
   mpiexec.hydra -np $NUM_PROCS -machinefile "$DATA"/machinefile -env LD_LIBRARY_PATH $MIC_LD_LIBRARY_PATH ./iPic3D "$DATA"/parameters.inp | tee out.${XLEN}x${YLEN}.mic.txt
 fi
