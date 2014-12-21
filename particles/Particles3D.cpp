@@ -522,6 +522,14 @@ void Particles3D::mover_PC_AoS(const_arr4_double fieldForPcls)
   const double dto2 = .5 * dt, qdto2mc = qom * dto2 / c;
   const bool box_cap_velocity
     = (Parameters::vel_cap_method()==Parameters::box_capped);
+  double maxvel[3] ALLOC_ALIGNED = {
+    setting.col().get_maxvel(0),
+    setting.col().get_maxvel(1),
+    setting.col().get_maxvel(2)};
+  double minvel[3] ALLOC_ALIGNED = {
+    setting.col().get_minvel(0),
+    setting.col().get_minvel(1),
+    setting.col().get_minvel(2)};
   #pragma omp for schedule(static)
   for (int pidx = 0; pidx < getNOP(); pidx++) {
     // copy the particle

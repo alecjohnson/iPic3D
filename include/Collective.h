@@ -66,6 +66,7 @@ class Collective
     /*! save setting in a file */
     void save();
 
+  public:
     // accessors
     //
     int getDim()const{ return (dim); }
@@ -166,13 +167,9 @@ class Collective
     bool getCallFinalize()const{ return (CallFinalize); }
     bool particle_output_is_off()const;
     bool field_output_is_off()const;
-    
-    /*! Boundary condition selection for BCFace for the electric field components */
-    int bcEx[6], bcEy[6], bcEz[6];
-    /*! Boundary condition selection for BCFace for the magnetic field components */
-    int bcBx[6], bcBy[6], bcBz[6];
 
-  public: // accessors
+    // array accessors
+    //
     const double* get_rhoINIT()const{return rhoINIT;}
     const int* get_bcEx()const{return bcEx;}
     const int* get_bcEy()const{return bcEy;}
@@ -180,6 +177,16 @@ class Collective
     const int* get_bcBx()const{return bcBx;}
     const int* get_bcBy()const{return bcBy;}
     const int* get_bcBz()const{return bcBz;}
+    const double get_maxvel(int i)const{return maxvel[i];}
+    const double get_minvel(int i)const{return minvel[i];}
+    const double get_max_num_pcl_comms()const
+      {return max_num_pcl_comms;}
+    
+  public: // public data
+    /*! Boundary condition selection for BCFace for the electric field components */
+    int bcEx[6], bcEy[6], bcEz[6];
+    /*! Boundary condition selection for BCFace for the magnetic field components */
+    int bcBx[6], bcBy[6], bcBz[6];
 
   private:
     /*! inputfile */
@@ -374,6 +381,13 @@ class Collective
     int DiagnosticsOutputCycle;
     /*! Call Finalize() at end of program execution (true by default) */
     bool CallFinalize;
+
+    // derived parameters
+    //
+    // limits to apply to particle velocity
+    double maxvel[3];
+    double minvel[3];
+    int max_num_pcl_comms;
 };
 typedef Collective CollectiveIO;
 

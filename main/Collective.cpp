@@ -14,6 +14,8 @@
 #include "errors.h"
 #include "asserts.h" // for assert_ge
 #include "string.h"
+#include "Parameters.h"
+#include "parallel.h"
 
 // order must agree with Enum in Collective.h
 static const char *enumNames[] =
@@ -713,6 +715,88 @@ void Collective::init_derived_parameters()
     //assert_le(NpMaxNpRatio * npcel[i] * ncells_proper_per_proc , double(INT_MAX));
     //double npMaxi = (NpMaxNpRatio * np[i]);
     //npMax[i] = (int) npMaxi;
+  }
+
+  // velocity capping
+  //
+  const double domain_crossing_vel[3] = {
+    getLx()/getDt(),
+    getLy()/getDt(),
+    getLz()/getDt(),
+  };
+  double subdomain_crossing_vel[3] = {
+    domain_crossing_vel[0]/getXLEN(),
+    domain_crossing_vel[1]/getYLEN(),
+    domain_crossing_vel[2]/getZLEN(),
+  };
+  double cell_crossing_vel[3] = {
+    getDx()/getDt(),
+    getDy()/getDt(),
+    getDz()/getDt(),
+  };
+  switch(Parameters::vel_cap_scale_ref())
+  {
+    using namespace Parameters;
+    default:
+      unsupported_value_error(vel_cap_scale_ref());
+    case null: // default initialization of maxvel
+    case fraction_of_subdomain:
+    {
+      maxvel[0] = subdomain_crossing_vel[0];
+      maxvel[1] = subdomain_crossing_vel[1];
+      maxvel[2] = subdomain_crossing_vel[2];
+      break;
+    }
+    case fraction_of_domain:
+    {
+      maxvel[0] = domain_crossing_vel[0];
+      maxvel[1] = domain_crossing_vel[1];
+      maxvel[2] = domain_crossing_vel[2];
+      break;
+    }
+    case absolute_velocity:
+      maxvel[0] = maxvel[1] = maxvel[2] = 1.;
+      break;
+    case fraction_of_light_speed:
+      maxvel[0] = maxvel[1] = maxvel[2] = getC();
+      break;
+  }
+  maxvel[0] *= Parameters::vel_cap_scaled_value();
+  maxvel[1] *= Parameters::vel_cap_scaled_value();
+  maxvel[2] *= Parameters::vel_cap_scaled_value();
+  minvel[0] = -maxvel[0];
+  minvel[1] = -maxvel[1];
+  minvel[2] = -maxvel[2];
+  // fraction of domain that particle can move
+  double subdomain_fractional_vel[3];
+  // maximum number of communications needed to communicate all particles.
+  double max_num_pcl_comms_double = 0.9; // 1
+  for(int i=0;i<3;i++)
+  {
+    subdomain_fractional_vel[i] = maxvel[i]/subdomain_crossing_vel[i];
+    max_num_pcl_comms_double
+      = std::max(max_num_pcl_comms_double,subdomain_fractional_vel[i]);
+  }
+  max_num_pcl_comms = ceil(max_num_pcl_comms_double);
+  if(!Parameters::vel_cap_scale_ref())
+    assert_eq(max_num_pcl_comms,1);
+  // show velocity cap that will be applied
+  if(is_output_thread())
+  {
+    printf("--- particle mover parameters ---\n");
+    printf("  c=%g\n", getC());
+    printf("  velocity cap: umax=%g,vmax=%g,wmax=%g\n",
+      maxvel[0],maxvel[1],maxvel[2]);
+    printf("  cell crossing velocities: [%g,%g,%g]\n",
+      cell_crossing_vel[0],
+      cell_crossing_vel[1],
+      cell_crossing_vel[2]);
+    printf("  subdomain crossing velocities: [%g,%g,%g]\n",
+      subdomain_crossing_vel[0],
+      subdomain_crossing_vel[1],
+      subdomain_crossing_vel[2]);
+    printf("  particles should be communicated in at most %d=ceil(%g)"
+      " communications\n", max_num_pcl_comms, max_num_pcl_comms_double);
   }
 }
 

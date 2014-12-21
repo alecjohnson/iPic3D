@@ -401,16 +401,6 @@ protected:
   double Q_removed;
   /** density of the injection of the particles */
   double Ninj;
-
- protected:
-
-  // limiting particle motion
-  //
-  // limits to apply to particle velocity
-  //
-  double maxvel[3] ALLOC_ALIGNED;
-  double minvel[3] ALLOC_ALIGNED;
-  int max_num_pcl_comms;
 };
 
 // find the particles with particular IDs and print them

@@ -310,90 +310,6 @@ Particles3Dcomm::Particles3Dcomm(
     convertParticlesToAoS();
   #endif
   }
-
-  // velocity capping
-  //
-  const double domain_crossing_vel[3] = {
-    col->getLx()/col->getDt(),
-    col->getLy()/col->getDt(),
-    col->getLz()/col->getDt(),
-  };
-  double subdomain_crossing_vel[3] = {
-    domain_crossing_vel[0]/col->getXLEN(),
-    domain_crossing_vel[1]/col->getYLEN(),
-    domain_crossing_vel[2]/col->getZLEN(),
-  };
-  double cell_crossing_vel[3] = {
-    col->getDx()/col->getDt(),
-    col->getDy()/col->getDt(),
-    col->getDz()/col->getDt(),
-  };
-  switch(Parameters::vel_cap_scale_ref())
-  {
-    using namespace Parameters;
-    default:
-      unsupported_value_error(vel_cap_scale_ref());
-    case null: // default initialization of maxvel
-    case fraction_of_subdomain:
-    {
-      maxvel[0] = subdomain_crossing_vel[0];
-      maxvel[1] = subdomain_crossing_vel[1];
-      maxvel[2] = subdomain_crossing_vel[2];
-      break;
-    }
-    case fraction_of_domain:
-    {
-      maxvel[0] = domain_crossing_vel[0];
-      maxvel[1] = domain_crossing_vel[1];
-      maxvel[2] = domain_crossing_vel[2];
-      break;
-    }
-    case absolute_velocity:
-      maxvel[0] = maxvel[1] = maxvel[2] = 1.;
-      break;
-    case fraction_of_light_speed:
-      maxvel[0] = maxvel[1] = maxvel[2] = col->getC();
-      break;
-  }
-  maxvel[0] *= Parameters::vel_cap_scaled_value();
-  maxvel[1] *= Parameters::vel_cap_scaled_value();
-  maxvel[2] *= Parameters::vel_cap_scaled_value();
-  minvel[0] = -maxvel[0];
-  minvel[1] = -maxvel[1];
-  minvel[2] = -maxvel[2];
-  // fraction of domain that particle can move
-  double subdomain_fractional_vel[3];
-  // maximum number of communications needed to communicate all particles.
-  double max_num_pcl_comms_double = 0.9; // 1
-  for(int i=0;i<3;i++)
-  {
-    subdomain_fractional_vel[i] = maxvel[i]/subdomain_crossing_vel[i];
-    max_num_pcl_comms_double
-      = std::max(max_num_pcl_comms_double,subdomain_fractional_vel[i]);
-  }
-  max_num_pcl_comms = ceil(max_num_pcl_comms_double);
-  if(!Parameters::vel_cap_scale_ref())
-    assert_eq(max_num_pcl_comms,1);
-  // show velocity cap that will be applied
-  if(is_output_thread())
-  {
-    printf("--- particle mover parameters ---\n");
-    printf("  c=%g\n", col->getC());
-    printf("  species %d velocity cap: umax=%g,vmax=%g,wmax=%g\n",
-      is, maxvel[0],maxvel[1],maxvel[2]);
-    printf("  species %d thermal vel: uth=%g,vth=%g,wth=%g\n",
-      is, col->getUth(is), col->getVth(is), col->getWth(is));
-    printf("  cell crossing velocities: [%g,%g,%g]\n",
-      cell_crossing_vel[0],
-      cell_crossing_vel[1],
-      cell_crossing_vel[2]);
-    printf("  subdomain crossing velocities: [%g,%g,%g]\n",
-      subdomain_crossing_vel[0],
-      subdomain_crossing_vel[1],
-      subdomain_crossing_vel[2]);
-    printf("  particles should be communicated in at most %d=ceil(%g)"
-      " communications\n", max_num_pcl_comms, max_num_pcl_comms_double);
-  }
 }
 
 bool Particles3Dcomm::print_pcl_comm_counts()const
@@ -1259,6 +1175,7 @@ int Particles3Dcomm::separate_and_send_particles()
 void Particles3Dcomm::receive_particles_until_done()
 {
   timeTasks_set_communicating(); // communicating until end of scope
+  const int max_num_pcl_comms = setting.col().get_max_num_pcl_comms();
   assert_gt(max_num_pcl_comms,0);
   //
   // enforcing cap on particle velocities determines
@@ -1272,7 +1189,7 @@ void Particles3Dcomm::receive_particles_until_done()
   // communications rather than performing an
   // all-reduce on the number of particles sent.
   //
-  int num_recommunications = max_num_pcl_comms-1;
+  int num_recommunications = setting.col().get_max_num_pcl_comms()-1;
   for(int i=0;i<num_recommunications;i++)
   {
     num_pcls_sent = handle_received_particles();
