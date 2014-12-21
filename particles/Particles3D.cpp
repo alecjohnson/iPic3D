@@ -663,8 +663,14 @@ void Particles3D::mover_PC_AoS_vec_intr(const_arr4_double fieldForPcls)
   const F64vec8 dx_inv = make_F64vec8(get_invdx(), get_invdy(), get_invdz());
   // starting physical position of proper subdomain ("pdom", without ghosts)
   const F64vec8 pdom_xlow = make_F64vec8(get_xstart(),get_ystart(), get_zstart());
-  F64vec8 umaximum = make_F64vec8(maxvel[0],maxvel[1],maxvel[2]);
-  F64vec8 uminimum = make_F64vec8(minvel[0],minvel[1],minvel[2]);
+  F64vec8 umaximum = make_F64vec8(
+    setting.col().get_maxvel(0),
+    setting.col().get_maxvel(1),
+    setting.col().get_maxvel(2));
+  F64vec8 uminimum = make_F64vec8(
+    setting.col().get_minvel(0),
+    setting.col().get_minvel(1),
+    setting.col().get_minvel(2));
   //
   // compute canonical coordinates of subdomain (including ghosts)
   // relative to global coordinates.

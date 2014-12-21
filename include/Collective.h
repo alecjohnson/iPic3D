@@ -177,9 +177,9 @@ class Collective
     const int* get_bcBx()const{return bcBx;}
     const int* get_bcBy()const{return bcBy;}
     const int* get_bcBz()const{return bcBz;}
-    const double get_maxvel(int i)const{return maxvel[i];}
-    const double get_minvel(int i)const{return minvel[i];}
-    const double get_max_num_pcl_comms()const
+    double get_maxvel(int i)const{return maxvel[i];}
+    double get_minvel(int i)const{return minvel[i];}
+    double get_max_num_pcl_comms()const
       {return max_num_pcl_comms;}
     
   public: // public data
