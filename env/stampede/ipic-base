@@ -26,7 +26,7 @@ setenv I_MPI_DAPL_PROVIDER "ofa-v2-mlx4_0-1u"
 setenv CXX icpc
 setenv CC icc
 setenv FC ifort
-setenv IPIC_CMAKE_ARGS "-DHDF5_imf_LIBRARY_RELEASE=/opt/apps/intel/13/composer_xe_2013.2.146/compiler/lib/intel64 -DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report'"
+setenv IPIC_CMAKE_ARGS "-DHDF5_imf_LIBRARY_RELEASE=/opt/apps/intel/13/composer_xe_2013.2.146/compiler/lib/intel64 -DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report -DFLAT_ARRAYS'"
 
 # running
 #

@@ -15,7 +15,7 @@ module load ipic-base
 module load hdf5/1.8.10-patch1-parallel
 # prefixing these with mpi results in link errors
 setenv H5HUT_DIR $env(HOME)/install
-setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report' -DIPIC_H5HUT_OUTPUT=ON"
+setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report -DFLAT_ARRAYS' -DIPIC_H5HUT_OUTPUT=ON"
 
 # commands to install H5hut on knc1:
 #

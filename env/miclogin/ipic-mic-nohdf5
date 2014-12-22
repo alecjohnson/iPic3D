@@ -13,4 +13,4 @@ module-whatis   "set environment to run iPic3D on MIC"
 
 module load ipic-mic-base
 
-setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-O3 -openmp -fno-exceptions -fp-model fast=2 -vec-report -mmic' -DIPIC_HDF5_OUTPUT=OFF"
+setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-O3 -openmp -fno-exceptions -fp-model fast=2 -vec-report -mmic -DFLAT_ARRAYS' -DIPIC_HDF5_OUTPUT=OFF"

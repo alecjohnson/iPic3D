@@ -13,4 +13,4 @@ module-whatis "set environment for iPic3D"
 module load ipic-base
 
 setenv I_MPI_FABRICS shm:tcp
-setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report' -DIPIC_HDF5_OUTPUT=OFF"
+setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-openmp -fno-exceptions -O3 -xHost -vec-report -DFLAT_ARRAYS' -DIPIC_HDF5_OUTPUT=OFF"

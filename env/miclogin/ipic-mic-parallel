@@ -15,7 +15,7 @@ module load ipic-mic-base
 
 setenv H5HUT_DIR $env(HOME)/install-mic
 setenv HDF5_ROOT "/opt/hdf5/1.8.10-patch1-mic-parallel"
-setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-O3 -openmp -fno-exceptions -fp-model fast=2 -vec-report -mmic' -DIPIC_H5HUT_OUTPUT=ON"
+setenv IPIC_CMAKE_ARGS "-DCMAKE_CXX_FLAGS='-O3 -openmp -fno-exceptions -fp-model fast=2 -vec-report -mmic -DFLAT_ARRAYS' -DIPIC_H5HUT_OUTPUT=ON"
 prepend-path PATH $env(HDF5_ROOT)
 
 # commands I used to compile H5hut on MIC:
