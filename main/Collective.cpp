@@ -832,12 +832,23 @@ void Collective::Print() {
   cout << "Number of species    = " << ns << endl;
   for (int i = 0; i < ns; i++)
     cout << "qom[" << i << "] = " << qom[i] << endl;
+  cout << "initial # articles per mesh cell:";
+  cout << "\nnpcelx =";
+  for (int i = 0; i < ns; i++) cout << "  " << npcelx[i];
+  cout << "\nnpcely =";
+  for (int i = 0; i < ns; i++) cout << "  " << npcely[i];
+  cout << "\nnpcelz =";
+  for (int i = 0; i < ns; i++) cout << "  " << npcelz[i];
+  cout << endl;
   cout << "x-Length                 = " << Lx << endl;
   cout << "y-Length                 = " << Ly << endl;
   cout << "z-Length                 = " << Lz << endl;
-  cout << "Number of cells (x)      = " << nxc << endl;
-  cout << "Number of cells (y)      = " << nyc << endl;
-  cout << "Number of cells (z)      = " << nzc << endl;
+  cout << "Number of cells (x)      = " << nxc
+       << " <= " << nxc/XLEN << " * " << XLEN << endl;
+  cout << "Number of cells (y)      = " << nyc
+       << " <= " << nyc/YLEN << " * " << YLEN << endl;
+  cout << "Number of cells (z)      = " << nzc
+       << " <= " << nzc/ZLEN << " * " << ZLEN << endl;
   cout << "Time step                = " << dt << endl;
   cout << "Number of cycles         = " << ncycles << endl;
   cout << "Results saved in  : " << SaveDirName << endl;
